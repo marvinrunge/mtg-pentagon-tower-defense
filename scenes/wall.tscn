@@ -1,0 +1,48 @@
+[gd_scene load_steps=3 format=3 uid="uid://caxbxqy2kw2"]
+
+[ext_resource type="Script" path="res://scripts/wall.gd" id="1_wall"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall"]
+size = Vector3(30, 2, 2)
+
+[node name="Wall" type="Area3D" groups=["walls"]]
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("1_wall")
+
+[node name="Geometry" type="CSGCombiner3D" parent="."]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 0, 1, 0)
+use_collision = true
+collision_layer = 16
+collision_mask = 0
+
+[node name="Outer" type="CSGCylinder3D" parent="Geometry"]
+radius = 25.5
+height = 2.0
+sides = 5
+
+[node name="Inner" type="CSGCylinder3D" parent="Geometry"]
+operation = 2
+radius = 24.5
+height = 3.0
+sides = 5
+
+[node name="Collision1" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -20.2254)
+shape = SubResource("BoxShape3D_wall")
+
+[node name="Collision2" type="CollisionShape3D" parent="."]
+transform = Transform3D(0.309017, 0, -0.951057, 0, 1, 0, 0.951057, 0, 0.309017, 19.235, 1, -6.249)
+shape = SubResource("BoxShape3D_wall")
+
+[node name="Collision3" type="CollisionShape3D" parent="."]
+transform = Transform3D(-0.809017, 0, -0.587785, 0, 1, 0, 0.587785, 0, -0.809017, 11.888, 1, 16.362)
+shape = SubResource("BoxShape3D_wall")
+
+[node name="Collision4" type="CollisionShape3D" parent="."]
+transform = Transform3D(-0.809017, 0, 0.587785, 0, 1, 0, -0.587785, 0, -0.809017, -11.888, 1, 16.362)
+shape = SubResource("BoxShape3D_wall")
+
+[node name="Collision5" type="CollisionShape3D" parent="."]
+transform = Transform3D(0.309017, 0, 0.951057, 0, 1, 0, -0.951057, 0, 0.309017, -19.235, 1, -6.249)
+shape = SubResource("BoxShape3D_wall")

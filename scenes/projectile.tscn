@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://df5w3k8f2a1r1"]
+
+[ext_resource type="Script" path="res://scripts/projectile.gd" id="1_proj"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_1"]
+radius = 0.25
+
+[sub_resource type="StandardMaterial3D" id="Material_Proj"]
+albedo_color = Color(0.3, 0.8, 1.0, 1)
+emission_enabled = true
+emission = Color(0.2, 0.6, 1.0, 1)
+emission_energy_multiplier = 4.0
+
+[node name="Projectile" type="Area3D"]
+collision_layer = 0
+collision_mask = 20
+script = ExtResource("1_proj")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_1")
+
+[node name="Visual" type="CSGSphere3D" parent="."]
+radius = 0.25
+material = SubResource("Material_Proj")

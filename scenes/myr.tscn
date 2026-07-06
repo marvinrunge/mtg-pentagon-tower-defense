@@ -1,0 +1,21 @@
+[gd_scene load_steps=3 format=3 uid="uid://exv88f8k1a2r7"]
+
+[ext_resource type="Script" path="res://scripts/myr.gd" id="1_3"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_1"]
+radius = 0.4
+height = 1.0
+
+[node name="Myr" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 20
+script = ExtResource("1_3")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("CylinderShape3D_1")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+path_desired_distance = 1.0
+target_desired_distance = 1.0
+path_height_offset = 0.1
