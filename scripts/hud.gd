@@ -7,8 +7,6 @@ var _enemy_focus_stylebox: StyleBoxFlat
 @onready var health_label: Label = $Control/MarginContainer/VBoxContainer/HealthContainer/HealthLabel
 @onready var player_health_bar: ProgressBar = $Control/PlayerHealthBar
 @onready var player_health_label: Label = $Control/PlayerHealthBar/HPLabel
-@onready var xp_bar: ProgressBar = $Control/HotbarAndXPContainer/XPBar
-@onready var xp_label: Label = $Control/HotbarAndXPContainer/XPBar/Label
 @onready var mana_label_w: Label = $Control/MarginContainer/VBoxContainer/ManaContainer/ManaLabelW
 @onready var mana_label_u: Label = $Control/MarginContainer/VBoxContainer/ManaContainer/ManaLabelU
 @onready var mana_label_b: Label = $Control/MarginContainer/VBoxContainer/ManaContainer/ManaLabelB
@@ -26,10 +24,6 @@ var _enemy_focus_stylebox: StyleBoxFlat
 
 @onready var game_over_panel: PanelContainer = $Control/GameOverPanel
 @onready var restart_btn: Button = $Control/GameOverPanel/MarginContainer/VBoxContainer/RestartBtn
-
-@onready var level_up_label: Label = $Control/LevelUpLabel
-var _level_up_timer: float = 0.0
-var _last_level: int = 0
 
 # --- Spell Hotbar ---
 var _hotbar_slots: Array[PanelContainer] = []
@@ -59,8 +53,6 @@ func _ready() -> void:
 	SignalBus.health_changed.connect(update_health)
 	SignalBus.player_health_changed.connect(update_player_health)
 	SignalBus.mana_changed.connect(update_mana)
-	SignalBus.xp_changed.connect(update_xp)
-	SignalBus.player_leveled_up.connect(update_level)
 	SignalBus.active_spell_changed.connect(update_spell)
 	SignalBus.at_base_changed.connect(_on_at_base_changed)
 	SignalBus.enemy_focused.connect(_on_enemy_focused)
@@ -108,17 +100,8 @@ func _ready() -> void:
 	update_health(GameSettings.crystal_max_hp, GameSettings.crystal_max_hp)
 	update_player_health(GameSettings.player_max_hp, GameSettings.player_max_hp)
 	update_mana({})
-	update_xp(0, 100)
-	update_level(1, 0)
 
 func _process(delta: float) -> void:
-	if _level_up_timer > 0.0:
-		_level_up_timer -= delta
-		if level_up_label:
-			level_up_label.show()
-			level_up_label.modulate.a = clamp(_level_up_timer / 0.5, 0.0, 1.0)
-			if _level_up_timer <= 0.0:
-				level_up_label.hide()
 
 	if _player == null or not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player")
@@ -169,11 +152,6 @@ func setup_styles() -> void:
 	sb_player_fg.bg_color = Color(0.2, 0.8, 0.3, 0.9) # Green
 	player_health_bar.add_theme_stylebox_override("background", sb_bg)
 	player_health_bar.add_theme_stylebox_override("fill", sb_player_fg)
-	
-	var sb_xp_fg = sb_fg.duplicate()
-	sb_xp_fg.bg_color = Color(0.3, 0.65, 0.9, 0.9) # Light Blue
-	xp_bar.add_theme_stylebox_override("background", sb_bg)
-	xp_bar.add_theme_stylebox_override("fill", sb_xp_fg)
 
 func update_health(current: float, max_health: float) -> void:
 	health_bar.max_value = max_health
@@ -209,24 +187,6 @@ func update_mana(mana_pool: Dictionary) -> void:
 		mana_label_r.text = "R: %d" % mana_pool.get("Red", 0)
 	if mana_label_g:
 		mana_label_g.text = "G: %d" % mana_pool.get("Green", 0)
-
-func update_xp(current: int, max_xp: int) -> void:
-	xp_bar.max_value = max_xp
-	xp_bar.value = current
-	xp_label.text = xp_label.text.split(" | ")[0] + " | XP: %d / %d" % [current, max_xp]
-
-func update_level(level: int, sp: int) -> void:
-	var xp_part = ""
-	if xp_label.text.split(" | ").size() > 1:
-		xp_part = " | " + xp_label.text.split(" | ")[1]
-	xp_label.text = "Level: %d" % [level] + xp_part
-	
-	if _last_level > 0 and level > _last_level:
-		_level_up_timer = 2.0
-		if level_up_label:
-			level_up_label.show()
-			level_up_label.modulate.a = 1.0
-	_last_level = level
 
 func update_spell(spell_name: String) -> void:
 	pass

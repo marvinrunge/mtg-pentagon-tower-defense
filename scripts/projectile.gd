@@ -28,7 +28,7 @@ func _ready() -> void:
 	lifetime = base_lifetime
 	body_entered.connect(_on_body_entered)
 
-func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = false) -> void:
+func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = false, multiplier: float = 1.0, damage_override: float = -1.0) -> void:
 	global_position = start_pos
 	direction = dir
 	active = true
@@ -48,12 +48,12 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 	elif type == 1:
 		# Shock (Red, fast, high damage)
 		speed = base_speed * GameSettings.projectile_shock_speed_mult
-		damage = base_damage * GameSettings.projectile_shock_damage_mult
+		damage = base_damage * GameSettings.projectile_shock_damage_mult * multiplier
 		mat.albedo_color = Color(1.0, 0.2, 0.2)
 		mat.emission = Color(1.0, 0.1, 0.1)
 	elif type == 2:
 		# Unsummon (Blue wave)
-		speed = base_speed * GameSettings.projectile_unsummon_speed_mult
+		speed = base_speed * GameSettings.projectile_unsummon_speed_mult * multiplier
 		damage = 0.0 # Doesn't deal damage, triggers unsummon
 		mat.albedo_color = Color(0.1, 0.3, 1.0)
 		mat.emission = Color(0.1, 0.3, 1.0)
@@ -63,6 +63,9 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 		damage = base_damage * GameSettings.projectile_enemy_damage_mult * GameSettings.get_player_scaling_factor(get_tree())
 		mat.albedo_color = Color(0.8, 0.2, 0.8)
 		mat.emission = Color(0.8, 0.2, 0.8)
+		
+	if damage_override >= 0.0:
+		damage = damage_override
 	
 	life_timer = base_lifetime
 

@@ -184,8 +184,8 @@ func perform_attack() -> void:
 	if frost_slow_timer > 0:
 		attack_cooldown /= GameSettings.enemy_frost_slow_mult # Slower attacks when frosted
 		
-	if enemy_data.enemy_class == "Mage":
-		fire_magic_missile()
+	if enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged":
+		fire_projectile()
 		return
 		
 	var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
@@ -201,7 +201,7 @@ func perform_attack() -> void:
 		if current_target.has_method("take_damage"):
 			current_target.take_damage(actual_damage)
 
-func fire_magic_missile() -> void:
+func fire_projectile() -> void:
 	var proj = ProjectilePool.get_projectile()
 	if proj:
 		# Add a little height so it shoots from chest/head level
@@ -213,7 +213,11 @@ func fire_magic_missile() -> void:
 			target_pos += Vector3(0, 1.0, 0) # Aim at player chest
 		
 		var dir = (target_pos - start_pos).normalized()
-		proj.activate(start_pos, dir, 3, true)
+		
+		var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
+		actual_damage *= GameSettings.get_player_scaling_factor(get_tree())
+		
+		proj.activate(start_pos, dir, 3, true, 1.0, actual_damage)
 
 func perform_mage_spell() -> void:
 	match enemy_data.color_identity:

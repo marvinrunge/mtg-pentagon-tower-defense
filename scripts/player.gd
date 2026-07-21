@@ -15,10 +15,6 @@ var camera: Camera3D
 # --- RPG Stats ---
 var hp: float = GameSettings.player_max_hp
 var max_hp: float = GameSettings.player_max_hp
-var level: int = 1
-var current_xp: int = 0
-var xp_to_next: int = GameSettings.player_xp_base
-var sp: int = 0
 
 var carried_color: String = ""
 var harvest_timer: float = 0.0
@@ -32,6 +28,14 @@ var unlocked_skills = {
 	"black": false
 }
 
+var skill_levels = {
+	"red": 1,
+	"blue": 1,
+	"green": 1,
+	"white": 1,
+	"black": 1
+}
+
 var active_spell_index: int = 0
 var spell_names = ["Basic Attack", "Shock", "Unsummon", "Giant Growth", "Healing Grace", "Stab"]
 var spell_colors = ["none", "red", "blue", "green", "white", "black"]
@@ -41,8 +45,6 @@ var is_giant: bool = false
 var giant_timer: float = 0.0
 var base_scale: Vector3 = Vector3.ONE
 
-var has_grace_shield: bool = false
-var grace_visual: CSGSphere3D
 
 var slow_timer: float = 0.0
 
@@ -69,7 +71,6 @@ func _ready() -> void:
 	
 	setup_camera()
 	
-	SignalBus.enemy_died.connect(_on_enemy_died)
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
 	
 	# Delay emitting the initial active spell until the HUD is ready
@@ -183,38 +184,14 @@ func cast_active_spell() -> void:
 		5: cast_stab()
 
 # --- RPG Logic ---
-func _on_enemy_died(xp: int) -> void:
-	current_xp += xp
-	while current_xp >= xp_to_next:
-		current_xp -= xp_to_next
-		level_up()
-	SignalBus.xp_changed.emit(current_xp, xp_to_next)
-
-func level_up() -> void:
-	level += 1
-	sp += 1
-	max_hp += GameSettings.player_hp_per_level
-	hp = max_hp
-	xp_to_next = int(xp_to_next * GameSettings.player_xp_scaling)
-	SignalBus.player_health_changed.emit(hp, max_hp)
-	SignalBus.player_leveled_up.emit(level, sp)
-
 func _on_skill_unlocked(color: String) -> void:
-	unlocked_skills[color] = true
-	sp -= 1
-	SignalBus.player_leveled_up.emit(level, sp)
+	if not unlocked_skills[color]:
+		unlocked_skills[color] = true
+	else:
+		skill_levels[color] += 1
 
 func take_damage(amount: float) -> void:
 	if _invulnerable_timer > 0.0:
-		return
-	if has_grace_shield:
-		has_grace_shield = false
-		if grace_visual:
-			grace_visual.queue_free()
-			grace_visual = null
-		# AoE Burst Heal
-		SignalBus.crystal_damaged.emit(-GameSettings.spell_heal_amount) # Negative damage heals
-		heal(GameSettings.spell_heal_amount)
 		return
 		
 	hp -= amount
@@ -308,13 +285,15 @@ func cast_shock() -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
-	proj.activate(spawn_pos, dir, 1) # 1 for Red Shock
+	var multiplier = GameSettings.get_skill_multiplier(skill_levels["red"])
+	proj.activate(spawn_pos, dir, 1, false, multiplier) # 1 for Red Shock
 
 func cast_unsummon() -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
-	proj.activate(spawn_pos, dir, 2) # 2 for Blue Unsummon
+	var multiplier = GameSettings.get_skill_multiplier(skill_levels["blue"])
+	proj.activate(spawn_pos, dir, 2, false, multiplier) # 2 for Blue Unsummon
 
 func cast_giant_growth() -> void:
 	is_giant = true
@@ -326,24 +305,31 @@ func cast_giant_growth() -> void:
 func _on_giant_body_entered(body: Node3D) -> void:
 	if is_giant and body.is_in_group("enemies"):
 		if body.has_method("take_damage"):
-			body.take_damage(GameSettings.spell_giant_damage) # Massive melee damage
+			var multiplier = GameSettings.get_skill_multiplier(skill_levels["green"])
+			body.take_damage(GameSettings.spell_giant_damage * multiplier) # Massive melee damage
 
 func cast_healing_grace() -> void:
-	if has_grace_shield:
-		return
-	has_grace_shield = true
-	grace_visual = CSGSphere3D.new()
-	grace_visual.radius = 1.5
+	var multiplier = GameSettings.get_skill_multiplier(skill_levels["white"])
+	var heal_amt = GameSettings.spell_heal_amount * multiplier
+	SignalBus.crystal_damaged.emit(-heal_amt)
+	heal(heal_amt)
+	
+	var visual = CSGSphere3D.new()
+	visual.radius = 1.5
 	var mat = StandardMaterial3D.new()
 	mat.albedo_color = Color(1, 1, 0.9, 0.3)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.emission_enabled = true
 	mat.emission = Color(1, 1, 0.8)
-	grace_visual.material = mat
-	add_child(grace_visual)
+	visual.material = mat
+	add_child(visual)
+	
+	var tween = create_tween()
+	tween.tween_property(mat, "albedo_color:a", 0.0, 1.0)
+	tween.parallel().tween_property(visual, "scale", Vector3(1.5, 1.5, 1.5), 1.0)
+	tween.tween_callback(visual.queue_free)
 
 func cast_stab() -> void:
-	# Use Physics Direct Space State for raycast
 	var space_state = get_world_3d().direct_space_state
 	var start = camera.global_position
 	var end = start - camera.global_basis.z * GameSettings.spell_stab_range # Short range
@@ -352,7 +338,9 @@ func cast_stab() -> void:
 	
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
-		if enemy.health <= GameSettings.spell_stab_execute_threshold:
+		var multiplier = GameSettings.get_skill_multiplier(skill_levels["black"])
+		var execute_thresh = GameSettings.spell_stab_execute_threshold * multiplier
+		if enemy.health <= execute_thresh:
 			enemy.die()
 		else:
 			if enemy.has_method("apply_stab_debuff"):

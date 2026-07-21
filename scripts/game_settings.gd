@@ -38,9 +38,10 @@ extends Node
 @export var spell_cooldown_giant: float = 15.0
 @export var spell_cooldown_heal: float = 10.0
 @export var spell_cooldown_stab: float = 5.0
-@export var spell_giant_duration: float = 10.0
+@export var spell_giant_duration: float = 5.0
 @export var spell_giant_scale: float = 1.5
-@export var spell_giant_damage: float = 100.0
+@export var spell_giant_damage: float = 40.0
+@export var skill_unlock_cost: int = 1
 @export var spell_heal_amount: float = 50.0
 @export var spell_stab_range: float = 10.0
 @export var spell_stab_execute_threshold: float = 50.0
@@ -125,3 +126,12 @@ func get_player_scaling_factor(tree: SceneTree) -> float:
 	var player_count = max(1, players.size())
 	var clamp_count = clamp(player_count, 1, 5)
 	return lerp(min_damage_scale, 1.0, (clamp_count - 1) / 4.0)
+
+# ============================================================
+# SKILL UPGRADES
+# ============================================================
+func get_skill_upgrade_cost(current_level: int) -> int:
+	return skill_unlock_cost + (current_level * current_level * 2)
+
+func get_skill_multiplier(current_level: int) -> float:
+	return 1.0 + (current_level - 1) * 0.2
