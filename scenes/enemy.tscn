@@ -10,7 +10,7 @@ radius = 12.0
 
 [node name="Enemy" type="CharacterBody3D"]
 collision_layer = 4
-collision_mask = 27
+collision_mask = 31
 script = ExtResource("1_2")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
@@ -24,7 +24,7 @@ path_height_offset = 0.1
 
 [node name="AggroArea" type="Area3D" parent="."]
 collision_layer = 0
-collision_mask = 2
+collision_mask = 18
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="AggroArea"]
 shape = SubResource("SphereShape3D_Aggro")

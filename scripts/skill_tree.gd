@@ -1,7 +1,6 @@
 extends CanvasLayer
 class_name SkillTree
 
-signal skill_unlocked(color: String)
 
 @onready var points_label: Label = $Control/Panel/VBoxContainer/PointsLabel
 
@@ -28,12 +27,13 @@ func _ready() -> void:
 	update_ui()
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("skill_tree"):
+	if event.is_action_pressed("skill_tree") or (visible and event.is_action_pressed("ui_cancel")):
 		visible = not visible
 		if visible:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		else:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		get_viewport().set_input_as_handled()
 
 func _on_player_leveled_up(_level: int, sp: int) -> void:
 	available_sp = sp

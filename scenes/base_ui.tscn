@@ -50,54 +50,6 @@ text = "Build Myr (Cost: 2 Any Mana)"
 [node name="HSeparator" type="HSeparator" parent="Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
 
-[node name="WallLabel" type="Label" parent="Panel/MarginContainer/VBoxContainer"]
-layout_mode = 2
-text = "Walls"
-
-[node name="WallContainer" type="GridContainer" parent="Panel/MarginContainer/VBoxContainer"]
-layout_mode = 2
-columns = 2
-
-[node name="SteelWallBtn" type="Button" parent="Panel/MarginContainer/VBoxContainer/WallContainer"]
-layout_mode = 2
-text = "Steel (1 C)"
-
-[node name="SwordsWallBtn" type="Button" parent="Panel/MarginContainer/VBoxContainer/WallContainer"]
-layout_mode = 2
-text = "Swords (3 C, 1 W)"
-
-[node name="FrostWallBtn" type="Button" parent="Panel/MarginContainer/VBoxContainer/WallContainer"]
-layout_mode = 2
-text = "Frost (1 C, 2 U)"
-
-[node name="BoneWallBtn" type="Button" parent="Panel/MarginContainer/VBoxContainer/WallContainer"]
-layout_mode = 2
-text = "Bone (2 C, 1 B)"
-
-[node name="FireWallBtn" type="Button" parent="Panel/MarginContainer/VBoxContainer/WallContainer"]
-layout_mode = 2
-text = "Fire (1 C, 2 R)"
-
-[node name="RootsWallBtn" type="Button" parent="Panel/MarginContainer/VBoxContainer/WallContainer"]
-layout_mode = 2
-text = "Roots (1 C, 1 G)"
-
-[node name="WallActionsContainer" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="BoneRestoreBtn" type="Button" parent="Panel/MarginContainer/VBoxContainer/WallActionsContainer"]
-layout_mode = 2
-text = "Restore Bone Wall (15s)"
-visible = false
-
-[node name="FireWaveBtn" type="Button" parent="Panel/MarginContainer/VBoxContainer/WallActionsContainer"]
-layout_mode = 2
-text = "Fire Wave (1 R)"
-visible = false
-
-[node name="HSeparator2" type="HSeparator" parent="Panel/MarginContainer/VBoxContainer"]
-layout_mode = 2
-
 [node name="MyrListContainer" type="VBoxContainer" parent="Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_constants/separation = 10

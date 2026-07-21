@@ -16,8 +16,8 @@ var mana_sources: Array[Node3D] = []
 var enemy_spawners: Array[Node3D] = []
 
 # Game state variables
-var crystal_health: float = 1000.0
-var max_crystal_health: float = 1000.0
+var crystal_health: float = GameSettings.crystal_max_hp
+var max_crystal_health: float = GameSettings.crystal_max_hp
 
 var mana_pool: Dictionary = {
 	"White": 0,
@@ -29,11 +29,11 @@ var mana_pool: Dictionary = {
 
 const LANE_NAMES = ["White", "Blue", "Black", "Red", "Green"]
 var base_ui_instance: Control
-var current_wall: Node3D = null
 
 func _ready() -> void:
 	SignalBus.crystal_damaged.connect(damage_crystal)
 	SignalBus.mana_deposited.connect(add_mana)
+	SignalBus.damage_number_requested.connect(_on_damage_number_requested)
 	
 	# Instantiate Skill Tree
 	if skill_tree_scene:
@@ -78,24 +78,8 @@ func spawn_entities() -> void:
 		add_child(player)
 		print("Spawned Player at center.")
 	
-	# Spawn Myrs (one for each lane)
-	if myr_scene:
-		for i in range(5):
-			var myr = myr_scene.instantiate()
-			var angle_rad = deg_to_rad(i * 72.0)
-			# Spawn offsetted slightly towards their lane
-			myr.position = Vector3(sin(angle_rad) * 4.0, 0.75, -cos(angle_rad) * 4.0)
-			myr.name = "Myr_" + LANE_NAMES[i]
-			
-			# Assign targets
-			myr.set_meta("lane_index", i)
-			myr.set_meta("target_mana_source", mana_sources[i])
-			myr.set_meta("target_crystal", crystal_anchor)
-			
-			print("Spawned Myr for lane: ", LANE_NAMES[i])
-			# WE NO LONGER SPAWN MYRS AUTOMATICALLY
-			myr.queue_free()
-			
+	# Myrs are now spawned by the player via base UI, not here
+		
 	# Start Wave Manager
 	var wave_manager = WaveManager.new()
 	wave_manager.name = "WaveManager"
@@ -103,11 +87,23 @@ func spawn_entities() -> void:
 	wave_manager.start_waves(self)
 
 func damage_crystal(amount: float) -> void:
-	crystal_health = max(0.0, crystal_health - amount)
+	crystal_health = clamp(crystal_health - amount, 0.0, max_crystal_health)
 	SignalBus.health_changed.emit(crystal_health, max_crystal_health)
+	if amount != 0:
+		var text_color = Color(1.0, 0.35, 0.1) if amount > 0 else Color(0.2, 1.0, 0.4)
+		var spawn_pos = crystal_anchor.global_position + Vector3(randf_range(-0.5, 0.5), 2.5, randf_range(-0.5, 0.5)) if crystal_anchor else Vector3(0, 2.5, 0)
+		SignalBus.damage_number_requested.emit(spawn_pos, amount, text_color)
 		
 	if crystal_health <= 0.0:
 		game_over()
+
+func _on_damage_number_requested(pos: Vector3, amount: float, color: Color) -> void:
+	if not GameSettings.show_damage_numbers:
+		return
+	var dn = DamageNumber.new()
+	dn.position = pos
+	add_child(dn)
+	dn.setup(amount, color)
 
 func add_mana(color: String, amount: int) -> void:
 	if color == "":
@@ -116,6 +112,7 @@ func add_mana(color: String, amount: int) -> void:
 	if mana_pool.has(color):
 		mana_pool[color] += amount
 	else:
+		push_warning("add_mana: unknown color '%s', falling back to White" % color)
 		mana_pool["White"] += amount # Fallback
 		
 	SignalBus.mana_changed.emit(mana_pool)
@@ -189,27 +186,6 @@ func spend_mana_cost(cost_dict: Dictionary) -> bool:
 	SignalBus.mana_changed.emit(mana_pool)
 	return true
 
-func build_wall(wall_type: String) -> void:
-	if current_wall:
-		current_wall.queue_free()
-		
-	var wall_scene = load("res://scenes/wall.tscn")
-	current_wall = wall_scene.instantiate()
-	current_wall.position = crystal_anchor.position
-	add_child(current_wall)
-	
-	if current_wall.has_method("setup"):
-		current_wall.setup(wall_type)
-		
-	print("Built wall: ", wall_type)
-
-func trigger_red_wall() -> void:
-	if current_wall and current_wall.has_method("trigger_fire_wave"):
-		current_wall.trigger_fire_wave()
-
-func revive_bone_wall() -> void:
-	if current_wall and current_wall.has_method("revive_bone_wall"):
-		current_wall.revive_bone_wall()
 
 func game_over() -> void:
 	SignalBus.game_over.emit()

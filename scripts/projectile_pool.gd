@@ -1,11 +1,12 @@
 extends Node
 
-var pool_size: int = 20
+var pool_size: int
 var pool: Array[Projectile] = []
 
 @export var projectile_scene: PackedScene = preload("res://scenes/projectile.tscn")
 
 func _ready() -> void:
+	pool_size = GameSettings.projectile_pool_size
 	for i in range(pool_size):
 		var proj = projectile_scene.instantiate()
 		proj.active = false
@@ -20,6 +21,6 @@ func get_projectile() -> Projectile:
 		if not proj.active:
 			return proj
 	
-	# If we run out, maybe spawn a new one or just return the oldest one.
-	# For simplicity, we just reuse the first one.
+	# Pool exhausted — deactivate oldest projectile and reuse it
+	pool[0].deactivate()
 	return pool[0]

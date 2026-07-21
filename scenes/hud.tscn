@@ -1,12 +1,12 @@
-[gd_scene load_steps=2 format=3 uid="uid://hxv88f8k1a2r1"]
+[gd_scene format=3 uid="uid://d3ieneccg261a"]
 
-[ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
-[ext_resource type="Script" path="res://scripts/minimap.gd" id="3_minimap"]
+[ext_resource type="Script" uid="uid://du61yfubt8pq7" path="res://scripts/hud.gd" id="1_hud"]
+[ext_resource type="Script" uid="uid://h012fov2jkhd" path="res://scripts/minimap.gd" id="3_minimap"]
 
-[node name="HUD" type="CanvasLayer"]
+[node name="HUD" type="CanvasLayer" unique_id=1529679272]
 script = ExtResource("1_hud")
 
-[node name="Control" type="Control" parent="."]
+[node name="Control" type="Control" parent="." unique_id=1714711808]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -15,7 +15,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="Control"]
+[node name="MarginContainer" type="MarginContainer" parent="Control" unique_id=33519861]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
@@ -25,120 +25,99 @@ theme_override_constants/margin_left = 20
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 20
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Control/MarginContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="Control/MarginContainer" unique_id=716833104]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 10
 
-[node name="HealthContainer" type="HBoxContainer" parent="Control/MarginContainer/VBoxContainer"]
+[node name="HealthContainer" type="HBoxContainer" parent="Control/MarginContainer/VBoxContainer" unique_id=1003537063]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 15
 
-[node name="HealthLabel" type="Label" parent="Control/MarginContainer/VBoxContainer/HealthContainer"]
+[node name="HealthLabel" type="Label" parent="Control/MarginContainer/VBoxContainer/HealthContainer" unique_id=242026453]
 layout_mode = 2
-mouse_filter = 2
 theme_override_font_sizes/font_size = 18
 text = "Crystal Integrity: 100 / 100"
 
-[node name="HealthBar" type="ProgressBar" parent="Control/MarginContainer/VBoxContainer/HealthContainer"]
+[node name="HealthBar" type="ProgressBar" parent="Control/MarginContainer/VBoxContainer/HealthContainer" unique_id=953136024]
 custom_minimum_size = Vector2(300, 20)
 layout_mode = 2
-mouse_filter = 2
 size_flags_vertical = 4
+mouse_filter = 2
 show_percentage = false
 
-[node name="PlayerHealthContainer" type="HBoxContainer" parent="Control/MarginContainer/VBoxContainer"]
+[node name="ManaContainer" type="HBoxContainer" parent="Control/MarginContainer/VBoxContainer" unique_id=730388830]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 15
 
-[node name="Label" type="Label" parent="Control/MarginContainer/VBoxContainer/PlayerHealthContainer"]
+[node name="ManaLabelW" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer" unique_id=774786975]
 layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 18
-text = "Hero Health: 100 / 100"
-
-[node name="Bar" type="ProgressBar" parent="Control/MarginContainer/VBoxContainer/PlayerHealthContainer"]
-custom_minimum_size = Vector2(300, 20)
-layout_mode = 2
-mouse_filter = 2
-size_flags_vertical = 4
-show_percentage = false
-
-[node name="XPContainer" type="HBoxContainer" parent="Control/MarginContainer/VBoxContainer"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 15
-
-[node name="Label" type="Label" parent="Control/MarginContainer/VBoxContainer/XPContainer"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 18
-text = "Level: 1 | XP: 0 / 100"
-
-[node name="Bar" type="ProgressBar" parent="Control/MarginContainer/VBoxContainer/XPContainer"]
-custom_minimum_size = Vector2(300, 15)
-layout_mode = 2
-mouse_filter = 2
-size_flags_vertical = 4
-show_percentage = false
-
-[node name="ManaContainer" type="HBoxContainer" parent="Control/MarginContainer/VBoxContainer"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 15
-
-[node name="ManaLabelW" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer"]
-layout_mode = 2
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 18
 text = "W: 0"
 
-[node name="ManaLabelU" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer"]
+[node name="ManaLabelU" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer" unique_id=1846605482]
 layout_mode = 2
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.3, 0.5, 1, 1)
 theme_override_font_sizes/font_size = 18
 text = "U: 0"
 
-[node name="ManaLabelB" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer"]
+[node name="ManaLabelB" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer" unique_id=1109391449]
 layout_mode = 2
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
 theme_override_font_sizes/font_size = 18
 text = "B: 0"
 
-[node name="ManaLabelR" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer"]
+[node name="ManaLabelR" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer" unique_id=731577147]
 layout_mode = 2
-mouse_filter = 2
 theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
 theme_override_font_sizes/font_size = 18
 text = "R: 0"
 
-[node name="ManaLabelG" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer"]
+[node name="ManaLabelG" type="Label" parent="Control/MarginContainer/VBoxContainer/ManaContainer" unique_id=505040532]
 layout_mode = 2
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.3, 0.8, 0.3, 1)
 theme_override_font_sizes/font_size = 18
 text = "G: 0"
 
-[node name="SpellLabel" type="Label" parent="Control/MarginContainer/VBoxContainer"]
+[node name="StatusLabel" type="Label" parent="Control/MarginContainer/VBoxContainer" unique_id=1945300263]
 layout_mode = 2
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 20
-text = "Active Spell: Basic Attack"
-
-[node name="StatusLabel" type="Label" parent="Control/MarginContainer/VBoxContainer"]
-layout_mode = 2
-mouse_filter = 2
 theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
 theme_override_font_sizes/font_size = 16
-text = "Defend the Crystal - WUBRG Lanes Secure"
+text = ""
 
-[node name="InteractLabel" type="Label" parent="Control"]
+[node name="PlayerHealthBar" type="ProgressBar" parent="Control" unique_id=1902730548]
+custom_minimum_size = Vector2(250, 30)
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = -60.0
+offset_right = 280.0
+offset_bottom = -30.0
+grow_vertical = 0
+show_percentage = false
+
+[node name="HPLabel" type="Label" parent="Control/PlayerHealthBar" unique_id=1450511709]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 14
+text = "100 / 100"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="InteractLabel" type="Label" parent="Control" unique_id=39489284]
+visible = false
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -151,13 +130,36 @@ offset_right = 100.0
 offset_bottom = 50.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
 theme_override_font_sizes/font_size = 20
-text = "Press [Space] to Manage Base"
+text = "Press [F] to Manage Base"
 horizontal_alignment = 1
-visible = false
+vertical_alignment = 1
 
-[node name="TargetContainer" type="VBoxContainer" parent="Control"]
+[node name="LevelUpLabel" type="Label" parent="Control" unique_id=987103870]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -100.0
+offset_right = 200.0
+offset_bottom = -50.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 36
+text = "LEVEL UP!"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TargetContainer" type="VBoxContainer" parent="Control" unique_id=816039689]
+visible = false
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -168,19 +170,18 @@ offset_right = 150.0
 offset_bottom = 60.0
 grow_horizontal = 2
 mouse_filter = 2
-visible = false
 
-[node name="TargetLabel" type="Label" parent="Control/TargetContainer"]
+[node name="TargetLabel" type="Label" parent="Control/TargetContainer" unique_id=2085187810]
 layout_mode = 2
 text = "Enemy"
 horizontal_alignment = 1
 
-[node name="TargetHealthBar" type="ProgressBar" parent="Control/TargetContainer"]
+[node name="TargetHealthBar" type="ProgressBar" parent="Control/TargetContainer" unique_id=1359295342]
 custom_minimum_size = Vector2(300, 15)
 layout_mode = 2
 show_percentage = false
 
-[node name="Crosshair" type="ColorRect" parent="Control"]
+[node name="Crosshair" type="ColorRect" parent="Control" unique_id=911640817]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -193,11 +194,11 @@ offset_right = 2.0
 offset_bottom = 2.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
-color = Color(1.0, 1.0, 1.0, 0.85)
 tooltip_text = "Crosshair"
+mouse_filter = 2
+color = Color(1, 1, 1, 0.85)
 
-[node name="MinimapContainer" type="MarginContainer" parent="Control"]
+[node name="MinimapContainer" type="MarginContainer" parent="Control" unique_id=1961209242]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
@@ -211,13 +212,13 @@ grow_vertical = 0
 theme_override_constants/margin_right = 20
 theme_override_constants/margin_bottom = 20
 
-[node name="Minimap" type="ColorRect" parent="Control/MinimapContainer"]
+[node name="Minimap" type="ColorRect" parent="Control/MinimapContainer" unique_id=1723476232]
 custom_minimum_size = Vector2(200, 200)
 layout_mode = 2
 color = Color(0, 0, 0, 0.5)
 script = ExtResource("3_minimap")
 
-[node name="SettingsPanel" type="PanelContainer" parent="Control"]
+[node name="SettingsPanel" type="PanelContainer" parent="Control" unique_id=1654292985]
 visible = false
 layout_mode = 1
 anchors_preset = 8
@@ -232,35 +233,372 @@ offset_bottom = 100.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="Control/SettingsPanel"]
+[node name="MarginContainer" type="MarginContainer" parent="Control/SettingsPanel" unique_id=1884916619]
 layout_mode = 2
 theme_override_constants/margin_left = 20
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 20
 theme_override_constants/margin_bottom = 20
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Control/SettingsPanel/MarginContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="Control/SettingsPanel/MarginContainer" unique_id=1287433740]
 layout_mode = 2
 theme_override_constants/separation = 15
 
-[node name="Label" type="Label" parent="Control/SettingsPanel/MarginContainer/VBoxContainer"]
+[node name="Label" type="Label" parent="Control/SettingsPanel/MarginContainer/VBoxContainer" unique_id=2027692810]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "Settings"
 horizontal_alignment = 1
 
-[node name="ShowMinimapCheckbox" type="CheckBox" parent="Control/SettingsPanel/MarginContainer/VBoxContainer"]
+[node name="ShowMinimapCheckbox" type="CheckBox" parent="Control/SettingsPanel/MarginContainer/VBoxContainer" unique_id=285610792]
 layout_mode = 2
 button_pressed = true
 text = "Show Minimap"
 
-[node name="SizeLabel" type="Label" parent="Control/SettingsPanel/MarginContainer/VBoxContainer"]
+[node name="DamageNumbersCheckbox" type="CheckBox" parent="Control/SettingsPanel/MarginContainer/VBoxContainer" unique_id=285610793]
+layout_mode = 2
+button_pressed = true
+text = "Show Damage Numbers"
+
+[node name="SizeLabel" type="Label" parent="Control/SettingsPanel/MarginContainer/VBoxContainer" unique_id=966529125]
 layout_mode = 2
 text = "Minimap Size"
 
-[node name="MinimapSizeSlider" type="HSlider" parent="Control/SettingsPanel/MarginContainer/VBoxContainer"]
+[node name="MinimapSizeSlider" type="HSlider" parent="Control/SettingsPanel/MarginContainer/VBoxContainer" unique_id=98701182]
 layout_mode = 2
 min_value = 100.0
 max_value = 400.0
 value = 200.0
+
+[node name="GameOverPanel" type="PanelContainer" parent="Control" unique_id=987103810]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -150.0
+offset_right = 200.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Control/GameOverPanel" unique_id=987103811]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 30
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Control/GameOverPanel/MarginContainer" unique_id=987103812]
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="Title" type="Label" parent="Control/GameOverPanel/MarginContainer/VBoxContainer" unique_id=987103813]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.2, 0.2, 1)
+theme_override_font_sizes/font_size = 32
+text = "DEFEAT"
+horizontal_alignment = 1
+
+[node name="Message" type="Label" parent="Control/GameOverPanel/MarginContainer/VBoxContainer" unique_id=987103814]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "The Base Crystal was destroyed!"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="RestartBtn" type="Button" parent="Control/GameOverPanel/MarginContainer/VBoxContainer" unique_id=987103815]
+custom_minimum_size = Vector2(150, 45)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 18
+text = "Restart Game"
+
+[node name="HotbarAndXPContainer" type="VBoxContainer" parent="Control" unique_id=987103880]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -240.0
+offset_top = -125.0
+offset_right = 240.0
+offset_bottom = -30.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 5
+alignment = 1
+
+[node name="SpellHotbar" type="HBoxContainer" parent="Control/HotbarAndXPContainer" unique_id=987103820]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="Slot1" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103821]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1" unique_id=987103822]
+layout_mode = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1/VBox" unique_id=987103823]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 10
+text = "1"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1/VBox" unique_id=987103824]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Melee"
+horizontal_alignment = 1
+
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1" unique_id=987103851]
+visible = false
+layout_mode = 2
+color = Color(0, 0, 0, 0.65)
+
+[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1/CooldownOverlay" unique_id=987103852]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "1.5s"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Slot2" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103825]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2" unique_id=987103826]
+layout_mode = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2/VBox" unique_id=987103827]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 10
+text = "2"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2/VBox" unique_id=987103828]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Shock"
+horizontal_alignment = 1
+
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2" unique_id=987103853]
+visible = false
+layout_mode = 2
+color = Color(0, 0, 0, 0.65)
+
+[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2/CooldownOverlay" unique_id=987103854]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "1.5s"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Slot3" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103829]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3" unique_id=987103830]
+layout_mode = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3/VBox" unique_id=987103831]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 10
+text = "3"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3/VBox" unique_id=987103832]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Unsummon"
+horizontal_alignment = 1
+
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3" unique_id=987103855]
+visible = false
+layout_mode = 2
+color = Color(0, 0, 0, 0.65)
+
+[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3/CooldownOverlay" unique_id=987103856]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "1.5s"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Slot4" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103833]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4" unique_id=987103834]
+layout_mode = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4/VBox" unique_id=987103835]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 10
+text = "4"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4/VBox" unique_id=987103836]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Giant"
+horizontal_alignment = 1
+
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4" unique_id=987103857]
+visible = false
+layout_mode = 2
+color = Color(0, 0, 0, 0.65)
+
+[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4/CooldownOverlay" unique_id=987103858]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "1.5s"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Slot5" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103837]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5" unique_id=987103838]
+layout_mode = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5/VBox" unique_id=987103839]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 10
+text = "5"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5/VBox" unique_id=987103840]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Heal"
+horizontal_alignment = 1
+
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5" unique_id=987103859]
+visible = false
+layout_mode = 2
+color = Color(0, 0, 0, 0.65)
+
+[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5/CooldownOverlay" unique_id=987103860]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "1.5s"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Slot6" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103841]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6" unique_id=987103842]
+layout_mode = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6/VBox" unique_id=987103843]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 10
+text = "6"
+horizontal_alignment = 1
+
+[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6/VBox" unique_id=987103844]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Stab"
+horizontal_alignment = 1
+
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6" unique_id=987103861]
+visible = false
+layout_mode = 2
+color = Color(0, 0, 0, 0.65)
+
+[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6/CooldownOverlay" unique_id=987103862]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "1.5s"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="XPBar" type="ProgressBar" parent="Control/HotbarAndXPContainer" unique_id=343052876]
+custom_minimum_size = Vector2(410, 30)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+show_percentage = false
+
+[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/XPBar" unique_id=731992016]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 13
+text = "Level: 1 | XP: 0 / 100"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 

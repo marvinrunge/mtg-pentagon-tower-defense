@@ -11,9 +11,13 @@ class_name Minimap
 @export var myr_color: Color = Color.CYAN
 @export var base_color: Color = Color.WHITE
 
-func _process(_delta: float) -> void:
-	# Continuously request to redraw the minimap
-	queue_redraw()
+var _redraw_timer: float = 0.0
+
+func _process(delta: float) -> void:
+	_redraw_timer -= delta
+	if _redraw_timer <= 0:
+		_redraw_timer = GameSettings.minimap_update_interval
+		queue_redraw()
 
 func _draw() -> void:
 	var center = size / 2.0

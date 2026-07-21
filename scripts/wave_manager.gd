@@ -3,7 +3,6 @@ class_name WaveManager
 
 signal wave_started(wave_number: int)
 signal wave_completed(wave_number: int)
-signal all_waves_completed()
 
 @export var enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
 
@@ -15,27 +14,33 @@ var is_spawning: bool = false
 var enemies_to_spawn: Array = []
 var active_enemies: int = 0
 
-# The configuration for waves. Each wave is an array of dictionaries:
-# { "color": "Red", "type": "Melee", "count": 10, "delay": 1.0 }
+# The configuration for waves. Each wave is an array of dictionaries.
+# Each round now spawns enemies on ALL colors.
 var waves = [
-	[ # Wave 1: 5 Red Melee, 1 per second
-		{ "color": "Red", "type": "Melee", "count": 5, "delay": 1.0 }
+	[ # Wave 1
+		{ "color": "White", "type": "Melee", "count": 3 },
+		{ "color": "Blue", "type": "Melee", "count": 3 },
+		{ "color": "Black", "type": "Melee", "count": 3 },
+		{ "color": "Red", "type": "Melee", "count": 3 },
+		{ "color": "Green", "type": "Melee", "count": 3 }
 	],
-	[ # Wave 2: 5 Blue Ranged, slightly faster
-		{ "color": "Blue", "type": "Ranged", "count": 5, "delay": 0.8 }
+	[ # Wave 2
+		{ "color": "White", "type": "Ranged", "count": 3 },
+		{ "color": "Blue", "type": "Ranged", "count": 3 },
+		{ "color": "Black", "type": "Melee", "count": 5 },
+		{ "color": "Red", "type": "Ranged", "count": 3 },
+		{ "color": "Green", "type": "Melee", "count": 5 }
 	],
-	[ # Wave 3: Mix of White Melee and Green Mages
-		{ "color": "White", "type": "Melee", "count": 5, "delay": 1.5 },
-		{ "color": "Green", "type": "Mage", "count": 2, "delay": 4.0 }
-	],
-	[ # Wave 4: Black swarm
-		{ "color": "Black", "type": "Melee", "count": 15, "delay": 0.5 }
-	],
-	[ # Wave 5: Red Boss and some minions
-		{ "color": "Red", "type": "Boss", "count": 1, "delay": 0.0 },
-		{ "color": "Red", "type": "Ranged", "count": 5, "delay": 2.0 }
+	[ # Wave 3
+		{ "color": "White", "type": "Mage", "count": 1 },
+		{ "color": "Blue", "type": "Mage", "count": 1 },
+		{ "color": "Black", "type": "Melee", "count": 10 },
+		{ "color": "Red", "type": "Mage", "count": 1 },
+		{ "color": "Green", "type": "Mage", "count": 1 }
 	]
 ]
+
+
 
 var main_controller: Node3D
 
@@ -59,12 +64,19 @@ func start_next_wave() -> void:
 	var wave_config = waves[current_wave]
 	enemies_to_spawn.clear()
 	
+	var is_first_group = true
 	for group in wave_config:
+		var initial_delay = 0.0 if is_first_group else GameSettings.wave_delay_between_colors
+		is_first_group = false
+		
 		for i in range(group["count"]):
+			var spawn_delay = initial_delay if i == 0 else max(GameSettings.wave_spawn_delay_min, GameSettings.wave_spawn_delay_base - (current_wave * GameSettings.wave_spawn_delay_scaling))
 			var spawn_info = {
 				"color": group["color"],
 				"type": group["type"],
-				"delay": group["delay"]
+				"delay": spawn_delay,
+				"index": i,
+				"total": group["count"]
 			}
 			enemies_to_spawn.append(spawn_info)
 			
@@ -95,8 +107,22 @@ func spawn_next_enemy() -> void:
 	if main_controller and main_controller.enemy_spawners.size() > lane_idx:
 		var spawner = main_controller.enemy_spawners[lane_idx]
 		var enemy = enemy_scene.instantiate()
-		enemy.position = spawner.global_position + Vector3(0, 0.5, 0)
+		
+		# V-shape formation logic
+		var idx = info["index"]
+		var row = floor(float(idx) / 2.0)
+		var side = 1.0 if (idx % 2 == 1) else -1.0
+		if idx == 0: side = 0.0 # Center point
+		
+		# Spawner local axes: basis.z points backward (away from crystal), basis.x points right
+		var offset = (spawner.global_transform.basis.z * row * 3.0) + (spawner.global_transform.basis.x * side * 3.0)
+		
+		# Add a tiny bit of random jitter so they aren't completely rigid
+		offset += Vector3(randf_range(-0.5, 0.5), 0, randf_range(-0.5, 0.5))
+		
+		enemy.position = spawner.global_position + Vector3(0, 0.5, 0) + offset
 		enemy.set_meta("target_crystal", main_controller.crystal_anchor)
+		enemy.set_meta("formation_offset", offset)
 		main_controller.add_child(enemy)
 		
 		# Apply data
@@ -109,6 +135,10 @@ func spawn_next_enemy() -> void:
 		spawn_timer = enemies_to_spawn[0]["delay"]
 	else:
 		is_spawning = false
+		
+		# If somehow we already killed everything before the last spawn, trigger next immediately
+		if active_enemies <= 0:
+			_trigger_next_wave()
 
 func _color_to_lane_index(color: String) -> int:
 	match color:
@@ -122,14 +152,19 @@ func _color_to_lane_index(color: String) -> int:
 func _on_enemy_died(_xp: int) -> void:
 	active_enemies -= 1
 	if active_enemies <= 0 and not is_spawning:
-		# Wave clear
-		print("Wave ", current_wave + 1, " Completed!")
-		wave_completed.emit(current_wave + 1)
-		current_wave += 1
-		
-		# Simple 5 second delay before next wave
-		var t = get_tree().create_timer(5.0)
-		t.timeout.connect(start_next_wave)
+		_trigger_next_wave()
+
+func register_enemy() -> void:
+	active_enemies += 1
+
+func _trigger_next_wave() -> void:
+	print("Wave ", current_wave + 1, " Completed!")
+	wave_completed.emit(current_wave + 1)
+	current_wave += 1
+	
+	# Small 5s rest period before the new wave begins
+	var t = get_tree().create_timer(GameSettings.wave_rest_period)
+	t.timeout.connect(start_next_wave)
 
 func _generate_dynamic_wave(wave_idx: int) -> Array:
 	var wave_config = []
@@ -137,29 +172,28 @@ func _generate_dynamic_wave(wave_idx: int) -> Array:
 	var types = ["Melee", "Ranged", "Mage"]
 	
 	# Base difficulty
-	var difficulty = 5 + wave_idx * 2
+	var difficulty = GameSettings.wave_dynamic_base_difficulty + wave_idx * GameSettings.wave_dynamic_difficulty_per_wave
 	
 	# Add a boss every 5 waves
-	if (wave_idx + 1) % 5 == 0:
+	if (wave_idx + 1) % GameSettings.wave_boss_interval == 0:
 		wave_config.append({
 			"color": colors[randi() % colors.size()],
 			"type": "Boss",
 			"count": 1 + wave_idx / 10,
-			"delay": 2.0
+			"delay": GameSettings.wave_boss_delay
 		})
 		difficulty -= 5
 		
 	while difficulty > 0:
-		var c = colors[randi() % colors.size()]
-		var t = types[randi() % types.size()]
-		var count = 3 + randi() % 5 + (wave_idx / 3) # Scales up over time
-		var delay = max(0.2, 1.5 - (wave_idx * 0.05)) # Gets faster over time
-		wave_config.append({
-			"color": c,
-			"type": t,
-			"count": count,
-			"delay": delay
-		})
-		difficulty -= 3
+		# Dynamic waves now ensure we spawn at least something on all 5 colors
+		for c in colors:
+			var t = types[randi() % types.size()]
+			var count = 2 + randi() % 3 + (wave_idx / 4)
+			wave_config.append({
+				"color": c,
+				"type": t,
+				"count": count
+			})
+			difficulty -= 2
 		
 	return wave_config

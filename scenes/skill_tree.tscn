@@ -1,12 +1,12 @@
 [gd_scene format=3 uid="uid://cxv88f8k1a2r2"]
 
-[ext_resource type="Script" path="res://scripts/skill_tree.gd" id="1_st"]
+[ext_resource type="Script" uid="uid://by7cjiqmj5adi" path="res://scripts/skill_tree.gd" id="1_st"]
 
-[node name="SkillTree" type="CanvasLayer"]
+[node name="SkillTree" type="CanvasLayer" unique_id=475628560]
 layer = 10
 script = ExtResource("1_st")
 
-[node name="Control" type="Control" parent="."]
+[node name="Control" type="Control" parent="." unique_id=1886100620]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -14,7 +14,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="ColorRect" type="ColorRect" parent="Control"]
+[node name="ColorRect" type="ColorRect" parent="Control" unique_id=616112256]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -23,7 +23,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 0.8)
 
-[node name="Panel" type="Panel" parent="Control"]
+[node name="Panel" type="Panel" parent="Control" unique_id=1642885172]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -37,26 +37,26 @@ offset_bottom = 300.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Control/Panel"]
+[node name="VBoxContainer" type="VBoxContainer" parent="Control/Panel" unique_id=1323051986]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
 offset_bottom = 40.0
 grow_horizontal = 2
 
-[node name="Title" type="Label" parent="Control/Panel/VBoxContainer"]
+[node name="Title" type="Label" parent="Control/Panel/VBoxContainer" unique_id=1650551547]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "HERO SKILL TREE"
+text = "SKILL TREE"
 horizontal_alignment = 1
 
-[node name="PointsLabel" type="Label" parent="Control/Panel/VBoxContainer"]
+[node name="PointsLabel" type="Label" parent="Control/Panel/VBoxContainer" unique_id=1332509379]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.8, 0.8, 0.2, 1)
 text = "Available Skill Points: 0"
 horizontal_alignment = 1
 
-[node name="PentagonLayout" type="Control" parent="Control/Panel"]
+[node name="PentagonLayout" type="Control" parent="Control/Panel" unique_id=75432051]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -66,7 +66,7 @@ anchor_bottom = 0.5
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="RedNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout"]
+[node name="RedNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout" unique_id=1582250903]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -80,12 +80,12 @@ offset_bottom = -100.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/RedNode"]
+[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/RedNode" unique_id=1527412037]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.8, 0.2, 0.2, 1)
 
-[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/RedNode/TextureRect"]
+[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/RedNode/TextureRect" unique_id=1892520801]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -97,11 +97,11 @@ text = "Shock
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/RedNode"]
+[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/RedNode" unique_id=56255688]
 layout_mode = 2
 text = "Unlock (1 SP)"
 
-[node name="BlueNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout"]
+[node name="BlueNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout" unique_id=67108133]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -115,12 +115,12 @@ offset_bottom = 40.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/BlueNode"]
+[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/BlueNode" unique_id=2132302643]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.2, 0.4, 0.8, 1)
 
-[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/BlueNode/TextureRect"]
+[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/BlueNode/TextureRect" unique_id=719346314]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -132,11 +132,11 @@ text = "Unsummon
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/BlueNode"]
+[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/BlueNode" unique_id=1895728879]
 layout_mode = 2
 text = "Unlock (1 SP)"
 
-[node name="BlackNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout"]
+[node name="BlackNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout" unique_id=1627594133]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -150,12 +150,12 @@ offset_bottom = 200.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/BlackNode"]
+[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/BlackNode" unique_id=1493578093]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.2, 0.2, 0.2, 1)
 
-[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/BlackNode/TextureRect"]
+[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/BlackNode/TextureRect" unique_id=1102378590]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -167,11 +167,11 @@ text = "Stab
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/BlackNode"]
+[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/BlackNode" unique_id=1509611487]
 layout_mode = 2
 text = "Unlock (1 SP)"
 
-[node name="GreenNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout"]
+[node name="GreenNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout" unique_id=6947265]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -185,12 +185,12 @@ offset_bottom = 200.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/GreenNode"]
+[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/GreenNode" unique_id=1763376089]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.2, 0.8, 0.2, 1)
 
-[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/GreenNode/TextureRect"]
+[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/GreenNode/TextureRect" unique_id=516485692]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -203,11 +203,11 @@ Growth
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/GreenNode"]
+[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/GreenNode" unique_id=47895774]
 layout_mode = 2
 text = "Unlock (1 SP)"
 
-[node name="WhiteNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout"]
+[node name="WhiteNode" type="VBoxContainer" parent="Control/Panel/PentagonLayout" unique_id=596626965]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -221,12 +221,12 @@ offset_bottom = 40.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/WhiteNode"]
+[node name="TextureRect" type="ColorRect" parent="Control/Panel/PentagonLayout/WhiteNode" unique_id=895223227]
 custom_minimum_size = Vector2(100, 100)
 layout_mode = 2
 color = Color(0.9, 0.9, 0.8, 1)
 
-[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/WhiteNode/TextureRect"]
+[node name="Label" type="Label" parent="Control/Panel/PentagonLayout/WhiteNode/TextureRect" unique_id=442583961]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -240,6 +240,6 @@ Grace
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/WhiteNode"]
+[node name="Button" type="Button" parent="Control/Panel/PentagonLayout/WhiteNode" unique_id=1879352960]
 layout_mode = 2
 text = "Unlock (1 SP)"

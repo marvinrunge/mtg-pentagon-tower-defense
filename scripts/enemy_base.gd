@@ -4,12 +4,17 @@ class_name EnemyBase
 var target_crystal: Node3D
 var current_target: Node3D
 var last_target_position: Vector3
+var target_offset: Vector3 = Vector3.ZERO
+
+var _enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
 
 var enemy_data: EnemyData
 var health: float = 100.0
 var damage_penalty: float = 0.0
 var penalty_timer: float = 0.0
 var attack_cooldown: float = 0.0
+var frost_slow_timer: float = 0.0
+var path_update_timer: float = 0.0
 
 @onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
 @onready var aggro_area: Area3D = $AggroArea
@@ -19,11 +24,12 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 # For Mages
 var cast_timer: float = 0.0
+var target_eval_timer: float = 0.0
 
 func _ready() -> void:
 	add_to_group("enemies")
 	collision_layer = 4
-	collision_mask = 27
+	collision_mask = 31
 	
 	if has_meta("target_crystal"):
 		target_crystal = get_meta("target_crystal")
@@ -31,6 +37,9 @@ func _ready() -> void:
 		var crystal_nodes = get_tree().get_nodes_in_group("crystal")
 		if crystal_nodes.size() > 0:
 			target_crystal = crystal_nodes[0]
+			
+	if has_meta("formation_offset"):
+		target_offset = get_meta("formation_offset")
 			
 	current_target = target_crystal
 	update_path()
@@ -46,7 +55,7 @@ func setup(data: EnemyData) -> void:
 	# Adjust Aggro Area based on range
 	if aggro_col and aggro_col.shape is SphereShape3D:
 		var shape = aggro_col.shape as SphereShape3D
-		shape.radius = max(12.0, data.attack_range + 2.0)
+		shape.radius = max(GameSettings.enemy_aggro_radius, data.attack_range + 2.0)
 		
 	cast_timer = data.attack_speed
 	
@@ -83,8 +92,11 @@ func update_path() -> void:
 	var target_pos = Vector3.ZERO
 	if current_target and is_instance_valid(current_target):
 		target_pos = current_target.global_position
+		# If they are targeting the central crystal, keep their formation offset so they walk parallel
+		if current_target == target_crystal:
+			target_pos += target_offset
 	elif target_crystal:
-		target_pos = target_crystal.global_position
+		target_pos = target_crystal.global_position + target_offset
 		
 	if target_pos.distance_squared_to(last_target_position) > 0.1:
 		nav_agent.target_position = target_pos
@@ -114,18 +126,29 @@ func _physics_process(delta: float) -> void:
 		cast_timer -= delta
 		if cast_timer <= 0:
 			perform_mage_spell()
-			cast_timer = enemy_data.attack_speed
+			# Spells have a longer cooldown than regular attacks
+			cast_timer = enemy_data.attack_speed * GameSettings.enemy_mage_spell_cooldown_mult
 			
 	var dist_to_target = 999.0
 	if is_instance_valid(current_target):
 		dist_to_target = global_position.distance_to(current_target.global_position)
+		# Update path periodically so they track moving targets like the player
+		path_update_timer -= delta
+		if path_update_timer <= 0:
+			path_update_timer = GameSettings.enemy_path_update_interval
+			update_path()
+		
+	target_eval_timer -= delta
+	if target_eval_timer <= 0:
+		target_eval_timer = GameSettings.enemy_target_eval_interval
+		evaluate_target()
 		
 	# Movement
 	if dist_to_target > enemy_data.attack_range and not nav_agent.is_navigation_finished():
 		var next_path_position = nav_agent.get_next_path_position()
 		var speed_mult = 1.0
 		if frost_slow_timer > 0:
-			speed_mult = 0.3
+			speed_mult = GameSettings.enemy_frost_slow_mult
 		var new_velocity = (next_path_position - global_position).normalized() * enemy_data.speed * speed_mult
 		velocity.x = new_velocity.x
 		velocity.z = new_velocity.z
@@ -140,42 +163,57 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		
-		if attack_cooldown <= 0 and enemy_data.enemy_class != "Mage":
+		# Rotate towards target so they don't look like they are ignoring the player
+		if is_instance_valid(current_target):
+			var dir_to_target = (current_target.global_position - global_position).normalized()
+			if dir_to_target.length_squared() > 0.01:
+				var target_rotation = atan2(dir_to_target.x, dir_to_target.z)
+				rotation.y = lerp_angle(rotation.y, target_rotation, 8.0 * delta)
+		
+		if attack_cooldown <= 0:
 			perform_attack()
 
 func perform_attack() -> void:
 	if not is_instance_valid(current_target):
-		current_target = target_crystal
-		update_path()
+		evaluate_target()
 		return
 		
 	attack_cooldown = enemy_data.attack_speed
 	
 	# Apply frost slow if active
 	if frost_slow_timer > 0:
-		attack_cooldown /= 0.3 # 70% slower attacks (takes 3.33x as long)
+		attack_cooldown /= GameSettings.enemy_frost_slow_mult # Slower attacks when frosted
+		
+	if enemy_data.enemy_class == "Mage":
+		fire_magic_missile()
+		return
+		
 	var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
+	actual_damage *= GameSettings.get_player_scaling_factor(get_tree())
 	
 	if current_target == target_crystal:
 		SignalBus.crystal_damaged.emit(actual_damage)
-		# Melee units vanish after hitting crystal. Ranged keep shooting?
-		# Standard TD logic: enemies die when hitting base.
-		if enemy_data.enemy_class == "Melee" or enemy_data.enemy_class == "Boss":
-			queue_free()
 	elif current_target.is_in_group("myrs"):
 		current_target.queue_free()
-		current_target = target_crystal
-		update_path()
+		# Force re-evaluate next frame so we don't target the dying Myr
+		call_deferred("evaluate_target")
 	elif current_target.is_in_group("player"):
 		if current_target.has_method("take_damage"):
 			current_target.take_damage(actual_damage)
-	elif current_target.is_in_group("walls"):
-		var wall_script = current_target.get_meta("wall_parent")
-		if wall_script and wall_script.has_method("take_damage"):
-			wall_script.take_damage(actual_damage, self)
-			if wall_script.is_dead:
-				current_target = target_crystal
-				update_path()
+
+func fire_magic_missile() -> void:
+	var proj = ProjectilePool.get_projectile()
+	if proj:
+		# Add a little height so it shoots from chest/head level
+		var start_pos = global_position + Vector3(0, 1.2, 0)
+		var target_pos = current_target.global_position
+		if current_target == target_crystal:
+			target_pos += Vector3(0, 2.0, 0) # Aim at crystal center
+		elif current_target.is_in_group("player"):
+			target_pos += Vector3(0, 1.0, 0) # Aim at player chest
+		
+		var dir = (target_pos - start_pos).normalized()
+		proj.activate(start_pos, dir, 3, true)
 
 func perform_mage_spell() -> void:
 	match enemy_data.color_identity:
@@ -183,19 +221,20 @@ func perform_mage_spell() -> void:
 			# AoE Heal
 			var enemies = get_tree().get_nodes_in_group("enemies")
 			for e in enemies:
-				if is_instance_valid(e) and global_position.distance_to(e.global_position) < 15.0:
+				if is_instance_valid(e) and global_position.distance_to(e.global_position) < GameSettings.enemy_white_mage_range:
 					if e.has_method("heal"):
-						e.heal(30.0)
+						e.heal(GameSettings.enemy_white_mage_heal)
 		"Red":
 			# Damagedealer (Fireball at player)
 			var players = get_tree().get_nodes_in_group("player")
-			if players.size() > 0 and global_position.distance_to(players[0].global_position) < 20.0:
+			if players.size() > 0 and global_position.distance_to(players[0].global_position) < GameSettings.enemy_red_mage_range:
 				if players[0].has_method("take_damage"):
-					players[0].take_damage(enemy_data.attack_damage)
+					var scaled_damage = enemy_data.attack_damage * GameSettings.get_player_scaling_factor(get_tree())
+					players[0].take_damage(scaled_damage)
 		"Blue":
 			# Slows player
 			var players = get_tree().get_nodes_in_group("player")
-			if players.size() > 0 and global_position.distance_to(players[0].global_position) < 20.0:
+			if players.size() > 0 and global_position.distance_to(players[0].global_position) < GameSettings.enemy_blue_mage_range:
 				# We don't have a slow debuff yet, let's just simulate it or add it to player
 				if players[0].has_method("apply_slow"):
 					players[0].apply_slow()
@@ -203,42 +242,76 @@ func perform_mage_spell() -> void:
 			# Revive weak enemy
 			# Just spawn a new weak melee of the same color
 			var revived_data = EnemyDatabase.get_enemy_data("Black", "Melee")
-			var enemy_scene = load("res://scenes/enemy.tscn")
-			var new_enemy = enemy_scene.instantiate()
+			var new_enemy = _enemy_scene.instantiate()
 			new_enemy.position = global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
 			new_enemy.set_meta("target_crystal", target_crystal)
 			get_parent().add_child(new_enemy)
 			# Needs to be setup after adding to tree usually, but we can call setup directly
 			new_enemy.setup(revived_data)
-			new_enemy.health = revived_data.health * 0.5 # 50% HP
+			new_enemy.health = revived_data.health * GameSettings.enemy_black_mage_revive_hp_mult
+			var wm = get_tree().current_scene.get_node_or_null("WaveManager")
+			if wm:
+				wm.register_enemy()
 		"Green":
 			# Buff enemy (Giant Growth)
 			var enemies = get_tree().get_nodes_in_group("enemies")
 			for e in enemies:
-				if e != self and is_instance_valid(e) and global_position.distance_to(e.global_position) < 10.0:
-					e.scale = Vector3(1.5, 1.5, 1.5)
+				if e != self and is_instance_valid(e) and global_position.distance_to(e.global_position) < GameSettings.enemy_green_mage_range:
+					e.scale *= GameSettings.enemy_green_mage_buff_scale
 					if e.enemy_data:
-						e.enemy_data.attack_damage *= 1.5
+						e.enemy_data.attack_damage *= GameSettings.enemy_green_mage_buff_damage
 					break # Only buff one
 
 func heal(amount: float) -> void:
 	if enemy_data:
 		health = min(enemy_data.health, health + amount)
+		var spawn_pos = global_position + Vector3(0, 1.8, 0)
+		SignalBus.damage_number_requested.emit(spawn_pos, -amount, Color(0.2, 1.0, 0.4))
+
+func evaluate_target() -> void:
+	var best_target = target_crystal
+	var best_priority = 3 # 1:Player, 2:Myrs, 3:Crystal
+
+	# Mathematically check for the player to guarantee detection
+	var players = get_tree().get_nodes_in_group("player")
+	if players.size() > 0 and is_instance_valid(players[0]):
+		var detection_range = GameSettings.enemy_melee_detection_range
+		if enemy_data and (enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged"):
+			detection_range = GameSettings.enemy_ranged_detection_range
+			
+		if global_position.distance_to(players[0].global_position) < detection_range:
+			best_target = players[0]
+			best_priority = 1
+
+	if best_priority > 1 and is_instance_valid(aggro_area):
+		var bodies = aggro_area.get_overlapping_bodies()
+		for body in bodies:
+			if not is_instance_valid(body) or body.is_queued_for_deletion():
+				continue
+				
+			var priority = 3
+			if body.is_in_group("myrs"):
+				priority = 2
+				
+			if priority < best_priority:
+				best_target = body
+				best_priority = priority
+
+	if current_target != best_target:
+		current_target = best_target
+		update_path()
 
 func _on_aggro_body_entered(body: Node3D) -> void:
-	if body.is_in_group("myrs") or body.is_in_group("player") or body.is_in_group("walls"):
-		if current_target == target_crystal or (current_target.is_in_group("myrs") and body.is_in_group("player")):
-			current_target = body
-			update_path()
+	evaluate_target()
 
 func _on_aggro_body_exited(body: Node3D) -> void:
-	if current_target == body:
-		current_target = target_crystal
-		update_path()
+	evaluate_target()
 
 # --- Spell Interactions ---
 func take_damage(amount: float) -> void:
 	health -= amount
+	var spawn_pos = global_position + Vector3(randf_range(-0.3, 0.3), 1.5, randf_range(-0.3, 0.3))
+	SignalBus.damage_number_requested.emit(spawn_pos, amount, Color(1.0, 0.95, 0.2))
 	if health <= 0.0:
 		die()
 
@@ -250,16 +323,14 @@ func die() -> void:
 func unsummon() -> void:
 	if is_instance_valid(target_crystal):
 		var dir_away = (global_position - target_crystal.global_position).normalized()
-		global_position += dir_away * 15.0
+		global_position += dir_away * GameSettings.spell_unsummon_teleport_distance
 		
 	current_target = target_crystal
 	update_path()
 
 func apply_stab_debuff() -> void:
-	damage_penalty = 5.0
-	penalty_timer = 8.0
-
-var frost_slow_timer: float = 0.0
+	damage_penalty = GameSettings.spell_stab_debuff_damage
+	penalty_timer = GameSettings.spell_stab_debuff_duration
 
 func apply_frost_slow(duration: float) -> void:
 	frost_slow_timer = duration

@@ -1,9 +1,9 @@
 extends CharacterBody3D
 class_name Player
 
-@export var speed: float = 6.0
-@export var jump_velocity: float = 4.5
-@export var mouse_sensitivity: float = 0.002
+@export var speed: float = GameSettings.player_base_speed
+@export var jump_velocity: float = GameSettings.player_jump_velocity
+@export var mouse_sensitivity: float = GameSettings.player_mouse_sensitivity
 @export var rotation_speed: float = 10.0
 @export var projectile_scene: PackedScene = preload("res://scenes/projectile.tscn")
 
@@ -13,11 +13,11 @@ var camera_pivot: Node3D
 var camera: Camera3D
 
 # --- RPG Stats ---
-var hp: float = 100.0
-var max_hp: float = 100.0
+var hp: float = GameSettings.player_max_hp
+var max_hp: float = GameSettings.player_max_hp
 var level: int = 1
 var current_xp: int = 0
-var xp_to_next: int = 100
+var xp_to_next: int = GameSettings.player_xp_base
 var sp: int = 0
 
 var carried_color: String = ""
@@ -46,13 +46,26 @@ var grace_visual: CSGSphere3D
 
 var slow_timer: float = 0.0
 
+# --- Spell Cooldowns ---
+var spell_cooldown_timers: Dictionary = {}
+
+# --- Crosshair cache ---
+var _last_focused_enemy: Node3D = null
+
+# --- Respawn invulnerability ---
+var _invulnerable_timer: float = 0.0
+
+# --- Interaction notifications ---
+var _notification_text: String = ""
+var _notification_timer: float = 0.0
+
+# --- Downed & Revive State ---
+var is_downed: bool = false
+var down_timer: float = 0.0
+
 func _ready() -> void:
 	add_to_group("player")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	
-	collision_layer = 1
-	# Add mask for layer 3 (Enemies) to detect Giant Growth collisions
-	collision_mask = 21
 	
 	setup_camera()
 	
@@ -104,12 +117,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		camera_pivot.rotate_x(-event.relative.y * mouse_sensitivity)
 		camera_pivot.rotation.x = clamp(camera_pivot.rotation.x, -deg_to_rad(70.0), deg_to_rad(30.0))
 
+	if is_downed:
+		return
+
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if event is InputEventMouseButton and event.pressed:
 			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 				cycle_spell(-1)
 			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				cycle_spell(1)
+		
+		if event is InputEventKey and event.pressed and not event.echo:
+			var keycode = event.keycode
+			if keycode >= KEY_1 and keycode <= KEY_6:
+				var target_idx = keycode - KEY_1
+				if target_idx == 0 or (target_idx < spell_colors.size() and unlocked_skills[spell_colors[target_idx]]):
+					if active_spell_index != target_idx:
+						active_spell_index = target_idx
+						SignalBus.active_spell_changed.emit(spell_names[active_spell_index])
 		
 		if event.is_action_pressed("attack"):
 			cast_active_spell()
@@ -134,7 +159,21 @@ func cycle_spell(dir: int) -> void:
 	if active_spell_index != original_index:
 		SignalBus.active_spell_changed.emit(spell_names[active_spell_index])
 
+func _get_spell_cooldown(index: int) -> float:
+	match index:
+		0: return GameSettings.spell_cooldown_melee
+		1: return GameSettings.spell_cooldown_shock
+		2: return GameSettings.spell_cooldown_unsummon
+		3: return GameSettings.spell_cooldown_giant
+		4: return GameSettings.spell_cooldown_heal
+		5: return GameSettings.spell_cooldown_stab
+		_: return 0.0
+
 func cast_active_spell() -> void:
+	var cd = spell_cooldown_timers.get(active_spell_index, 0.0)
+	if cd > 0.0:
+		return
+	spell_cooldown_timers[active_spell_index] = _get_spell_cooldown(active_spell_index)
 	match active_spell_index:
 		0: cast_basic_attack()
 		1: cast_shock()
@@ -154,9 +193,9 @@ func _on_enemy_died(xp: int) -> void:
 func level_up() -> void:
 	level += 1
 	sp += 1
-	max_hp += 10
+	max_hp += GameSettings.player_hp_per_level
 	hp = max_hp
-	xp_to_next = int(xp_to_next * 1.2)
+	xp_to_next = int(xp_to_next * GameSettings.player_xp_scaling)
 	SignalBus.player_health_changed.emit(hp, max_hp)
 	SignalBus.player_leveled_up.emit(level, sp)
 
@@ -166,28 +205,82 @@ func _on_skill_unlocked(color: String) -> void:
 	SignalBus.player_leveled_up.emit(level, sp)
 
 func take_damage(amount: float) -> void:
+	if _invulnerable_timer > 0.0:
+		return
 	if has_grace_shield:
 		has_grace_shield = false
 		if grace_visual:
 			grace_visual.queue_free()
 			grace_visual = null
 		# AoE Burst Heal
-		SignalBus.crystal_damaged.emit(-50.0) # Negative damage heals
-		heal(50.0)
+		SignalBus.crystal_damaged.emit(-GameSettings.spell_heal_amount) # Negative damage heals
+		heal(GameSettings.spell_heal_amount)
 		return
 		
 	hp -= amount
 	SignalBus.player_health_changed.emit(hp, max_hp)
+	var spawn_pos = global_position + Vector3(randf_range(-0.2, 0.2), 1.6, randf_range(-0.2, 0.2))
+	SignalBus.damage_number_requested.emit(spawn_pos, amount, Color(1.0, 0.25, 0.25))
 	if hp <= 0:
 		die()
 
 func heal(amount: float) -> void:
 	hp = min(max_hp, hp + amount)
 	SignalBus.player_health_changed.emit(hp, max_hp)
+	var spawn_pos = global_position + Vector3(0, 1.8, 0)
+	SignalBus.damage_number_requested.emit(spawn_pos, -amount, Color(0.2, 1.0, 0.4))
 
 func die() -> void:
-	# Keep simple for now, just respawn or game over
-	pass
+	if is_downed:
+		return
+	is_downed = true
+	hp = 0.0
+	SignalBus.player_health_changed.emit(hp, max_hp)
+	
+	# Visual indication of death (cylinder rotated flat on the ground)
+	var visual = $VisualMesh
+	if visual:
+		visual.rotation = Vector3(deg_to_rad(90), 0, 0)
+		visual.position = Vector3(0, 0.1, 0)
+		
+	var total_players = get_tree().get_nodes_in_group("player").size()
+	if total_players > 1:
+		down_timer = 15.0
+		print("Player downed! Can be revived for 15 seconds...")
+	else:
+		down_timer = 5.0
+		print("Player died! Respawning in 5 seconds...")
+
+func revive() -> void:
+	if not is_downed:
+		return
+	is_downed = false
+	down_timer = 0.0
+	hp = max_hp
+	SignalBus.player_health_changed.emit(hp, max_hp)
+	_invulnerable_timer = 2.0
+	
+	var visual = $VisualMesh
+	if visual:
+		visual.rotation = Vector3.ZERO
+		visual.position = Vector3(0, 0.95, 0)
+	print("Player revived by teammate!")
+
+func respawn_at_base() -> void:
+	if not is_downed:
+		return
+	is_downed = false
+	down_timer = 0.0
+	global_position = Vector3(0, 1.0, 0)
+	hp = max_hp
+	SignalBus.player_health_changed.emit(hp, max_hp)
+	_invulnerable_timer = 2.0
+	
+	var visual = $VisualMesh
+	if visual:
+		visual.rotation = Vector3.ZERO
+		visual.position = Vector3(0, 0.95, 0)
+	print("Player respawned at base!")
 
 # --- Spells ---
 func cast_basic_attack() -> void:
@@ -198,13 +291,13 @@ func cast_basic_attack() -> void:
 		if not is_instance_valid(enemy):
 			continue
 		var distance = global_position.distance_to(enemy.global_position)
-		if distance < 3.5: # Melee range
+		if distance < GameSettings.spell_melee_range: # Melee range
 			var to_enemy = (enemy.global_position - global_position).normalized()
 			var forward = -camera_pivot.global_transform.basis.z.normalized()
 			# Check if enemy is in front of the player (approx 60 degree cone)
-			if to_enemy.dot(forward) > 0.5:
+			if to_enemy.dot(forward) > GameSettings.spell_melee_cone:
 				if enemy.has_method("take_damage"):
-					enemy.take_damage(20)
+					enemy.take_damage(GameSettings.spell_melee_damage)
 					hit_something = true
 	if hit_something:
 		print("Melee attack hit!")
@@ -225,15 +318,15 @@ func cast_unsummon() -> void:
 
 func cast_giant_growth() -> void:
 	is_giant = true
-	giant_timer = 10.0
+	giant_timer = GameSettings.spell_giant_duration
 	
 	var tween = create_tween()
-	tween.tween_property(self, "scale", Vector3(1.5, 1.5, 1.5), 0.5)
+	tween.tween_property(self, "scale", Vector3(GameSettings.spell_giant_scale, GameSettings.spell_giant_scale, GameSettings.spell_giant_scale), 0.5)
 
 func _on_giant_body_entered(body: Node3D) -> void:
 	if is_giant and body.is_in_group("enemies"):
 		if body.has_method("take_damage"):
-			body.take_damage(100.0) # Massive melee damage
+			body.take_damage(GameSettings.spell_giant_damage) # Massive melee damage
 
 func cast_healing_grace() -> void:
 	if has_grace_shield:
@@ -253,13 +346,13 @@ func cast_stab() -> void:
 	# Use Physics Direct Space State for raycast
 	var space_state = get_world_3d().direct_space_state
 	var start = camera.global_position
-	var end = start - camera.global_basis.z * 10.0 # Short range
+	var end = start - camera.global_basis.z * GameSettings.spell_stab_range # Short range
 	var query = PhysicsRayQueryParameters3D.create(start, end, 4) # Mask 4 = Enemies
 	var result = space_state.intersect_ray(query)
 	
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
-		if enemy.health <= 50.0:
+		if enemy.health <= GameSettings.spell_stab_execute_threshold:
 			enemy.die()
 		else:
 			if enemy.has_method("apply_stab_debuff"):
@@ -268,13 +361,44 @@ func cast_stab() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if is_downed:
+		down_timer -= delta
+		if down_timer <= 0.0:
+			respawn_at_base()
+			return
+			
+		if not is_on_floor():
+			velocity.y -= gravity * delta
+		else:
+			velocity.y = 0.0
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		
+		# Show countdown prompt
+		var total_players = get_tree().get_nodes_in_group("player").size()
+		if total_players > 1:
+			SignalBus.interact_prompt_changed.emit("Downed! Can be revived. Respawning in %.1fs" % down_timer, true)
+		else:
+			SignalBus.interact_prompt_changed.emit("You Died! Respawning in %.1fs" % down_timer, true)
+		
+		# Check if all players are dead
+		var living_players = 0
+		for p in get_tree().get_nodes_in_group("player"):
+			if not p.is_downed:
+				living_players += 1
+		if living_players == 0:
+			SignalBus.crystal_damaged.emit(9999.0) # Trigger Defeat
+			
+		return # Skip normal physics process when dead/downed
+
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 
 	if Input.is_action_just_pressed("jump") and is_on_floor():
 		velocity.y = jump_velocity
 
-	# Crosshair target checking
+	# Crosshair target checking (cached to avoid emitting every frame)
 	var space_state = get_world_3d().direct_space_state
 	var start = camera.global_position
 	var end = start - camera.global_basis.z * 50.0 # 50m range for UI focus
@@ -283,12 +407,33 @@ func _physics_process(delta: float) -> void:
 	
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
-		if "enemy_data" in enemy and enemy.enemy_data:
-			var e_name = enemy.enemy_data.color_identity + " " + enemy.enemy_data.enemy_class
-			var e_color = enemy.enemy_data.visual_color
-			SignalBus.enemy_focused.emit(true, e_name, enemy.health, enemy.enemy_data.health, e_color)
+		if enemy != _last_focused_enemy:
+			_last_focused_enemy = enemy
+			if "enemy_data" in enemy and enemy.enemy_data:
+				var e_name = enemy.enemy_data.display_name
+				var e_color = enemy.enemy_data.visual_color
+				SignalBus.enemy_focused.emit(true, e_name, enemy.health, enemy.enemy_data.health, e_color)
 	else:
-		SignalBus.enemy_focused.emit(false, "", 0, 0, Color.WHITE)
+		if _last_focused_enemy != null:
+			_last_focused_enemy = null
+			SignalBus.enemy_focused.emit(false, "", 0, 0, Color.WHITE)
+
+	# Teammate revive check (takes precedence over mana and base prompts)
+	var revived_teammate = false
+	var teammates = get_tree().get_nodes_in_group("player")
+	for teammate in teammates:
+		if teammate != self and teammate.is_downed:
+			var dist = global_position.distance_to(teammate.global_position)
+			if dist < 3.0:
+				revived_teammate = true
+				if _notification_timer <= 0.0:
+					SignalBus.interact_prompt_changed.emit("Press [F] to Revive Teammate", true)
+				
+				if Input.is_action_just_pressed("interact"):
+					teammate.revive()
+					_notification_text = "Revived Teammate!"
+					_notification_timer = 1.5
+				break
 
 	# Mana Harvesting & Depositing logic
 	var main_node = get_tree().current_scene
@@ -297,21 +442,12 @@ func _physics_process(delta: float) -> void:
 		var source_color = ""
 		for i in range(main_node.mana_sources.size()):
 			var ms = main_node.mana_sources[i]
-			if global_position.distance_to(ms.global_position) < 6.0:
+			if global_position.distance_to(ms.global_position) < GameSettings.player_mana_harvest_distance:
 				at_mana_source = true
 				source_color = main_node.LANE_NAMES[i]
 				break
 				
-		if at_mana_source and carried_color == "":
-			harvest_timer += delta
-			if harvest_timer >= 3.0:
-				carried_color = source_color
-				harvest_timer = 0.0
-		else:
-			harvest_timer = 0.0
-			
-			
-		var near_base = global_position.distance_to(main_node.crystal_anchor.global_position) < 5.0
+		var near_base = global_position.distance_to(main_node.crystal_anchor.global_position) < GameSettings.player_base_proximity
 		if near_base != is_at_base:
 			is_at_base = near_base
 			SignalBus.at_base_changed.emit(is_at_base)
@@ -319,20 +455,55 @@ func _physics_process(delta: float) -> void:
 		if is_at_base:
 			if carried_color != "":
 				SignalBus.mana_deposited.emit(carried_color, 1)
+				_notification_text = "Deposited %s Mana!" % carried_color
+				_notification_timer = 1.5
 				carried_color = ""
 				
-			if Input.is_action_just_pressed("ui_accept"):
+			if Input.is_action_just_pressed("interact"):
 				if main_node.base_ui_instance and not main_node.base_ui_instance.visible:
 					main_node.base_ui_instance.open(main_node)
+
+		# Prompt/Notification UI updating (only runs if not busy reviving a teammate)
+		if not revived_teammate:
+			if main_node.base_ui_instance and main_node.base_ui_instance.visible:
+				SignalBus.interact_prompt_changed.emit("", false)
+			elif _notification_timer > 0.0:
+				_notification_timer -= delta
+				SignalBus.interact_prompt_changed.emit(_notification_text, true)
+			elif at_mana_source and carried_color == "":
+				if Input.is_action_pressed("interact"):
+					harvest_timer += delta
+					var progress = int((harvest_timer / GameSettings.player_mana_harvest_time) * 100)
+					SignalBus.interact_prompt_changed.emit("Harvesting %s Mana... %d%%" % [source_color, progress], true)
+					
+					if harvest_timer >= GameSettings.player_mana_harvest_time:
+						carried_color = source_color
+						harvest_timer = 0.0
+						_notification_text = "Collected %s Mana!" % source_color
+						_notification_timer = 1.5
+				else:
+					harvest_timer = 0.0
+					SignalBus.interact_prompt_changed.emit("Hold [F] to Harvest %s Mana" % source_color, true)
+			elif is_at_base:
+				SignalBus.interact_prompt_changed.emit("Press [F] to Manage Base", true)
+			else:
+				harvest_timer = 0.0
+				SignalBus.interact_prompt_changed.emit("", false)
+		else:
+			# Decrement notification timer even if we are showing the revive prompt
+			if _notification_timer > 0.0:
+				_notification_timer -= delta
 
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	
 	var current_speed = speed
+	if Input.is_action_pressed("sprint"):
+		current_speed *= GameSettings.player_sprint_speed_mult
 	if slow_timer > 0:
-		current_speed = speed * 0.5
+		current_speed *= GameSettings.player_carry_speed_penalty
 	if carried_color != "":
-		current_speed *= 0.5 # 50% slow when carrying mana
+		current_speed *= GameSettings.player_carry_speed_penalty # Slow when carrying mana
 		
 	if direction:
 		velocity.x = direction.x * current_speed
@@ -353,5 +524,14 @@ func _physics_process(delta: float) -> void:
 	if slow_timer > 0:
 		slow_timer -= delta
 
+	if _invulnerable_timer > 0.0:
+		_invulnerable_timer -= delta
+
+	# Decrement spell cooldown timers
+	for key in spell_cooldown_timers.keys():
+		spell_cooldown_timers[key] -= delta
+		if spell_cooldown_timers[key] <= 0.0:
+			spell_cooldown_timers.erase(key)
+
 func apply_slow() -> void:
-	slow_timer = 3.0
+	slow_timer = 4.0
