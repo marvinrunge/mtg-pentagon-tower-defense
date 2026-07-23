@@ -35,11 +35,16 @@ func _ready() -> void:
 	SignalBus.mana_deposited.connect(add_mana)
 	SignalBus.damage_number_requested.connect(_on_damage_number_requested)
 	
-	# Skill Tree logic has been moved to the Base UI
 	# Instantiate Base UI
 	if base_ui_scene:
 		base_ui_instance = base_ui_scene.instantiate()
 		add_child(base_ui_instance)
+		
+	# Instantiate Skill Tree
+	if skill_tree_scene:
+		var st = skill_tree_scene.instantiate()
+		st.name = "SkillTree"
+		add_child(st)
 	
 	# Populate mana sources and spawners from the static lanes
 	for lane_name in LANE_NAMES:

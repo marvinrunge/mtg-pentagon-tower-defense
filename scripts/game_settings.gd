@@ -25,6 +25,7 @@ extends Node
 @export var player_mana_harvest_time: float = 3.0
 @export var player_base_proximity: float = 5.0
 @export var player_carry_speed_penalty: float = 0.5
+@export var player_base_hp_regen: float = 1.0
 
 # ============================================================
 # PLAYER SPELLS
@@ -48,6 +49,90 @@ extends Node
 @export var spell_stab_debuff_damage: float = 5.0
 @export var spell_stab_debuff_duration: float = 8.0
 @export var spell_unsummon_teleport_distance: float = 15.0
+
+# --- MTG 5-Color Tier Costs ---
+const TIER_COSTS: Array[int] = [1, 3, 7, 15, 30, 50]
+
+func get_tier_cost(tier_index: int) -> int:
+	if tier_index >= 0 and tier_index < TIER_COSTS.size():
+		return TIER_COSTS[tier_index]
+	return 1
+
+# --- RED SKILLS ---
+@export var spell_red_fireball_max_charge: float = 2.0
+@export var spell_red_fireball_base_radius: float = 3.0
+@export var spell_red_fireball_base_damage: float = 60.0
+@export var spell_red_rain_ember_duration: float = 5.0
+@export var spell_red_rain_ember_radius: float = 6.0
+@export var spell_red_rain_ember_dps: float = 25.0
+@export var spell_red_act_of_treason_damage: float = 50.0
+@export var spell_red_act_of_treason_knockback: float = 12.0
+@export var spell_red_act_of_treason_stun: float = 2.0
+@export var spell_red_chandras_ignition_radius: float = 8.0
+@export var spell_red_chandras_ignition_damage: float = 70.0
+@export var spell_red_chandras_ignition_push: float = 15.0
+@export var aura_fervor_speed_boost: float = 1.25
+
+# --- BLUE SKILLS ---
+@export var spell_blue_unsummon_knockback: float = 14.0
+@export var spell_blue_unsummon_impact_damage: float = 80.0
+@export var spell_blue_aetherize_max_charge: float = 2.0
+@export var spell_blue_aetherize_cone_angle: float = 60.0
+@export var spell_blue_aetherize_push_force: float = 18.0
+@export var spell_blue_psionic_blast_damage: float = 100.0
+@export var spell_blue_psionic_blast_self_damage: float = 10.0
+@export var spell_blue_freeze_breath_chill_duration: float = 5.0
+@export var spell_blue_freeze_breath_shatter_damage: float = 90.0
+@export var spell_blue_freeze_breath_shatter_radius: float = 4.0
+@export var spell_blue_counterspell_duration: float = 1.5
+@export var aura_rhystic_study_cdr_mult: float = 0.7
+@export var aura_rhystic_study_shield_amount: float = 15.0
+
+# --- GREEN SKILLS ---
+@export var spell_green_titanic_growth_hp_scaling: float = 0.25
+@export var spell_green_titanic_growth_cone: float = 4.0
+@export var spell_green_hurricane_max_charge: float = 2.0
+@export var spell_green_hurricane_radius: float = 7.0
+@export var spell_green_hurricane_root_duration: float = 3.0
+@export var spell_green_hurricane_poison_dps: float = 20.0
+@export var spell_green_overrun_dash_speed: float = 20.0
+@export var spell_green_overrun_dash_duration: float = 0.6
+@export var spell_green_overrun_damage_mult: float = 3.0
+@export var spell_green_rabid_bite_damage: float = 75.0
+@export var spell_green_rabid_bite_lifesteal: float = 0.5
+@export var spell_green_briar_patch_reflect: float = 0.3
+@export var aura_sylvan_library_hp_mult: float = 1.5
+@export var aura_sylvan_library_regen: float = 5.0
+
+# --- WHITE SKILLS ---
+@export var spell_white_swords_exile_pct: float = 0.35
+@export var spell_white_swords_ally_heal: float = 60.0
+@export var spell_white_path_to_exile_max_charge: float = 2.0
+@export var spell_white_path_to_exile_exec_mult: float = 0.5
+@export var spell_white_wrath_max_charge: float = 2.0
+@export var spell_white_wrath_radius: float = 10.0
+@export var spell_white_wrath_damage_pct: float = 0.4
+@export var spell_white_wrath_heal: float = 100.0
+@export var spell_white_pacifism_duration: float = 6.0
+@export var spell_white_pacifism_debuff_mult: float = 0.5
+@export var spell_white_gideons_reproach_reflect_pct: float = 0.4
+@export var aura_glorious_anthem_shield: float = 50.0
+@export var aura_glorious_anthem_damage_mult: float = 1.2
+
+# --- BLACK SKILLS ---
+@export var spell_black_drain_life_damage: float = 60.0
+@export var spell_black_drain_life_lifesteal: float = 1.0
+@export var spell_black_toxic_deluge_max_charge: float = 2.0
+@export var spell_black_toxic_deluge_radius: float = 7.0
+@export var spell_black_toxic_deluge_hp_cost_pct: float = 0.2
+@export var spell_black_doom_blade_damage: float = 80.0
+@export var spell_black_doom_blade_curse_mult: float = 1.3
+@export var spell_black_doom_blade_curse_duration: float = 6.0
+@export var spell_black_tendrils_damage: float = 40.0
+@export var spell_black_sign_in_blood_hp_cost_pct: float = 0.15
+@export var aura_phyrexian_arena_hp_drain_pct: float = 0.01
+@export var aura_phyrexian_arena_damage_mult: float = 1.4
+@export var aura_phyrexian_arena_speed_mult: float = 1.3
 
 # ============================================================
 # WAVES
@@ -109,9 +194,10 @@ extends Node
 @export var minimap_update_interval: float = 0.15
 
 # ============================================================
-# UI
+# UI & DEBUG
 # ============================================================
 @export var show_damage_numbers: bool = true
+@export var debug_mode: bool = true
 
 # ============================================================
 # MULTIPLAYER SCALING

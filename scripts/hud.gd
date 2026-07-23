@@ -57,6 +57,9 @@ func _ready() -> void:
 	SignalBus.at_base_changed.connect(_on_at_base_changed)
 	SignalBus.enemy_focused.connect(_on_enemy_focused)
 	SignalBus.interact_prompt_changed.connect(_on_interact_prompt_changed)
+	SignalBus.spell_charge_changed.connect(_on_spell_charge_changed)
+	SignalBus.spell_unlocked.connect(func(_c, _s): _update_hotbar_display(_active_spell_idx))
+	SignalBus.color_path_chosen.connect(func(_c): _update_hotbar_display(_active_spell_idx))
 	
 	show_minimap_checkbox.toggled.connect(_on_show_minimap_toggled)
 	if damage_numbers_checkbox:
@@ -72,9 +75,11 @@ func _ready() -> void:
 		$Control/HotbarAndXPContainer/SpellHotbar/Slot2,
 		$Control/HotbarAndXPContainer/SpellHotbar/Slot3,
 		$Control/HotbarAndXPContainer/SpellHotbar/Slot4,
-		$Control/HotbarAndXPContainer/SpellHotbar/Slot5,
-		$Control/HotbarAndXPContainer/SpellHotbar/Slot6
+		$Control/HotbarAndXPContainer/SpellHotbar/Slot5
 	]
+	var slot6 = $Control/HotbarAndXPContainer/SpellHotbar.get_node_or_null("Slot6")
+	if slot6:
+		slot6.hide()
 	_setup_action_icons()
 	SignalBus.active_spell_changed.connect(_on_active_spell_changed)
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
@@ -114,7 +119,10 @@ func _process(delta: float) -> void:
 				
 			var overlay = slot.get_node_or_null("CooldownOverlay")
 			if overlay:
-				var cd = _player.spell_cooldown_timers.get(i, 0.0)
+				var spell_id = ""
+				if _player.has_method("_get_spell_id_for_slot"):
+					spell_id = _player._get_spell_id_for_slot(i)
+				var cd = _player.spell_cooldown_timers.get(spell_id, 0.0)
 				if cd > 0.0:
 					overlay.show()
 					var label = overlay.get_node_or_null("Label")
@@ -332,6 +340,12 @@ func _update_hotbar_display(active_idx: int) -> void:
 		sb.corner_radius_bottom_left = 6
 		sb.corner_radius_bottom_right = 6
 		
+		var is_unlocked = false
+		if _player and _player.has_method("is_spell_unlocked"):
+			is_unlocked = _player.is_spell_unlocked(i)
+		else:
+			is_unlocked = (i == 0)
+			
 		if i == active_idx:
 			sb.bg_color = Color(0.15, 0.15, 0.15, 0.95)
 			sb.border_width_left = 2
@@ -347,7 +361,7 @@ func _update_hotbar_display(active_idx: int) -> void:
 				num_label.add_theme_color_override("font_color", Color.WHITE)
 			if icon_rect:
 				icon_rect.modulate = Color(1.0, 1.0, 1.0, 1.0)
-		elif _unlocked_slots[i]:
+		elif is_unlocked:
 			sb.bg_color = Color(0.08, 0.08, 0.08, 0.7)
 			sb.border_width_left = 1
 			sb.border_width_top = 1
@@ -375,12 +389,18 @@ func _update_hotbar_display(active_idx: int) -> void:
 		slot.add_theme_stylebox_override("panel", sb)
 
 func _on_active_spell_changed(spell_name: String) -> void:
-	_active_spell_idx = SPELL_TO_SLOT_INDEX.get(spell_name, 0)
+	if _player and "active_spell_index" in _player:
+		_active_spell_idx = _player.active_spell_index
 	_update_hotbar_display(_active_spell_idx)
 
 func _on_skill_unlocked(color: String) -> void:
-	var idx = _get_index_for_color(color)
-	if idx != -1:
-		_unlocked_slots[idx] = true
-		
 	_update_hotbar_display(_active_spell_idx)
+
+func _on_spell_charge_changed(current: float, max_c: float, is_charging: bool) -> void:
+	if interact_label:
+		if is_charging:
+			var pct = int((current / max_c) * 100)
+			interact_label.text = "CHARGING SPELL... %d%%" % pct
+			interact_label.visible = true
+		else:
+			interact_label.visible = false

@@ -103,45 +103,22 @@ func refresh_ui() -> void:
 		
 		myr_list_container.add_child(hbox)
 		
-	# Update skill unlocks
+	# Open Skill Tree Button
 	for child in skill_list_container.get_children():
 		child.queue_free()
 		
-	var player = get_tree().get_first_node_in_group("player")
-	if player and "unlocked_skills" in player:
-		var colors = {
-			"red": ["Shock", "Red"],
-			"blue": ["Unsummon", "Blue"],
-			"green": ["Giant Growth", "Green"],
-			"white": ["Healing Grace", "White"],
-			"black": ["Stab", "Black"]
-		}
-		for skill_key in colors.keys():
-			var is_unlocked = player.unlocked_skills[skill_key]
-			var current_level = player.skill_levels[skill_key] if is_unlocked else 0
-			var cost = GameSettings.get_skill_upgrade_cost(current_level)
-			
-			var skill_info = colors[skill_key]
-			var s_name = skill_info[0]
-			var m_color = skill_info[1]
-			
-			var btn = Button.new()
-			if not is_unlocked:
-				btn.text = "Unlock %s (Cost: %d %s Mana)" % [s_name, cost, m_color]
-			else:
-				btn.text = "Upgrade %s to Lvl %d (Cost: %d %s Mana)" % [s_name, current_level + 1, cost, m_color]
-			
-			var can_afford = main_controller.mana_pool.get(m_color, 0) >= cost
-			btn.disabled = not can_afford
-			# Using bind to ensure the correct values are passed to the callback
-			btn.pressed.connect(_unlock_skill.bind(skill_key, m_color, cost, player))
-			skill_list_container.add_child(btn)
+	var st_btn = Button.new()
+	st_btn.custom_minimum_size = Vector2(0, 45)
+	st_btn.text = "OPEN MTG SKILL TREE (Press 'K')"
+	st_btn.pressed.connect(_open_skill_tree)
+	skill_list_container.add_child(st_btn)
 
-func _unlock_skill(skill_key: String, mana_color: String, cost: int, player: Node3D) -> void:
-	if main_controller.mana_pool.get(mana_color, 0) >= cost:
-		main_controller.spend_mana_cost({mana_color: cost})
-		SignalBus.skill_unlocked.emit(skill_key)
-		refresh_ui()
+func _open_skill_tree() -> void:
+	var st = get_tree().current_scene.get_node_or_null("SkillTree")
+	if st:
+		close()
+		st.show()
+		st.update_ui()
 
 func _on_build_pressed() -> void:
 	if main_controller and main_controller.spend_any_mana(GameSettings.myr_mana_cost):

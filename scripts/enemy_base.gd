@@ -16,6 +16,17 @@ var attack_cooldown: float = 0.0
 var frost_slow_timer: float = 0.0
 var path_update_timer: float = 0.0
 
+# --- MTG Status Effects ---
+var chill_stacks: int = 0
+var freeze_timer: float = 0.0
+var root_timer: float = 0.0
+var stun_timer: float = 0.0
+var blind_timer: float = 0.0
+var curse_timer: float = 0.0
+var curse_mult: float = 1.0
+var pacified_timer: float = 0.0
+var knockback_velocity: Vector3 = Vector3.ZERO
+
 @onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
 @onready var aggro_area: Area3D = $AggroArea
 @onready var aggro_col: CollisionShape3D = $AggroArea/CollisionShape3D
@@ -143,8 +154,34 @@ func _physics_process(delta: float) -> void:
 		target_eval_timer = GameSettings.enemy_target_eval_interval
 		evaluate_target()
 		
+	# Process Knockback & Wall Collision
+	if knockback_velocity.length_squared() > 0.1:
+		var collision = move_and_collide(knockback_velocity * delta)
+		if collision:
+			var collider = collision.get_collider()
+			if collider and not collider.is_in_group("enemies"):
+				take_damage(GameSettings.spell_blue_unsummon_impact_damage)
+				knockback_velocity = Vector3.ZERO
+		else:
+			knockback_velocity = knockback_velocity.move_toward(Vector3.ZERO, 30.0 * delta)
+			
+	# Process Timers
+	if freeze_timer > 0: freeze_timer -= delta
+	if root_timer > 0: root_timer -= delta
+	if stun_timer > 0: stun_timer -= delta
+	if blind_timer > 0: blind_timer -= delta
+	if curse_timer > 0: curse_timer -= delta
+	if pacified_timer > 0: pacified_timer -= delta
+
+	# Disable movement if frozen or stunned
+	if freeze_timer > 0 or stun_timer > 0:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		return
+
 	# Movement
-	if dist_to_target > enemy_data.attack_range and not nav_agent.is_navigation_finished():
+	if dist_to_target > enemy_data.attack_range and not nav_agent.is_navigation_finished() and root_timer <= 0:
 		var next_path_position = nav_agent.get_next_path_position()
 		var speed_mult = 1.0
 		if frost_slow_timer > 0:
@@ -159,18 +196,17 @@ func _physics_process(delta: float) -> void:
 			
 		move_and_slide()
 	else:
-		# In range, stop moving
+		# In range or rooted, stop moving
 		velocity.x = 0.0
 		velocity.z = 0.0
 		
-		# Rotate towards target so they don't look like they are ignoring the player
 		if is_instance_valid(current_target):
 			var dir_to_target = (current_target.global_position - global_position).normalized()
 			if dir_to_target.length_squared() > 0.01:
 				var target_rotation = atan2(dir_to_target.x, dir_to_target.z)
 				rotation.y = lerp_angle(rotation.y, target_rotation, 8.0 * delta)
 		
-		if attack_cooldown <= 0:
+		if attack_cooldown <= 0 and blind_timer <= 0:
 			perform_attack()
 
 func perform_attack() -> void:
@@ -313,6 +349,8 @@ func _on_aggro_body_exited(body: Node3D) -> void:
 
 # --- Spell Interactions ---
 func take_damage(amount: float) -> void:
+	if curse_timer > 0:
+		amount *= curse_mult
 	health -= amount
 	var spawn_pos = global_position + Vector3(randf_range(-0.3, 0.3), 1.5, randf_range(-0.3, 0.3))
 	SignalBus.damage_number_requested.emit(spawn_pos, amount, Color(1.0, 0.95, 0.2))
@@ -324,13 +362,53 @@ func die() -> void:
 		SignalBus.enemy_died.emit(enemy_data.xp_yield)
 	queue_free()
 
-func unsummon() -> void:
-	if is_instance_valid(target_crystal):
-		var dir_away = (global_position - target_crystal.global_position).normalized()
-		global_position += dir_away * GameSettings.spell_unsummon_teleport_distance
-		
+func unsummon(force_vec: Vector3 = Vector3.ZERO) -> void:
+	if force_vec != Vector3.ZERO:
+		apply_knockback(force_vec)
+	else:
+		if is_instance_valid(target_crystal):
+			var dir_away = (global_position - target_crystal.global_position).normalized()
+			global_position += dir_away * GameSettings.spell_unsummon_teleport_distance
+			
+		current_target = target_crystal
+		update_path()
+
+func apply_knockback(force_vec: Vector3) -> void:
+	knockback_velocity = force_vec
+
+func apply_chill() -> void:
+	chill_stacks += 1
+	if chill_stacks >= 3:
+		chill_stacks = 0
+		freeze_timer = 3.0
+		_trigger_shatter_aoe()
+
+func _trigger_shatter_aoe() -> void:
+	var radius = GameSettings.spell_blue_freeze_breath_shatter_radius
+	var damage = GameSettings.spell_blue_freeze_breath_shatter_damage
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	for e in enemies:
+		if e != self and is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:
+			if e.has_method("take_damage"):
+				e.take_damage(damage)
+
+func apply_root(duration: float) -> void:
+	root_timer = duration
+
+func apply_stun(duration: float) -> void:
+	stun_timer = duration
+
+func apply_blind(duration: float) -> void:
+	blind_timer = duration
+
+func apply_doom_curse(duration: float, mult: float) -> void:
+	curse_timer = duration
+	curse_mult = mult
+
+func apply_pacifism(duration: float) -> void:
+	pacified_timer = duration
+	damage_penalty = enemy_data.attack_damage * GameSettings.spell_white_pacifism_debuff_mult
 	current_target = target_crystal
-	update_path()
 
 func apply_stab_debuff() -> void:
 	damage_penalty = GameSettings.spell_stab_debuff_damage
