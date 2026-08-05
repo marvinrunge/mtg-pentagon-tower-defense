@@ -1,0 +1,38 @@
+﻿{
+    "generator":  "Meshy Text to 3D API v2",
+    "task_id":  "019f90e4-92a5-7a03-a3e4-4a47bd48bc77",
+    "task_type":  "text-to-3d-refine",
+    "status":  "SUCCEEDED",
+    "consumed_credits":  10,
+    "request":  {
+                    "preview":  {
+                                    "mode":  "preview",
+                                    "prompt":  "Single isolated low-poly fantasy mana well, white-aligned sanctuary design, circular carved marble basin with five-sided footprint, upright sun-disc arch and small symmetrical wing motifs, broad readable silhouette, open glowing liquid basin, game prop approximately 3 meters wide and 2.5 meters tall, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+                                    "model_type":  "lowpoly",
+                                    "target_formats":  [
+                                                           "glb"
+                                                       ],
+                                    "moderation":  true,
+                                    "auto_size":  true,
+                                    "origin_at":  "bottom"
+                                },
+                    "refine":  {
+                                   "mode":  "refine",
+                                   "preview_task_id":  "019f90e3-4dbb-7803-9ae0-d8273458aed2",
+                                   "ai_model":  "latest",
+                                   "enable_pbr":  true,
+                                   "hd_texture":  false,
+                                   "remove_lighting":  true,
+                                   "moderation":  true,
+                                   "target_formats":  [
+                                                          "glb"
+                                                      ],
+                                   "auto_size":  true,
+                                   "origin_at":  "bottom",
+                                   "texture_prompt":  "Ivory marble, pale gold trim, pearl inlays, soft warm white magical liquid and restrained emissive runes, lightly weathered, game-ready PBR"
+                               }
+                },
+    "source_prompt":  "Single isolated low-poly fantasy mana well, white-aligned sanctuary design, circular carved marble basin with five-sided footprint, upright sun-disc arch and small symmetrical wing motifs, broad readable silhouette, open glowing liquid basin, game prop approximately 3 meters wide and 2.5 meters tall, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+    "texture_prompt":  "Ivory marble, pale gold trim, pearl inlays, soft warm white magical liquid and restrained emissive runes, lightly weathered, game-ready PBR",
+    "license_review_required":  true
+}

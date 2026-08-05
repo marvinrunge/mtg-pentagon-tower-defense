@@ -15,9 +15,11 @@ var life_timer: float = 0.0
 var is_enemy: bool = false
 var proj_type: int = 0
 var aoe_radius: float = 0.0
-var caster: Node3D = null
+var caster_ref: WeakRef
+var effect_multiplier: float = 1.0
 
 @onready var visual: CSGSphere3D = $Visual
+var projectile_material: StandardMaterial3D
 
 func _ready() -> void:
 	base_speed = GameSettings.projectile_base_speed
@@ -26,6 +28,8 @@ func _ready() -> void:
 	speed = base_speed
 	damage = base_damage
 	lifetime = base_lifetime
+	projectile_material = visual.material.duplicate() as StandardMaterial3D
+	visual.material = projectile_material
 	body_entered.connect(_on_body_entered)
 
 func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = false, multiplier: float = 1.0, damage_override: float = -1.0, p_aoe_radius: float = 0.0, p_caster: Node3D = null) -> void:
@@ -36,11 +40,12 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 	process_mode = Node.PROCESS_MODE_INHERIT
 	proj_type = type
 	is_enemy = _is_enemy
+	collision_mask = 19 if is_enemy else 22
 	aoe_radius = p_aoe_radius
-	caster = p_caster
+	caster_ref = weakref(p_caster) if is_instance_valid(p_caster) else null
+	effect_multiplier = multiplier
 	
-	var mat = visual.material.duplicate() as StandardMaterial3D
-	visual.material = mat
+	var mat: StandardMaterial3D = projectile_material
 	
 	if type == 0:
 		# Normal (Blue-ish)
@@ -51,7 +56,7 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 	elif type == 1:
 		# Shock (Red, fast, high damage)
 		speed = base_speed * GameSettings.projectile_shock_speed_mult
-		damage = base_damage * GameSettings.projectile_shock_damage_mult * multiplier
+		damage = GameSettings.spell_red_shock_damage * multiplier
 		mat.albedo_color = Color(1.0, 0.2, 0.2)
 		mat.emission = Color(1.0, 0.1, 0.1)
 	elif type == 2:
@@ -99,7 +104,13 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 func deactivate() -> void:
 	active = false
 	visible = false
+	caster_ref = null
 	process_mode = Node.PROCESS_MODE_DISABLED
+
+func _get_caster() -> Node3D:
+	if caster_ref == null:
+		return null
+	return caster_ref.get_ref() as Node3D
 
 func _physics_process(delta: float) -> void:
 	if not active:
@@ -120,11 +131,9 @@ func _on_body_entered(body: Node3D) -> void:
 		if body.is_in_group("enemies"):
 			return # Ignore other enemies
 		
-		if body.is_in_group("player") and body.has_method("take_damage"):
-			body.take_damage(damage)
-		elif body.has_method("take_damage"):
-			body.take_damage(damage)
-		elif body.is_in_group("crystal"):
+		if body.has_method("take_damage"):
+			body.take_damage(damage, _get_caster(), false)
+		elif body.is_in_group("crystal_hitbox"):
 			SignalBus.crystal_damaged.emit(damage)
 		deactivate()
 		return
@@ -144,14 +153,18 @@ func _on_body_entered(body: Node3D) -> void:
 		# Drain Life
 		if body.has_method("take_damage"):
 			body.take_damage(damage)
-			if is_instance_valid(caster) and caster.has_method("heal"):
-				caster.heal(damage * GameSettings.spell_black_drain_life_lifesteal)
+			var current_caster: Node3D = _get_caster()
+			if current_caster and current_caster.has_method("heal"):
+				current_caster.heal(damage * GameSettings.spell_black_drain_life_lifesteal)
 	elif proj_type == 6:
 		# Swords to Plowshares (% Max HP Holy Exile or Ally Heal)
 		if body.is_in_group("enemies"):
 			if "health" in body and body.has_method("take_damage"):
 				var max_h = body.enemy_data.health if ("enemy_data" in body and body.enemy_data) else 100.0
-				var holy_dmg = max_h * GameSettings.spell_white_swords_exile_pct
+				var holy_dmg = minf(
+					max_h * GameSettings.spell_white_swords_exile_pct * effect_multiplier,
+					GameSettings.spell_white_swords_damage_cap
+				)
 				body.take_damage(holy_dmg)
 		elif body.has_method("heal"):
 			body.heal(GameSettings.spell_white_swords_ally_heal)
@@ -160,11 +173,11 @@ func _on_body_entered(body: Node3D) -> void:
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
 			if "health" in body and "enemy_data" in body and body.enemy_data:
 				var missing_hp = body.enemy_data.health - body.health
-				var exec_dmg = 40.0 + missing_hp * GameSettings.spell_white_path_to_exile_exec_mult
+				var exec_dmg = (40.0 + missing_hp * GameSettings.spell_white_path_to_exile_exec_mult) * effect_multiplier
 				body.take_damage(exec_dmg)
 		# Spawn Holy Trail
 		var trail = DoTZone.new()
-		trail.setup("holy_trail", 3.0, 15.0, 4.0, caster)
+		trail.setup("holy_trail", 3.0, 15.0, 4.0, _get_caster())
 		trail.global_position = global_position
 		get_tree().current_scene.add_child(trail)
 	else:

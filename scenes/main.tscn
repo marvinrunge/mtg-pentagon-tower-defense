@@ -2,6 +2,11 @@
 
 [ext_resource type="Script" uid="uid://cgbao1a6y4oy2" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" uid="uid://d3ieneccg261a" path="res://scenes/hud.tscn" id="2_hud"]
+[ext_resource type="PackedScene" path="res://scenes/mana_wells/mana_well_white.tscn" id="3_well_white"]
+[ext_resource type="PackedScene" path="res://scenes/mana_wells/mana_well_blue.tscn" id="4_well_blue"]
+[ext_resource type="PackedScene" path="res://scenes/mana_wells/mana_well_black.tscn" id="5_well_black"]
+[ext_resource type="PackedScene" path="res://scenes/mana_wells/mana_well_red.tscn" id="6_well_red"]
+[ext_resource type="PackedScene" path="res://scenes/mana_wells/mana_well_green.tscn" id="7_well_green"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.1, 0.15, 0.25, 1)
@@ -81,7 +86,7 @@ height = 0.5
 sides = 5
 material = SubResource("Material_Base")
 
-[node name="MainCrystal" type="CSGBox3D" parent="NavigationRegion3D" unique_id=2093067025]
+[node name="MainCrystal" type="CSGBox3D" parent="NavigationRegion3D" unique_id=2093067025 groups=["crystal_hitbox"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.25, 0)
 use_collision = true
 collision_layer = 16
@@ -110,11 +115,7 @@ collision_mask = 0
 metadata/lane_index = 0
 metadata/lane_name = "White"
 
-[node name="Visual" type="CSGCylinder3D" parent="NavigationRegion3D/Lanes/Lane_White/ManaSource" unique_id=2039418788]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
-radius = 1.5
-height = 0.1
-material = SubResource("Material_White")
+[node name="Visual" parent="NavigationRegion3D/Lanes/Lane_White/ManaSource" instance=ExtResource("3_well_white")]
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_White" unique_id=555229883 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -143,11 +144,7 @@ collision_mask = 0
 metadata/lane_index = 1
 metadata/lane_name = "Blue"
 
-[node name="Visual" type="CSGCylinder3D" parent="NavigationRegion3D/Lanes/Lane_Blue/ManaSource" unique_id=832548506]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
-radius = 1.5
-height = 0.1
-material = SubResource("Material_Blue")
+[node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Blue/ManaSource" instance=ExtResource("4_well_blue")]
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Blue" unique_id=279903782 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -176,11 +173,7 @@ collision_mask = 0
 metadata/lane_index = 2
 metadata/lane_name = "Black"
 
-[node name="Visual" type="CSGCylinder3D" parent="NavigationRegion3D/Lanes/Lane_Black/ManaSource" unique_id=228046418]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
-radius = 1.5
-height = 0.1
-material = SubResource("Material_Black")
+[node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Black/ManaSource" instance=ExtResource("5_well_black")]
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Black" unique_id=412126932 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -209,11 +202,7 @@ collision_mask = 0
 metadata/lane_index = 3
 metadata/lane_name = "Red"
 
-[node name="Visual" type="CSGCylinder3D" parent="NavigationRegion3D/Lanes/Lane_Red/ManaSource" unique_id=1921334726]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
-radius = 1.5
-height = 0.1
-material = SubResource("Material_Red")
+[node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Red/ManaSource" instance=ExtResource("6_well_red")]
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Red" unique_id=693690319 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -242,11 +231,7 @@ collision_mask = 0
 metadata/lane_index = 4
 metadata/lane_name = "Green"
 
-[node name="Visual" type="CSGCylinder3D" parent="NavigationRegion3D/Lanes/Lane_Green/ManaSource" unique_id=2132463856]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
-radius = 1.5
-height = 0.1
-material = SubResource("Material_Green")
+[node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Green/ManaSource" instance=ExtResource("7_well_green")]
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Green" unique_id=1886257386 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)

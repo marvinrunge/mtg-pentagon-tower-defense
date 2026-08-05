@@ -37,8 +37,11 @@ var briar_patch_timer: float = 0.0
 var gideon_reproach_timer: float = 0.0
 var overrun_dash_timer: float = 0.0
 var overrun_dir: Vector3 = Vector3.ZERO
+var overrun_hit_enemy_ids: Dictionary = {}
 var last_spell_cast_time: float = -999.0
 var rhystic_shield: float = 0.0
+var glorious_anthem_shield: float = 0.0
+var _applied_capstone_aura: String = ""
 
 var active_spell_index: int = 0
 var spell_names = ["Basic Attack", "Spell 1", "Spell 2", "Spell 3", "Spell 4", "Spell 5"]
@@ -49,12 +52,13 @@ var giant_timer: float = 0.0
 var base_scale: Vector3 = Vector3.ONE
 
 var slow_timer: float = 0.0
+var run_damage_multiplier: float = 1.0
+var run_cooldown_recovery_multiplier: float = 1.0
 
 # --- Spell Cooldowns ---
 var spell_cooldown_timers: Dictionary = {}
 
 # --- Crosshair cache ---
-var _last_focused_enemy: Node3D = null
 
 # --- Respawn invulnerability ---
 var _invulnerable_timer: float = 0.0
@@ -75,6 +79,7 @@ func _ready() -> void:
 	
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
 	SignalBus.spell_unlocked.connect(_on_spell_unlocked)
+	SignalBus.wave_reward_selected.connect(_on_wave_reward_selected)
 	
 	# Delay emitting the initial active spell until the HUD is ready
 	call_deferred("_emit_initial_spell")
@@ -247,34 +252,7 @@ func is_spell_unlocked(slot_idx: int) -> bool:
 	return unlocked_spells_in_path.has(spell_id)
 
 func _get_spell_cooldown(spell_id: String) -> float:
-	match spell_id:
-		"basic_attack": return GameSettings.spell_cooldown_melee
-		"red_1": return 2.0
-		"red_2": return 4.0
-		"red_3": return 8.0
-		"red_4": return 6.0
-		"red_5": return 10.0
-		"blue_1": return 3.0
-		"blue_2": return 5.0
-		"blue_3": return 4.0
-		"blue_4": return 6.0
-		"blue_5": return 12.0
-		"green_1": return 1.5
-		"green_2": return 6.0
-		"green_3": return 8.0
-		"green_4": return 5.0
-		"green_5": return 12.0
-		"white_1": return 4.0
-		"white_2": return 6.0
-		"white_3": return 12.0
-		"white_4": return 10.0
-		"white_5": return 10.0
-		"black_1": return 3.0
-		"black_2": return 8.0
-		"black_3": return 5.0
-		"black_4": return 6.0
-		"black_5": return 15.0
-		_: return 1.0
+	return GameSettings.get_spell_cooldown(spell_id)
 
 func is_chargeable(spell_id: String) -> bool:
 	return spell_id in ["red_2", "blue_2", "green_2", "white_2", "white_3", "black_2"]
@@ -287,7 +265,7 @@ func cast_active_spell() -> void:
 	if spell_id == "":
 		return
 		
-	if active_spell_index != 0 and not is_spell_unlocked(active_spell_index):
+	if not is_spell_unlocked(active_spell_index):
 		return
 		
 	var cd = spell_cooldown_timers.get(spell_id, 0.0)
@@ -312,6 +290,8 @@ func release_charged_spell() -> void:
 	is_charging = false
 	charge_timer = 0.0
 	SignalBus.spell_charge_changed.emit(0.0, charge_max_time, false)
+	if not unlocked_spells_in_path.has(spell_id) or spell_cooldown_timers.get(spell_id, 0.0) > 0.0:
+		return
 	execute_spell(spell_id, pct)
 
 func execute_spell(spell_id: String, charge_pct: float = 1.0) -> void:
@@ -319,9 +299,12 @@ func execute_spell(spell_id: String, charge_pct: float = 1.0) -> void:
 	
 	# Rhystic Study Shield trigger on cast
 	if unlocked_capstone_aura == "aura_rhystic_study":
-		rhystic_shield += GameSettings.aura_rhystic_study_shield_amount
+		rhystic_shield = minf(
+			rhystic_shield + GameSettings.aura_rhystic_study_shield_amount,
+			GameSettings.aura_rhystic_study_shield_max
+		)
 		
-	last_spell_cast_time = Time.get_ticks_msec() / 1000.0
+	var previous_cast_time: float = last_spell_cast_time
 	
 	match spell_id:
 		"basic_attack": cast_basic_attack()
@@ -353,8 +336,10 @@ func execute_spell(spell_id: String, charge_pct: float = 1.0) -> void:
 		"black_1": cast_black_drain_life()
 		"black_2": cast_black_toxic_deluge(charge_pct)
 		"black_3": cast_black_doom_blade()
-		"black_4": cast_black_tendrils()
+		"black_4": cast_black_tendrils(previous_cast_time)
 		"black_5": cast_black_sign_in_blood()
+
+	last_spell_cast_time = Time.get_ticks_msec() / 1000.0
 
 # --- RPG Logic ---
 func _on_skill_unlocked(color: String) -> void:
@@ -367,22 +352,84 @@ func _on_spell_unlocked(color: String, spell_id: String) -> void:
 		
 	if spell_id.begins_with("aura_"):
 		unlocked_capstone_aura = spell_id
+		_sync_capstone_aura()
 	else:
 		if not unlocked_spells_in_path.has(spell_id):
 			unlocked_spells_in_path.append(spell_id)
 			
 	SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -> void:
 	if _invulnerable_timer > 0.0:
 		return
-		
-	hp -= amount
+
+	var can_use_defenses: bool = source != self
+	if can_use_defenses and counterspell_parry_timer > 0.0:
+		counterspell_parry_timer = 0.0
+		spell_cooldown_timers.clear()
+		return
+
+	var remaining_damage: float = amount
+	if can_use_defenses:
+		var absorbed: float = minf(glorious_anthem_shield, remaining_damage)
+		glorious_anthem_shield -= absorbed
+		remaining_damage -= absorbed
+		absorbed = minf(rhystic_shield, remaining_damage)
+		rhystic_shield -= absorbed
+		remaining_damage -= absorbed
+
+	if remaining_damage <= 0.0:
+		return
+
+	if is_instance_valid(source) and source != self and source.has_method("take_damage"):
+		var reflected_damage: float = 0.0
+		if is_melee and briar_patch_timer > 0.0:
+			reflected_damage += remaining_damage * GameSettings.spell_green_briar_patch_reflect
+		if gideon_reproach_timer > 0.0:
+			reflected_damage += remaining_damage * GameSettings.spell_white_gideons_reproach_reflect_pct
+		if reflected_damage > 0.0:
+			source.take_damage(reflected_damage, self)
+
+	hp -= remaining_damage
 	SignalBus.player_health_changed.emit(hp, max_hp)
 	var spawn_pos = global_position + Vector3(randf_range(-0.2, 0.2), 1.6, randf_range(-0.2, 0.2))
-	SignalBus.damage_number_requested.emit(spawn_pos, amount, Color(1.0, 0.25, 0.25))
+	SignalBus.damage_number_requested.emit(spawn_pos, remaining_damage, Color(1.0, 0.25, 0.25))
 	if hp <= 0:
 		die()
+
+func _sync_capstone_aura() -> void:
+	if _applied_capstone_aura == unlocked_capstone_aura:
+		return
+
+	var health_ratio: float = hp / max_hp if max_hp > 0.0 else 1.0
+	max_hp = GameSettings.player_max_hp
+	rhystic_shield = 0.0
+	glorious_anthem_shield = 0.0
+	if unlocked_capstone_aura == "aura_sylvan_library":
+		max_hp *= GameSettings.aura_sylvan_library_hp_mult
+	elif unlocked_capstone_aura == "aura_glorious_anthem":
+		glorious_anthem_shield = GameSettings.aura_glorious_anthem_shield
+	hp = clampf(max_hp * health_ratio, 0.0, max_hp)
+	_applied_capstone_aura = unlocked_capstone_aura
+	SignalBus.player_health_changed.emit(hp, max_hp)
+	SignalBus.player_capstone_aura_changed.emit()
+
+func get_spell_damage_multiplier() -> float:
+	if unlocked_capstone_aura == "aura_glorious_anthem":
+		return GameSettings.aura_glorious_anthem_damage_mult * run_damage_multiplier
+	if unlocked_capstone_aura == "aura_phyrexian_arena":
+		return GameSettings.aura_phyrexian_arena_damage_mult * run_damage_multiplier
+	return run_damage_multiplier
+
+func _on_wave_reward_selected(reward_id: String) -> void:
+	match reward_id:
+		"power_surge":
+			run_damage_multiplier *= GameSettings.reward_power_surge_damage_mult
+		"arcane_tempo":
+			run_cooldown_recovery_multiplier *= GameSettings.reward_arcane_tempo_recovery_mult
+
+func apply_slow(duration: float) -> void:
+	slow_timer = maxf(slow_timer, duration)
 
 func heal(amount: float, show_damage_number: bool = true) -> void:
 	if hp >= max_hp:
@@ -452,19 +499,20 @@ func cast_red_shock() -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
-	proj.activate(spawn_pos, dir, 1, false, 1.0)
+	var damage_mult: float = get_spell_damage_multiplier()
+	proj.activate(spawn_pos, dir, 1, false, damage_mult)
 	if unlocked_spells_in_path.size() >= 3:
 		var enemies = get_tree().get_nodes_in_group("enemies")
 		if enemies.size() > 1 and is_instance_valid(enemies[1]):
 			var chain_proj = ProjectilePool.get_projectile()
-			chain_proj.activate(spawn_pos, (enemies[1].global_position - spawn_pos).normalized(), 1, false, 0.8)
+			chain_proj.activate(spawn_pos, (enemies[1].global_position - spawn_pos).normalized(), 1, false, GameSettings.spell_red_shock_chain_damage_mult * damage_mult)
 
 func cast_red_fireball(charge_pct: float) -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
 	var radius = GameSettings.spell_red_fireball_base_radius * (0.8 + 0.7 * charge_pct)
-	var mult = 0.6 + 1.2 * charge_pct
+	var mult = (0.6 + 1.2 * charge_pct) * get_spell_damage_multiplier()
 	proj.activate(spawn_pos, dir, 4, false, mult, -1.0, radius, self)
 
 func cast_red_rain_ember() -> void:
@@ -476,7 +524,7 @@ func cast_red_rain_ember() -> void:
 	var target_pos = result.position if result else (global_position - transform.basis.z * 8.0)
 	
 	var zone = DoTZone.new()
-	zone.setup("fire_rain", GameSettings.spell_red_rain_ember_radius, GameSettings.spell_red_rain_ember_dps, GameSettings.spell_red_rain_ember_duration, self)
+	zone.setup("fire_rain", GameSettings.spell_red_rain_ember_radius, GameSettings.spell_red_rain_ember_dps * get_spell_damage_multiplier(), GameSettings.spell_red_rain_ember_duration, self)
 	zone.global_position = target_pos
 	get_tree().current_scene.add_child(zone)
 
@@ -490,7 +538,7 @@ func cast_red_act_of_treason() -> void:
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(GameSettings.spell_red_act_of_treason_damage)
+			enemy.take_damage(GameSettings.spell_red_act_of_treason_damage * get_spell_damage_multiplier())
 		if enemy.has_method("apply_knockback"):
 			var kb_dir = -camera.global_basis.z.normalized() * GameSettings.spell_red_act_of_treason_knockback
 			enemy.apply_knockback(kb_dir)
@@ -499,7 +547,7 @@ func cast_red_act_of_treason() -> void:
 
 func cast_red_chandras_ignition() -> void:
 	var radius = GameSettings.spell_red_chandras_ignition_radius
-	var damage = GameSettings.spell_red_chandras_ignition_damage
+	var damage = GameSettings.spell_red_chandras_ignition_damage * get_spell_damage_multiplier()
 	var push = GameSettings.spell_red_chandras_ignition_push
 	
 	var enemies = get_tree().get_nodes_in_group("enemies")
@@ -547,7 +595,7 @@ func cast_blue_aetherize(charge_pct: float) -> void:
 					e.apply_knockback(to_e * force)
 
 func cast_blue_psionic_blast() -> void:
-	take_damage(GameSettings.spell_blue_psionic_blast_self_damage)
+	take_damage(GameSettings.spell_blue_psionic_blast_self_damage, self)
 	
 	var space_state = get_world_3d().direct_space_state
 	var start = camera.global_position
@@ -558,7 +606,7 @@ func cast_blue_psionic_blast() -> void:
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(GameSettings.spell_blue_psionic_blast_damage)
+			enemy.take_damage(GameSettings.spell_blue_psionic_blast_damage * get_spell_damage_multiplier())
 
 func cast_blue_freeze_breath() -> void:
 	var forward = -camera_pivot.global_transform.basis.z.normalized()
@@ -577,7 +625,7 @@ func cast_blue_counterspell() -> void:
 # --- GREEN SPELLS ---
 func cast_green_titanic_growth() -> void:
 	var forward = -camera_pivot.global_transform.basis.z.normalized()
-	var cleave_damage = GameSettings.spell_melee_damage + max_hp * GameSettings.spell_green_titanic_growth_hp_scaling
+	var cleave_damage = (GameSettings.spell_melee_damage + max_hp * GameSettings.spell_green_titanic_growth_hp_scaling) * get_spell_damage_multiplier()
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	for e in enemies:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= GameSettings.spell_green_titanic_growth_cone:
@@ -594,12 +642,16 @@ func cast_green_hurricane(charge_pct: float) -> void:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:
 			if e.has_method("apply_root"):
 				e.apply_root(dur)
-			if e.has_method("take_damage"):
-				e.take_damage(GameSettings.spell_green_hurricane_poison_dps)
+
+	var zone = DoTZone.new()
+	zone.setup("toxic_deluge", radius, GameSettings.spell_green_hurricane_poison_dps * get_spell_damage_multiplier(), dur, self)
+	zone.global_position = global_position
+	get_tree().current_scene.add_child(zone)
 
 func cast_green_overrun() -> void:
 	overrun_dash_timer = GameSettings.spell_green_overrun_dash_duration
 	overrun_dir = -transform.basis.z.normalized()
+	overrun_hit_enemy_ids.clear()
 
 func cast_green_rabid_bite() -> void:
 	var space_state = get_world_3d().direct_space_state
@@ -610,7 +662,7 @@ func cast_green_rabid_bite() -> void:
 	
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
-		var dmg = GameSettings.spell_green_rabid_bite_damage
+		var dmg = GameSettings.spell_green_rabid_bite_damage * get_spell_damage_multiplier()
 		if enemy.has_method("take_damage"):
 			enemy.take_damage(dmg)
 		if "root_timer" in enemy and enemy.root_timer > 0:
@@ -624,24 +676,28 @@ func cast_white_swords() -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
-	proj.activate(spawn_pos, dir, 6, false, 1.0, -1.0, 0.0, self)
+	proj.activate(spawn_pos, dir, 6, false, get_spell_damage_multiplier(), -1.0, 0.0, self)
 
 func cast_white_path_to_exile(charge_pct: float) -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
-	proj.activate(spawn_pos, dir, 7, false, charge_pct, -1.0, 0.0, self)
+	proj.activate(spawn_pos, dir, 7, false, charge_pct * get_spell_damage_multiplier(), -1.0, 0.0, self)
 
 func cast_white_wrath_of_god(charge_pct: float) -> void:
 	var radius = GameSettings.spell_white_wrath_radius * charge_pct
 	heal(GameSettings.spell_white_wrath_heal * charge_pct)
 	SignalBus.crystal_damaged.emit(-GameSettings.spell_white_wrath_heal * charge_pct)
+	for group_name in ["player", "myrs"]:
+		for ally in get_tree().get_nodes_in_group(group_name):
+			if ally != self and is_instance_valid(ally) and global_position.distance_to(ally.global_position) <= radius and ally.has_method("heal"):
+				ally.heal(GameSettings.spell_white_wrath_heal * charge_pct)
 	
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	for e in enemies:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:
 			if "enemy_data" in e and e.enemy_data and e.has_method("take_damage"):
-				var dmg = e.enemy_data.health * GameSettings.spell_white_wrath_damage_pct * charge_pct
+				var dmg = e.enemy_data.health * GameSettings.spell_white_wrath_damage_pct * charge_pct * get_spell_damage_multiplier()
 				e.take_damage(dmg)
 			if e.has_method("apply_blind"):
 				e.apply_blind(3.0)
@@ -666,11 +722,11 @@ func cast_black_drain_life() -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
-	proj.activate(spawn_pos, dir, 5, false, 1.0, -1.0, 0.0, self)
+	proj.activate(spawn_pos, dir, 5, false, get_spell_damage_multiplier(), -1.0, 0.0, self)
 
 func cast_black_toxic_deluge(charge_pct: float) -> void:
 	var hp_cost = hp * GameSettings.spell_black_toxic_deluge_hp_cost_pct * charge_pct
-	take_damage(hp_cost)
+	take_damage(hp_cost, self)
 	
 	var space_state = get_world_3d().direct_space_state
 	var start = camera.global_position
@@ -680,7 +736,13 @@ func cast_black_toxic_deluge(charge_pct: float) -> void:
 	var target_pos = result.position if result else (global_position - transform.basis.z * 8.0)
 	
 	var zone = DoTZone.new()
-	zone.setup("toxic_deluge", GameSettings.spell_black_toxic_deluge_radius, 40.0 * charge_pct, 6.0, self)
+	zone.setup(
+		"toxic_deluge",
+		GameSettings.spell_black_toxic_deluge_radius,
+		GameSettings.spell_black_toxic_deluge_dps * charge_pct * get_spell_damage_multiplier(),
+		GameSettings.spell_black_toxic_deluge_duration,
+		self
+	)
 	zone.global_position = target_pos
 	get_tree().current_scene.add_child(zone)
 
@@ -694,13 +756,13 @@ func cast_black_doom_blade() -> void:
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(GameSettings.spell_black_doom_blade_damage)
+			enemy.take_damage(GameSettings.spell_black_doom_blade_damage * get_spell_damage_multiplier())
 		if enemy.has_method("apply_doom_curse"):
 			enemy.apply_doom_curse(GameSettings.spell_black_doom_blade_curse_duration, GameSettings.spell_black_doom_blade_curse_mult)
 
-func cast_black_tendrils() -> void:
+func cast_black_tendrils(previous_cast_time: float) -> void:
 	var now = Time.get_ticks_msec() / 1000.0
-	var is_combo = (now - last_spell_cast_time) < 3.0
+	var is_combo = (now - previous_cast_time) < 3.0
 	var targets_count = 3 if is_combo else 1
 	
 	var enemies = get_tree().get_nodes_in_group("enemies")
@@ -708,29 +770,28 @@ func cast_black_tendrils() -> void:
 	for e in enemies:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= 15.0:
 			if e.has_method("take_damage"):
-				e.take_damage(GameSettings.spell_black_tendrils_damage)
-				heal(GameSettings.spell_black_tendrils_damage * 0.5)
+				var damage: float = GameSettings.spell_black_tendrils_damage * get_spell_damage_multiplier()
+				e.take_damage(damage)
+				heal(damage * 0.5)
 				hit += 1
 				if hit >= targets_count:
 					break
 
 func cast_black_sign_in_blood() -> void:
 	var cost = hp * GameSettings.spell_black_sign_in_blood_hp_cost_pct
-	take_damage(cost)
+	take_damage(cost, self)
 	spell_cooldown_timers.clear()
+	spell_cooldown_timers["black_5"] = _get_spell_cooldown("black_5")
 	print("Sign in Blood: All skill cooldowns reset!")
 
 func cast_basic_attack() -> void:
 	var cd = spell_cooldown_timers.get("basic_attack", 0.0)
 	if cd > 0.0:
 		return
-	spell_cooldown_timers["basic_attack"] = GameSettings.spell_cooldown_melee
+	var attack_speed_mult: float = GameSettings.aura_fervor_speed_boost if unlocked_capstone_aura == "aura_fervor" else 1.0
+	spell_cooldown_timers["basic_attack"] = GameSettings.spell_cooldown_melee / attack_speed_mult
 	
-	var dmg = GameSettings.spell_melee_damage
-	if unlocked_capstone_aura == "aura_glorious_anthem":
-		dmg *= GameSettings.aura_glorious_anthem_damage_mult
-	elif unlocked_capstone_aura == "aura_phyrexian_arena":
-		dmg *= GameSettings.aura_phyrexian_arena_damage_mult
+	var dmg = GameSettings.spell_melee_damage * get_spell_damage_multiplier()
 		
 	var space_state = get_world_3d().direct_space_state
 	var start = camera.global_position
@@ -752,6 +813,7 @@ func cast_basic_attack() -> void:
 						e.take_damage(dmg)
 
 func _physics_process(delta: float) -> void:
+	_sync_capstone_aura()
 	if is_downed:
 		down_timer -= delta
 		if down_timer <= 0.0:
@@ -784,9 +846,10 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		var enemies = get_tree().get_nodes_in_group("enemies")
 		for e in enemies:
-			if is_instance_valid(e) and global_position.distance_to(e.global_position) <= 2.5:
+			if is_instance_valid(e) and not overrun_hit_enemy_ids.has(e.get_instance_id()) and global_position.distance_to(e.global_position) <= 2.5:
+				overrun_hit_enemy_ids[e.get_instance_id()] = true
 				if e.has_method("take_damage"):
-					e.take_damage(GameSettings.spell_melee_damage * GameSettings.spell_green_overrun_damage_mult)
+					e.take_damage(GameSettings.spell_melee_damage * GameSettings.spell_green_overrun_damage_mult * get_spell_damage_multiplier())
 				if e.has_method("apply_knockback"):
 					e.apply_knockback(overrun_dir * 10.0)
 		return
@@ -813,26 +876,6 @@ func _physics_process(delta: float) -> void:
 		var drain = max_hp * GameSettings.aura_phyrexian_arena_hp_drain_pct * delta
 		hp = max(1.0, hp - drain)
 		SignalBus.player_health_changed.emit(hp, max_hp)
-
-	# Crosshair target checking
-	var space_state = get_world_3d().direct_space_state
-	var start = camera.global_position
-	var end = start - camera.global_basis.z * 50.0
-	var query = PhysicsRayQueryParameters3D.create(start, end, 4)
-	var result = space_state.intersect_ray(query)
-	
-	if result and result.collider.is_in_group("enemies"):
-		var enemy = result.collider
-		if enemy != _last_focused_enemy:
-			_last_focused_enemy = enemy
-			if "enemy_data" in enemy and enemy.enemy_data:
-				var e_name = enemy.enemy_data.display_name
-				var e_color = enemy.enemy_data.visual_color
-				SignalBus.enemy_focused.emit(true, e_name, enemy.health, enemy.enemy_data.health, e_color)
-	else:
-		if _last_focused_enemy != null:
-			_last_focused_enemy = null
-			SignalBus.enemy_focused.emit(false, "", 0, 0, Color.WHITE)
 
 	# Teammate revive check
 	var revived_teammate = false
@@ -918,7 +961,7 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_pressed("sprint"):
 		current_speed *= GameSettings.player_sprint_speed_mult
 	if slow_timer > 0:
-		current_speed *= GameSettings.player_carry_speed_penalty
+		current_speed *= GameSettings.enemy_blue_mage_slow_mult
 	if carried_color != "":
 		current_speed *= GameSettings.player_carry_speed_penalty
 		
@@ -949,6 +992,6 @@ func _physics_process(delta: float) -> void:
 		var cdr = 1.0
 		if unlocked_capstone_aura == "aura_rhystic_study":
 			cdr = GameSettings.aura_rhystic_study_cdr_mult
-		spell_cooldown_timers[key] -= delta / cdr
+		spell_cooldown_timers[key] -= delta * run_cooldown_recovery_multiplier / cdr
 		if spell_cooldown_timers[key] <= 0.0:
 			spell_cooldown_timers.erase(key)

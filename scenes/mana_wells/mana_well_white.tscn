@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://bujxuwn5eicwh"]
+
+[ext_resource type="PackedScene" uid="uid://bdlntbeo3lxca" path="res://assets/generated/mana-well-white/mana-well-white.glb" id="1_model"]
+
+[node name="ManaWellWhite" type="Node3D" unique_id=1529671095]
+
+[node name="Model" parent="." unique_id=705414763 instance=ExtResource("1_model")]
+transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0)

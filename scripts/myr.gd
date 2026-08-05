@@ -10,12 +10,15 @@ enum State {
 	DEPOSITING
 }
 
-@export var speed: float = 2.0
+@export var speed: float = GameSettings.myr_speed
 
 var current_state: State = State.SPAWNING
 var target_mana_source: Node3D
 var target_crystal: Node3D
 var lane_index: int = -1
+var health: float = GameSettings.myr_max_hp
+var max_health: float = GameSettings.myr_max_hp
+var fervor_active: bool = false
 
 # Timer properties
 var harvest_time: float = 3.0
@@ -29,6 +32,8 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 func _ready() -> void:
 	# Add to group so enemies can find Myrs
 	add_to_group("myrs")
+	SignalBus.player_capstone_aura_changed.connect(_refresh_fervor_state)
+	_refresh_fervor_state()
 	
 	# Set collision layer and mask
 	# Layer 2: Myr (binary: 2)
@@ -73,6 +78,28 @@ func assign_lane(index: int, source: Node3D) -> void:
 	current_state = State.WALKING_TO_MANA
 	update_navigation_target()
 
+func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false) -> void:
+	health = maxf(0.0, health - amount)
+	SignalBus.damage_number_requested.emit(global_position + Vector3(0, 1.2, 0), amount, Color(1.0, 0.25, 0.25))
+	if health <= 0.0:
+		die()
+
+func heal(amount: float) -> void:
+	var previous_health: float = health
+	health = minf(max_health, health + amount)
+	if health > previous_health:
+		SignalBus.damage_number_requested.emit(global_position + Vector3(0, 1.2, 0), previous_health - health, Color(0.2, 1.0, 0.4))
+
+func die() -> void:
+	queue_free()
+
+func _refresh_fervor_state() -> void:
+	fervor_active = false
+	for player in get_tree().get_nodes_in_group("player"):
+		if is_instance_valid(player) and "unlocked_capstone_aura" in player and player.unlocked_capstone_aura == "aura_fervor":
+			fervor_active = true
+			return
+
 func setup_visuals() -> void:
 	# Create a simple visual cylinder/capsule for the Myr
 	var visual = CSGCylinder3D.new()
@@ -100,6 +127,10 @@ func update_navigation_target() -> void:
 				nav_agent.target_position = target_crystal.global_position
 
 func _physics_process(delta: float) -> void:
+	var current_speed: float = speed
+	if fervor_active:
+		current_speed *= GameSettings.aura_fervor_speed_boost
+
 	# Apply gravity
 	if not is_on_floor():
 		velocity.y -= gravity * delta
@@ -109,8 +140,8 @@ func _physics_process(delta: float) -> void:
 	# Process states
 	match current_state:
 		State.IDLE:
-			velocity.x = move_toward(velocity.x, 0, speed)
-			velocity.z = move_toward(velocity.z, 0, speed)
+			velocity.x = move_toward(velocity.x, 0, current_speed)
+			velocity.z = move_toward(velocity.z, 0, current_speed)
 			move_and_slide()
 		State.WALKING_TO_MANA, State.WALKING_TO_CRYSTAL:
 			if nav_agent.is_navigation_finished():
@@ -121,7 +152,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				var next_path_position = nav_agent.get_next_path_position()
 				var current_agent_position = global_position
-				var new_velocity = (next_path_position - current_agent_position).normalized() * speed
+				var new_velocity = (next_path_position - current_agent_position).normalized() * current_speed
 				velocity.x = new_velocity.x
 				velocity.z = new_velocity.z
 				

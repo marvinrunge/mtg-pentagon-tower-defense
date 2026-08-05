@@ -135,52 +135,6 @@ text = "Press [F] to Manage Base"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="LevelUpLabel" type="Label" parent="Control" unique_id=987103870]
-visible = false
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = -100.0
-offset_right = 200.0
-offset_bottom = -50.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
-theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 36
-text = "LEVEL UP!"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="TargetContainer" type="VBoxContainer" parent="Control" unique_id=816039689]
-visible = false
-layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -150.0
-offset_top = 20.0
-offset_right = 150.0
-offset_bottom = 60.0
-grow_horizontal = 2
-mouse_filter = 2
-
-[node name="TargetLabel" type="Label" parent="Control/TargetContainer" unique_id=2085187810]
-layout_mode = 2
-text = "Enemy"
-horizontal_alignment = 1
-
-[node name="TargetHealthBar" type="ProgressBar" parent="Control/TargetContainer" unique_id=1359295342]
-custom_minimum_size = Vector2(300, 15)
-layout_mode = 2
-show_percentage = false
-
 [node name="Crosshair" type="ColorRect" parent="Control" unique_id=911640817]
 layout_mode = 1
 anchors_preset = 8
@@ -260,6 +214,11 @@ layout_mode = 2
 button_pressed = true
 text = "Show Damage Numbers"
 
+[node name="EnemyHealthBarsCheckbox" type="CheckBox" parent="Control/SettingsPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+button_pressed = true
+text = "Show Enemy Health Bars"
+
 [node name="SizeLabel" type="Label" parent="Control/SettingsPanel/MarginContainer/VBoxContainer" unique_id=966529125]
 layout_mode = 2
 text = "Minimap Size"
@@ -318,7 +277,7 @@ size_flags_horizontal = 4
 theme_override_font_sizes/font_size = 18
 text = "Restart Game"
 
-[node name="HotbarAndXPContainer" type="VBoxContainer" parent="Control" unique_id=987103880]
+[node name="HotbarContainer" type="VBoxContainer" parent="Control" unique_id=987103880]
 layout_mode = 1
 anchors_preset = 7
 anchor_left = 0.5
@@ -334,39 +293,39 @@ grow_vertical = 0
 theme_override_constants/separation = 5
 alignment = 1
 
-[node name="SpellHotbar" type="HBoxContainer" parent="Control/HotbarAndXPContainer" unique_id=987103820]
+[node name="SpellHotbar" type="HBoxContainer" parent="Control/HotbarContainer" unique_id=987103820]
 layout_mode = 2
 theme_override_constants/separation = 10
 alignment = 1
 
-[node name="Slot1" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103821]
+[node name="Slot1" type="PanelContainer" parent="Control/HotbarContainer/SpellHotbar" unique_id=987103821]
 custom_minimum_size = Vector2(60, 60)
 layout_mode = 2
 
-[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1" unique_id=987103822]
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarContainer/SpellHotbar/Slot1" unique_id=987103822]
 layout_mode = 2
 theme_override_constants/separation = 2
 alignment = 1
 
-[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1/VBox" unique_id=987103823]
+[node name="Num" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot1/VBox" unique_id=987103823]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
 theme_override_font_sizes/font_size = 10
 text = "1"
 horizontal_alignment = 1
 
-[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1/VBox" unique_id=987103824]
+[node name="Name" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot1/VBox" unique_id=987103824]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "Melee"
+text = "Locked"
 horizontal_alignment = 1
 
-[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1" unique_id=987103851]
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarContainer/SpellHotbar/Slot1" unique_id=987103851]
 visible = false
 layout_mode = 2
 color = Color(0, 0, 0, 0.65)
 
-[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot1/CooldownOverlay" unique_id=987103852]
+[node name="Label" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot1/CooldownOverlay" unique_id=987103852]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -379,34 +338,34 @@ text = "1.5s"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Slot2" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103825]
+[node name="Slot2" type="PanelContainer" parent="Control/HotbarContainer/SpellHotbar" unique_id=987103825]
 custom_minimum_size = Vector2(60, 60)
 layout_mode = 2
 
-[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2" unique_id=987103826]
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarContainer/SpellHotbar/Slot2" unique_id=987103826]
 layout_mode = 2
 theme_override_constants/separation = 2
 alignment = 1
 
-[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2/VBox" unique_id=987103827]
+[node name="Num" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot2/VBox" unique_id=987103827]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
 theme_override_font_sizes/font_size = 10
 text = "2"
 horizontal_alignment = 1
 
-[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2/VBox" unique_id=987103828]
+[node name="Name" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot2/VBox" unique_id=987103828]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "Shock"
+text = "Locked"
 horizontal_alignment = 1
 
-[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2" unique_id=987103853]
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarContainer/SpellHotbar/Slot2" unique_id=987103853]
 visible = false
 layout_mode = 2
 color = Color(0, 0, 0, 0.65)
 
-[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot2/CooldownOverlay" unique_id=987103854]
+[node name="Label" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot2/CooldownOverlay" unique_id=987103854]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -419,34 +378,34 @@ text = "1.5s"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Slot3" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103829]
+[node name="Slot3" type="PanelContainer" parent="Control/HotbarContainer/SpellHotbar" unique_id=987103829]
 custom_minimum_size = Vector2(60, 60)
 layout_mode = 2
 
-[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3" unique_id=987103830]
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarContainer/SpellHotbar/Slot3" unique_id=987103830]
 layout_mode = 2
 theme_override_constants/separation = 2
 alignment = 1
 
-[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3/VBox" unique_id=987103831]
+[node name="Num" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot3/VBox" unique_id=987103831]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
 theme_override_font_sizes/font_size = 10
 text = "3"
 horizontal_alignment = 1
 
-[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3/VBox" unique_id=987103832]
+[node name="Name" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot3/VBox" unique_id=987103832]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "Unsummon"
+text = "Locked"
 horizontal_alignment = 1
 
-[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3" unique_id=987103855]
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarContainer/SpellHotbar/Slot3" unique_id=987103855]
 visible = false
 layout_mode = 2
 color = Color(0, 0, 0, 0.65)
 
-[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot3/CooldownOverlay" unique_id=987103856]
+[node name="Label" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot3/CooldownOverlay" unique_id=987103856]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -459,34 +418,34 @@ text = "1.5s"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Slot4" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103833]
+[node name="Slot4" type="PanelContainer" parent="Control/HotbarContainer/SpellHotbar" unique_id=987103833]
 custom_minimum_size = Vector2(60, 60)
 layout_mode = 2
 
-[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4" unique_id=987103834]
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarContainer/SpellHotbar/Slot4" unique_id=987103834]
 layout_mode = 2
 theme_override_constants/separation = 2
 alignment = 1
 
-[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4/VBox" unique_id=987103835]
+[node name="Num" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot4/VBox" unique_id=987103835]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
 theme_override_font_sizes/font_size = 10
 text = "4"
 horizontal_alignment = 1
 
-[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4/VBox" unique_id=987103836]
+[node name="Name" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot4/VBox" unique_id=987103836]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "Giant"
+text = "Locked"
 horizontal_alignment = 1
 
-[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4" unique_id=987103857]
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarContainer/SpellHotbar/Slot4" unique_id=987103857]
 visible = false
 layout_mode = 2
 color = Color(0, 0, 0, 0.65)
 
-[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot4/CooldownOverlay" unique_id=987103858]
+[node name="Label" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot4/CooldownOverlay" unique_id=987103858]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -499,34 +458,34 @@ text = "1.5s"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Slot5" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103837]
+[node name="Slot5" type="PanelContainer" parent="Control/HotbarContainer/SpellHotbar" unique_id=987103837]
 custom_minimum_size = Vector2(60, 60)
 layout_mode = 2
 
-[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5" unique_id=987103838]
+[node name="VBox" type="VBoxContainer" parent="Control/HotbarContainer/SpellHotbar/Slot5" unique_id=987103838]
 layout_mode = 2
 theme_override_constants/separation = 2
 alignment = 1
 
-[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5/VBox" unique_id=987103839]
+[node name="Num" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot5/VBox" unique_id=987103839]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
 theme_override_font_sizes/font_size = 10
 text = "5"
 horizontal_alignment = 1
 
-[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5/VBox" unique_id=987103840]
+[node name="Name" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot5/VBox" unique_id=987103840]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "Heal"
+text = "Locked"
 horizontal_alignment = 1
 
-[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5" unique_id=987103859]
+[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarContainer/SpellHotbar/Slot5" unique_id=987103859]
 visible = false
 layout_mode = 2
 color = Color(0, 0, 0, 0.65)
 
-[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot5/CooldownOverlay" unique_id=987103860]
+[node name="Label" type="Label" parent="Control/HotbarContainer/SpellHotbar/Slot5/CooldownOverlay" unique_id=987103860]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -536,68 +495,6 @@ grow_vertical = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 14
 text = "1.5s"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="Slot6" type="PanelContainer" parent="Control/HotbarAndXPContainer/SpellHotbar" unique_id=987103841]
-custom_minimum_size = Vector2(60, 60)
-layout_mode = 2
-
-[node name="VBox" type="VBoxContainer" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6" unique_id=987103842]
-layout_mode = 2
-theme_override_constants/separation = 2
-alignment = 1
-
-[node name="Num" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6/VBox" unique_id=987103843]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
-theme_override_font_sizes/font_size = 10
-text = "6"
-horizontal_alignment = 1
-
-[node name="Name" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6/VBox" unique_id=987103844]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Stab"
-horizontal_alignment = 1
-
-[node name="CooldownOverlay" type="ColorRect" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6" unique_id=987103861]
-visible = false
-layout_mode = 2
-color = Color(0, 0, 0, 0.65)
-
-[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/SpellHotbar/Slot6/CooldownOverlay" unique_id=987103862]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 14
-text = "1.5s"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="XPBar" type="ProgressBar" parent="Control/HotbarAndXPContainer" unique_id=343052876]
-custom_minimum_size = Vector2(410, 30)
-layout_mode = 2
-size_flags_horizontal = 4
-mouse_filter = 2
-show_percentage = false
-
-[node name="Label" type="Label" parent="Control/HotbarAndXPContainer/XPBar" unique_id=731992016]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 2
-theme_override_font_sizes/font_size = 13
-text = "Level: 1 | XP: 0 / 100"
 horizontal_alignment = 1
 vertical_alignment = 1
 

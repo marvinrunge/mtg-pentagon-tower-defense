@@ -1,0 +1,38 @@
+﻿{
+    "generator":  "Meshy Text to 3D API v2",
+    "task_id":  "019f90f3-aaad-7e87-94c9-232560b2c9f3",
+    "task_type":  "text-to-3d-refine",
+    "status":  "SUCCEEDED",
+    "consumed_credits":  10,
+    "request":  {
+                    "preview":  {
+                                    "mode":  "preview",
+                                    "prompt":  "Single isolated low-poly fantasy mana well, green-aligned ancient grove shrine design, mossy stone basin with five-sided footprint, intertwined roots and branching antler-like wooden arches framing an open liquid basin, organic readable silhouette, game prop approximately 3 meters wide and 2.5 meters tall, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+                                    "model_type":  "lowpoly",
+                                    "target_formats":  [
+                                                           "glb"
+                                                       ],
+                                    "moderation":  true,
+                                    "auto_size":  true,
+                                    "origin_at":  "bottom"
+                                },
+                    "refine":  {
+                                   "mode":  "refine",
+                                   "preview_task_id":  "019f90f1-4e7b-7a10-a9d7-b8c7d28977d6",
+                                   "ai_model":  "latest",
+                                   "enable_pbr":  true,
+                                   "hd_texture":  false,
+                                   "remove_lighting":  true,
+                                   "moderation":  true,
+                                   "target_formats":  [
+                                                          "glb"
+                                                      ],
+                                   "auto_size":  true,
+                                   "origin_at":  "bottom",
+                                   "texture_prompt":  "Moss-covered gray stone, rich bark, small jade crystals, luminous emerald magical liquid, restrained green emissive veins, lightly weathered, game-ready PBR"
+                               }
+                },
+    "source_prompt":  "Single isolated low-poly fantasy mana well, green-aligned ancient grove shrine design, mossy stone basin with five-sided footprint, intertwined roots and branching antler-like wooden arches framing an open liquid basin, organic readable silhouette, game prop approximately 3 meters wide and 2.5 meters tall, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+    "texture_prompt":  "Moss-covered gray stone, rich bark, small jade crystals, luminous emerald magical liquid, restrained green emissive veins, lightly weathered, game-ready PBR",
+    "license_review_required":  true
+}

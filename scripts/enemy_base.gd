@@ -3,13 +3,14 @@ class_name EnemyBase
 
 var target_crystal: Node3D
 var current_target: Node3D
-var last_target_position: Vector3
-var target_offset: Vector3 = Vector3.ZERO
+var last_target_position: Vector3 = Vector3.INF
 
 var _enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
+var _health_bar_scene: PackedScene = preload("res://scenes/enemy_health_bar.tscn")
 
 var enemy_data: EnemyData
 var health: float = 100.0
+var health_bar: EnemyHealthBar
 var damage_penalty: float = 0.0
 var penalty_timer: float = 0.0
 var attack_cooldown: float = 0.0
@@ -36,6 +37,9 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 # For Mages
 var cast_timer: float = 0.0
 var target_eval_timer: float = 0.0
+var elite_modifier: String = ""
+var elite_regeneration_per_second: float = 0.0
+var elite_crystal_damage_multiplier: float = 1.0
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -49,11 +53,8 @@ func _ready() -> void:
 		if crystal_nodes.size() > 0:
 			target_crystal = crystal_nodes[0]
 			
-	if has_meta("formation_offset"):
-		target_offset = get_meta("formation_offset")
-			
 	current_target = target_crystal
-	update_path()
+	update_path(true)
 	
 	if aggro_area:
 		aggro_area.body_entered.connect(_on_aggro_body_entered)
@@ -65,8 +66,8 @@ func setup(data: EnemyData) -> void:
 	
 	# Adjust Aggro Area based on range
 	if aggro_col and aggro_col.shape is SphereShape3D:
-		var shape = aggro_col.shape as SphereShape3D
-		shape.radius = max(GameSettings.enemy_aggro_radius, data.attack_range + 2.0)
+		var shape: SphereShape3D = aggro_col.shape as SphereShape3D
+		shape.radius = _get_detection_range()
 		
 	cast_timer = data.attack_speed
 	
@@ -82,6 +83,13 @@ func setup(data: EnemyData) -> void:
 	add_child(visual)
 	
 	scale = Vector3(data.model_scale, data.model_scale, data.model_scale)
+	aggro_area.scale = Vector3.ONE / maxf(data.model_scale, 0.01)
+	health_bar = _health_bar_scene.instantiate() as EnemyHealthBar
+	add_child(health_bar)
+	health_bar.set_health(health, data.health)
+
+	if has_meta("elite_modifier"):
+		apply_elite_modifier(String(get_meta("elite_modifier")))
 	
 	# Bosses get a special visual marker (a crown or just bigger)
 	if data.enemy_class == "Boss":
@@ -96,26 +104,26 @@ func setup(data: EnemyData) -> void:
 		crown.material = c_mat
 		add_child(crown)
 
-func update_path() -> void:
+func update_path(force_update: bool = false) -> void:
 	if not nav_agent:
 		return
 	
-	var target_pos = Vector3.ZERO
+	var target_pos: Vector3 = Vector3.ZERO
 	if current_target and is_instance_valid(current_target):
 		target_pos = current_target.global_position
-		# If they are targeting the central crystal, keep their formation offset so they walk parallel
-		if current_target == target_crystal:
-			target_pos += target_offset
-	elif target_crystal:
-		target_pos = target_crystal.global_position + target_offset
+	elif target_crystal and is_instance_valid(target_crystal):
+		target_pos = target_crystal.global_position
 		
-	if target_pos.distance_squared_to(last_target_position) > 0.1:
+	if force_update or target_pos.distance_squared_to(last_target_position) > 0.1:
 		nav_agent.target_position = target_pos
 		last_target_position = target_pos
 
 func _physics_process(delta: float) -> void:
 	if not enemy_data:
 		return # Not initialized yet
+
+	if elite_regeneration_per_second > 0.0 and health < enemy_data.health:
+		heal(elite_regeneration_per_second * delta, false)
 		
 	if not is_on_floor():
 		velocity.y -= gravity * delta
@@ -171,7 +179,10 @@ func _physics_process(delta: float) -> void:
 	if stun_timer > 0: stun_timer -= delta
 	if blind_timer > 0: blind_timer -= delta
 	if curse_timer > 0: curse_timer -= delta
-	if pacified_timer > 0: pacified_timer -= delta
+	if pacified_timer > 0:
+		pacified_timer -= delta
+		if pacified_timer <= 0:
+			damage_penalty = 0.0
 
 	# Disable movement if frozen or stunned
 	if freeze_timer > 0 or stun_timer > 0:
@@ -181,12 +192,13 @@ func _physics_process(delta: float) -> void:
 		return
 
 	# Movement
-	if dist_to_target > enemy_data.attack_range and not nav_agent.is_navigation_finished() and root_timer <= 0:
+	var is_in_attack_range: bool = dist_to_target <= enemy_data.attack_range
+	if not is_in_attack_range and root_timer <= 0 and not nav_agent.is_navigation_finished():
 		var next_path_position = nav_agent.get_next_path_position()
-		var speed_mult = 1.0
+		var speed_mult: float = 1.0
 		if frost_slow_timer > 0:
 			speed_mult = GameSettings.enemy_frost_slow_mult
-		var new_velocity = (next_path_position - global_position).normalized() * enemy_data.speed * speed_mult
+		var new_velocity: Vector3 = (next_path_position - global_position).normalized() * enemy_data.speed * speed_mult
 		velocity.x = new_velocity.x
 		velocity.z = new_velocity.z
 		
@@ -196,14 +208,19 @@ func _physics_process(delta: float) -> void:
 			
 		move_and_slide()
 	else:
-		# In range or rooted, stop moving
 		velocity.x = 0.0
 		velocity.z = 0.0
+		move_and_slide()
+
+		if not is_in_attack_range:
+			if root_timer <= 0 and nav_agent.is_navigation_finished():
+				update_path(true)
+			return
 		
 		if is_instance_valid(current_target):
-			var dir_to_target = (current_target.global_position - global_position).normalized()
+			var dir_to_target: Vector3 = (current_target.global_position - global_position).normalized()
 			if dir_to_target.length_squared() > 0.01:
-				var target_rotation = atan2(dir_to_target.x, dir_to_target.z)
+				var target_rotation: float = atan2(dir_to_target.x, dir_to_target.z)
 				rotation.y = lerp_angle(rotation.y, target_rotation, 8.0 * delta)
 		
 		if attack_cooldown <= 0 and blind_timer <= 0:
@@ -225,17 +242,14 @@ func perform_attack() -> void:
 		return
 		
 	var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
+	if current_target == target_crystal:
+		actual_damage *= elite_crystal_damage_multiplier
 	actual_damage *= GameSettings.get_player_scaling_factor(get_tree())
 	
 	if current_target == target_crystal:
 		SignalBus.crystal_damaged.emit(actual_damage)
-	elif current_target.is_in_group("myrs"):
-		current_target.queue_free()
-		# Force re-evaluate next frame so we don't target the dying Myr
-		call_deferred("evaluate_target")
-	elif current_target.is_in_group("player"):
-		if current_target.has_method("take_damage"):
-			current_target.take_damage(actual_damage)
+	elif current_target.has_method("take_damage"):
+		current_target.take_damage(actual_damage, self, true)
 
 func fire_projectile() -> void:
 	var proj = ProjectilePool.get_projectile()
@@ -245,15 +259,17 @@ func fire_projectile() -> void:
 		var target_pos = current_target.global_position
 		if current_target == target_crystal:
 			target_pos += Vector3(0, 2.0, 0) # Aim at crystal center
-		elif current_target.is_in_group("player"):
+		elif current_target.is_in_group("player") or current_target.is_in_group("myrs"):
 			target_pos += Vector3(0, 1.0, 0) # Aim at player chest
 		
 		var dir = (target_pos - start_pos).normalized()
 		
 		var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
+		if current_target == target_crystal:
+			actual_damage *= elite_crystal_damage_multiplier
 		actual_damage *= GameSettings.get_player_scaling_factor(get_tree())
 		
-		proj.activate(start_pos, dir, 3, true, 1.0, actual_damage)
+		proj.activate(start_pos, dir, 3, true, 1.0, actual_damage, 0.0, self)
 
 func perform_mage_spell() -> void:
 	match enemy_data.color_identity:
@@ -275,9 +291,8 @@ func perform_mage_spell() -> void:
 			# Slows player
 			var players = get_tree().get_nodes_in_group("player")
 			if players.size() > 0 and global_position.distance_to(players[0].global_position) < GameSettings.enemy_blue_mage_range:
-				# We don't have a slow debuff yet, let's just simulate it or add it to player
 				if players[0].has_method("apply_slow"):
-					players[0].apply_slow()
+					players[0].apply_slow(GameSettings.enemy_blue_mage_slow_duration)
 		"Black":
 			# Revive weak enemy
 			# Just spawn a new weak melee of the same color
@@ -302,44 +317,94 @@ func perform_mage_spell() -> void:
 						e.enemy_data.attack_damage *= GameSettings.enemy_green_mage_buff_damage
 					break # Only buff one
 
-func heal(amount: float) -> void:
+func heal(amount: float, show_damage_number: bool = true) -> void:
 	if enemy_data:
 		health = min(enemy_data.health, health + amount)
-		var spawn_pos = global_position + Vector3(0, 1.8, 0)
-		SignalBus.damage_number_requested.emit(spawn_pos, -amount, Color(0.2, 1.0, 0.4))
+		if health_bar:
+			health_bar.set_health(health, enemy_data.health)
+		if show_damage_number:
+			var spawn_pos = global_position + Vector3(0, 1.8, 0)
+			SignalBus.damage_number_requested.emit(spawn_pos, -amount, Color(0.2, 1.0, 0.4))
+
+func apply_elite_modifier(modifier: String) -> void:
+	elite_modifier = modifier
+	match elite_modifier:
+		"Haste":
+			enemy_data.speed *= GameSettings.enemy_elite_haste_speed_mult
+			enemy_data.attack_speed *= GameSettings.enemy_elite_haste_attack_speed_mult
+		"Regenerator":
+			enemy_data.health *= GameSettings.enemy_elite_regenerator_health_mult
+			elite_regeneration_per_second = enemy_data.health * GameSettings.enemy_elite_regenerator_heal_pct_per_second
+		"Juggernaut":
+			enemy_data.health *= GameSettings.enemy_elite_juggernaut_health_mult
+			enemy_data.attack_damage *= GameSettings.enemy_elite_juggernaut_damage_mult
+			enemy_data.speed *= GameSettings.enemy_elite_juggernaut_speed_mult
+		"Crystal Hunter":
+			elite_crystal_damage_multiplier = GameSettings.enemy_elite_crystal_hunter_damage_mult
+
+	health = enemy_data.health
+	if health_bar:
+		health_bar.set_health(health, enemy_data.health)
+	_add_elite_marker()
+
+func _add_elite_marker() -> void:
+	var marker: CSGTorus3D = CSGTorus3D.new()
+	marker.name = "EliteMarker"
+	marker.inner_radius = 0.42
+	marker.outer_radius = 0.58
+	marker.position = Vector3(0.0, 2.05, 0.0)
+	marker.rotation_degrees.x = 90.0
+	var marker_material: StandardMaterial3D = StandardMaterial3D.new()
+	marker_material.albedo_color = Color(1.0, 0.72, 0.12)
+	marker_material.emission_enabled = true
+	marker_material.emission = Color(1.0, 0.28, 0.04)
+	marker_material.emission_energy_multiplier = 2.5
+	marker.material = marker_material
+	add_child(marker)
+
+	var modifier_label: Label3D = Label3D.new()
+	modifier_label.name = "EliteModifierLabel"
+	modifier_label.text = elite_modifier.to_upper()
+	modifier_label.position = Vector3(0.0, 2.45, 0.0)
+	modifier_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	modifier_label.no_depth_test = true
+	modifier_label.font_size = 32
+	modifier_label.outline_size = 8
+	modifier_label.modulate = Color(1.0, 0.78, 0.24)
+	add_child(modifier_label)
+
+func _get_detection_range() -> float:
+	if enemy_data and (enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged"):
+		return GameSettings.enemy_ranged_detection_range
+	return GameSettings.enemy_melee_detection_range
 
 func evaluate_target() -> void:
-	var best_target = target_crystal
-	var best_priority = 3 # 1:Player, 2:Myrs, 3:Crystal
+	if pacified_timer > 0.0:
+		if current_target != target_crystal:
+			current_target = target_crystal
+			update_path(true)
+		return
 
-	# Mathematically check for the player to guarantee detection
-	var players = get_tree().get_nodes_in_group("player")
-	if players.size() > 0 and is_instance_valid(players[0]):
-		var detection_range = GameSettings.enemy_melee_detection_range
-		if enemy_data and (enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged"):
-			detection_range = GameSettings.enemy_ranged_detection_range
-			
-		if global_position.distance_to(players[0].global_position) < detection_range:
-			best_target = players[0]
-			best_priority = 1
+	var best_target: Node3D = target_crystal
+	var best_distance_squared: float = INF
+	var detection_range: float = _get_detection_range()
+	var detection_range_squared: float = detection_range * detection_range
 
-	if best_priority > 1 and is_instance_valid(aggro_area):
-		var bodies = aggro_area.get_overlapping_bodies()
-		for body in bodies:
-			if not is_instance_valid(body) or body.is_queued_for_deletion():
-				continue
-				
-			var priority = 3
-			if body.is_in_group("myrs"):
-				priority = 2
-				
-			if priority < best_priority:
-				best_target = body
-				best_priority = priority
+	for candidate in aggro_area.get_overlapping_bodies():
+		if not candidate is Node3D or not is_instance_valid(candidate) or candidate.is_queued_for_deletion():
+			continue
+		if not candidate.is_in_group("player") and not candidate.is_in_group("myrs"):
+			continue
+		if candidate.is_in_group("player") and "is_downed" in candidate and candidate.is_downed:
+			continue
+		var candidate_distance_squared: float = global_position.distance_squared_to(candidate.global_position)
+		if candidate_distance_squared <= detection_range_squared and candidate_distance_squared < best_distance_squared:
+			best_target = candidate
+			best_distance_squared = candidate_distance_squared
 
 	if current_target != best_target:
 		current_target = best_target
-		update_path()
+		update_path(true)
 
 func _on_aggro_body_entered(body: Node3D) -> void:
 	evaluate_target()
@@ -348,10 +413,12 @@ func _on_aggro_body_exited(body: Node3D) -> void:
 	evaluate_target()
 
 # --- Spell Interactions ---
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false) -> void:
 	if curse_timer > 0:
 		amount *= curse_mult
 	health -= amount
+	if health_bar and enemy_data:
+		health_bar.set_health(health, enemy_data.health)
 	var spawn_pos = global_position + Vector3(randf_range(-0.3, 0.3), 1.5, randf_range(-0.3, 0.3))
 	SignalBus.damage_number_requested.emit(spawn_pos, amount, Color(1.0, 0.95, 0.2))
 	if health <= 0.0:
@@ -359,7 +426,7 @@ func take_damage(amount: float) -> void:
 
 func die() -> void:
 	if enemy_data:
-		SignalBus.enemy_died.emit(enemy_data.xp_yield)
+		SignalBus.enemy_died.emit()
 	queue_free()
 
 func unsummon(force_vec: Vector3 = Vector3.ZERO) -> void:
@@ -409,6 +476,7 @@ func apply_pacifism(duration: float) -> void:
 	pacified_timer = duration
 	damage_penalty = enemy_data.attack_damage * GameSettings.spell_white_pacifism_debuff_mult
 	current_target = target_crystal
+	update_path(true)
 
 func apply_stab_debuff() -> void:
 	damage_penalty = GameSettings.spell_stab_debuff_damage

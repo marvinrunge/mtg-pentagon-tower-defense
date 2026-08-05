@@ -12,14 +12,12 @@ static func get_enemy_data(color_id: String, type_id: String) -> EnemyData:
 		data.speed = 2.5
 		data.attack_damage = 10.0
 		data.attack_range = 2.0
-		data.xp_yield = 10
 		data.model_scale = 0.8
 	elif type_id == "Ranged":
 		data.health = 60.0
 		data.speed = 2.0
 		data.attack_damage = 8.0
 		data.attack_range = 10.0
-		data.xp_yield = 15
 		data.model_scale = 0.8
 	elif type_id == "Mage":
 		data.health = 100.0
@@ -27,14 +25,12 @@ static func get_enemy_data(color_id: String, type_id: String) -> EnemyData:
 		data.attack_damage = 15.0
 		data.attack_range = 8.0
 		data.attack_speed = 3.0 # Slow cast time
-		data.xp_yield = 30
 		data.model_scale = 1.0
 	elif type_id == "Boss":
 		data.health = 800.0
 		data.speed = 1.2
 		data.attack_damage = 40.0
 		data.attack_range = 3.0
-		data.xp_yield = 200
 		data.model_scale = 2.5
 		
 	# Apply Color Modifiers & Visuals

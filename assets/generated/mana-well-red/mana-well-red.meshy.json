@@ -1,0 +1,38 @@
+﻿{
+    "generator":  "Meshy Text to 3D API v2",
+    "task_id":  "019f90ef-880f-7d3c-ad90-a6bb417f20dd",
+    "task_type":  "text-to-3d-refine",
+    "status":  "SUCCEEDED",
+    "consumed_credits":  10,
+    "request":  {
+                    "preview":  {
+                                    "mode":  "preview",
+                                    "prompt":  "Single isolated low-poly fantasy mana well, red-aligned volcanic forge design, jagged basalt basin with five-sided footprint, angular brass braces and flame-shaped stone fins around an open liquid basin, aggressive readable silhouette, game prop approximately 3 meters wide and 2.5 meters tall, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+                                    "model_type":  "lowpoly",
+                                    "target_formats":  [
+                                                           "glb"
+                                                       ],
+                                    "moderation":  true,
+                                    "auto_size":  true,
+                                    "origin_at":  "bottom"
+                                },
+                    "refine":  {
+                                   "mode":  "refine",
+                                   "preview_task_id":  "019f90ed-f43f-7ca6-ade1-e5f1e27fe926",
+                                   "ai_model":  "latest",
+                                   "enable_pbr":  true,
+                                   "hd_texture":  false,
+                                   "remove_lighting":  true,
+                                   "moderation":  true,
+                                   "target_formats":  [
+                                                          "glb"
+                                                      ],
+                                   "auto_size":  true,
+                                   "origin_at":  "bottom",
+                                   "texture_prompt":  "Charred basalt, hammered brass, ember-red crystals, molten red-orange magical liquid and restrained emissive lava cracks, game-ready PBR with no baked lighting"
+                               }
+                },
+    "source_prompt":  "Single isolated low-poly fantasy mana well, red-aligned volcanic forge design, jagged basalt basin with five-sided footprint, angular brass braces and flame-shaped stone fins around an open liquid basin, aggressive readable silhouette, game prop approximately 3 meters wide and 2.5 meters tall, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+    "texture_prompt":  "Charred basalt, hammered brass, ember-red crystals, molten red-orange magical liquid and restrained emissive lava cracks, game-ready PBR with no baked lighting",
+    "license_review_required":  true
+}

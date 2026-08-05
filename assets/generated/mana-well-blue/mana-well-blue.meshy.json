@@ -1,0 +1,38 @@
+﻿{
+    "generator":  "Meshy Text to 3D API v2",
+    "task_id":  "019f90e8-1a54-76f1-9628-5c7127da9bd5",
+    "task_type":  "text-to-3d-refine",
+    "status":  "SUCCEEDED",
+    "consumed_credits":  10,
+    "request":  {
+                    "preview":  {
+                                    "mode":  "preview",
+                                    "prompt":  "Single isolated low-poly fantasy mana well, blue-aligned arcane observatory design, circular carved stone basin with five-sided footprint, tall curling wave-shaped pillars and floating-looking crystal focal shape connected to the structure, broad readable silhouette, open magical liquid basin, game prop approximately 3 meters wide and 2.5 meters tall, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+                                    "model_type":  "lowpoly",
+                                    "target_formats":  [
+                                                           "glb"
+                                                       ],
+                                    "moderation":  true,
+                                    "auto_size":  true,
+                                    "origin_at":  "bottom"
+                                },
+                    "refine":  {
+                                   "mode":  "refine",
+                                   "preview_task_id":  "019f90e6-d45e-7af3-918d-acc4d4156cf7",
+                                   "ai_model":  "latest",
+                                   "enable_pbr":  true,
+                                   "hd_texture":  false,
+                                   "remove_lighting":  true,
+                                   "moderation":  true,
+                                   "target_formats":  [
+                                                          "glb"
+                                                      ],
+                                   "auto_size":  true,
+                                   "origin_at":  "bottom",
+                                   "texture_prompt":  "Cool gray stone, oxidized silver, sapphire crystals, luminous deep blue magical liquid and restrained cyan emissive glyphs, lightly weathered, game-ready PBR"
+                               }
+                },
+    "source_prompt":  "Single isolated low-poly fantasy mana well, blue-aligned arcane observatory design, circular carved stone basin with five-sided footprint, tall curling wave-shaped pillars and floating-looking crystal focal shape connected to the structure, broad readable silhouette, open magical liquid basin, game prop approximately 3 meters wide and 2.5 meters tall, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+    "texture_prompt":  "Cool gray stone, oxidized silver, sapphire crystals, luminous deep blue magical liquid and restrained cyan emissive glyphs, lightly weathered, game-ready PBR",
+    "license_review_required":  true
+}

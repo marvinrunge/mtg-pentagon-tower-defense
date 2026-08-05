@@ -1,0 +1,38 @@
+﻿{
+    "generator":  "Meshy Text to 3D API v2",
+    "task_id":  "019f90eb-9b76-71ec-bf3d-d06f47c4157b",
+    "task_type":  "text-to-3d-refine",
+    "status":  "SUCCEEDED",
+    "consumed_credits":  10,
+    "request":  {
+                    "preview":  {
+                                    "mode":  "preview",
+                                    "prompt":  "Single isolated low-poly fantasy mana well, black-aligned forbidden reliquary design, cracked obsidian basin with five-sided footprint, crooked iron ribs and subtle bone-like stone ornament around an open liquid basin, ominous asymmetric readable silhouette, game prop approximately 3 meters wide and 2.5 meters tall, no gore, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+                                    "model_type":  "lowpoly",
+                                    "target_formats":  [
+                                                           "glb"
+                                                       ],
+                                    "moderation":  true,
+                                    "auto_size":  true,
+                                    "origin_at":  "bottom"
+                                },
+                    "refine":  {
+                                   "mode":  "refine",
+                                   "preview_task_id":  "019f90e9-dec4-79c7-afa5-ff4e0b09bc3f",
+                                   "ai_model":  "latest",
+                                   "enable_pbr":  true,
+                                   "hd_texture":  false,
+                                   "remove_lighting":  true,
+                                   "moderation":  true,
+                                   "target_formats":  [
+                                                          "glb"
+                                                      ],
+                                   "auto_size":  true,
+                                   "origin_at":  "bottom",
+                                   "texture_prompt":  "Black obsidian, tarnished iron, aged pale bone stone, dark violet-black magical liquid with restrained magenta emissive cracks, game-ready PBR"
+                               }
+                },
+    "source_prompt":  "Single isolated low-poly fantasy mana well, black-aligned forbidden reliquary design, cracked obsidian basin with five-sided footprint, crooked iron ribs and subtle bone-like stone ornament around an open liquid basin, ominous asymmetric readable silhouette, game prop approximately 3 meters wide and 2.5 meters tall, no gore, no characters, no text, no symbols from existing franchises, no ground plane, no environment",
+    "texture_prompt":  "Black obsidian, tarnished iron, aged pale bone stone, dark violet-black magical liquid with restrained magenta emissive cracks, game-ready PBR",
+    "license_review_required":  true
+}

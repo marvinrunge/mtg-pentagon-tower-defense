@@ -10,7 +10,6 @@ class_name EnemyData
 @export var attack_damage: float = 10.0
 @export var attack_speed: float = 1.0 # Seconds between attacks
 @export var attack_range: float = 2.0
-@export var xp_yield: int = 20
 
 @export var model_scale: float = 1.0
 @export var visual_color: Color = Color.WHITE

@@ -1,0 +1,36 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemy_health_bar.gd" id="1_bar"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_background"]
+transparency = 1
+shading_mode = 0
+cull_mode = 2
+no_depth_test = true
+albedo_color = Color(0.12, 0.12, 0.14, 0.92)
+
+[sub_resource type="QuadMesh" id="QuadMesh_background"]
+material = SubResource("StandardMaterial3D_background")
+size = Vector2(1.2, 0.14)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fill"]
+render_priority = 1
+transparency = 1
+shading_mode = 0
+cull_mode = 2
+no_depth_test = true
+albedo_color = Color(0.85, 0.12, 0.16, 0.96)
+
+[sub_resource type="QuadMesh" id="QuadMesh_fill"]
+material = SubResource("StandardMaterial3D_fill")
+size = Vector2(1.1, 0.08)
+
+[node name="EnemyHealthBar" type="Node3D"]
+script = ExtResource("1_bar")
+
+[node name="Background" type="MeshInstance3D" parent="."]
+mesh = SubResource("QuadMesh_background")
+
+[node name="Fill" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.002)
+mesh = SubResource("QuadMesh_fill")

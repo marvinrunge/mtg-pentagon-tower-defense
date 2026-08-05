@@ -34,6 +34,7 @@ func _ready() -> void:
 	SignalBus.crystal_damaged.connect(damage_crystal)
 	SignalBus.mana_deposited.connect(add_mana)
 	SignalBus.damage_number_requested.connect(_on_damage_number_requested)
+	SignalBus.wave_reward_selected.connect(_on_wave_reward_selected)
 	
 	# Instantiate Base UI
 	if base_ui_scene:
@@ -97,6 +98,13 @@ func damage_crystal(amount: float) -> void:
 		
 	if crystal_health <= 0.0:
 		game_over()
+
+func _on_wave_reward_selected(reward_id: String) -> void:
+	if reward_id == "crystal_repair":
+		var missing_integrity: float = max_crystal_health - crystal_health
+		var repair_amount: float = minf(GameSettings.reward_crystal_repair_amount, missing_integrity)
+		if repair_amount > 0.0:
+			damage_crystal(-repair_amount)
 
 func _on_damage_number_requested(pos: Vector3, amount: float, color: Color) -> void:
 	if not GameSettings.show_damage_numbers:
