@@ -61,8 +61,8 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 		mat.emission = Color(1.0, 0.1, 0.1)
 	elif type == 2:
 		# Unsummon (Blue wave)
-		speed = base_speed * GameSettings.projectile_unsummon_speed_mult * multiplier
-		damage = 0.0 # Doesn't deal damage, triggers unsummon
+		speed = base_speed * GameSettings.projectile_unsummon_speed_mult
+		damage = GameSettings.spell_blue_unsummon_damage * multiplier
 		mat.albedo_color = Color(0.1, 0.3, 1.0)
 		mat.emission = Color(0.1, 0.3, 1.0)
 	elif type == 3:
@@ -144,6 +144,8 @@ func _on_body_entered(body: Node3D) -> void:
 		
 	if proj_type == 2:
 		# Unsummon
+		if body.has_method("take_damage"):
+			body.take_damage(damage, _get_caster())
 		if body.has_method("unsummon"):
 			body.unsummon(direction * GameSettings.spell_blue_unsummon_knockback)
 	elif proj_type == 4:
@@ -152,8 +154,8 @@ func _on_body_entered(body: Node3D) -> void:
 	elif proj_type == 5:
 		# Drain Life
 		if body.has_method("take_damage"):
-			body.take_damage(damage)
 			var current_caster: Node3D = _get_caster()
+			body.take_damage(damage, current_caster)
 			if current_caster and current_caster.has_method("heal"):
 				current_caster.heal(damage * GameSettings.spell_black_drain_life_lifesteal)
 	elif proj_type == 6:
@@ -165,7 +167,7 @@ func _on_body_entered(body: Node3D) -> void:
 					max_h * GameSettings.spell_white_swords_exile_pct * effect_multiplier,
 					GameSettings.spell_white_swords_damage_cap
 				)
-				body.take_damage(holy_dmg)
+				body.take_damage(holy_dmg, _get_caster())
 		elif body.has_method("heal"):
 			body.heal(GameSettings.spell_white_swords_ally_heal)
 	elif proj_type == 7:
@@ -174,7 +176,7 @@ func _on_body_entered(body: Node3D) -> void:
 			if "health" in body and "enemy_data" in body and body.enemy_data:
 				var missing_hp = body.enemy_data.health - body.health
 				var exec_dmg = (40.0 + missing_hp * GameSettings.spell_white_path_to_exile_exec_mult) * effect_multiplier
-				body.take_damage(exec_dmg)
+				body.take_damage(exec_dmg, _get_caster())
 		# Spawn Holy Trail
 		var trail = DoTZone.new()
 		trail.setup("holy_trail", 3.0, 15.0, 4.0, _get_caster())
@@ -182,7 +184,7 @@ func _on_body_entered(body: Node3D) -> void:
 		get_tree().current_scene.add_child(trail)
 	else:
 		if body.has_method("take_damage"):
-			body.take_damage(damage)
+			body.take_damage(damage, _get_caster())
 	
 	deactivate()
 
@@ -192,7 +194,7 @@ func _trigger_fireball_aoe() -> void:
 	for e in enemies:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:
 			if e.has_method("take_damage"):
-				e.take_damage(damage)
+				e.take_damage(damage, _get_caster())
 	
 	# Spawn temporary visual explosion
 	var exp_mesh = CSGSphere3D.new()

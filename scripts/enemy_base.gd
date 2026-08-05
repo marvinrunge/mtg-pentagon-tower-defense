@@ -40,6 +40,7 @@ var target_eval_timer: float = 0.0
 var elite_modifier: String = ""
 var elite_regeneration_per_second: float = 0.0
 var elite_crystal_damage_multiplier: float = 1.0
+var has_green_mage_buff: bool = false
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -312,10 +313,16 @@ func perform_mage_spell() -> void:
 			var enemies = get_tree().get_nodes_in_group("enemies")
 			for e in enemies:
 				if e != self and is_instance_valid(e) and global_position.distance_to(e.global_position) < GameSettings.enemy_green_mage_range:
-					e.scale *= GameSettings.enemy_green_mage_buff_scale
-					if e.enemy_data:
-						e.enemy_data.attack_damage *= GameSettings.enemy_green_mage_buff_damage
-					break # Only buff one
+					if e.has_method("apply_green_mage_buff") and e.apply_green_mage_buff():
+						break
+
+func apply_green_mage_buff() -> bool:
+	if has_green_mage_buff or not enemy_data:
+		return false
+	has_green_mage_buff = true
+	scale *= GameSettings.enemy_green_mage_buff_scale
+	enemy_data.attack_damage *= GameSettings.enemy_green_mage_buff_damage
+	return true
 
 func heal(amount: float, show_damage_number: bool = true) -> void:
 	if enemy_data:
@@ -413,10 +420,13 @@ func _on_aggro_body_exited(body: Node3D) -> void:
 	evaluate_target()
 
 # --- Spell Interactions ---
-func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false) -> void:
+func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false) -> void:
 	if curse_timer > 0:
 		amount *= curse_mult
+	var damage_dealt: float = minf(maxf(amount, 0.0), maxf(health, 0.0))
 	health -= amount
+	if damage_dealt > 0.0 and is_instance_valid(source) and source.has_method("on_damage_dealt"):
+		source.on_damage_dealt(damage_dealt)
 	if health_bar and enemy_data:
 		health_bar.set_health(health, enemy_data.health)
 	var spawn_pos = global_position + Vector3(randf_range(-0.3, 0.3), 1.5, randf_range(-0.3, 0.3))

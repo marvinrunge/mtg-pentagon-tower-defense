@@ -80,4 +80,4 @@ func _apply_ticks() -> void:
 				b.heal(damage)
 		else:
 			if b.is_in_group("enemies") and b.has_method("take_damage"):
-				b.take_damage(damage)
+				b.take_damage(damage, caster)

@@ -1,78 +1,88 @@
 extends CanvasLayer
 class_name SkillTree
 
-const COLOR_NAMES = ["red", "blue", "green", "white", "black"]
-const COLOR_TITLES = {
-	"red": "🔴 RED (Aggro)",
-	"blue": "🔵 BLUE (Control)",
-	"green": "🟢 GREEN (Strength)",
-	"white": "⚪ WHITE (Holy)",
-	"black": "🖤 BLACK (Sacrifice)"
+const COLOR_NAMES: Array[String] = ["white", "blue", "black", "red", "green"]
+const COLOR_DISPLAY: Dictionary = {
+	"white": "White", "blue": "Blue", "black": "Black", "red": "Red", "green": "Green",
 }
-const COLOR_HEX = {
-	"red": Color(0.85, 0.2, 0.2),
-	"blue": Color(0.2, 0.5, 0.9),
-	"green": Color(0.2, 0.75, 0.2),
-	"white": Color(0.9, 0.9, 0.8),
-	"black": Color(0.4, 0.2, 0.5)
+const COLOR_MANA: Dictionary = {
+	"white": "White", "blue": "Blue", "black": "Black", "red": "Red", "green": "Green",
 }
-
-const SKILL_DATA = {
-	"red": [
-		{"id": "red_1", "name": "Shock / Lightning Bolt", "cost": 1, "tier": 0, "desc": "Fast 50-damage projectile. After unlocking tier 3, it chains for 60% damage.", "lore": "\"Shock deals 2 damage to any target.\""},
-		{"id": "red_2", "name": "Fireball", "cost": 3, "tier": 1, "desc": "Hold key to charge. Releasing launches a fireball with scaling blast radius & impact damage.", "lore": "\"Fireball deals X damage divided evenly...\""},
-		{"id": "red_3", "name": "Rain of Ember", "cost": 7, "tier": 2, "desc": "Calls down a searing meteor shower in a designated zone, burning enemies inside for 5s.", "lore": "\"Rain of Ember deals 1 damage to each creature...\""},
-		{"id": "red_4", "name": "Act of Treason", "cost": 15, "tier": 3, "desc": "Heavy physical strike that knocks back and stuns enemies for 2s.", "lore": "\"Gain control of target creature until end of turn...\""},
-		{"id": "red_5", "name": "Chandra's Ignition", "cost": 30, "tier": 4, "desc": "Triggers a fiery shockwave around your character, pushing surrounding enemies outward.", "lore": "\"Target creature deals damage equal to its power to each other...\""},
-		{"id": "aura_fervor", "name": "Fervor (Aura)", "cost": 50, "tier": 5, "desc": "Passive Capstone Aura: Increases movement speed and basic attack speed for the player and Myrs by 15%.", "lore": "\"Creatures you control have haste.\""}
+const COLOR_SYMBOL: Dictionary = {
+	"white": "{W}", "blue": "{U}", "black": "{B}", "red": "{R}", "green": "{G}",
+}
+const COLOR_HEX: Dictionary = {
+	"white": Color(0.95, 0.91, 0.72),
+	"blue": Color(0.18, 0.52, 0.92),
+	"black": Color(0.48, 0.25, 0.58),
+	"red": Color(0.9, 0.2, 0.14),
+	"green": Color(0.18, 0.7, 0.3),
+}
+const AFFINITY_DATA: Dictionary = {
+	"white": {"name": "Holy Strength", "mechanic": "+% Life Regeneration", "flavor": "Protection, restoration, and enduring light."},
+	"blue": {"name": "Curiosity", "mechanic": "+% Cooldown Reduction", "flavor": "Mind-speed, mental acuity, and tactical flow."},
+	"black": {"name": "Vampiric Link", "mechanic": "+% Lifesteal", "flavor": "Dark bargains, parasitic drain, and vital siphon."},
+	"red": {"name": "Reckless Charge", "mechanic": "+% Total Damage", "flavor": "Explosive aggression, raw power, and volatility."},
+	"green": {"name": "Wild Growth", "mechanic": "+% Maximum HP", "flavor": "Primal vitality, physical mass, and resilience."},
+}
+const SPELL_DATA: Dictionary = {
+	"white": [
+		{"id": "white_1", "name": "Swords to Plowshares", "cost": 1, "desc": "Radiant projectile dealing maximum-HP damage or healing an ally."},
+		{"id": "white_2", "name": "Path to Exile", "cost": 3, "desc": "Charged execute projectile that leaves a holy trail."},
+		{"id": "white_3", "name": "Wrath of God", "cost": 7, "desc": "Charged nova that heals allies, damages enemies, and blinds."},
+		{"id": "white_4", "name": "Pacifism", "cost": 15, "desc": "Reduces enemy damage and clears its current aggro."},
+		{"id": "white_5", "name": "Gideon's Reproach", "cost": 30, "desc": "Reflects a portion of incoming damage for a short duration."},
 	],
 	"blue": [
-		{"id": "blue_1", "name": "Unsummon", "cost": 1, "tier": 0, "desc": "Force projectile knocking enemy backward. Wall/obstacle collisions deal heavy impact damage.", "lore": "\"Return target creature to its owner's hand.\""},
-		{"id": "blue_2", "name": "Aetherize", "cost": 3, "tier": 1, "desc": "Hold key to charge. Sends out a massive water/wind wave blasting enemies into obstacles.", "lore": "\"Return all attacking creatures to their owner's hand.\""},
-		{"id": "blue_3", "name": "Psionic Blast", "cost": 7, "tier": 2, "desc": "Instant psychic blast bypassing enemy defenses (deals 100 damage at 10 self HP cost).", "lore": "\"Psionic Blast deals 4 damage to any target and 2 damage to you.\""},
-		{"id": "blue_4", "name": "Freeze Breath", "cost": 15, "tier": 3, "desc": "Applies Chill stacks. At 3 stacks, target freezes solid and explodes dealing Shatter AoE.", "lore": "\"Frozen solid and shattered to ice.\""},
-		{"id": "blue_5", "name": "Counterspell", "cost": 30, "tier": 4, "desc": "Short 1.5s parry shield that absorbs next incoming hit and resets all spell cooldowns.", "lore": "\"Counter target spell.\""},
-		{"id": "aura_rhystic_study", "name": "Rhystic Study (Aura)", "cost": 50, "tier": 5, "desc": "Passive Capstone Aura: Accelerates cooldown recovery by 30% and grants 15 shield per cast, capped at 45.", "lore": "\"Did you pay the 1?\""}
-	],
-	"green": [
-		{"id": "green_1", "name": "Titanic Growth", "cost": 1, "tier": 0, "desc": "Heavy frontal cone melee swing dealing Cleave damage scaling directly with Max HP (25%).", "lore": "\"Target creature gets +4/+4 until end of turn.\""},
-		{"id": "green_2", "name": "Hurricane / Entangle", "cost": 3, "tier": 1, "desc": "Hold key to charge. Releasing roots enemies in radius for 3s and applies Poison DoT.", "lore": "\"Vines burst from the earth...\""},
-		{"id": "green_3", "name": "Overrun", "cost": 7, "tier": 2, "desc": "Dash forward, trampling smaller enemies, knocking them aside, dealing speed-scaled damage.", "lore": "\"Creatures you control get +3/+3 and gain trample...\""},
-		{"id": "green_4", "name": "Rabid Bite", "cost": 15, "tier": 3, "desc": "Quick feral bite dealing high physical damage, healing 50% of damage if target is rooted.", "lore": "\"Target creature deals damage equal to its power...\""},
-		{"id": "green_5", "name": "Briar Patch", "cost": 30, "tier": 4, "desc": "Thorn aura reflecting 30% of incoming melee damage back to the attacker for 10s.", "lore": "\"Whenever a creature attacks you, Briar Patch deals damage...\""},
-		{"id": "aura_sylvan_library", "name": "Sylvan Library (Aura)", "cost": 50, "tier": 5, "desc": "Passive Capstone Aura: Increases maximum HP by 35% and regenerates 3 HP per second.", "lore": "\"Knowledge at the cost of blood.\""}
-	],
-	"white": [
-		{"id": "white_1", "name": "Swords to Plowshares", "cost": 1, "tier": 0, "desc": "Radiant lance. Deals 35% maximum HP damage, capped at 120; heals allies for 60 HP.", "lore": "\"Exile target creature. Its controller gains life...\""},
-		{"id": "white_2", "name": "Path to Exile", "cost": 3, "tier": 1, "desc": "Hold key to charge. Blinding ray dealing execute damage to low HP targets & leaving speed trail.", "lore": "\"Exile target creature...\""},
-		{"id": "white_3", "name": "Wrath of God", "cost": 7, "tier": 2, "desc": "Hold to charge a Sacred Nova that heals allies and deals up to 25% maximum HP damage while blinding enemies.", "lore": "\"Destroy all creatures. They can't be regenerated.\""},
-		{"id": "white_4", "name": "Pacifism", "cost": 15, "tier": 3, "desc": "Debuffs enemy/boss, reducing damage by 50% for 6s and clearing target aggro.", "lore": "\"Enchanted creature can't attack or block.\""},
-		{"id": "white_5", "name": "Gideon's Reproach", "cost": 30, "tier": 4, "desc": "Holy retribution shield reflecting 40% of incoming damage back as radiant holy damage.", "lore": "\"Gideon's Reproach deals damage to target attacker...\""},
-		{"id": "aura_glorious_anthem", "name": "Glorious Anthem (Aura)", "cost": 50, "tier": 5, "desc": "Passive Capstone Aura: Grants a 35-point absorption shield and increases spell and melee damage by 15%.", "lore": "\"Creatures you control get +1/+1.\""}
+		{"id": "blue_1", "name": "Unsummon", "cost": 1, "desc": "Damaging force projectile with obstacle-impact damage."},
+		{"id": "blue_2", "name": "Aetherize", "cost": 3, "desc": "Charged frontal wave that throws enemies backward."},
+		{"id": "blue_3", "name": "Psionic Blast", "cost": 7, "desc": "Powerful long-range strike with a self-HP cost."},
+		{"id": "blue_4", "name": "Freeze Breath", "cost": 15, "desc": "Builds Chill stacks that trigger a freezing Shatter blast."},
+		{"id": "blue_5", "name": "Counterspell", "cost": 30, "desc": "Briefly negates a hit and clears active spell cooldowns."},
 	],
 	"black": [
-		{"id": "black_1", "name": "Drain Life", "cost": 1, "tier": 0, "desc": "Dark projectile dealing 55 damage and healing the caster for 65% of damage dealt.", "lore": "\"Drain Life deals X damage... You gain life...\""},
-		{"id": "black_2", "name": "Toxic Deluge", "cost": 3, "tier": 1, "desc": "Hold key to charge. Sacrifices current HP to unleash a toxic mist zone dealing heavy DoT.", "lore": "\"Pay X life: All creatures get -X/-X...\""},
-		{"id": "black_3", "name": "Doom Blade", "cost": 7, "tier": 2, "desc": "Shadow strike dealing heavy direct damage & cursing enemy (+30% damage taken for 6s).", "lore": "\"Destroy target nonblack creature.\""},
-		{"id": "black_4", "name": "Tendrils of Agony", "cost": 15, "tier": 3, "desc": "Life-draining tendrils. If cast within 3s of another spell, duplicates to hit 3 targets!", "lore": "\"Tendrils of Agony deals damage... Storm.\""},
-		{"id": "black_5", "name": "Sign in Blood", "cost": 30, "tier": 4, "desc": "Blood pact resetting all active skill cooldowns at the cost of 15% current HP.", "lore": "\"Target player draws two cards and loses 2 life.\""},
-		{"id": "aura_phyrexian_arena", "name": "Phyrexian Arena (Aura)", "cost": 50, "tier": 5, "desc": "Passive Capstone Aura: Drains 1.5% maximum HP per second, but increases damage by 25% and movement by 15%.", "lore": "\"A small price for absolute power.\""}
-	]
+		{"id": "black_1", "name": "Drain Life", "cost": 1, "desc": "Damaging projectile that returns health to its caster."},
+		{"id": "black_2", "name": "Toxic Deluge", "cost": 3, "desc": "Sacrifices current HP to create a charged poison zone."},
+		{"id": "black_3", "name": "Doom Blade", "cost": 7, "desc": "Heavy strike that curses the target to take more damage."},
+		{"id": "black_4", "name": "Tendrils of Agony", "cost": 15, "desc": "Life drain that chains after another recent spell cast."},
+		{"id": "black_5", "name": "Sign in Blood", "cost": 30, "desc": "Sacrifices current HP to reset the other cooldowns."},
+	],
+	"red": [
+		{"id": "red_1", "name": "Shock / Lightning Bolt", "cost": 1, "desc": "Fast direct-damage projectile that can gain a chain hit."},
+		{"id": "red_2", "name": "Fireball", "cost": 3, "desc": "Charged explosive projectile with a scaling blast radius."},
+		{"id": "red_3", "name": "Rain of Ember", "cost": 7, "desc": "Ground-targeted fire zone that burns enemies over time."},
+		{"id": "red_4", "name": "Act of Treason", "cost": 15, "desc": "Short-range strike with knockback and stun."},
+		{"id": "red_5", "name": "Chandra's Ignition", "cost": 30, "desc": "Large fiery shockwave that damages and pushes enemies."},
+	],
+	"green": [
+		{"id": "green_1", "name": "Titanic Growth", "cost": 1, "desc": "Frontal cleave whose damage scales with maximum HP."},
+		{"id": "green_2", "name": "Hurricane / Entangle", "cost": 3, "desc": "Charged rooting field with persistent poison damage."},
+		{"id": "green_3", "name": "Overrun", "cost": 7, "desc": "Forward trampling dash with damage and knockback."},
+		{"id": "green_4", "name": "Rabid Bite", "cost": 15, "desc": "Heavy bite that heals when used against a rooted enemy."},
+		{"id": "green_5", "name": "Briar Patch", "cost": 30, "desc": "Reflects a portion of incoming melee damage."},
+	],
 }
 
 @onready var control_root: Control = $Control
-var status_label: Label
-var mana_label: Label
-var tooltip_title: Label
-var tooltip_lore: Label
-var tooltip_desc: Label
 
-var _column_containers: Dictionary = {}
+var _board: Control
+var _outer_line: Line2D
+var _branch_lines: Dictionary = {}
+var _button_records: Array[Dictionary] = []
+var _texture_cache: Dictionary = {}
+var _center_icon: TextureRect
+var _detail_panel: PanelContainer
+var _detail_title: Label
+var _detail_status: Label
+var _detail_body: Label
+var _hovered_record: Dictionary = {}
 
 func _ready() -> void:
 	hide()
-	SignalBus.color_path_chosen.connect(func(_c): update_ui())
-	SignalBus.mana_changed.connect(func(_p): update_ui())
+	SignalBus.color_path_chosen.connect(func(_color: String): update_ui())
+	SignalBus.mana_changed.connect(func(_pool: Dictionary): update_ui())
+	SignalBus.skill_unlocked.connect(func(_color: String): update_ui())
+	SignalBus.spell_unlocked.connect(func(_color: String, _spell_id: String): update_ui())
 	_build_ui()
 	update_ui()
 
@@ -83,274 +93,300 @@ func _input(event: InputEvent) -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			update_ui()
 		else:
+			_hide_details()
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
 
 func _build_ui() -> void:
-	if not control_root:
-		return
-		
-	# Clear existing static panel children
-	for c in control_root.get_children():
-		c.queue_free()
-		
-	# Dim Background
-	var bg = ColorRect.new()
-	bg.anchors_preset = Control.PRESET_FULL_RECT
-	bg.color = Color(0.02, 0.02, 0.04, 0.92)
-	control_root.add_child(bg)
-	
-	# Main Container
-	var vbox = VBoxContainer.new()
-	vbox.anchors_preset = Control.PRESET_FULL_RECT
-	vbox.add_theme_constant_override("separation", 10)
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	
-	var margin = MarginContainer.new()
-	margin.anchors_preset = Control.PRESET_FULL_RECT
-	margin.add_theme_constant_override("margin_left", 30)
-	margin.add_theme_constant_override("margin_right", 30)
-	margin.add_theme_constant_override("margin_top", 20)
-	margin.add_theme_constant_override("margin_bottom", 20)
-	margin.add_child(vbox)
-	control_root.add_child(margin)
-	
-	# Header Title
-	var title = Label.new()
-	title.text = "MTG 5-COLOR SKILL TREE"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 26)
-	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-	vbox.add_child(title)
-	
-	# Path Lock Status
-	status_label = Label.new()
-	status_label.text = "SELECT YOUR COLOR PATH (Unlocking any node locks your path permanently)"
-	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	status_label.add_theme_font_size_override("font_size", 14)
-	status_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-	vbox.add_child(status_label)
-	
-	# Mana Balance Display
-	mana_label = Label.new()
-	mana_label.text = "Collected Mana: W: 0 | U: 0 | B: 0 | R: 0 | G: 0"
-	mana_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mana_label.add_theme_font_size_override("font_size", 15)
-	mana_label.add_theme_color_override("font_color", Color(0.3, 0.8, 1.0))
-	vbox.add_child(mana_label)
-	
-	if GameSettings.debug_mode:
-		var dbg_hbox = HBoxContainer.new()
-		dbg_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		dbg_hbox.add_theme_constant_override("separation", 10)
-		
-		var m_btn = Button.new()
-		m_btn.text = "⚡ +100 All Mana (F1)"
-		m_btn.pressed.connect(func():
-			var main_c = get_tree().current_scene
-			if main_c and main_c.has_method("add_mana"):
-				for c in ["White", "Blue", "Black", "Red", "Green"]:
-					main_c.add_mana(c, 100)
-			update_ui()
-		)
-		dbg_hbox.add_child(m_btn)
-		
-		var r_btn = Button.new()
-		r_btn.text = "🔄 Reset Color Path (F2)"
-		r_btn.pressed.connect(func():
-			var p = get_tree().get_first_node_in_group("player")
-			if p:
-				p.chosen_color_path = ""
-				p.unlocked_spells_in_path.clear()
-				p.unlocked_capstone_aura = ""
-				SignalBus.color_path_chosen.emit("")
-				SignalBus.active_spell_changed.emit(p.get_spell_name_for_slot(p.active_spell_index))
-			update_ui()
-		)
-		dbg_hbox.add_child(r_btn)
-		
-		var u_btn = Button.new()
-		u_btn.text = "🔓 Unlock Current Path (F3)"
-		u_btn.pressed.connect(func():
-			var p = get_tree().get_first_node_in_group("player")
-			if p:
-				var target_color = p.chosen_color_path if p.chosen_color_path != "" else "red"
-				p.chosen_color_path = target_color
-				for i in range(1, 6):
-					var sid = target_color + "_" + str(i)
-					if not p.unlocked_spells_in_path.has(sid):
-						p.unlocked_spells_in_path.append(sid)
-				p.unlocked_capstone_aura = "aura_" + p._get_aura_name_for_color(target_color)
-				SignalBus.color_path_chosen.emit(target_color)
-				SignalBus.active_spell_changed.emit(p.get_spell_name_for_slot(p.active_spell_index))
-			update_ui()
-		)
-		dbg_hbox.add_child(u_btn)
-		vbox.add_child(dbg_hbox)
-	
-	# Middle HBox for 5 Columns
-	var hbox = HBoxContainer.new()
-	hbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hbox.add_theme_constant_override("separation", 15)
-	vbox.add_child(hbox)
-	
-	for color in COLOR_NAMES:
-		var col_panel = PanelContainer.new()
-		col_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		col_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		
-		var col_vbox = VBoxContainer.new()
-		col_vbox.add_theme_constant_override("separation", 8)
-		
-		var col_title = Label.new()
-		col_title.text = COLOR_TITLES[color]
-		col_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		col_title.add_theme_font_size_override("font_size", 16)
-		col_title.add_theme_color_override("font_color", COLOR_HEX[color])
-		col_vbox.add_child(col_title)
-		
-		var sep = HSeparator.new()
-		col_vbox.add_child(sep)
-		
-		var nodes = SKILL_DATA[color]
-		for node_info in nodes:
-			var btn = Button.new()
-			btn.custom_minimum_size = Vector2(0, 48)
-			btn.text = "%s\n(Cost: %d Mana)" % [node_info["name"], node_info["cost"]]
-			btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			btn.mouse_entered.connect(_show_tooltip.bind(node_info))
-			btn.pressed.connect(_on_node_click.bind(color, node_info))
-			btn.set_meta("node_info", node_info)
-			col_vbox.add_child(btn)
-			
-		col_panel.add_child(col_vbox)
-		hbox.add_child(col_panel)
-		_column_containers[color] = col_vbox
+	for child: Node in control_root.get_children():
+		control_root.remove_child(child)
+		child.queue_free()
 
-	# Bottom Tooltip Panel
-	var tt_panel = PanelContainer.new()
-	tt_panel.custom_minimum_size = Vector2(0, 110)
-	
-	var tt_vbox = VBoxContainer.new()
-	tt_vbox.add_theme_constant_override("separation", 4)
-	
-	tooltip_title = Label.new()
-	tooltip_title.text = "Hover over a skill node to view details"
-	tooltip_title.add_theme_font_size_override("font_size", 16)
-	tooltip_title.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4))
-	tt_vbox.add_child(tooltip_title)
-	
-	tooltip_lore = Label.new()
-	tooltip_lore.text = ""
-	tooltip_lore.add_theme_font_size_override("font_size", 12)
-	tooltip_lore.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	tt_vbox.add_child(tooltip_lore)
-	
-	tooltip_desc = Label.new()
-	tooltip_desc.text = ""
-	tooltip_desc.add_theme_font_size_override("font_size", 13)
-	tooltip_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tt_vbox.add_child(tooltip_desc)
-	
-	tt_panel.add_child(tt_vbox)
-	vbox.add_child(tt_panel)
+	var background := ColorRect.new()
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	background.color = Color(0.018, 0.022, 0.028, 0.97)
+	background.mouse_filter = Control.MOUSE_FILTER_STOP
+	control_root.add_child(background)
+
+	_board = Control.new()
+	_board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_board.clip_contents = true
+	control_root.add_child(_board)
+
+	_outer_line = Line2D.new()
+	_outer_line.width = 2.0
+	_outer_line.default_color = Color(0.72, 0.68, 0.52, 0.42)
+	_outer_line.antialiased = true
+	_board.add_child(_outer_line)
+
+	for color: String in COLOR_NAMES:
+		var branch_line := Line2D.new()
+		branch_line.width = 3.0
+		branch_line.default_color = COLOR_HEX[color] * Color(1.0, 1.0, 1.0, 0.46)
+		branch_line.antialiased = true
+		_board.add_child(branch_line)
+		_branch_lines[color] = branch_line
+
+	_center_icon = TextureRect.new()
+	_center_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_center_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_center_icon.texture = _get_placeholder_texture("center", 0, "available")
+	_center_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_board.add_child(_center_icon)
+
+	for color: String in COLOR_NAMES:
+		var affinity_info: Dictionary = AFFINITY_DATA[color].duplicate()
+		affinity_info["id"] = "affinity_" + color
+		affinity_info["cost"] = GameSettings.affinity_rank_mana_cost
+		affinity_info["is_affinity"] = true
+		_create_icon_node(color, 0, affinity_info)
+
+		var spells: Array = SPELL_DATA[color]
+		for spell_index: int in range(spells.size()):
+			var spell_info: Dictionary = spells[spell_index].duplicate()
+			spell_info["is_affinity"] = false
+			spell_info["rank_requirement"] = GameSettings.affinity_spell_rank_requirements[spell_index]
+			_create_icon_node(color, spell_index + 1, spell_info)
+
+	_build_detail_panel()
+	_board.resized.connect(_layout_nodes)
+	call_deferred("_layout_nodes")
+
+func _create_icon_node(color: String, branch_index: int, info: Dictionary) -> void:
+	var button := TextureButton.new()
+	button.ignore_texture_size = true
+	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.mouse_entered.connect(_show_details.bind(color, branch_index, info))
+	button.mouse_exited.connect(_hide_details)
+	button.pressed.connect(_on_node_pressed.bind(color, branch_index, info))
+	_board.add_child(button)
+	_button_records.append({"button": button, "color": color, "branch_index": branch_index, "info": info})
+
+func _build_detail_panel() -> void:
+	_detail_panel = PanelContainer.new()
+	_detail_panel.size = Vector2(620.0, 116.0)
+	_detail_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.035, 0.045, 0.055, 0.97)
+	style.border_color = Color(0.75, 0.7, 0.5, 0.65)
+	style.set_border_width_all(1)
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	_detail_panel.add_theme_stylebox_override("panel", style)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 14)
+	margin.add_theme_constant_override("margin_right", 14)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 2)
+
+	_detail_title = Label.new()
+	_detail_title.add_theme_font_size_override("font_size", 18)
+	_detail_status = Label.new()
+	_detail_status.add_theme_font_size_override("font_size", 13)
+	_detail_body = Label.new()
+	_detail_body.add_theme_font_size_override("font_size", 13)
+	_detail_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(_detail_title)
+	content.add_child(_detail_status)
+	content.add_child(_detail_body)
+	margin.add_child(content)
+	_detail_panel.add_child(margin)
+	_board.add_child(_detail_panel)
+	_detail_panel.hide()
+
+func _layout_nodes() -> void:
+	if not is_instance_valid(_board) or _board.size.x <= 0.0 or _board.size.y <= 0.0:
+		return
+
+	var center := _board.size * 0.5
+	var outer_radius: float = minf(_board.size.x * 0.43, _board.size.y * 0.45)
+	var inner_radius: float = outer_radius * 0.18
+	var outer_vertices := PackedVector2Array()
+
+	_center_icon.size = Vector2(48.0, 48.0)
+	_center_icon.position = center - _center_icon.size * 0.5
+
+	for color_index: int in range(COLOR_NAMES.size()):
+		var color: String = COLOR_NAMES[color_index]
+		var angle: float = -PI * 0.5 + TAU * float(color_index) / float(COLOR_NAMES.size())
+		var direction := Vector2(cos(angle), sin(angle))
+		var branch_points := PackedVector2Array([center])
+
+		for branch_index: int in range(6):
+			var progress: float = float(branch_index) / 5.0
+			var radius: float = lerpf(inner_radius, outer_radius, progress)
+			var point: Vector2 = center + direction * radius
+			branch_points.append(point)
+			var record: Dictionary = _find_record(color, branch_index)
+			if not record.is_empty():
+				var button: TextureButton = record["button"]
+				var diameter: float = 48.0 if branch_index == 0 else 40.0
+				button.size = Vector2(diameter, diameter)
+				button.position = point - button.size * 0.5
+
+		var branch_line: Line2D = _branch_lines[color]
+		branch_line.points = branch_points
+		outer_vertices.append(center + direction * outer_radius)
+
+	outer_vertices.append(outer_vertices[0])
+	_outer_line.points = outer_vertices
+	_detail_panel.position = Vector2(center.x - 310.0, _board.size.y - 134.0)
+
+func _find_record(color: String, branch_index: int) -> Dictionary:
+	for record: Dictionary in _button_records:
+		if record["color"] == color and record["branch_index"] == branch_index:
+			return record
+	return {}
 
 func update_ui() -> void:
 	var player = get_tree().get_first_node_in_group("player")
-	var main_c = get_tree().current_scene
-	
-	if main_c and "mana_pool" in main_c and mana_label:
-		var mp = main_c.mana_pool
-		mana_label.text = "Collected Mana: W: %d | U: %d | B: %d | R: %d | G: %d" % [
-			mp.get("White", 0), mp.get("Blue", 0), mp.get("Black", 0), mp.get("Red", 0), mp.get("Green", 0)
-		]
-		
-	if not player:
+	var main_controller = get_tree().current_scene
+	if not player or not main_controller:
 		return
-		
-	var path = player.chosen_color_path
-	if path != "" and status_label:
-		status_label.text = "PATH COMMITTED: %s (Other 4 color paths are locked)" % COLOR_TITLES[path]
-		status_label.add_theme_color_override("font_color", COLOR_HEX[path])
-	elif status_label:
-		status_label.text = "SELECT YOUR COLOR PATH (Unlocking any node locks your path permanently)"
-		status_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
-		
-	for color in COLOR_NAMES:
-		var col_vbox = _column_containers.get(color, null)
-		if not col_vbox:
-			continue
-			
-		var is_locked_branch = (path != "" and path != color)
-		var nodes = SKILL_DATA[color]
-		
-		var buttons = []
-		for child in col_vbox.get_children():
-			if child is Button:
-				buttons.append(child)
-				
-		for i in range(buttons.size()):
-			var btn = buttons[i]
-			var info = nodes[i]
-			var spell_id = info["id"]
-			var cost = info["cost"]
-			var tier = info["tier"]
-			
-			var is_unlocked = player.unlocked_spells_in_path.has(spell_id) or player.unlocked_capstone_aura == spell_id
-			
+	var mana_pool: Dictionary = main_controller.mana_pool
+
+	for record: Dictionary in _button_records:
+		var button: TextureButton = record["button"]
+		var color: String = record["color"]
+		var branch_index: int = record["branch_index"]
+		var info: Dictionary = record["info"]
+		var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
+		var state: String = "available"
+
+		if bool(info["is_affinity"]):
+			if available_mana < int(info["cost"]):
+				state = "locked"
+		else:
+			var is_unlocked: bool = player.unlocked_spells_in_path.has(info["id"])
+			var gate_met: bool = player.get_affinity_rank(color) >= int(info["rank_requirement"])
 			if is_unlocked:
-				btn.text = "%s\n[UNLOCKED]" % info["name"]
-				btn.disabled = true
-			elif is_locked_branch:
-				btn.text = "%s\n[PATH LOCKED]" % info["name"]
-				btn.disabled = true
-			else:
-				# Must unlock sequentially within branch
-				var can_unlock_tier = true
-				if tier > 0:
-					var prev_id = nodes[tier - 1]["id"]
-					can_unlock_tier = player.unlocked_spells_in_path.has(prev_id)
-					
-				var mana_key = color.capitalize()
-				if color == "white": mana_key = "White"
-				elif color == "blue": mana_key = "Blue"
-				elif color == "black": mana_key = "Black"
-				elif color == "red": mana_key = "Red"
-				elif color == "green": mana_key = "Green"
-				
-				var available_mana = main_c.mana_pool.get(mana_key, 0) if (main_c and "mana_pool" in main_c) else 0
-				var can_afford = available_mana >= cost
-				
-				btn.text = "%s\nCost: %d %s Mana" % [info["name"], cost, mana_key]
-				btn.disabled = not (can_unlock_tier and can_afford)
+				state = "unlocked"
+			elif not gate_met or available_mana < int(info["cost"]):
+				state = "locked"
 
-func _show_tooltip(info: Dictionary) -> void:
-	if tooltip_title:
-		tooltip_title.text = info["name"] + " (Cost: %d Mana)" % info["cost"]
-	if tooltip_lore:
-		tooltip_lore.text = info["lore"]
-	if tooltip_desc:
-		var cooldown_text: String = ""
-		if not String(info["id"]).begins_with("aura_"):
-			cooldown_text = "\nCooldown: %.1f seconds" % GameSettings.get_spell_cooldown(info["id"])
-		tooltip_desc.text = info["desc"] + cooldown_text
+		button.texture_normal = _get_placeholder_texture(color, branch_index, state)
+		button.texture_hover = _get_placeholder_texture(color, branch_index, "hover")
+		button.modulate = Color.WHITE if player.chosen_color_path == color else Color(0.78, 0.8, 0.82)
 
-func _on_node_click(color: String, info: Dictionary) -> void:
+	if not _hovered_record.is_empty():
+		_show_details(_hovered_record["color"], _hovered_record["branch_index"], _hovered_record["info"])
+
+func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	var player = get_tree().get_first_node_in_group("player")
-	var main_c = get_tree().current_scene
-	if not player or not main_c or not main_c.has_method("spend_mana_cost"):
+	var main_controller = get_tree().current_scene
+	if not player or not main_controller:
 		return
-		
-	var mana_key = color.capitalize()
-	if color == "white": mana_key = "White"
-	elif color == "blue": mana_key = "Blue"
-	elif color == "black": mana_key = "Black"
-	elif color == "red": mana_key = "Red"
-	elif color == "green": mana_key = "Green"
-	
-	var cost = info["cost"]
-	if main_c.spend_mana_cost({mana_key: cost}):
-		player._on_spell_unlocked(color, info["id"])
+	var mana_pool: Dictionary = main_controller.mana_pool
+	var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
+	_hovered_record = {"color": color, "branch_index": branch_index, "info": info}
+	_detail_panel.show()
+	_detail_title.text = "%s - %s" % [COLOR_DISPLAY[color], info["name"]]
+	_detail_title.add_theme_color_override("font_color", COLOR_HEX[color])
+
+	if bool(info["is_affinity"]):
+		var rank: int = player.get_affinity_rank(color)
+		var bonus: float = player.get_affinity_bonus(color) * 100.0
+		var next_bonus: float = _get_next_rank_bonus(rank + 1) * 100.0
+		_detail_status.text = "%s  Rank %d  Total %.1f%%  Next +%.1f%%  Mana %d" % [COLOR_SYMBOL[color], rank, bonus, next_bonus, available_mana]
+		_detail_body.text = "%s  %s" % [info["mechanic"], info["flavor"]]
+	else:
+		var gate: int = int(info["rank_requirement"])
+		var unlocked: bool = player.unlocked_spells_in_path.has(info["id"])
+		var status: String = "UNLOCKED" if unlocked else "Requires affinity rank %d" % gate
+		_detail_status.text = "%s  %s  Cost %d mana  Cooldown %.1fs" % [COLOR_SYMBOL[color], status, int(info["cost"]), GameSettings.get_spell_cooldown(info["id"])]
+		_detail_body.text = info["desc"]
+
+func _hide_details() -> void:
+	_hovered_record.clear()
+	if is_instance_valid(_detail_panel):
+		_detail_panel.hide()
+
+func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var main_controller = get_tree().current_scene
+	if not player or not main_controller or not main_controller.has_method("spend_mana_cost"):
+		return
+	var mana_key: String = COLOR_MANA[color]
+
+	if bool(info["is_affinity"]):
+		if main_controller.spend_mana_cost({mana_key: int(info["cost"])}):
+			player.invest_affinity(color)
+			update_ui()
+		return
+
+	if player.unlocked_spells_in_path.has(info["id"]):
+		player.select_color_path(color)
+		update_ui()
+		return
+	if player.get_affinity_rank(color) < int(info["rank_requirement"]):
+		return
+	if main_controller.spend_mana_cost({mana_key: int(info["cost"])}):
+		SignalBus.spell_unlocked.emit(color, info["id"])
 		update_ui()
 
+func _get_next_rank_bonus(next_rank: int) -> float:
+	if next_rank <= 10:
+		return GameSettings.affinity_rank_bonus_early
+	if next_rank <= 20:
+		return GameSettings.affinity_rank_bonus_mid
+	return GameSettings.affinity_rank_bonus_late
+
+func _get_placeholder_texture(color: String, branch_index: int, state: String) -> ImageTexture:
+	var cache_key: String = "%s_%d_%s" % [color, branch_index, state]
+	if _texture_cache.has(cache_key):
+		return _texture_cache[cache_key]
+
+	var image := Image.create(96, 96, false, Image.FORMAT_RGBA8)
+	image.fill(Color.TRANSPARENT)
+	var base_color: Color = Color(0.72, 0.7, 0.6) if color == "center" else COLOR_HEX[color]
+	if state == "locked":
+		base_color = base_color.lerp(Color(0.16, 0.17, 0.18), 0.72)
+	elif state == "unlocked":
+		base_color = base_color.lightened(0.18)
+	elif state == "hover":
+		base_color = base_color.lightened(0.3)
+
+	var texture_center := Vector2(47.5, 47.5)
+	for y: int in range(96):
+		for x: int in range(96):
+			var offset := Vector2(float(x), float(y)) - texture_center
+			var distance: float = offset.length()
+			if distance > 45.0:
+				continue
+			var pixel_color: Color = base_color.darkened(0.28 * distance / 45.0)
+			if distance > 39.0:
+				pixel_color = base_color.lightened(0.3)
+			if _is_placeholder_mark(offset, branch_index):
+				pixel_color = Color(0.96, 0.94, 0.82, 1.0)
+			image.set_pixel(x, y, pixel_color)
+
+	var texture := ImageTexture.create_from_image(image)
+	_texture_cache[cache_key] = texture
+	return texture
+
+func _is_placeholder_mark(offset: Vector2, branch_index: int) -> bool:
+	var abs_x: float = absf(offset.x)
+	var abs_y: float = absf(offset.y)
+	match branch_index:
+		0:
+			return absf(offset.length() - 16.0) < 3.0 or (abs_x < 3.0 and abs_y < 10.0)
+		1:
+			return abs_x < 3.0 and abs_y < 18.0
+		2:
+			return absf(abs_x - abs_y) < 3.0 and abs_x < 15.0
+		3:
+			return (absf(abs_x - 14.0) < 3.0 and abs_y < 14.0) or (absf(abs_y - 14.0) < 3.0 and abs_x < 14.0)
+		4:
+			return absf(abs_x + abs_y - 20.0) < 3.0
+		5:
+			return absf(offset.length() - 18.0) < 3.0 or absf(offset.length() - 9.0) < 2.0
+		_:
+			return abs_x < 3.0 or abs_y < 3.0

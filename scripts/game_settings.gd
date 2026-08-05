@@ -30,6 +30,7 @@ extends Node
 @export var spell_melee_range: float = 3.5
 @export var spell_melee_cone: float = 0.5
 @export var spell_melee_damage: float = 20.0
+@export var spell_melee_knockback: float = 6.0
 @export var spell_cooldown_melee: float = 0.5
 @export var spell_giant_duration: float = 5.0
 @export var spell_giant_scale: float = 1.5
@@ -42,9 +43,17 @@ extends Node
 @export var spell_stab_debuff_duration: float = 8.0
 @export var spell_unsummon_teleport_distance: float = 15.0
 
+# Infinite color affinity ranks. Rank 1-10 grants 2% each, 11-20 grants
+# 1% each, and every rank after 20 grants 0.5%.
+@export var affinity_rank_mana_cost: int = 1
+@export var affinity_rank_bonus_early: float = 0.02
+@export var affinity_rank_bonus_mid: float = 0.01
+@export var affinity_rank_bonus_late: float = 0.005
+@export var affinity_spell_rank_requirements: Array[int] = [1, 5, 10, 15, 25]
+
 const SPELL_COOLDOWNS: Dictionary = {
 	"basic_attack": 0.5,
-	"red_1": 3.0,
+	"red_1": 2.5,
 	"red_2": 5.0,
 	"red_3": 9.0,
 	"red_4": 7.0,
@@ -54,17 +63,17 @@ const SPELL_COOLDOWNS: Dictionary = {
 	"blue_3": 6.0,
 	"blue_4": 4.5,
 	"blue_5": 14.0,
-	"green_1": 2.5,
+	"green_1": 2.0,
 	"green_2": 8.0,
 	"green_3": 7.0,
 	"green_4": 6.0,
 	"green_5": 16.0,
-	"white_1": 6.0,
+	"white_1": 4.5,
 	"white_2": 8.0,
 	"white_3": 18.0,
 	"white_4": 10.0,
 	"white_5": 14.0,
-	"black_1": 5.0,
+	"black_1": 4.0,
 	"black_2": 10.0,
 	"black_3": 7.0,
 	"black_4": 8.0,
@@ -83,7 +92,7 @@ func get_tier_cost(tier_index: int) -> int:
 	return 1
 
 # --- RED SKILLS ---
-@export var spell_red_shock_damage: float = 50.0
+@export var spell_red_shock_damage: float = 70.0
 @export var spell_red_shock_chain_damage_mult: float = 0.6
 @export var spell_red_fireball_max_charge: float = 2.0
 @export var spell_red_fireball_base_radius: float = 3.0
@@ -101,6 +110,7 @@ func get_tier_cost(tier_index: int) -> int:
 
 # --- BLUE SKILLS ---
 @export var spell_blue_unsummon_knockback: float = 14.0
+@export var spell_blue_unsummon_damage: float = 35.0
 @export var spell_blue_unsummon_impact_damage: float = 80.0
 @export var spell_blue_aetherize_max_charge: float = 2.0
 @export var spell_blue_aetherize_cone_angle: float = 60.0
@@ -116,7 +126,7 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_rhystic_study_shield_max: float = 45.0
 
 # --- GREEN SKILLS ---
-@export var spell_green_titanic_growth_hp_scaling: float = 0.25
+@export var spell_green_titanic_growth_hp_scaling: float = 0.35
 @export var spell_green_titanic_growth_cone: float = 4.0
 @export var spell_green_hurricane_max_charge: float = 2.0
 @export var spell_green_hurricane_radius: float = 7.0
@@ -132,7 +142,7 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_sylvan_library_regen: float = 3.0
 
 # --- WHITE SKILLS ---
-@export var spell_white_swords_exile_pct: float = 0.35
+@export var spell_white_swords_exile_pct: float = 0.5
 @export var spell_white_swords_damage_cap: float = 120.0
 @export var spell_white_swords_ally_heal: float = 60.0
 @export var spell_white_path_to_exile_max_charge: float = 2.0
@@ -148,7 +158,7 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_glorious_anthem_damage_mult: float = 1.15
 
 # --- BLACK SKILLS ---
-@export var spell_black_drain_life_damage: float = 55.0
+@export var spell_black_drain_life_damage: float = 70.0
 @export var spell_black_drain_life_lifesteal: float = 0.65
 @export var spell_black_toxic_deluge_max_charge: float = 2.0
 @export var spell_black_toxic_deluge_radius: float = 7.0

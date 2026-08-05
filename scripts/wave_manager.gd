@@ -129,8 +129,14 @@ func spawn_next_enemy() -> void:
 		
 		# Add a tiny bit of random jitter so they aren't completely rigid
 		offset += Vector3(randf_range(-0.5, 0.5), 0, randf_range(-0.5, 0.5))
-		
-		enemy.position = spawner.global_position + Vector3(0, 0.5, 0) + offset
+
+		var desired_spawn_position: Vector3 = spawner.global_position + offset
+		var navigation_map: RID = main_controller.nav_region.get_navigation_map()
+		var navigable_spawn_position: Vector3 = NavigationServer3D.map_get_closest_point(
+			navigation_map,
+			desired_spawn_position
+		)
+		enemy.position = main_controller.to_local(navigable_spawn_position + Vector3(0, 0.5, 0))
 		enemy.set_meta("target_crystal", main_controller.crystal_anchor)
 		if info["elite"] != "":
 			enemy.set_meta("elite_modifier", info["elite"])

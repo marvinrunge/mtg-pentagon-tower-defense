@@ -118,6 +118,7 @@ func _open_skill_tree() -> void:
 	if st:
 		close()
 		st.show()
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		st.update_ui()
 
 func _on_build_pressed() -> void:

@@ -24,6 +24,13 @@ var is_at_base: bool = false
 var chosen_color_path: String = ""
 var unlocked_spells_in_path: Array[String] = []
 var unlocked_capstone_aura: String = ""
+var affinity_ranks: Dictionary = {
+	"white": 0,
+	"blue": 0,
+	"black": 0,
+	"red": 0,
+	"green": 0,
+}
 
 # --- Spell Charging State ---
 var is_charging: bool = false
@@ -42,6 +49,7 @@ var last_spell_cast_time: float = -999.0
 var rhystic_shield: float = 0.0
 var glorious_anthem_shield: float = 0.0
 var _applied_capstone_aura: String = ""
+var _applied_green_affinity_rank: int = -1
 
 var active_spell_index: int = 0
 var spell_names = ["Basic Attack", "Spell 1", "Spell 2", "Spell 3", "Spell 4", "Spell 5"]
@@ -131,20 +139,26 @@ func _unhandled_input(event: InputEvent) -> void:
 				chosen_color_path = ""
 				unlocked_spells_in_path.clear()
 				unlocked_capstone_aura = ""
+				for color: String in affinity_ranks:
+					affinity_ranks[color] = 0
+				_applied_green_affinity_rank = -1
+				_sync_capstone_aura()
 				SignalBus.color_path_chosen.emit("")
 				SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
-				print("[DEBUG] Reset Color Path commitment!")
+				print("[DEBUG] Reset all color affinities!")
 				var st = get_tree().current_scene.get_node_or_null("SkillTree")
 				if st and st.has_method("update_ui"):
 					st.update_ui()
 			elif keycode == KEY_F3:
 				var target_color = chosen_color_path if chosen_color_path != "" else "red"
 				chosen_color_path = target_color
+				affinity_ranks[target_color] = 25
 				for i in range(1, 6):
 					var sid = target_color + "_" + str(i)
 					if not unlocked_spells_in_path.has(sid):
 						unlocked_spells_in_path.append(sid)
-				unlocked_capstone_aura = "aura_" + _get_aura_name_for_color(target_color)
+				_applied_green_affinity_rank = -1
+				_sync_capstone_aura()
 				SignalBus.color_path_chosen.emit(target_color)
 				SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
 				print("[DEBUG] Unlocked full path for: " + target_color)
@@ -215,6 +229,47 @@ func _get_spell_id_for_slot(slot_idx: int) -> String:
 	if chosen_color_path != "" and slot_idx >= 0 and slot_idx <= 4:
 		return chosen_color_path + "_" + str(slot_idx + 1)
 	return ""
+
+func select_color_path(color: String) -> void:
+	if not affinity_ranks.has(color):
+		return
+	chosen_color_path = color
+	active_spell_index = 0
+	SignalBus.color_path_chosen.emit(color)
+	SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
+
+func invest_affinity(color: String) -> void:
+	if not affinity_ranks.has(color):
+		return
+	affinity_ranks[color] = int(affinity_ranks[color]) + 1
+	select_color_path(color)
+	_applied_green_affinity_rank = -1
+	_sync_capstone_aura()
+	SignalBus.skill_unlocked.emit(color)
+
+func get_affinity_rank(color: String) -> int:
+	return int(affinity_ranks.get(color, 0))
+
+func get_affinity_bonus(color: String) -> float:
+	var rank: int = get_affinity_rank(color)
+	var early_ranks: int = mini(rank, 10)
+	var mid_ranks: int = mini(maxi(rank - 10, 0), 10)
+	var late_ranks: int = maxi(rank - 20, 0)
+	return (
+		early_ranks * GameSettings.affinity_rank_bonus_early
+		+ mid_ranks * GameSettings.affinity_rank_bonus_mid
+		+ late_ranks * GameSettings.affinity_rank_bonus_late
+	)
+
+func get_spell_rank_requirement(slot_idx: int) -> int:
+	if slot_idx < 0 or slot_idx >= GameSettings.affinity_spell_rank_requirements.size():
+		return 999999
+	return GameSettings.affinity_spell_rank_requirements[slot_idx]
+
+func on_damage_dealt(amount: float) -> void:
+	var lifesteal: float = get_affinity_bonus("black")
+	if lifesteal > 0.0 and amount > 0.0:
+		heal(amount * lifesteal)
 
 func get_spell_name_for_slot(slot_idx: int) -> String:
 	var spell_id = _get_spell_id_for_slot(slot_idx)
@@ -346,16 +401,9 @@ func _on_skill_unlocked(color: String) -> void:
 	pass
 
 func _on_spell_unlocked(color: String, spell_id: String) -> void:
-	if chosen_color_path == "":
-		chosen_color_path = color
-		SignalBus.color_path_chosen.emit(color)
-		
-	if spell_id.begins_with("aura_"):
-		unlocked_capstone_aura = spell_id
-		_sync_capstone_aura()
-	else:
-		if not unlocked_spells_in_path.has(spell_id):
-			unlocked_spells_in_path.append(spell_id)
+	select_color_path(color)
+	if not unlocked_spells_in_path.has(spell_id):
+		unlocked_spells_in_path.append(spell_id)
 			
 	SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
 
@@ -398,11 +446,13 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -
 		die()
 
 func _sync_capstone_aura() -> void:
-	if _applied_capstone_aura == unlocked_capstone_aura:
+	var green_affinity_rank: int = get_affinity_rank("green")
+	if _applied_capstone_aura == unlocked_capstone_aura and _applied_green_affinity_rank == green_affinity_rank:
 		return
 
 	var health_ratio: float = hp / max_hp if max_hp > 0.0 else 1.0
 	max_hp = GameSettings.player_max_hp
+	max_hp *= 1.0 + get_affinity_bonus("green")
 	rhystic_shield = 0.0
 	glorious_anthem_shield = 0.0
 	if unlocked_capstone_aura == "aura_sylvan_library":
@@ -411,15 +461,17 @@ func _sync_capstone_aura() -> void:
 		glorious_anthem_shield = GameSettings.aura_glorious_anthem_shield
 	hp = clampf(max_hp * health_ratio, 0.0, max_hp)
 	_applied_capstone_aura = unlocked_capstone_aura
+	_applied_green_affinity_rank = green_affinity_rank
 	SignalBus.player_health_changed.emit(hp, max_hp)
 	SignalBus.player_capstone_aura_changed.emit()
 
 func get_spell_damage_multiplier() -> float:
+	var affinity_multiplier: float = 1.0 + get_affinity_bonus("red")
 	if unlocked_capstone_aura == "aura_glorious_anthem":
-		return GameSettings.aura_glorious_anthem_damage_mult * run_damage_multiplier
+		return GameSettings.aura_glorious_anthem_damage_mult * run_damage_multiplier * affinity_multiplier
 	if unlocked_capstone_aura == "aura_phyrexian_arena":
-		return GameSettings.aura_phyrexian_arena_damage_mult * run_damage_multiplier
-	return run_damage_multiplier
+		return GameSettings.aura_phyrexian_arena_damage_mult * run_damage_multiplier * affinity_multiplier
+	return run_damage_multiplier * affinity_multiplier
 
 func _on_wave_reward_selected(reward_id: String) -> void:
 	match reward_id:
@@ -500,12 +552,12 @@ func cast_red_shock() -> void:
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
 	var damage_mult: float = get_spell_damage_multiplier()
-	proj.activate(spawn_pos, dir, 1, false, damage_mult)
-	if unlocked_spells_in_path.size() >= 3:
+	proj.activate(spawn_pos, dir, 1, false, damage_mult, -1.0, 0.0, self)
+	if unlocked_spells_in_path.has("red_3"):
 		var enemies = get_tree().get_nodes_in_group("enemies")
 		if enemies.size() > 1 and is_instance_valid(enemies[1]):
 			var chain_proj = ProjectilePool.get_projectile()
-			chain_proj.activate(spawn_pos, (enemies[1].global_position - spawn_pos).normalized(), 1, false, GameSettings.spell_red_shock_chain_damage_mult * damage_mult)
+			chain_proj.activate(spawn_pos, (enemies[1].global_position - spawn_pos).normalized(), 1, false, GameSettings.spell_red_shock_chain_damage_mult * damage_mult, -1.0, 0.0, self)
 
 func cast_red_fireball(charge_pct: float) -> void:
 	var proj = ProjectilePool.get_projectile()
@@ -538,7 +590,7 @@ func cast_red_act_of_treason() -> void:
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(GameSettings.spell_red_act_of_treason_damage * get_spell_damage_multiplier())
+			enemy.take_damage(GameSettings.spell_red_act_of_treason_damage * get_spell_damage_multiplier(), self)
 		if enemy.has_method("apply_knockback"):
 			var kb_dir = -camera.global_basis.z.normalized() * GameSettings.spell_red_act_of_treason_knockback
 			enemy.apply_knockback(kb_dir)
@@ -554,7 +606,7 @@ func cast_red_chandras_ignition() -> void:
 	for e in enemies:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:
 			if e.has_method("take_damage"):
-				e.take_damage(damage)
+				e.take_damage(damage, self)
 			if e.has_method("apply_knockback"):
 				var push_dir = (e.global_position - global_position).normalized() * push
 				e.apply_knockback(push_dir)
@@ -580,7 +632,7 @@ func cast_blue_unsummon() -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
-	proj.activate(spawn_pos, dir, 2, false, 1.0)
+	proj.activate(spawn_pos, dir, 2, false, get_spell_damage_multiplier(), -1.0, 0.0, self)
 
 func cast_blue_aetherize(charge_pct: float) -> void:
 	var force = GameSettings.spell_blue_aetherize_push_force * charge_pct
@@ -606,7 +658,7 @@ func cast_blue_psionic_blast() -> void:
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(GameSettings.spell_blue_psionic_blast_damage * get_spell_damage_multiplier())
+			enemy.take_damage(GameSettings.spell_blue_psionic_blast_damage * get_spell_damage_multiplier(), self)
 
 func cast_blue_freeze_breath() -> void:
 	var forward = -camera_pivot.global_transform.basis.z.normalized()
@@ -632,7 +684,7 @@ func cast_green_titanic_growth() -> void:
 			var to_e = (e.global_position - global_position).normalized()
 			if to_e.dot(forward) > 0.3:
 				if e.has_method("take_damage"):
-					e.take_damage(cleave_damage)
+					e.take_damage(cleave_damage, self)
 
 func cast_green_hurricane(charge_pct: float) -> void:
 	var radius = GameSettings.spell_green_hurricane_radius * charge_pct
@@ -664,7 +716,7 @@ func cast_green_rabid_bite() -> void:
 		var enemy = result.collider
 		var dmg = GameSettings.spell_green_rabid_bite_damage * get_spell_damage_multiplier()
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(dmg)
+			enemy.take_damage(dmg, self)
 		if "root_timer" in enemy and enemy.root_timer > 0:
 			heal(dmg * GameSettings.spell_green_rabid_bite_lifesteal)
 
@@ -698,7 +750,7 @@ func cast_white_wrath_of_god(charge_pct: float) -> void:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:
 			if "enemy_data" in e and e.enemy_data and e.has_method("take_damage"):
 				var dmg = e.enemy_data.health * GameSettings.spell_white_wrath_damage_pct * charge_pct * get_spell_damage_multiplier()
-				e.take_damage(dmg)
+				e.take_damage(dmg, self)
 			if e.has_method("apply_blind"):
 				e.apply_blind(3.0)
 
@@ -756,7 +808,7 @@ func cast_black_doom_blade() -> void:
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(GameSettings.spell_black_doom_blade_damage * get_spell_damage_multiplier())
+			enemy.take_damage(GameSettings.spell_black_doom_blade_damage * get_spell_damage_multiplier(), self)
 		if enemy.has_method("apply_doom_curse"):
 			enemy.apply_doom_curse(GameSettings.spell_black_doom_blade_curse_duration, GameSettings.spell_black_doom_blade_curse_mult)
 
@@ -771,7 +823,7 @@ func cast_black_tendrils(previous_cast_time: float) -> void:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= 15.0:
 			if e.has_method("take_damage"):
 				var damage: float = GameSettings.spell_black_tendrils_damage * get_spell_damage_multiplier()
-				e.take_damage(damage)
+				e.take_damage(damage, self)
 				heal(damage * 0.5)
 				hit += 1
 				if hit >= targets_count:
@@ -802,7 +854,8 @@ func cast_basic_attack() -> void:
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
 		if enemy.has_method("take_damage"):
-			enemy.take_damage(dmg)
+			enemy.take_damage(dmg, self, true)
+		_apply_basic_attack_knockback(enemy)
 	else:
 		var enemies = get_tree().get_nodes_in_group("enemies")
 		for e in enemies:
@@ -810,7 +863,17 @@ func cast_basic_attack() -> void:
 				var dir_to_e = (e.global_position - global_position).normalized()
 				if -transform.basis.z.dot(dir_to_e) > GameSettings.spell_melee_cone:
 					if e.has_method("take_damage"):
-						e.take_damage(dmg)
+						e.take_damage(dmg, self, true)
+					_apply_basic_attack_knockback(e)
+
+func _apply_basic_attack_knockback(enemy: Node3D) -> void:
+	if not enemy.has_method("apply_knockback"):
+		return
+	var knockback_direction: Vector3 = enemy.global_position - global_position
+	knockback_direction.y = 0.0
+	if knockback_direction.length_squared() <= 0.001:
+		knockback_direction = -transform.basis.z
+	enemy.apply_knockback(knockback_direction.normalized() * GameSettings.spell_melee_knockback)
 
 func _physics_process(delta: float) -> void:
 	_sync_capstone_aura()
@@ -849,7 +912,7 @@ func _physics_process(delta: float) -> void:
 			if is_instance_valid(e) and not overrun_hit_enemy_ids.has(e.get_instance_id()) and global_position.distance_to(e.global_position) <= 2.5:
 				overrun_hit_enemy_ids[e.get_instance_id()] = true
 				if e.has_method("take_damage"):
-					e.take_damage(GameSettings.spell_melee_damage * GameSettings.spell_green_overrun_damage_mult * get_spell_damage_multiplier())
+					e.take_damage(GameSettings.spell_melee_damage * GameSettings.spell_green_overrun_damage_mult * get_spell_damage_multiplier(), self)
 				if e.has_method("apply_knockback"):
 					e.apply_knockback(overrun_dir * 10.0)
 		return
@@ -867,7 +930,7 @@ func _physics_process(delta: float) -> void:
 	if gideon_reproach_timer > 0.0: gideon_reproach_timer -= delta
 
 	# Base & Aura Passive HP Regeneration
-	var regen_amount = GameSettings.player_base_hp_regen * delta
+	var regen_amount = GameSettings.player_base_hp_regen * (1.0 + get_affinity_bonus("white")) * delta
 	if unlocked_capstone_aura == "aura_sylvan_library":
 		regen_amount += GameSettings.aura_sylvan_library_regen * delta
 	heal(regen_amount, false)
@@ -992,6 +1055,7 @@ func _physics_process(delta: float) -> void:
 		var cdr = 1.0
 		if unlocked_capstone_aura == "aura_rhystic_study":
 			cdr = GameSettings.aura_rhystic_study_cdr_mult
-		spell_cooldown_timers[key] -= delta * run_cooldown_recovery_multiplier / cdr
+		var affinity_recovery: float = 1.0 + get_affinity_bonus("blue")
+		spell_cooldown_timers[key] -= delta * run_cooldown_recovery_multiplier * affinity_recovery / cdr
 		if spell_cooldown_timers[key] <= 0.0:
 			spell_cooldown_timers.erase(key)
