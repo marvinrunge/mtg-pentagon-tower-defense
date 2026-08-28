@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dm18yoqik3i42"]
 
-[ext_resource type="PackedScene" uid="uid://cq8l2wc717sj0" path="res://assets/generated/mana-well-red/mana-well-red.glb" id="1_model"]
+[ext_resource type="PackedScene" uid="uid://cq8l2wc717sj0" path="res://assets/structures/mana-well-red/mana-well-red.glb" id="1_model"]
 
 [node name="ManaWellRed" type="Node3D" unique_id=1030405147]
 

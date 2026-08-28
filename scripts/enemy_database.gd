@@ -31,7 +31,12 @@ static func get_enemy_data(color_id: String, type_id: String) -> EnemyData:
 		data.speed = 1.2
 		data.attack_damage = 40.0
 		data.attack_range = 3.0
-		data.model_scale = 2.5
+		# Each colour's boss is a different creature at a different size; the boss
+		# visuals are all built to a common 1.7-unit height so this is the only
+		# thing setting how big it actually is (and, via
+		# GameSettings.get_boss_anim_speed, how slowly it animates).
+		data.model_scale = BossDatabase.get_model_scale(color_id, 2.5)
+		data.attack_speed = 1.8
 		
 	# Apply Color Modifiers & Visuals
 	if color_id == "Red":

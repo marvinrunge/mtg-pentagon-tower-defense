@@ -19,6 +19,8 @@ class_name HUD
 @onready var show_minimap_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/ShowMinimapCheckbox
 @onready var damage_numbers_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/DamageNumbersCheckbox
 @onready var enemy_health_bars_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/EnemyHealthBarsCheckbox
+@onready var attack_indicators_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/AttackIndicatorsCheckbox
+@onready var camera_shake_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/CameraShakeCheckbox
 @onready var minimap_size_slider: HSlider = $Control/SettingsPanel/MarginContainer/VBoxContainer/MinimapSizeSlider
 
 @onready var game_over_panel: PanelContainer = $Control/GameOverPanel
@@ -59,6 +61,12 @@ func _ready() -> void:
 	if enemy_health_bars_checkbox:
 		enemy_health_bars_checkbox.button_pressed = GameSettings.show_enemy_health_bars
 		enemy_health_bars_checkbox.toggled.connect(_on_enemy_health_bars_toggled)
+	if attack_indicators_checkbox:
+		attack_indicators_checkbox.button_pressed = GameSettings.show_attack_indicators
+		attack_indicators_checkbox.toggled.connect(_on_attack_indicators_toggled)
+	if camera_shake_checkbox:
+		camera_shake_checkbox.button_pressed = GameSettings.camera_shake_enabled
+		camera_shake_checkbox.toggled.connect(_on_camera_shake_toggled)
 	minimap_size_slider.value_changed.connect(_on_minimap_size_changed)
 	restart_btn.pressed.connect(_on_restart_pressed)
 	settings_panel.hide()
@@ -149,6 +157,7 @@ func update_health(current: float, max_health: float) -> void:
 		if game_over_panel:
 			game_over_panel.show()
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+			restart_btn.grab_focus()
 	elif current < max_health * 0.03:
 		status_label.text = "CRITICAL WARNING: BASE UNDER ATTACK!"
 		status_label.add_theme_color_override("font_color", Color(1, 0.5, 0))
@@ -185,6 +194,7 @@ func _input(event: InputEvent) -> void:
 		settings_panel.visible = !settings_panel.visible
 		if settings_panel.visible:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+			show_minimap_checkbox.grab_focus()
 		else:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -201,6 +211,13 @@ func _on_damage_numbers_toggled(button_pressed: bool) -> void:
 func _on_enemy_health_bars_toggled(button_pressed: bool) -> void:
 	GameSettings.show_enemy_health_bars = button_pressed
 	SignalBus.enemy_health_bars_visibility_changed.emit(button_pressed)
+
+func _on_attack_indicators_toggled(button_pressed: bool) -> void:
+	GameSettings.show_attack_indicators = button_pressed
+	SignalBus.attack_indicators_visibility_changed.emit(button_pressed)
+
+func _on_camera_shake_toggled(button_pressed: bool) -> void:
+	GameSettings.camera_shake_enabled = button_pressed
 
 func _on_minimap_size_changed(value: float) -> void:
 	minimap.custom_minimum_size = Vector2(value, value)
@@ -400,6 +417,7 @@ func _on_wave_reward_offered(options: Array) -> void:
 	for child in _reward_choices.get_children():
 		child.queue_free()
 
+	var first_choice: Button = null
 	for option in options:
 		var choice: Button = Button.new()
 		choice.custom_minimum_size = Vector2(260.0, 145.0)
@@ -410,10 +428,16 @@ func _on_wave_reward_offered(options: Array) -> void:
 		choice.add_theme_stylebox_override("hover", _make_panel_style(Color(0.15, 0.12, 0.07, 1.0), Color(1.0, 0.74, 0.22)))
 		choice.pressed.connect(_on_reward_selected.bind(String(option["id"])))
 		_reward_choices.add_child(choice)
+		if first_choice == null:
+			first_choice = choice
 
 	_reward_overlay.show()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().paused = true
+	# Old choice buttons are only queue_free()'d above (deferred), so grabbing focus on
+	# the container's first child could still hit a stale one - use the tracked reference.
+	if first_choice:
+		first_choice.grab_focus()
 
 func _on_reward_selected(reward_id: String) -> void:
 	get_tree().paused = false

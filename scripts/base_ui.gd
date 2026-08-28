@@ -29,6 +29,7 @@ func open(main_ref: Node3D) -> void:
 	show()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	refresh_ui()
+	build_btn.grab_focus()
 
 func close() -> void:
 	hide()
@@ -123,7 +124,7 @@ func _open_skill_tree() -> void:
 
 func _on_build_pressed() -> void:
 	if main_controller and main_controller.spend_any_mana(GameSettings.myr_mana_cost):
-		var myr_scene = preload("res://scenes/myr.tscn")
+		var myr_scene = preload("res://scenes/misc/myr.tscn")
 		var myr = myr_scene.instantiate()
 		myr.position = main_controller.crystal_anchor.global_position + Vector3(0, 0.5, 0)
 		myr.set_meta("target_crystal", main_controller.crystal_anchor)

@@ -18,6 +18,7 @@ extends Node
 @export var player_sprint_speed_mult: float = 1.5
 @export var player_jump_velocity: float = 4.5
 @export var player_mouse_sensitivity: float = 0.002
+@export var player_gamepad_look_sensitivity: float = 2.5
 @export var player_mana_harvest_distance: float = 6.0
 @export var player_mana_harvest_time: float = 3.0
 @export var player_base_proximity: float = 5.0
@@ -218,6 +219,46 @@ func get_tier_cost(tier_index: int) -> int:
 @export var enemy_elite_juggernaut_damage_mult: float = 1.25
 @export var enemy_elite_juggernaut_speed_mult: float = 0.8
 @export var enemy_elite_crystal_hunter_damage_mult: float = 1.35
+@export var enemy_max_corpses: int = 100
+
+# ============================================================
+# BOSSES
+# ============================================================
+# Bosses animate slower the bigger they are: a boss whose model_scale equals
+# boss_anim_reference_scale plays at 1.0x, larger ones play slower and smaller
+# ones faster. boss_anim_scale_strength dials how strongly size matters (0.0
+# disables the effect entirely, 1.0 makes playback speed inversely proportional
+# to scale). Result is clamped so a very large boss never crawls to a halt.
+@export var boss_anim_reference_scale: float = 2.4
+@export var boss_anim_scale_strength: float = 1.0
+@export var boss_anim_speed_min: float = 0.55
+@export var boss_anim_speed_max: float = 1.35
+
+# Special (dodgeable) attacks. Each boss telegraphs a danger zone for
+# boss_special_windup_* seconds before the hit lands - that window is the dodge.
+@export var boss_special_cooldown: float = 9.0
+@export var boss_special_first_delay: float = 5.0
+@export var boss_special_min_range: float = 3.0
+@export var boss_special_damage_mult: float = 2.0
+# Bigger bosses wind up proportionally longer (they also animate slower), so the
+# telegraph stays readable instead of the hit landing before the animation reads.
+@export var boss_special_windup_scale_with_anim: bool = true
+
+# ============================================================
+# COMBAT FEEDBACK
+# ============================================================
+# Ground decals marking a boss special attack's danger zone during its windup.
+# Turning this off removes the visual tell, making specials much harder to dodge.
+@export var show_attack_indicators: bool = true
+@export var attack_indicator_height: float = 0.08
+@export var camera_shake_enabled: bool = true
+@export var camera_shake_strength_mult: float = 1.0
+# Heavy hits (boss melee and boss specials) shake harder than chip damage.
+@export var camera_shake_heavy_strength: float = 0.42
+@export var camera_shake_heavy_duration: float = 0.45
+@export var camera_shake_light_strength: float = 0.12
+@export var camera_shake_light_duration: float = 0.22
+@export var camera_shake_frequency: float = 26.0
 
 # ============================================================
 # RUN REWARDS
@@ -274,6 +315,17 @@ func get_player_scaling_factor(tree: SceneTree) -> float:
 	var player_count = max(1, players.size())
 	var clamp_count = clamp(player_count, 1, 5)
 	return lerp(min_damage_scale, 1.0, (clamp_count - 1) / 4.0)
+
+# ============================================================
+# BOSSES
+# ============================================================
+## Animation playback speed for a boss of the given model_scale - bigger bosses
+## animate slower. See the boss_anim_* settings for the tunables.
+func get_boss_anim_speed(model_scale: float) -> float:
+	if boss_anim_scale_strength <= 0.0 or model_scale <= 0.0:
+		return 1.0
+	var ratio: float = boss_anim_reference_scale / model_scale
+	return clampf(pow(ratio, boss_anim_scale_strength), boss_anim_speed_min, boss_anim_speed_max)
 
 # ============================================================
 # SKILL UPGRADES

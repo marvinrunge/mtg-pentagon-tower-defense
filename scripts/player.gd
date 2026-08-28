@@ -5,12 +5,21 @@ class_name Player
 @export var jump_velocity: float = GameSettings.player_jump_velocity
 @export var mouse_sensitivity: float = GameSettings.player_mouse_sensitivity
 @export var rotation_speed: float = 10.0
-@export var projectile_scene: PackedScene = preload("res://scenes/projectile.tscn")
+@export var projectile_scene: PackedScene = preload("res://scenes/misc/projectile.tscn")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 var camera_pivot: Node3D
 var camera: Camera3D
+
+# --- Camera shake ---
+# Applied as a local offset on the camera itself (which otherwise sits at the
+# origin of its SpringArm3D), so it never fights the spring arm's collision
+# handling the way shaking the pivot or the arm length would.
+var _shake_strength: float = 0.0
+var _shake_duration: float = 0.0
+var _shake_timer: float = 0.0
+var _shake_phase: float = 0.0
 
 # --- RPG Stats ---
 var hp: float = GameSettings.player_max_hp
@@ -74,6 +83,7 @@ var _invulnerable_timer: float = 0.0
 # --- Interaction notifications ---
 var _notification_text: String = ""
 var _notification_timer: float = 0.0
+var _last_input_was_gamepad: bool = false
 
 # --- Downed & Revive State ---
 var is_downed: bool = false
@@ -114,11 +124,62 @@ func setup_camera() -> void:
 	spring_arm.add_child(camera)
 	camera.make_current()
 
+	SignalBus.camera_shake_requested.connect(_on_camera_shake_requested)
+
+## Strongest-wins: a heavy hit landing during a light shake takes over, but a
+## light one can't cut short the tail of a heavy one.
+func _on_camera_shake_requested(strength: float, duration: float) -> void:
+	if not GameSettings.camera_shake_enabled:
+		return
+	if strength < _shake_strength and _shake_timer > 0.0:
+		return
+	_shake_strength = strength
+	_shake_duration = maxf(duration, 0.01)
+	_shake_timer = _shake_duration
+
+func _update_camera_shake(delta: float) -> void:
+	if camera == null:
+		return
+	if _shake_timer <= 0.0:
+		if camera.position != Vector3.ZERO:
+			camera.position = Vector3.ZERO
+		return
+	_shake_timer -= delta
+	_shake_phase += delta * GameSettings.camera_shake_frequency
+	# Decay to zero over the shake's life so it settles instead of cutting out.
+	var falloff: float = clampf(_shake_timer / _shake_duration, 0.0, 1.0)
+	var amplitude: float = _shake_strength * falloff * falloff
+	# Two different frequencies per axis keeps it from reading as a clean orbit.
+	camera.position = Vector3(
+		sin(_shake_phase * 1.7) * amplitude,
+		cos(_shake_phase * 2.3) * amplitude,
+		0.0
+	)
+	if _shake_timer <= 0.0:
+		camera.position = Vector3.ZERO
+
+## Interact prompts hardcode "[F]" - swap to the gamepad button label when a
+## controller was the last input device used, so the prompt matches what's in hand.
+func _interact_key_label() -> String:
+	return "[X]" if _last_input_was_gamepad else "[F]"
+
+## Shared by mouse-motion look (per-event, already-scaled pixel delta) and the
+## gamepad right-stick poll in _physics_process (per-frame, delta-scaled).
+func _apply_look_delta(yaw: float, pitch: float) -> void:
+	rotate_y(yaw)
+	camera_pivot.rotate_x(pitch)
+	camera_pivot.rotation.x = clamp(camera_pivot.rotation.x, -deg_to_rad(70.0), deg_to_rad(30.0))
+
 func _unhandled_input(event: InputEvent) -> void:
+	# Ignore small joypad motion (idle stick drift/noise) so this doesn't flicker
+	# true just from a controller sitting connected but unused.
+	if event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.3):
+		_last_input_was_gamepad = true
+	elif event is InputEventKey or event is InputEventMouseButton or event is InputEventMouseMotion:
+		_last_input_was_gamepad = false
+
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * mouse_sensitivity)
-		camera_pivot.rotate_x(-event.relative.y * mouse_sensitivity)
-		camera_pivot.rotation.x = clamp(camera_pivot.rotation.x, -deg_to_rad(70.0), deg_to_rad(30.0))
+		_apply_look_delta(-event.relative.x * mouse_sensitivity, -event.relative.y * mouse_sensitivity)
 
 	if is_downed:
 		return
@@ -183,12 +244,18 @@ func _unhandled_input(event: InputEvent) -> void:
 				cycle_spell(-1)
 			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				cycle_spell(1)
-			elif event.button_index == MOUSE_BUTTON_RIGHT:
-				cast_active_spell()
-		elif event is InputEventMouseButton and not event.pressed:
-			if event.button_index == MOUSE_BUTTON_RIGHT and is_charging:
-				release_charged_spell()
-		
+
+		# "cast_spell" covers both right-mouse-button and the gamepad left trigger.
+		if event.is_action_pressed("cast_spell"):
+			cast_active_spell()
+		elif event.is_action_released("cast_spell") and is_charging:
+			release_charged_spell()
+
+		if event.is_action_pressed("cycle_spell_prev"):
+			cycle_spell(-1)
+		elif event.is_action_pressed("cycle_spell_next"):
+			cycle_spell(1)
+
 		if event is InputEventKey and event.pressed and not event.echo:
 			var keycode = event.keycode
 			if keycode >= KEY_1 and keycode <= KEY_5:
@@ -877,6 +944,8 @@ func _apply_basic_attack_knockback(enemy: Node3D) -> void:
 
 func _physics_process(delta: float) -> void:
 	_sync_capstone_aura()
+	# Runs before the downed early-out so a shake still settles while downed.
+	_update_camera_shake(delta)
 	if is_downed:
 		down_timer -= delta
 		if down_timer <= 0.0:
@@ -892,8 +961,8 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	# Continuous Auto-Attack on Left Click hold
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+	# Continuous Auto-Attack on Left Click / gamepad right-trigger hold
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and Input.is_action_pressed("attack"):
 		cast_basic_attack()
 
 	if not is_on_floor():
@@ -949,7 +1018,7 @@ func _physics_process(delta: float) -> void:
 			if dist < 3.0:
 				revived_teammate = true
 				if _notification_timer <= 0.0:
-					SignalBus.interact_prompt_changed.emit("Press [F] to Revive Teammate", true)
+					SignalBus.interact_prompt_changed.emit("Press %s to Revive Teammate" % _interact_key_label(), true)
 				
 				if Input.is_action_just_pressed("interact"):
 					teammate.revive()
@@ -1004,12 +1073,19 @@ func _physics_process(delta: float) -> void:
 						_notification_timer = 1.5
 				else:
 					harvest_timer = 0.0
-					SignalBus.interact_prompt_changed.emit("Hold [F] to Harvest %s Mana" % source_color, true)
+					SignalBus.interact_prompt_changed.emit("Hold %s to Harvest %s Mana" % [_interact_key_label(), source_color], true)
 			elif is_at_base:
-				SignalBus.interact_prompt_changed.emit("Press [F] to Manage Base", true)
+				SignalBus.interact_prompt_changed.emit("Press %s to Manage Base" % _interact_key_label(), true)
 			else:
 				harvest_timer = 0.0
 				SignalBus.interact_prompt_changed.emit("", false)
+
+	# Gamepad right-stick look (mouse look is event-driven in _unhandled_input;
+	# a held stick deflection needs continuous per-frame polling instead).
+	var look_input := Input.get_vector("look_left", "look_right", "look_up", "look_down", 0.2)
+	if look_input != Vector2.ZERO:
+		_apply_look_delta(-look_input.x * GameSettings.player_gamepad_look_sensitivity * delta,
+			-look_input.y * GameSettings.player_gamepad_look_sensitivity * delta)
 
 	# Movement
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")

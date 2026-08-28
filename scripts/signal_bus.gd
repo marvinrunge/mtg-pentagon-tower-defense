@@ -28,3 +28,8 @@ signal wave_reward_selected(reward_id: String)
 signal interact_prompt_changed(text: String, visible: bool)
 signal damage_number_requested(pos: Vector3, amount: float, color: Color)
 signal enemy_health_bars_visibility_changed(is_enabled: bool)
+
+# strength is in world units of camera offset; the player applies it to its own
+# camera, so listeners other than the local player should ignore it.
+signal camera_shake_requested(strength: float, duration: float)
+signal attack_indicators_visibility_changed(is_enabled: bool)

@@ -6,3 +6,37 @@
 .meshy/
 *.log
 tools/__pycache__/
+
+# Melee characters: raw Meshy.ai per-clip animation exports not consumed by
+# tools/melee_character_builder.gd. Only walking/left_slash/hit_reaction/dead
+# (renamed, kept tracked below) feed the shared assets/animations/melee_animations.tres;
+# everything else here is unused raw material kept locally for future animation work.
+# combat_stance.glb was the "idle" clip - dropped in favor of pausing "walk" on its
+# first frame instead (see EnemyBase._rest_visual_animation), so it's unused too now.
+assets/animations/combat_stance.glb*
+assets/animations/Meshy_AI_biped_Animation_Charged_Slash_withSkin.glb*
+assets/animations/Meshy_AI_biped_Animation_Hit_Reaction_1_withSkin.glb*
+assets/animations/Meshy_AI_biped_Animation_Idle_5_withSkin.glb*
+assets/animations/Meshy_AI_biped_Animation_Idle_8_withSkin.glb*
+assets/animations/Meshy_AI_biped_Animation_Idle_10_withSkin.glb*
+assets/animations/Meshy_AI_biped_Animation_Running_withSkin.glb*
+assets/animations/Meshy_AI_biped_Animation_run_fast_3_withSkin.glb*
+assets/animations/Meshy_AI_biped_Animation_walking_2_withSkin.glb*
+assets/animations/Meshy_AI_biped_Animation_walking_2_inplace_withSkin.glb*
+# Baked per-clip albedo previews (all clips, used and unused alike) — every character
+# scene uses its own <faction>_melee_albedo.png instead.
+assets/animations/*_texture_0.png*
+
+# Each -melee character's glb embeds a relative-URI reference to its original loose
+# texture filename; renaming that PNG to <name>_melee_albedo.png breaks the glb's
+# internal reference, so Godot's importer re-extracts a byte-identical duplicate
+# under its own <name>_melee_texture_0.png naming on every reimport. Materials are
+# built from *_albedo.png (see tools/melee_character_builder.gd) - this is dead weight.
+assets/*-melee/*_melee_texture_0.png*
+
+# Same story for each faction's weapon glb: it embeds its own texture data and
+# Godot's importer re-extracts the albedo under "<glb>_base_color.jpg" (a name
+# derived from the glb's own filename + glTF material slot name) regardless of the
+# renamed *_albedo.jpg loose file sitting next to it. tools/melee_character_builder.gd
+# builds the weapon material from *_albedo.jpg explicitly, so this is dead weight.
+assets/*-melee/weapon/*_weapon_base_color.jpg*

@@ -5,12 +5,63 @@ var target_crystal: Node3D
 var current_target: Node3D
 var last_target_position: Vector3 = Vector3.INF
 
-var _enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
-var _health_bar_scene: PackedScene = preload("res://scenes/enemy_health_bar.tscn")
+var _enemy_scene: PackedScene = preload("res://scenes/misc/enemy.tscn")
+var _health_bar_scene: PackedScene = preload("res://scenes/ui/enemy_health_bar.tscn")
+
+const MELEE_VISUAL_SCENES := {
+	"White": preload("res://scenes/melee/human_melee.tscn"),
+	"Blue": preload("res://scenes/melee/merfolk_melee.tscn"),
+	"Black": preload("res://scenes/melee/zombie_melee.tscn"),
+	"Red": preload("res://scenes/melee/goblin_melee.tscn"),
+	"Green": preload("res://scenes/melee/elf_melee.tscn"),
+}
+# Own dedicated mesh/animation set per colour, distinct from melee (see
+# tools/character_builder.gd) - no longer "melee minus weapon".
+const RANGED_VISUAL_SCENES := {
+	"White": preload("res://scenes/ranged/human_ranged.tscn"),
+	"Blue": preload("res://scenes/ranged/merfolk_ranged.tscn"),
+	"Black": preload("res://scenes/ranged/zombie_ranged.tscn"),
+	"Red": preload("res://scenes/ranged/goblin_ranged.tscn"),
+	"Green": preload("res://scenes/ranged/elf_ranged.tscn"),
+}
+const MAGE_VISUAL_SCENES := {
+	"White": preload("res://scenes/mage/human_mage.tscn"),
+	"Blue": preload("res://scenes/mage/merfolk_mage.tscn"),
+	"Black": preload("res://scenes/mage/zombie_mage.tscn"),
+	"Red": preload("res://scenes/mage/goblin_mage.tscn"),
+	"Green": preload("res://scenes/mage/elf_mage.tscn"),
+}
+
+# Shared across every EnemyBase instance so the corpse cap applies project-wide.
+static var _corpses: Array[EnemyBase] = []
+
+# The melee/ranged libraries call the damage reaction "knockback"; the Mixamo boss
+# libraries call it "hit". Resolved once per enemy so either naming works.
+const REACTION_CLIP_CANDIDATES := ["knockback", "hit"]
+
+# Some source death clips run very long (the zombie boss's is 11.6s) - cap how
+# long a body is still visibly settling.
+const DEATH_MAX_SECONDS := 4.0
 
 var enemy_data: EnemyData
 var health: float = 100.0
 var health_bar: EnemyHealthBar
+var visual_anim_player: AnimationPlayer
+var is_dying: bool = false
+
+# Playback multiplier for this enemy's clips. Stays 1.0 for regular enemies;
+# bosses get a size-derived value so bigger ones move more ponderously.
+var _anim_speed_scale: float = 1.0
+var _reaction_clip: String = ""
+
+# --- Boss special attack (telegraphed and dodgeable) ---
+var _special_config: Dictionary = {}
+var _special_cooldown_timer: float = 0.0
+var _special_windup_timer: float = 0.0
+var _special_total_timer: float = 0.0
+var _is_special_active: bool = false
+var _special_resolved: bool = false
+var _special_indicator: AttackIndicator
 var damage_penalty: float = 0.0
 var penalty_timer: float = 0.0
 var attack_cooldown: float = 0.0
@@ -71,39 +122,56 @@ func setup(data: EnemyData) -> void:
 		shape.radius = _get_detection_range()
 		
 	cast_timer = data.attack_speed
-	
-	# Visuals
-	var visual = CSGBox3D.new()
-	visual.size = Vector3(0.8, 1.7, 0.8)
-	visual.position = Vector3(0, 0.85, 0)
-	
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = data.visual_color
-	mat.roughness = 0.5
-	visual.material = mat
-	add_child(visual)
-	
+
+	# Visuals. Bosses have their own dedicated models; if one is missing they fall
+	# back to the scaled-up melee model that stood in for them previously.
+	var visual_scene: PackedScene = null
+	if data.enemy_class == "Boss":
+		visual_scene = BossDatabase.get_visual_scene(data.color_identity)
+	if visual_scene == null:
+		if (data.enemy_class == "Melee" or data.enemy_class == "Boss") and MELEE_VISUAL_SCENES.has(data.color_identity):
+			visual_scene = MELEE_VISUAL_SCENES[data.color_identity]
+		elif data.enemy_class == "Ranged" and RANGED_VISUAL_SCENES.has(data.color_identity):
+			visual_scene = RANGED_VISUAL_SCENES[data.color_identity]
+		elif data.enemy_class == "Mage" and MAGE_VISUAL_SCENES.has(data.color_identity):
+			visual_scene = MAGE_VISUAL_SCENES[data.color_identity]
+
+	if visual_scene:
+		var visual_instance: Node3D = visual_scene.instantiate()
+		add_child(visual_instance)
+		# find_child rather than get_node: it holds for both the melee scenes (player
+		# is a direct child) and the imported boss scenes, without assuming depth.
+		visual_anim_player = visual_instance.find_child("AnimationPlayer", true, false)
+		_reaction_clip = _resolve_reaction_clip()
+		_rest_visual_animation()
+	else:
+		var visual = CSGBox3D.new()
+		visual.size = Vector3(0.8, 1.7, 0.8)
+		visual.position = Vector3(0, 0.85, 0)
+
+		var mat = StandardMaterial3D.new()
+		mat.albedo_color = data.visual_color
+		mat.roughness = 0.5
+		visual.material = mat
+		add_child(visual)
+
 	scale = Vector3(data.model_scale, data.model_scale, data.model_scale)
 	aggro_area.scale = Vector3.ONE / maxf(data.model_scale, 0.01)
 	health_bar = _health_bar_scene.instantiate() as EnemyHealthBar
 	add_child(health_bar)
 	health_bar.set_health(health, data.health)
 
+	if data.enemy_class == "Boss":
+		_anim_speed_scale = GameSettings.get_boss_anim_speed(data.model_scale)
+		# A boss that animates slower should also swing less often - otherwise
+		# perform_attack() just compresses the swing back to normal speed to fit
+		# the unchanged cadence and the size never reads in the animation.
+		data.attack_speed /= maxf(_anim_speed_scale, 0.01)
+		_special_config = BossDatabase.get_special(data.color_identity)
+		_special_cooldown_timer = GameSettings.boss_special_first_delay
+
 	if has_meta("elite_modifier"):
 		apply_elite_modifier(String(get_meta("elite_modifier")))
-	
-	# Bosses get a special visual marker (a crown or just bigger)
-	if data.enemy_class == "Boss":
-		var crown = CSGCylinder3D.new()
-		crown.radius = 0.5
-		crown.height = 0.3
-		crown.position = Vector3(0, 2.0, 0)
-		var c_mat = StandardMaterial3D.new()
-		c_mat.albedo_color = Color(1, 0.8, 0)
-		c_mat.emission_enabled = true
-		c_mat.emission = Color(1, 0.8, 0)
-		crown.material = c_mat
-		add_child(crown)
 
 func update_path(force_update: bool = false) -> void:
 	if not nav_agent:
@@ -122,6 +190,8 @@ func update_path(force_update: bool = false) -> void:
 func _physics_process(delta: float) -> void:
 	if not enemy_data:
 		return # Not initialized yet
+	if is_dying:
+		return
 
 	if elite_regeneration_per_second > 0.0 and health < enemy_data.health:
 		heal(elite_regeneration_per_second * delta, false)
@@ -185,11 +255,27 @@ func _physics_process(delta: float) -> void:
 		if pacified_timer <= 0:
 			damage_penalty = 0.0
 
-	# Disable movement if frozen or stunned
-	if freeze_timer > 0 or stun_timer > 0:
+	# Boss special attack. Runs before the normal movement/attack block because a
+	# committed special overrides both - the boss is rooted for its whole duration.
+	if _special_cooldown_timer > 0.0:
+		_special_cooldown_timer -= delta
+	if _is_special_active:
+		_process_special(delta)
+		return
+	if _can_begin_special(dist_to_target):
+		_begin_special()
+		_process_special(0.0)
+		return
+
+	# Disable movement if frozen, stunned, or mid-attack-swing (the swing has no
+	# root motion of its own - moving the body while it plays would make the legs
+	# look planted while the character visibly slides).
+	var is_attack_swing_playing: bool = visual_anim_player != null and visual_anim_player.current_animation == "attack" and visual_anim_player.is_playing()
+	if freeze_timer > 0 or stun_timer > 0 or is_attack_swing_playing:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		move_and_slide()
+		_update_visual_animation()
 		return
 
 	# Movement
@@ -216,16 +302,214 @@ func _physics_process(delta: float) -> void:
 		if not is_in_attack_range:
 			if root_timer <= 0 and nav_agent.is_navigation_finished():
 				update_path(true)
+			_update_visual_animation()
 			return
-		
+
 		if is_instance_valid(current_target):
 			var dir_to_target: Vector3 = (current_target.global_position - global_position).normalized()
 			if dir_to_target.length_squared() > 0.01:
 				var target_rotation: float = atan2(dir_to_target.x, dir_to_target.z)
 				rotation.y = lerp_angle(rotation.y, target_rotation, 8.0 * delta)
-		
+
 		if attack_cooldown <= 0 and blind_timer <= 0:
 			perform_attack()
+
+	_update_visual_animation()
+
+func _update_visual_animation() -> void:
+	if not visual_anim_player:
+		return
+	if knockback_velocity.length_squared() > 0.1 and _reaction_clip != "":
+		_play_visual_animation(_reaction_clip)
+	elif visual_anim_player.current_animation == "attack" and visual_anim_player.is_playing():
+		pass # Let the attack swing finish before switching states.
+	elif Vector2(velocity.x, velocity.z).length_squared() > 0.01:
+		_play_visual_animation("walk")
+	else:
+		_rest_visual_animation()
+
+func _play_visual_animation(anim_name: String) -> void:
+	if visual_anim_player.current_animation != anim_name or not visual_anim_player.is_playing():
+		visual_anim_player.play(anim_name, -1, _anim_speed_scale)
+
+## Whichever name this enemy's animation library uses for its damage reaction.
+func _resolve_reaction_clip() -> String:
+	if visual_anim_player == null:
+		return ""
+	for candidate in REACTION_CLIP_CANDIDATES:
+		if visual_anim_player.has_animation(candidate):
+			return candidate
+	return ""
+
+# No dedicated idle clip - hold the first frame of "walk" instead. Avoids ever
+# switching between two different poses (idle vs walk) right at the attack-range
+# boundary, which was the main source of visible flicker.
+func _rest_visual_animation() -> void:
+	if visual_anim_player.current_animation != "walk":
+		visual_anim_player.play("walk", -1, _anim_speed_scale)
+	if visual_anim_player.is_playing():
+		visual_anim_player.pause()
+
+# ============================================================
+# BOSS SPECIAL ATTACK
+#
+# A special is a committed, telegraphed swing: the boss roots itself, an
+# AttackIndicator draws the danger zone on the ground, and the damage only lands
+# once the indicator has filled. That fill window is the dodge - move out of the
+# circle, or out of the arc for the cone shapes, and the hit misses entirely.
+# ============================================================
+
+func _can_begin_special(dist_to_target: float) -> bool:
+	if _special_config.is_empty() or _special_cooldown_timer > 0.0:
+		return false
+	# Needs a real clip to telegraph with; the placeholder-box fallback has none.
+	if visual_anim_player == null or not visual_anim_player.has_animation("special"):
+		return false
+	if freeze_timer > 0.0 or stun_timer > 0.0 or root_timer > 0.0 or blind_timer > 0.0 or pacified_timer > 0.0:
+		return false
+	if not is_instance_valid(current_target):
+		return false
+	# Only ever aimed at something that can actually dodge. The crystal can't, and
+	# isn't in the hit set either, so letting a boss special the crystal would just
+	# burn the cooldown on a guaranteed whiff while it stopped hitting the crystal.
+	if not current_target.is_in_group("player") and not current_target.is_in_group("myrs"):
+		return false
+	# Held back at point-blank range so the boss still uses its ordinary swing up
+	# close, and skipped entirely if the target could not be reached anyway.
+	var reach: float = float(_special_config.get("radius", 5.0)) * 0.9
+	return dist_to_target >= GameSettings.boss_special_min_range and dist_to_target <= reach
+
+func _begin_special() -> void:
+	var anim: Animation = visual_anim_player.get_animation("special")
+	var clip_length: float = anim.length if anim else 1.5
+	var playback_speed: float = maxf(_anim_speed_scale, 0.05)
+	var impact_fraction: float = clampf(float(_special_config.get("impact_fraction", 0.5)), 0.05, 0.95)
+
+	_is_special_active = true
+	_special_resolved = false
+	_special_total_timer = clip_length / playback_speed
+	_special_windup_timer = _special_total_timer * impact_fraction
+
+	visual_anim_player.play("special", -1, playback_speed)
+
+	# Lock facing at commit time. The cone shapes are dodged by leaving the arc, so
+	# the boss must not keep tracking the target once the indicator is drawn.
+	if is_instance_valid(current_target):
+		var to_target: Vector3 = current_target.global_position - global_position
+		if Vector2(to_target.x, to_target.z).length_squared() > 0.01:
+			rotation.y = atan2(to_target.x, to_target.z)
+
+	var shape: AttackIndicator.Shape = AttackIndicator.Shape.CIRCLE
+	if String(_special_config.get("shape", "circle")) == "cone":
+		shape = AttackIndicator.Shape.CONE
+	_special_indicator = AttackIndicator.spawn(
+		self,
+		shape,
+		float(_special_config.get("radius", 5.0)),
+		float(_special_config.get("angle", 360.0)),
+		_special_windup_timer,
+		_special_config.get("tint", Color(1.0, 0.4, 0.1)),
+		enemy_data.model_scale
+	)
+
+func _process_special(delta: float) -> void:
+	# Rooted for the whole special: these clips carry their own footwork, and the
+	# danger zone is drawn where the boss stood when it committed.
+	velocity.x = 0.0
+	velocity.z = 0.0
+	move_and_slide()
+
+	if not _special_resolved:
+		_special_windup_timer -= delta
+		if _special_windup_timer <= 0.0:
+			_resolve_special()
+
+	_special_total_timer -= delta
+	if _special_total_timer <= 0.0:
+		if not _special_resolved:
+			_resolve_special()
+		_is_special_active = false
+
+func _resolve_special() -> void:
+	_special_resolved = true
+	_special_cooldown_timer = GameSettings.boss_special_cooldown
+
+	if _special_indicator and is_instance_valid(_special_indicator):
+		_special_indicator.resolve()
+	_special_indicator = null
+
+	var damage: float = enemy_data.attack_damage
+	damage *= float(_special_config.get("damage_mult", GameSettings.boss_special_damage_mult))
+	damage *= GameSettings.get_player_scaling_factor(get_tree())
+
+	var hit_player: bool = false
+	for target in _special_targets_in_shape():
+		if target.has_method("take_damage"):
+			target.take_damage(damage, self, true)
+			if target.is_in_group("player"):
+				hit_player = true
+
+	# Felt even on a clean dodge, just softer - a slam this size landing next to
+	# you should register.
+	var radius: float = float(_special_config.get("radius", 5.0))
+	if hit_player:
+		_request_camera_shake(true)
+	elif _is_player_within(radius * 1.6):
+		_request_camera_shake(false)
+
+func _special_targets_in_shape() -> Array[Node3D]:
+	var results: Array[Node3D] = []
+	var radius: float = float(_special_config.get("radius", 5.0))
+	var is_cone: bool = String(_special_config.get("shape", "circle")) == "cone"
+	var half_angle: float = deg_to_rad(float(_special_config.get("angle", 360.0))) * 0.5
+
+	# +Z is forward for these enemies (they turn with atan2(dir.x, dir.z)), and the
+	# basis has to be normalized because the boss carries a large model scale.
+	var forward: Vector3 = global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		return results
+	forward = forward.normalized()
+
+	var candidates: Array = []
+	candidates.append_array(get_tree().get_nodes_in_group("player"))
+	candidates.append_array(get_tree().get_nodes_in_group("myrs"))
+	for candidate in candidates:
+		if not candidate is Node3D or not is_instance_valid(candidate):
+			continue
+		if candidate.is_in_group("player") and "is_downed" in candidate and candidate.is_downed:
+			continue
+		var offset: Vector3 = (candidate as Node3D).global_position - global_position
+		offset.y = 0.0
+		if offset.length() > radius:
+			continue
+		if is_cone and offset.length_squared() > 0.0001:
+			if forward.angle_to(offset.normalized()) > half_angle:
+				continue
+		results.append(candidate as Node3D)
+	return results
+
+func _is_player_within(distance: float) -> bool:
+	for player in get_tree().get_nodes_in_group("player"):
+		if player is Node3D and is_instance_valid(player):
+			if global_position.distance_to((player as Node3D).global_position) <= distance:
+				return true
+	return false
+
+## Heavy shakes are boss specials landing on the player; light ones are the boss's
+## ordinary swing, or a special that just missed.
+func _request_camera_shake(is_heavy: bool) -> void:
+	if not GameSettings.camera_shake_enabled:
+		return
+	var strength: float = GameSettings.camera_shake_heavy_strength if is_heavy else GameSettings.camera_shake_light_strength
+	var duration: float = GameSettings.camera_shake_heavy_duration if is_heavy else GameSettings.camera_shake_light_duration
+	SignalBus.camera_shake_requested.emit(strength * GameSettings.camera_shake_strength_mult, duration)
+
+func _cancel_special() -> void:
+	if _special_indicator and is_instance_valid(_special_indicator):
+		_special_indicator.cancel()
+	_special_indicator = null
+	_is_special_active = false
 
 func perform_attack() -> void:
 	if not is_instance_valid(current_target):
@@ -233,15 +517,24 @@ func perform_attack() -> void:
 		return
 		
 	attack_cooldown = enemy_data.attack_speed
-	
+
 	# Apply frost slow if active
 	if frost_slow_timer > 0:
 		attack_cooldown /= GameSettings.enemy_frost_slow_mult # Slower attacks when frosted
-		
+
+	# Every class now has a real "attack" clip (Ranged/Mage previously fired with
+	# no visual windup at all - their models only got real animations recently).
+	if visual_anim_player and visual_anim_player.has_animation("attack"):
+		# Match the swing's playback speed to the actual attack cadence so it always
+		# finishes exactly as the next attack fires, instead of restarting mid-swing.
+		var attack_anim: Animation = visual_anim_player.get_animation("attack")
+		var speed_scale: float = attack_anim.length / attack_cooldown if attack_cooldown > 0.0 else 1.0
+		visual_anim_player.play("attack", -1, speed_scale)
+
 	if enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged":
 		fire_projectile()
 		return
-		
+
 	var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
 	if current_target == target_crystal:
 		actual_damage *= elite_crystal_damage_multiplier
@@ -251,6 +544,8 @@ func perform_attack() -> void:
 		SignalBus.crystal_damaged.emit(actual_damage)
 	elif current_target.has_method("take_damage"):
 		current_target.take_damage(actual_damage, self, true)
+		if enemy_data.enemy_class == "Boss" and current_target.is_in_group("player"):
+			_request_camera_shake(false)
 
 func fire_projectile() -> void:
 	var proj = ProjectilePool.get_projectile()
@@ -352,33 +647,6 @@ func apply_elite_modifier(modifier: String) -> void:
 	health = enemy_data.health
 	if health_bar:
 		health_bar.set_health(health, enemy_data.health)
-	_add_elite_marker()
-
-func _add_elite_marker() -> void:
-	var marker: CSGTorus3D = CSGTorus3D.new()
-	marker.name = "EliteMarker"
-	marker.inner_radius = 0.42
-	marker.outer_radius = 0.58
-	marker.position = Vector3(0.0, 2.05, 0.0)
-	marker.rotation_degrees.x = 90.0
-	var marker_material: StandardMaterial3D = StandardMaterial3D.new()
-	marker_material.albedo_color = Color(1.0, 0.72, 0.12)
-	marker_material.emission_enabled = true
-	marker_material.emission = Color(1.0, 0.28, 0.04)
-	marker_material.emission_energy_multiplier = 2.5
-	marker.material = marker_material
-	add_child(marker)
-
-	var modifier_label: Label3D = Label3D.new()
-	modifier_label.name = "EliteModifierLabel"
-	modifier_label.text = elite_modifier.to_upper()
-	modifier_label.position = Vector3(0.0, 2.45, 0.0)
-	modifier_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	modifier_label.no_depth_test = true
-	modifier_label.font_size = 32
-	modifier_label.outline_size = 8
-	modifier_label.modulate = Color(1.0, 0.78, 0.24)
-	add_child(modifier_label)
 
 func _get_detection_range() -> float:
 	if enemy_data and (enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged"):
@@ -421,6 +689,8 @@ func _on_aggro_body_exited(body: Node3D) -> void:
 
 # --- Spell Interactions ---
 func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false) -> void:
+	if is_dying:
+		return
 	if curse_timer > 0:
 		amount *= curse_mult
 	var damage_dealt: float = minf(maxf(amount, 0.0), maxf(health, 0.0))
@@ -437,7 +707,47 @@ func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false) 
 func die() -> void:
 	if enemy_data:
 		SignalBus.enemy_died.emit()
-	queue_free()
+
+	# Dying mid-windup drops the telegraph without dealing its damage.
+	_cancel_special()
+
+	if visual_anim_player and visual_anim_player.has_animation("death"):
+		is_dying = true
+		collision_layer = 0
+		collision_mask = 0
+		remove_from_group("enemies")
+		if health_bar:
+			health_bar.visible = false
+		var death_anim: Animation = visual_anim_player.get_animation("death")
+		var death_speed: float = maxf(_anim_speed_scale, 0.05)
+		if death_anim and death_anim.length / death_speed > DEATH_MAX_SECONDS:
+			death_speed = death_anim.length / DEATH_MAX_SECONDS
+		visual_anim_player.play("death", -1, death_speed)
+		_register_corpse()
+	else:
+		queue_free()
+
+# Corpses are left in the scene (not freed) once their death clip finishes, up to
+# a cap; the oldest corpse is freed to make room for each new one past the cap.
+func _register_corpse() -> void:
+	_corpses.append(self)
+	# Walk from the oldest corpse forward, freeing the first one whose death clip
+	# has actually finished. A burst of simultaneous kills (e.g. an AoE wipe at the
+	# crystal) can otherwise land several very-fresh corpses at the front of the
+	# queue at once; force-freeing strictly by age would cut their death animation
+	# off mid-play. Leaving the list briefly over the cap is harmless - it corrects
+	# itself as soon as any corpse's clip finishes.
+	var i := 0
+	while _corpses.size() > GameSettings.enemy_max_corpses and i < _corpses.size():
+		var oldest: EnemyBase = _corpses[i]
+		if not is_instance_valid(oldest):
+			_corpses.remove_at(i)
+			continue
+		if oldest.visual_anim_player and oldest.visual_anim_player.is_playing():
+			i += 1
+			continue
+		_corpses.remove_at(i)
+		oldest.queue_free()
 
 func unsummon(force_vec: Vector3 = Vector3.ZERO) -> void:
 	if force_vec != Vector3.ZERO:

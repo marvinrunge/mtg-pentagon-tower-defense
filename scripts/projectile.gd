@@ -105,7 +105,20 @@ func deactivate() -> void:
 	active = false
 	visible = false
 	caster_ref = null
-	process_mode = Node.PROCESS_MODE_DISABLED
+	# deactivate() runs from _on_body_entered (a physics callback); disabling collision
+	# synchronously there is unsafe, so defer the process_mode change - but a BLIND
+	# deferred set is itself a race: if ProjectilePool.get_projectile() reuses this
+	# same slot and calls activate() later in this same physics frame (routine once
+	# several casters fire in one tick), that reactivation runs synchronously and
+	# this deferred call would still land afterward, disabling the reactivated
+	# projectile and freezing it in place forever with active=true, visible=true.
+	# Re-checking `active` at the deferred call site closes that: it only disables
+	# if nothing reclaimed this slot in the meantime.
+	call_deferred("_finish_deactivate")
+
+func _finish_deactivate() -> void:
+	if not active:
+		process_mode = Node.PROCESS_MODE_DISABLED
 
 func _get_caster() -> Node3D:
 	if caster_ref == null:

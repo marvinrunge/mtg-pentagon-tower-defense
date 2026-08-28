@@ -4,7 +4,7 @@ class_name WaveManager
 signal wave_started(wave_number: int)
 signal wave_completed(wave_number: int)
 
-@export var enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
+@export var enemy_scene: PackedScene = preload("res://scenes/misc/enemy.tscn")
 
 var current_wave: int = 0
 var wave_timer: float = 0.0
@@ -56,9 +56,8 @@ func start_waves(controller: Node3D) -> void:
 	start_next_wave()
 
 func start_next_wave() -> void:
-	if current_wave >= waves.size():
-		var dynamic_wave = _generate_dynamic_wave(current_wave)
-		waves.append(dynamic_wave)
+	while current_wave >= waves.size():
+		waves.append(_generate_dynamic_wave(waves.size()))
 		
 	print("Starting Wave: ", current_wave + 1)
 	wave_started.emit(current_wave + 1)

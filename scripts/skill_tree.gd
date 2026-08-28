@@ -77,6 +77,11 @@ var _detail_status: Label
 var _detail_body: Label
 var _hovered_record: Dictionary = {}
 
+# --- Gamepad/keyboard radial navigation (mouse hover still works independently) ---
+var _selection_ring: Control
+var _selected_color_index: int = 0
+var _selected_branch_index: int = 0 # 0 = affinity/center, 1-5 = spell ranks outward
+
 func _ready() -> void:
 	hide()
 	SignalBus.color_path_chosen.connect(func(_color: String): update_ui())
@@ -92,10 +97,54 @@ func _input(event: InputEvent) -> void:
 		if visible:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			update_ui()
+			_select_node(_selected_color_index, _selected_branch_index)
 		else:
 			_hide_details()
+			if is_instance_valid(_selection_ring):
+				_selection_ring.hide()
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
+		return
+
+	if not visible:
+		return
+
+	# Radial keyboard/gamepad navigation - ui_left/right/up/down/accept already carry
+	# sensible engine-default gamepad bindings (d-pad + left stick + face button A).
+	if event.is_action_pressed("ui_left"):
+		_select_node(wrapi(_selected_color_index - 1, 0, COLOR_NAMES.size()), _selected_branch_index)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_right"):
+		_select_node(wrapi(_selected_color_index + 1, 0, COLOR_NAMES.size()), _selected_branch_index)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_up"):
+		_select_node(_selected_color_index, wrapi(_selected_branch_index - 1, 0, 6))
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_down"):
+		_select_node(_selected_color_index, wrapi(_selected_branch_index + 1, 0, 6))
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_accept"):
+		var record: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
+		if not record.is_empty():
+			_on_node_pressed(record["color"], record["branch_index"], record["info"])
+		get_viewport().set_input_as_handled()
+
+func _select_node(color_index: int, branch_index: int) -> void:
+	_selected_color_index = color_index
+	_selected_branch_index = branch_index
+	var color: String = COLOR_NAMES[color_index]
+	var record: Dictionary = _find_record(color, branch_index)
+	if record.is_empty():
+		return
+	_show_details(color, branch_index, record["info"])
+	_position_selection_ring(record["button"])
+
+func _position_selection_ring(button: TextureButton) -> void:
+	if not is_instance_valid(_selection_ring):
+		return
+	_selection_ring.size = button.size + Vector2(10.0, 10.0)
+	_selection_ring.position = button.position - Vector2(5.0, 5.0)
+	_selection_ring.show()
 
 func _build_ui() -> void:
 	for child: Node in control_root.get_children():
@@ -148,9 +197,22 @@ func _build_ui() -> void:
 			spell_info["rank_requirement"] = GameSettings.affinity_spell_rank_requirements[spell_index]
 			_create_icon_node(color, spell_index + 1, spell_info)
 
+	_build_selection_ring()
 	_build_detail_panel()
 	_board.resized.connect(_layout_nodes)
 	call_deferred("_layout_nodes")
+
+func _build_selection_ring() -> void:
+	_selection_ring = Panel.new()
+	_selection_ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	style.border_color = Color(1.0, 0.85, 0.3, 0.95)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(8)
+	_selection_ring.add_theme_stylebox_override("panel", style)
+	_selection_ring.hide()
+	_board.add_child(_selection_ring)
 
 func _create_icon_node(color: String, branch_index: int, info: Dictionary) -> void:
 	var button := TextureButton.new()
@@ -239,6 +301,11 @@ func _layout_nodes() -> void:
 	outer_vertices.append(outer_vertices[0])
 	_outer_line.points = outer_vertices
 	_detail_panel.position = Vector2(center.x - 310.0, _board.size.y - 134.0)
+
+	if is_instance_valid(_selection_ring) and _selection_ring.visible:
+		var current_record: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
+		if not current_record.is_empty():
+			_position_selection_ring(current_record["button"])
 
 func _find_record(color: String, branch_index: int) -> Dictionary:
 	for record: Dictionary in _button_records:

@@ -3,7 +3,7 @@ extends Node
 var pool_size: int
 var pool: Array[Projectile] = []
 
-@export var projectile_scene: PackedScene = preload("res://scenes/projectile.tscn")
+@export var projectile_scene: PackedScene = preload("res://scenes/misc/projectile.tscn")
 
 func _ready() -> void:
 	pool_size = GameSettings.projectile_pool_size
@@ -21,6 +21,10 @@ func get_projectile() -> Projectile:
 		if not proj.active:
 			return proj
 	
-	# Pool exhausted — deactivate oldest projectile and reuse it
-	pool[0].deactivate()
+	# Pool exhausted — reuse the oldest projectile as-is. The caller activates it
+	# synchronously right after this returns (no await in between), and activate()
+	# fully reinitializes every field deactivate() would touch. Calling deactivate()
+	# here would queue a deferred process_mode change that lands *after* the
+	# reactivation and disables the projectile it just reused, freezing it in place
+	# forever (life_timer stops ticking under PROCESS_MODE_DISABLED).
 	return pool[0]

@@ -1,11 +1,11 @@
 extends Node3D
 class_name MainController
 
-@export var player_scene: PackedScene = preload("res://scenes/player.tscn")
-@export var myr_scene: PackedScene = preload("res://scenes/myr.tscn")
-@export var enemy_scene: PackedScene = preload("res://scenes/enemy.tscn")
-@export var skill_tree_scene: PackedScene = preload("res://scenes/skill_tree.tscn")
-@export var base_ui_scene: PackedScene = preload("res://scenes/base_ui.tscn")
+@export var player_scene: PackedScene = preload("res://scenes/misc/player.tscn")
+@export var myr_scene: PackedScene = preload("res://scenes/misc/myr.tscn")
+@export var enemy_scene: PackedScene = preload("res://scenes/misc/enemy.tscn")
+@export var skill_tree_scene: PackedScene = preload("res://scenes/ui/skill_tree.tscn")
+@export var base_ui_scene: PackedScene = preload("res://scenes/ui/base_ui.tscn")
 
 @onready var nav_region: NavigationRegion3D = $NavigationRegion3D
 @onready var lanes_parent: Node3D = $NavigationRegion3D/Lanes
