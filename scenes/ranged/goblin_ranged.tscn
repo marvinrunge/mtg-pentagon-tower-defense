@@ -1,6 +1,5 @@
 [gd_scene format=4 uid="uid://21unus631vtw"]
 
-[ext_resource type="Texture2D" uid="uid://bv00pmrj857jb" path="res://assets/enemies/ranged/goblin/goblin_ranged_0.png" id="1_o76my"]
 [ext_resource type="Texture2D" uid="uid://lnb4a5sprilu" path="res://assets/enemies/ranged/goblin/goblin_ranged_albedo.png" id="10_albedo"]
 [ext_resource type="Texture2D" uid="uid://dm8kytmiii2ud" path="res://assets/enemies/ranged/goblin/goblin_ranged_normal.png" id="11_normal"]
 [ext_resource type="Texture2D" uid="uid://cle6i55oxkdam" path="res://assets/enemies/ranged/goblin/goblin_ranged_metallic.png" id="12_metallic"]

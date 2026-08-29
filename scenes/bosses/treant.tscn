@@ -1,6 +1,5 @@
 [gd_scene format=4 uid="uid://dforw5ste6e1w"]
 
-[ext_resource type="Texture2D" uid="uid://8xsv33lhaea8" path="res://assets/enemies/bosses/treant/treant_0.png" id="1_gfhuc"]
 [ext_resource type="Texture2D" uid="uid://cpvhitgdwhxxs" path="res://assets/enemies/bosses/treant/treant_albedo.png" id="10_albedo"]
 [ext_resource type="Texture2D" uid="uid://dg6fi5feo7kci" path="res://assets/enemies/bosses/treant/treant_normal.png" id="11_normal"]
 [ext_resource type="Texture2D" uid="uid://connsdlgnpbag" path="res://assets/enemies/bosses/treant/treant_metallic.png" id="12_metallic"]

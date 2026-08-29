@@ -1,6 +1,5 @@
 [gd_scene format=4 uid="uid://wpuqg5n7gb18"]
 
-[ext_resource type="Texture2D" uid="uid://co04npciiyq01" path="res://assets/enemies/bosses/frost_giant/frost_giant_0.png" id="1_ik3m3"]
 [ext_resource type="Texture2D" uid="uid://dfrmg0wm0wqao" path="res://assets/enemies/bosses/frost_giant/frost_giant_albedo.png" id="10_albedo"]
 [ext_resource type="Texture2D" uid="uid://cm16sxoh6c3lb" path="res://assets/enemies/bosses/frost_giant/frost_giant_normal.png" id="11_normal"]
 [ext_resource type="Texture2D" uid="uid://bygskjwo1v6au" path="res://assets/enemies/bosses/frost_giant/frost_giant_metallic.png" id="12_metallic"]

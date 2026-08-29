@@ -1,6 +1,5 @@
 [gd_scene format=4 uid="uid://cwh3l1lbku1xr"]
 
-[ext_resource type="Texture2D" uid="uid://b602n5outh8sk" path="res://assets/myrs/iron_myr/iron_myr_0.png" id="1_rdg6i"]
 [ext_resource type="Texture2D" uid="uid://n5w2rq10m2pk" path="res://assets/myrs/iron_myr/iron_myr_albedo.png" id="10_albedo"]
 [ext_resource type="Texture2D" uid="uid://blj6rgic6ul2r" path="res://assets/myrs/iron_myr/iron_myr_normal.png" id="11_normal"]
 [ext_resource type="Texture2D" uid="uid://brlifkt4umvp" path="res://assets/myrs/iron_myr/iron_myr_metallic.png" id="12_metallic"]

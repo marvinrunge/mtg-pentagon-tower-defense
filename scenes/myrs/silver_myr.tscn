@@ -1,6 +1,5 @@
 [gd_scene format=4 uid="uid://dsw7y61uer2tp"]
 
-[ext_resource type="Texture2D" uid="uid://cfbvg6hmasgd8" path="res://assets/myrs/silver_myr/silver_myr_0.png" id="1_e6k04"]
 [ext_resource type="Texture2D" uid="uid://35jn6a8ht8pb" path="res://assets/myrs/silver_myr/silver_myr_albedo.png" id="10_albedo"]
 [ext_resource type="Texture2D" uid="uid://bf7w3h61r3b5c" path="res://assets/myrs/silver_myr/silver_myr_normal.png" id="11_normal"]
 [ext_resource type="Texture2D" uid="uid://bhhn7y1cmrw0q" path="res://assets/myrs/silver_myr/silver_myr_metallic.png" id="12_metallic"]

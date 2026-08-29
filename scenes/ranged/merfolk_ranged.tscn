@@ -1,6 +1,5 @@
 [gd_scene format=4 uid="uid://dhdr06uug63t4"]
 
-[ext_resource type="Texture2D" uid="uid://cir0v7jjpl1ks" path="res://assets/enemies/ranged/merfolk/merfolk_ranged_0.png" id="1_kgo0i"]
 [ext_resource type="Texture2D" uid="uid://bpff2wtxq5tnt" path="res://assets/enemies/ranged/merfolk/merfolk_ranged_albedo.png" id="10_albedo"]
 [ext_resource type="Texture2D" uid="uid://4ov6xy1e7edj" path="res://assets/enemies/ranged/merfolk/merfolk_ranged_normal.png" id="11_normal"]
 [ext_resource type="Texture2D" uid="uid://d0hgxuqow0tfb" path="res://assets/enemies/ranged/merfolk/merfolk_ranged_metallic.png" id="12_metallic"]

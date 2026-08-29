@@ -1,6 +1,5 @@
 [gd_scene format=4 uid="uid://k03exovw6vci"]
 
-[ext_resource type="Texture2D" uid="uid://ced33lcjrd4eb" path="res://assets/enemies/melee/elf/elf_melee_0.png" id="1_h2ukh"]
 [ext_resource type="Texture2D" uid="uid://cw5jsonraxadc" path="res://assets/enemies/melee/elf/elf_melee_albedo.png" id="10_albedo"]
 [ext_resource type="Texture2D" uid="uid://wc2g8g1asy5j" path="res://assets/enemies/melee/elf/elf_melee_normal.png" id="11_normal"]
 [ext_resource type="Texture2D" uid="uid://lgipboqic4fj" path="res://assets/enemies/melee/elf/elf_melee_metallic.png" id="12_metallic"]

@@ -1,6 +1,5 @@
 [gd_scene format=4 uid="uid://dhumr7jdovy2e"]
 
-[ext_resource type="Texture2D" uid="uid://cvt5nil1l51r6" path="res://assets/myrs/copper_myr/copper_myr_0.png" id="1_vnops"]
 [ext_resource type="Texture2D" uid="uid://dymv1xqst7yjy" path="res://assets/myrs/copper_myr/copper_myr_albedo.png" id="10_albedo"]
 [ext_resource type="Texture2D" uid="uid://dfhxd5k74fmxv" path="res://assets/myrs/copper_myr/copper_myr_normal.png" id="11_normal"]
 [ext_resource type="Texture2D" uid="uid://kabc5lyvutnm" path="res://assets/myrs/copper_myr/copper_myr_metallic.png" id="12_metallic"]
