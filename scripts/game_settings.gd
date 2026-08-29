@@ -298,6 +298,7 @@ func get_tier_cost(tier_index: int) -> int:
 # UI & DEBUG
 # ============================================================
 @export var show_damage_numbers: bool = true
+@export var damage_number_pool_size: int = 40
 @export var show_enemy_health_bars: bool = true
 @export var enemy_health_bar_height: float = 2.35
 @export var debug_mode: bool = true

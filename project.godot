@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 GameSettings="*res://scripts/game_settings.gd"
 SignalBus="*res://scripts/signal_bus.gd"
 ProjectilePool="*res://scripts/projectile_pool.gd"
+DamageNumberPool="*res://scripts/damage_number_pool.gd"
 
 [editor_plugins]
 

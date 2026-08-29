@@ -109,10 +109,8 @@ func _on_wave_reward_selected(reward_id: String) -> void:
 func _on_damage_number_requested(pos: Vector3, amount: float, color: Color) -> void:
 	if not GameSettings.show_damage_numbers:
 		return
-	var dn = DamageNumber.new()
-	dn.position = pos
-	add_child(dn)
-	dn.setup(amount, color)
+	var dn: DamageNumber = DamageNumberPool.get_damage_number()
+	dn.activate(pos, amount, color)
 
 func add_mana(color: String, amount: int) -> void:
 	if color == "":
