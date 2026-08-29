@@ -1,10 +1,20 @@
 [gd_scene format=4 uid="uid://cn5lixfbe4r7"]
 
 [ext_resource type="Texture2D" uid="uid://c23sg6rmrvrm7" path="res://assets/enemies/mage/merfolk/merfolk_mage_0.png" id="1_cih1t"]
+[ext_resource type="Texture2D" uid="uid://3cmeue207lub" path="res://assets/enemies/mage/merfolk/merfolk_mage_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://cb782e5sjgjxk" path="res://assets/enemies/mage/merfolk/merfolk_mage_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://dyckyiauyoipy" path="res://assets/enemies/mage/merfolk/merfolk_mage_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://c7k5eoo1ilpsq" path="res://assets/enemies/mage/merfolk/merfolk_mage_roughness.png" id="13_roughness"]
 [ext_resource type="AnimationLibrary" uid="uid://dhyu8sgwf2xr1" path="res://assets/animations/character/lib_merfolk_mage.tres" id="2_qb745"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7d6cw"]
-albedo_texture = ExtResource("1_cih1t")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_cpiv8"]
 resource_name = "Meshy_AI__0824164950_texturemesh"

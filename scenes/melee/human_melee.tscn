@@ -1,6 +1,10 @@
 [gd_scene format=4 uid="uid://dkm7ms4wx556m"]
 
 [ext_resource type="Texture2D" uid="uid://b4a2hooxb8aef" path="res://assets/enemies/melee/human/human_melee_0.png" id="1_yp8jv"]
+[ext_resource type="Texture2D" uid="uid://bi3e1iybjq0rb" path="res://assets/enemies/melee/human/human_melee_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://2t285y521s34" path="res://assets/enemies/melee/human/human_melee_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://c3m0a4vb3nyjl" path="res://assets/enemies/melee/human/human_melee_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://deb5hxi4iavqu" path="res://assets/enemies/melee/human/human_melee_roughness.png" id="13_roughness"]
 [ext_resource type="PackedScene" uid="uid://d2koupx2t8e7a" path="res://assets/weapons/human/human_weapon.glb" id="2_hucgd"]
 [ext_resource type="Texture2D" uid="uid://dflx715yeu7mv" path="res://assets/weapons/human/human_weapon_albedo.jpg" id="3_j42d4"]
 [ext_resource type="Texture2D" uid="uid://c5m6oof6b8b7b" path="res://assets/weapons/human/human_weapon_metallic_roughness.jpg" id="4_5k05l"]
@@ -8,7 +12,13 @@
 [ext_resource type="AnimationLibrary" uid="uid://qkinn2ncqobg" path="res://assets/animations/character/lib_human_melee.tres" id="6_hucgd"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_j42d4"]
-albedo_texture = ExtResource("1_yp8jv")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_0mkau"]
 resource_name = "Meshy_AI__0824185835_texturemesh"

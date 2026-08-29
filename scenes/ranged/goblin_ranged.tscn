@@ -1,12 +1,22 @@
 [gd_scene format=4 uid="uid://21unus631vtw"]
 
 [ext_resource type="Texture2D" uid="uid://bv00pmrj857jb" path="res://assets/enemies/ranged/goblin/goblin_ranged_0.png" id="1_o76my"]
+[ext_resource type="Texture2D" uid="uid://lnb4a5sprilu" path="res://assets/enemies/ranged/goblin/goblin_ranged_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://dm8kytmiii2ud" path="res://assets/enemies/ranged/goblin/goblin_ranged_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://cle6i55oxkdam" path="res://assets/enemies/ranged/goblin/goblin_ranged_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://c4umqk0u327e4" path="res://assets/enemies/ranged/goblin/goblin_ranged_roughness.png" id="13_roughness"]
 [ext_resource type="AnimationLibrary" uid="uid://bhl4a7jxdyseq" path="res://assets/animations/character/lib_goblin_ranged.tres" id="2_2wdsk"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_e1aka"]
 resource_name = "Materialmat"
 vertex_color_use_as_albedo = true
-albedo_texture = ExtResource("1_o76my")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
 emission_enabled = true
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_p5guk"]

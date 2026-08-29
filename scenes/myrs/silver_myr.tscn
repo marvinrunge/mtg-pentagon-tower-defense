@@ -1,10 +1,24 @@
 [gd_scene format=4 uid="uid://dsw7y61uer2tp"]
 
 [ext_resource type="Texture2D" uid="uid://cfbvg6hmasgd8" path="res://assets/myrs/silver_myr/silver_myr_0.png" id="1_e6k04"]
+[ext_resource type="Texture2D" uid="uid://35jn6a8ht8pb" path="res://assets/myrs/silver_myr/silver_myr_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://bf7w3h61r3b5c" path="res://assets/myrs/silver_myr/silver_myr_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://bhhn7y1cmrw0q" path="res://assets/myrs/silver_myr/silver_myr_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://c60sg6v4grhgr" path="res://assets/myrs/silver_myr/silver_myr_roughness.png" id="13_roughness"]
+[ext_resource type="Texture2D" uid="uid://dt31f7hvmshxf" path="res://assets/myrs/silver_myr/silver_myr_emission.png" id="14_emission"]
 [ext_resource type="AnimationLibrary" uid="uid://datiwq0uwmgxt" path="res://assets/animations/myr/lib_silver_myr.tres" id="2_cw8ih"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_e6k04"]
-albedo_texture = ExtResource("1_e6k04")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
+emission_enabled = true
+emission_texture = ExtResource("14_emission")
+emission_energy_multiplier = 1.0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_nrj1r"]
 resource_name = "Meshy_AI_Blue_Neon_Automaton_0824125806_texturemesh"

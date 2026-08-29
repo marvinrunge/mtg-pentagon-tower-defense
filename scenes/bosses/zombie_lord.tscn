@@ -1,10 +1,20 @@
 [gd_scene format=4 uid="uid://c52nfg6gspr35"]
 
 [ext_resource type="Texture2D" uid="uid://crw2e10lultxj" path="res://assets/enemies/bosses/zombie_lord/zombie_lord_0.png" id="1_6s7kx"]
+[ext_resource type="Texture2D" uid="uid://bkp8am4jvs8s" path="res://assets/enemies/bosses/zombie_lord/zombie_lord_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://dnaihclgohnk3" path="res://assets/enemies/bosses/zombie_lord/zombie_lord_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://dct78jgqnmdqx" path="res://assets/enemies/bosses/zombie_lord/zombie_lord_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://cx7xgqyfvgd3h" path="res://assets/enemies/bosses/zombie_lord/zombie_lord_roughness.png" id="13_roughness"]
 [ext_resource type="AnimationLibrary" uid="uid://vdf4wpt0xnlt" path="res://assets/animations/boss/lib_zombie_lord.tres" id="2_6s7kx"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6s7kx"]
-albedo_texture = ExtResource("1_6s7kx")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_eklaq"]
 resource_name = "Meshy_AI__0823212945_texturemesh"

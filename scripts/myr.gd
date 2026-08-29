@@ -174,6 +174,8 @@ func _apply_color_visual(color: String) -> void:
 
 	var visual_scene: PackedScene = load(VISUAL_SCENES[color])
 	var visual_instance: Node3D = visual_scene.instantiate()
+	# Scale correction: imported models are tiny (~0.016m). We scale them up 100x to match a 1-unit base.
+	visual_instance.scale = Vector3(100, 100, 100)
 	add_child(visual_instance)
 	visual_anim_player = visual_instance.find_child("AnimationPlayer", true, false)
 	_current_color = color

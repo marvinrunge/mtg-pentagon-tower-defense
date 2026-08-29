@@ -1,0 +1,194 @@
+[gd_scene format=3 uid="uid://3c3omcic6cix"]
+
+[ext_resource type="Script" uid="uid://b7ntssporlrlt" path="res://scripts/mesh_preview.gd" id="1_script"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_studio"]
+sky_top_color = Color(0.12, 0.14, 0.18, 1)
+sky_horizon_color = Color(0.18, 0.2, 0.25, 1)
+ground_bottom_color = Color(0.08, 0.09, 0.11, 1)
+ground_horizon_color = Color(0.15, 0.17, 0.2, 1)
+
+[sub_resource type="Sky" id="Sky_studio"]
+sky_material = SubResource("ProceduralSkyMaterial_studio")
+
+[sub_resource type="Environment" id="Environment_preview"]
+background_mode = 2
+sky = SubResource("Sky_studio")
+ambient_light_source = 2
+ambient_light_color = Color(0.35, 0.38, 0.45, 1)
+ambient_light_energy = 0.8
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.4
+glow_bloom = 0.15
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.09, 0.1, 0.12, 1)
+metallic = 0.1
+roughness = 0.85
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+material = SubResource("StandardMaterial3D_floor")
+size = Vector2(40, 40)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.08, 0.09, 0.12, 0.85)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+expand_margin_left = 12.0
+expand_margin_top = 10.0
+expand_margin_right = 12.0
+expand_margin_bottom = 10.0
+
+[node name="MeshPreview" type="Node3D" unique_id=2087422451]
+script = ExtResource("1_script")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1314181188]
+environment = SubResource("Environment_preview")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="." unique_id=1307172474]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 10, 0)
+light_color = Color(1, 0.98, 0.94, 1)
+light_energy = 1.6
+shadow_enabled = true
+
+[node name="FillLight" type="OmniLight3D" parent="." unique_id=1246539330]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 8, 8)
+light_color = Color(0.55, 0.75, 1, 1)
+light_energy = 0.9
+omni_range = 40.0
+
+[node name="RimLight" type="OmniLight3D" parent="." unique_id=1194547311]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, -15)
+light_color = Color(1, 0.85, 0.65, 1)
+light_energy = 0.8
+omni_range = 45.0
+
+[node name="Floor" type="MeshInstance3D" parent="." unique_id=330345963]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+mesh = SubResource("PlaneMesh_floor")
+
+[node name="ModelsContainer" type="Node3D" parent="." unique_id=558240371]
+
+[node name="CameraPivot" type="Node3D" parent="." unique_id=1743511365]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+
+[node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=1123865620]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4)
+fov = 45.0
+near = 0.1
+far = 150.0
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=25871366]
+
+[node name="TopPanel" type="MarginContainer" parent="UI" unique_id=369353750]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 50.0
+grow_horizontal = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 15
+theme_override_constants/margin_right = 20
+
+[node name="HBox" type="HBoxContainer" parent="UI/TopPanel" unique_id=200145335]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="Title" type="Label" parent="UI/TopPanel/HBox" unique_id=1414877891]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "MTG Pentagon TD — 3D Model & Animation Inspector"
+
+[node name="Spacer" type="Control" parent="UI/TopPanel/HBox" unique_id=340220470]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SelectLabel" type="Label" parent="UI/TopPanel/HBox" unique_id=1962997366]
+layout_mode = 2
+text = "Select Model:"
+
+[node name="ModelSelectOpt" type="OptionButton" parent="UI/TopPanel/HBox" unique_id=1408430159]
+custom_minimum_size = Vector2(240, 32)
+layout_mode = 2
+
+[node name="BottomPanel" type="MarginContainer" parent="UI" unique_id=1165961297]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -140.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 15
+
+[node name="Card" type="PanelContainer" parent="UI/BottomPanel" unique_id=1633037760]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBox" type="VBoxContainer" parent="UI/BottomPanel/Card" unique_id=217889165]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TitleRow" type="HBoxContainer" parent="UI/BottomPanel/Card/VBox" unique_id=591714704]
+layout_mode = 2
+
+[node name="ModelTitleLbl" type="Label" parent="UI/BottomPanel/Card/VBox/TitleRow" unique_id=1124310507]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Gold Myr"
+
+[node name="Spacer" type="Control" parent="UI/BottomPanel/Card/VBox/TitleRow" unique_id=815765907]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ModelMetaLbl" type="Label" parent="UI/BottomPanel/Card/VBox/TitleRow" unique_id=609253891]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Category: Myrs | Mana Color: White"
+
+[node name="AnimRow" type="HBoxContainer" parent="UI/BottomPanel/Card/VBox" unique_id=475831808]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="AnimLabel" type="Label" parent="UI/BottomPanel/Card/VBox/AnimRow" unique_id=698323960]
+layout_mode = 2
+text = "Animation:"
+
+[node name="AnimSelectOpt" type="OptionButton" parent="UI/BottomPanel/Card/VBox/AnimRow" unique_id=1593901985]
+custom_minimum_size = Vector2(180, 28)
+layout_mode = 2
+
+[node name="PauseBtn" type="Button" parent="UI/BottomPanel/Card/VBox/AnimRow" unique_id=361778922]
+custom_minimum_size = Vector2(70, 28)
+layout_mode = 2
+text = "Pause"
+
+[node name="ControlsHint" type="Label" parent="UI/BottomPanel/Card/VBox/AnimRow" unique_id=446182108]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.7, 0.72, 0.78, 1)
+theme_override_font_sizes/font_size = 12
+text = "Keys: A/D/Arrows (Switch Model) | W/S (Switch Row) | F/Space (Overview/Focus) | LMB Drag (Orbit) | Wheel (Zoom) | H (Hide UI)"
+horizontal_alignment = 2
+
+[node name="SpeedRow" type="HBoxContainer" parent="UI/BottomPanel/Card/VBox" unique_id=1656991555]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SpeedLbl" type="Label" parent="UI/BottomPanel/Card/VBox/SpeedRow" unique_id=829633210]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Speed: 1.0x"
+
+[node name="SpeedSlider" type="HSlider" parent="UI/BottomPanel/Card/VBox/SpeedRow" unique_id=9384761]
+custom_minimum_size = Vector2(200, 20)
+layout_mode = 2
+min_value = 0.1
+max_value = 3.0
+step = 0.1
+value = 1.0

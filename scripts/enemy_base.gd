@@ -5,7 +5,6 @@ var target_crystal: Node3D
 var current_target: Node3D
 var last_target_position: Vector3 = Vector3.INF
 
-var _enemy_scene: PackedScene = preload("res://scenes/misc/enemy.tscn")
 var _health_bar_scene: PackedScene = preload("res://scenes/ui/enemy_health_bar.tscn")
 
 const MELEE_VISUAL_SCENES := {
@@ -138,6 +137,8 @@ func setup(data: EnemyData) -> void:
 
 	if visual_scene:
 		var visual_instance: Node3D = visual_scene.instantiate()
+		# Scale correction: imported models are tiny (~0.016m). We scale them up 100x to match a 1-unit base.
+		visual_instance.scale = Vector3(100, 100, 100)
 		add_child(visual_instance)
 		# find_child rather than get_node: it holds for both the melee scenes (player
 		# is a direct child) and the imported boss scenes, without assuming depth.
@@ -593,7 +594,8 @@ func perform_mage_spell() -> void:
 			# Revive weak enemy
 			# Just spawn a new weak melee of the same color
 			var revived_data = EnemyDatabase.get_enemy_data("Black", "Melee")
-			var new_enemy = _enemy_scene.instantiate()
+			var enemy_scene: PackedScene = load("res://scenes/misc/enemy.tscn") as PackedScene
+			var new_enemy = enemy_scene.instantiate()
 			new_enemy.position = global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
 			new_enemy.set_meta("target_crystal", target_crystal)
 			get_parent().add_child(new_enemy)

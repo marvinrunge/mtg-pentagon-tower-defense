@@ -1,10 +1,34 @@
 [gd_scene format=4 uid="uid://dfknq1l5buelt"]
 
 [ext_resource type="Texture2D" uid="uid://q6ho61hludmx" path="res://assets/enemies/bosses/fire_giant/fire_giant_0.png" id="1_ghkgo"]
+[ext_resource type="Texture2D" uid="uid://l0jsk6tve5qm" path="res://assets/enemies/bosses/fire_giant/fire_giant_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://cnrkqpqbog1ui" path="res://assets/enemies/bosses/fire_giant/fire_giant_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://dp8nyvaptfcg8" path="res://assets/enemies/bosses/fire_giant/fire_giant_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://040cuspsa6pu" path="res://assets/enemies/bosses/fire_giant/fire_giant_roughness.png" id="13_roughness"]
 [ext_resource type="AnimationLibrary" uid="uid://cnijlrggbajtc" path="res://assets/animations/boss/lib_fire_giant.tres" id="2_ghkgo"]
+[ext_resource type="PackedScene" uid="uid://3oqy4iwuub72" path="res://assets/weapons/bosses/fire_giant/fire_giant_weapon.glb" id="20_weapon"]
+[ext_resource type="Texture2D" uid="uid://dtr3cegi2y28n" path="res://assets/weapons/bosses/fire_giant/fire_giant_weapon_albedo.jpg" id="21_weapon_albedo"]
+[ext_resource type="Texture2D" uid="uid://c1bqrlsqcl7ra" path="res://assets/weapons/bosses/fire_giant/fire_giant_weapon_metallic_roughness.jpg" id="22_weapon_mr"]
+[ext_resource type="Texture2D" uid="uid://cv6d3pirvql7u" path="res://assets/weapons/bosses/fire_giant/fire_giant_weapon_normal.jpg" id="23_weapon_normal"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ghkgo"]
-albedo_texture = ExtResource("1_ghkgo")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_weapon_ghkgo"]
+albedo_texture = ExtResource("21_weapon_albedo")
+metallic = 1.0
+metallic_texture = ExtResource("22_weapon_mr")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("22_weapon_mr")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("23_weapon_normal")
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_sea5a"]
 resource_name = "Meshy_AI__0823212847_texturemesh"
@@ -576,6 +600,15 @@ bones/56/scale = Vector3(1, 1, 1)
 mesh = SubResource("ArrayMesh_sea5a")
 skin = SubResource("Skin_wibkm")
 skeleton = NodePath("..")
+
+[node name="RightHandAttachment" type="BoneAttachment3D" parent="Skeleton3D"]
+bone_name = "mixamorig_RightHand"
+
+[node name="Weapon" type="Node3D" parent="Skeleton3D/RightHandAttachment" instance=ExtResource("20_weapon")]
+transform = Transform3D(0.00588, 0.0, 0.0, 0.0, -0.00588, 0.0, 0.0, 0.0, -0.00588, 0.0, 0.00441, 0.0)
+
+[node name="mesh_node" type="MeshInstance3D" parent="Skeleton3D/RightHandAttachment/Weapon"]
+material_override = SubResource("StandardMaterial3D_weapon_ghkgo")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1699374735]
 libraries/ = ExtResource("2_ghkgo")

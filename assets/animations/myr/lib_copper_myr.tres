@@ -1746,7 +1746,7 @@ tracks/52/keys = PackedFloat32Array(0, 1, 0.1524423, 0.0003621297, 0.010824799, 
 
 [sub_resource type="Animation" id="Animation_kvdra"]
 resource_name = "mixamo_com"
-length = 1.4333333333333333
+length = 1.4333333333333331
 loop_mode = 1
 tracks/0/type = "position_3d"
 tracks/0/imported = true

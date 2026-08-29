@@ -1,10 +1,20 @@
 [gd_scene format=4 uid="uid://dforw5ste6e1w"]
 
 [ext_resource type="Texture2D" uid="uid://8xsv33lhaea8" path="res://assets/enemies/bosses/treant/treant_0.png" id="1_gfhuc"]
+[ext_resource type="Texture2D" uid="uid://cpvhitgdwhxxs" path="res://assets/enemies/bosses/treant/treant_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://dg6fi5feo7kci" path="res://assets/enemies/bosses/treant/treant_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://connsdlgnpbag" path="res://assets/enemies/bosses/treant/treant_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://ckbcnqvevfu4u" path="res://assets/enemies/bosses/treant/treant_roughness.png" id="13_roughness"]
 [ext_resource type="AnimationLibrary" uid="uid://g2ftj5titikr" path="res://assets/animations/boss/lib_treant.tres" id="2_gfhuc"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gfhuc"]
-albedo_texture = ExtResource("1_gfhuc")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_88k42"]
 resource_name = "Meshy_AI_treant_boss_v2_lowpol_0823212233_texturemesh"

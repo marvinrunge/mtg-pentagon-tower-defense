@@ -1,10 +1,20 @@
 [gd_scene format=4 uid="uid://bfqlxh8xdcwi1"]
 
 [ext_resource type="Texture2D" uid="uid://cajpv0a55deek" path="res://assets/enemies/ranged/human/human_ranged_0.png" id="1_edc2x"]
+[ext_resource type="Texture2D" uid="uid://c0hsu3tlcp70x" path="res://assets/enemies/ranged/human/human_ranged_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://cv1s3ktbmno33" path="res://assets/enemies/ranged/human/human_ranged_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://cnrulaqpern63" path="res://assets/enemies/ranged/human/human_ranged_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://blufwf11jx365" path="res://assets/enemies/ranged/human/human_ranged_roughness.png" id="13_roughness"]
 [ext_resource type="AnimationLibrary" uid="uid://dvi0b01s486mq" path="res://assets/animations/character/lib_human_ranged.tres" id="2_ykvrk"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pf4nl"]
-albedo_texture = ExtResource("1_edc2x")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_0q6ih"]
 resource_name = "Meshy_AI__0824164815_texturemesh"

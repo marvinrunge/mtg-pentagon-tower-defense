@@ -1,10 +1,24 @@
 [gd_scene format=4 uid="uid://k8pjvuesn66d"]
 
 [ext_resource type="Texture2D" uid="uid://b4udqiwj5qjuj" path="res://assets/myrs/leaden_myr/leaden_myr_0.png" id="1_8oefm"]
+[ext_resource type="Texture2D" uid="uid://8kxoduc3i1qf" path="res://assets/myrs/leaden_myr/leaden_myr_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://bgbqqgvcdp5ql" path="res://assets/myrs/leaden_myr/leaden_myr_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://dvwx412m7osfc" path="res://assets/myrs/leaden_myr/leaden_myr_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://d2e0ljjr8g584" path="res://assets/myrs/leaden_myr/leaden_myr_roughness.png" id="13_roughness"]
+[ext_resource type="Texture2D" uid="uid://c6deh4f1otm2h" path="res://assets/myrs/leaden_myr/leaden_myr_emission.png" id="14_emission"]
 [ext_resource type="AnimationLibrary" uid="uid://br2kjrquuucft" path="res://assets/animations/myr/lib_leaden_myr.tres" id="2_pqtsh"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8oefm"]
-albedo_texture = ExtResource("1_8oefm")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
+emission_enabled = true
+emission_texture = ExtResource("14_emission")
+emission_energy_multiplier = 1.0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_5un6y"]
 resource_name = "Meshy_AI_Erstelle_ein_bild_von_0824125504_texturemesh"

@@ -1,10 +1,24 @@
 [gd_scene format=4 uid="uid://bwhlkrlvkfejj"]
 
 [ext_resource type="Texture2D" uid="uid://cx33jev0gdfcl" path="res://assets/myrs/gold_myr/gold_myr_0.png" id="1_8r8xl"]
+[ext_resource type="Texture2D" uid="uid://ivrukk1crb27" path="res://assets/myrs/gold_myr/gold_myr_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://cvx4jaktarm5a" path="res://assets/myrs/gold_myr/gold_myr_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://yenk2bc65thy" path="res://assets/myrs/gold_myr/gold_myr_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://d1kgpy182oqm7" path="res://assets/myrs/gold_myr/gold_myr_roughness.png" id="13_roughness"]
+[ext_resource type="Texture2D" uid="uid://bk6pof03b2u65" path="res://assets/myrs/gold_myr/gold_myr_emission.png" id="14_emission"]
 [ext_resource type="AnimationLibrary" uid="uid://bdhp1e2nrw1c0" path="res://assets/animations/myr/lib_gold_myr.tres" id="2_8ee1j"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8r8xl"]
-albedo_texture = ExtResource("1_8r8xl")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
+emission_enabled = true
+emission_texture = ExtResource("14_emission")
+emission_energy_multiplier = 1.0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_6dia7"]
 resource_name = "Meshy_AI_this_creature_in_t_po_0824125539_texturemesh"

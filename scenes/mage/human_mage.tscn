@@ -1,10 +1,20 @@
 [gd_scene format=4 uid="uid://b8bgpuduo4bhy"]
 
 [ext_resource type="Texture2D" uid="uid://clk6fr0omoppm" path="res://assets/enemies/mage/human/human_mage_0.png" id="1_un7n3"]
+[ext_resource type="Texture2D" uid="uid://cn8kvqqf2byn2" path="res://assets/enemies/mage/human/human_mage_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://drp80sxhm30qc" path="res://assets/enemies/mage/human/human_mage_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://d71xfu6nnsmm" path="res://assets/enemies/mage/human/human_mage_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://cciw13mrch7im" path="res://assets/enemies/mage/human/human_mage_roughness.png" id="13_roughness"]
 [ext_resource type="AnimationLibrary" uid="uid://cj2jjf6cg7bn8" path="res://assets/animations/character/lib_human_mage.tres" id="2_rni74"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ebnpk"]
-albedo_texture = ExtResource("1_un7n3")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_55gst"]
 resource_name = "Meshy_AI__0824164745_texturemesh"

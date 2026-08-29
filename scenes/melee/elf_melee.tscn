@@ -1,6 +1,10 @@
 [gd_scene format=4 uid="uid://k03exovw6vci"]
 
 [ext_resource type="Texture2D" uid="uid://ced33lcjrd4eb" path="res://assets/enemies/melee/elf/elf_melee_0.png" id="1_h2ukh"]
+[ext_resource type="Texture2D" uid="uid://cw5jsonraxadc" path="res://assets/enemies/melee/elf/elf_melee_albedo.png" id="10_albedo"]
+[ext_resource type="Texture2D" uid="uid://wc2g8g1asy5j" path="res://assets/enemies/melee/elf/elf_melee_normal.png" id="11_normal"]
+[ext_resource type="Texture2D" uid="uid://lgipboqic4fj" path="res://assets/enemies/melee/elf/elf_melee_metallic.png" id="12_metallic"]
+[ext_resource type="Texture2D" uid="uid://eyb5gg5lwyfu" path="res://assets/enemies/melee/elf/elf_melee_roughness.png" id="13_roughness"]
 [ext_resource type="PackedScene" uid="uid://dx51jn5dnlq2w" path="res://assets/weapons/elf/elf_weapon.glb" id="2_ow50k"]
 [ext_resource type="Texture2D" uid="uid://yy2onjuoyepk" path="res://assets/weapons/elf/elf_weapon_albedo.jpg" id="3_0c2hb"]
 [ext_resource type="Texture2D" uid="uid://r1up34cr1wla" path="res://assets/weapons/elf/elf_weapon_metallic_roughness.jpg" id="4_l1smp"]
@@ -8,7 +12,13 @@
 [ext_resource type="AnimationLibrary" uid="uid://debcdpjx2lt72" path="res://assets/animations/character/lib_elf_melee.tres" id="6_ow50k"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0c2hb"]
-albedo_texture = ExtResource("1_h2ukh")
+albedo_texture = ExtResource("10_albedo")
+normal_enabled = true
+normal_texture = ExtResource("11_normal")
+metallic_texture = ExtResource("12_metallic")
+metallic_texture_channel = 0
+roughness_texture = ExtResource("13_roughness")
+roughness_texture_channel = 0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_hs56p"]
 resource_name = "Meshy_AI__0824185842_texturemesh"
