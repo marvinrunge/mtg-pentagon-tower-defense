@@ -35,7 +35,9 @@ func _ready() -> void:
 	SignalBus.mana_deposited.connect(add_mana)
 	SignalBus.damage_number_requested.connect(_on_damage_number_requested)
 	SignalBus.wave_reward_selected.connect(_on_wave_reward_selected)
-	
+
+	GraphicsSettings.apply_scene_dependent()
+
 	# Instantiate Base UI
 	if base_ui_scene:
 		base_ui_instance = base_ui_scene.instantiate()

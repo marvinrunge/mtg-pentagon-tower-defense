@@ -16,12 +16,27 @@ class_name HUD
 @onready var settings_panel: PanelContainer = $Control/SettingsPanel
 @onready var minimap_container: MarginContainer = $Control/MinimapContainer
 @onready var minimap: ColorRect = $Control/MinimapContainer/Minimap
-@onready var show_minimap_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/ShowMinimapCheckbox
-@onready var damage_numbers_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/DamageNumbersCheckbox
-@onready var enemy_health_bars_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/EnemyHealthBarsCheckbox
-@onready var attack_indicators_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/AttackIndicatorsCheckbox
-@onready var camera_shake_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/VBoxContainer/CameraShakeCheckbox
-@onready var minimap_size_slider: HSlider = $Control/SettingsPanel/MarginContainer/VBoxContainer/MinimapSizeSlider
+@onready var show_minimap_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ShowMinimapCheckbox
+@onready var damage_numbers_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/DamageNumbersCheckbox
+@onready var enemy_health_bars_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/EnemyHealthBarsCheckbox
+@onready var attack_indicators_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/AttackIndicatorsCheckbox
+@onready var camera_shake_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/CameraShakeCheckbox
+@onready var minimap_size_slider: HSlider = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/MinimapSizeSlider
+
+@onready var quality_preset_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/QualityPresetOption
+@onready var render_scale_slider: HSlider = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RenderScaleSlider
+@onready var shadows_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ShadowsCheckbox
+@onready var anti_aliasing_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/AntiAliasingOption
+@onready var glow_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/GlowCheckbox
+@onready var vsync_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/VSyncCheckbox
+@onready var renderer_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RendererOption
+@onready var restart_required_label: Label = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RestartRequiredLabel
+@onready var apply_restart_btn: Button = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ApplyRestartBtn
+
+const RENDERER_METHODS: Array[String] = ["forward_plus", "mobile", "gl_compatibility"]
+# True while a preset is being applied programmatically, so the individual
+# control handlers it drives don't each also flip the preset back to Custom.
+var _applying_preset: bool = false
 
 @onready var game_over_panel: PanelContainer = $Control/GameOverPanel
 @onready var restart_btn: Button = $Control/GameOverPanel/MarginContainer/VBoxContainer/RestartBtn
@@ -68,6 +83,7 @@ func _ready() -> void:
 		camera_shake_checkbox.button_pressed = GameSettings.camera_shake_enabled
 		camera_shake_checkbox.toggled.connect(_on_camera_shake_toggled)
 	minimap_size_slider.value_changed.connect(_on_minimap_size_changed)
+	_setup_graphics_settings()
 	restart_btn.pressed.connect(_on_restart_pressed)
 	settings_panel.hide()
 	game_over_panel.hide()
@@ -221,6 +237,97 @@ func _on_camera_shake_toggled(button_pressed: bool) -> void:
 
 func _on_minimap_size_changed(value: float) -> void:
 	minimap.custom_minimum_size = Vector2(value, value)
+
+func _setup_graphics_settings() -> void:
+	quality_preset_option.clear()
+	quality_preset_option.add_item("Low", GraphicsSettings.Preset.LOW)
+	quality_preset_option.add_item("Medium", GraphicsSettings.Preset.MEDIUM)
+	quality_preset_option.add_item("High", GraphicsSettings.Preset.HIGH)
+	quality_preset_option.add_item("Custom", GraphicsSettings.Preset.CUSTOM)
+
+	anti_aliasing_option.clear()
+	anti_aliasing_option.add_item("Off", 0)
+	anti_aliasing_option.add_item("MSAA 2x", 1)
+	anti_aliasing_option.add_item("MSAA 4x", 2)
+
+	renderer_option.clear()
+	renderer_option.add_item("Forward+ (best visuals)", 0)
+	renderer_option.add_item("Mobile (balanced)", 1)
+	renderer_option.add_item("Compatibility (weak / integrated GPUs)", 2)
+
+	_applying_preset = true
+	quality_preset_option.select(GraphicsSettings.preset)
+	render_scale_slider.value = GraphicsSettings.render_scale
+	shadows_checkbox.button_pressed = GraphicsSettings.shadows_enabled
+	anti_aliasing_option.select(GraphicsSettings.msaa_level)
+	glow_checkbox.button_pressed = GraphicsSettings.glow_enabled
+	vsync_checkbox.button_pressed = GraphicsSettings.vsync_enabled
+	var current_method: String = GraphicsSettings.pending_rendering_method if GraphicsSettings.pending_rendering_method != "" else GraphicsSettings.active_rendering_method
+	var method_idx: int = RENDERER_METHODS.find(current_method)
+	renderer_option.select(maxi(method_idx, 0))
+	_applying_preset = false
+	_update_restart_notice()
+
+	quality_preset_option.item_selected.connect(_on_quality_preset_selected)
+	render_scale_slider.value_changed.connect(_on_render_scale_changed)
+	shadows_checkbox.toggled.connect(_on_shadows_toggled)
+	anti_aliasing_option.item_selected.connect(_on_anti_aliasing_selected)
+	glow_checkbox.toggled.connect(_on_glow_toggled)
+	vsync_checkbox.toggled.connect(_on_vsync_toggled)
+	renderer_option.item_selected.connect(_on_renderer_selected)
+	apply_restart_btn.pressed.connect(_on_apply_restart_pressed)
+
+func _mark_custom_preset() -> void:
+	if _applying_preset:
+		return
+	GraphicsSettings.preset = GraphicsSettings.Preset.CUSTOM
+	quality_preset_option.select(GraphicsSettings.Preset.CUSTOM)
+
+func _update_restart_notice() -> void:
+	restart_required_label.visible = GraphicsSettings.restart_required
+
+func _on_quality_preset_selected(idx: int) -> void:
+	var p: int = quality_preset_option.get_item_id(idx)
+	if p == GraphicsSettings.Preset.CUSTOM:
+		return
+	_applying_preset = true
+	GraphicsSettings.apply_preset(p)
+	render_scale_slider.value = GraphicsSettings.render_scale
+	shadows_checkbox.button_pressed = GraphicsSettings.shadows_enabled
+	anti_aliasing_option.select(GraphicsSettings.msaa_level)
+	glow_checkbox.button_pressed = GraphicsSettings.glow_enabled
+	var method_idx: int = RENDERER_METHODS.find(GraphicsSettings.pending_rendering_method)
+	renderer_option.select(maxi(method_idx, 0))
+	_applying_preset = false
+	_update_restart_notice()
+
+func _on_render_scale_changed(value: float) -> void:
+	GraphicsSettings.apply_render_scale(value)
+	_mark_custom_preset()
+
+func _on_shadows_toggled(button_pressed: bool) -> void:
+	GraphicsSettings.apply_shadows(button_pressed)
+	_mark_custom_preset()
+
+func _on_anti_aliasing_selected(idx: int) -> void:
+	GraphicsSettings.apply_msaa(idx)
+	_mark_custom_preset()
+
+func _on_glow_toggled(button_pressed: bool) -> void:
+	GraphicsSettings.apply_glow(button_pressed)
+	_mark_custom_preset()
+
+func _on_vsync_toggled(button_pressed: bool) -> void:
+	GraphicsSettings.apply_vsync(button_pressed)
+	_mark_custom_preset()
+
+func _on_renderer_selected(idx: int) -> void:
+	GraphicsSettings.set_pending_rendering_method(RENDERER_METHODS[idx])
+	_mark_custom_preset()
+	_update_restart_notice()
+
+func _on_apply_restart_pressed() -> void:
+	GraphicsSettings.quit_to_apply_restart()
 
 func _on_at_base_changed(is_at_base: bool) -> void:
 	if interact_label:

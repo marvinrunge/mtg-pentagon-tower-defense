@@ -18,6 +18,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameSettings="*res://scripts/game_settings.gd"
+GraphicsSettings="*res://scripts/graphics_settings.gd"
 SignalBus="*res://scripts/signal_bus.gd"
 ProjectilePool="*res://scripts/projectile_pool.gd"
 DamageNumberPool="*res://scripts/damage_number_pool.gd"

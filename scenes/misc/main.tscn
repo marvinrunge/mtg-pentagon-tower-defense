@@ -69,9 +69,11 @@ script = ExtResource("1_main")
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=57108036]
 transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 20, 0)
 shadow_enabled = true
+groups = ["sun_light"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1470302853]
 environment = SubResource("Environment_1")
+groups = ["world_environment"]
 
 [node name="HUD" parent="." unique_id=1088357893 instance=ExtResource("2_hud")]
 
