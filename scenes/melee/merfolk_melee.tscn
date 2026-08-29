@@ -638,7 +638,7 @@ bone_name = "mixamorig_RightHand"
 [node name="Weapon" type="Node3D" parent="Skeleton3D/RightHandAttachment" unique_id=1370458021 instance=ExtResource("2_kthol")]
 transform = Transform3D(-0.00030920244, 0.0058741537, -2.8053239e-05, -0.005795853, -0.0003096477, -0.0009561836, -0.0009563284, -2.262106e-05, 0.0058040502, 0.0040779635, 0.0013469362, 0.0003885783)
 
-[node name="mesh_node" type="MeshInstance3D" parent="Skeleton3D/RightHandAttachment/Weapon" unique_id=1769899053]
+[node name="mesh_node" parent="Skeleton3D/RightHandAttachment/Weapon" unique_id=1769899053]
 mesh = SubResource("ArrayMesh_dqeq1")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=316134254]

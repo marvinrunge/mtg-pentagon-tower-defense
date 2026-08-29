@@ -29,6 +29,8 @@ class_name HUD
 @onready var anti_aliasing_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/AntiAliasingOption
 @onready var glow_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/GlowCheckbox
 @onready var vsync_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/VSyncCheckbox
+@onready var show_fps_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ShowFpsCheckbox
+@onready var fps_label: Label = $Control/FpsLabel
 @onready var renderer_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RendererOption
 @onready var restart_required_label: Label = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RestartRequiredLabel
 @onready var apply_restart_btn: Button = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ApplyRestartBtn
@@ -52,6 +54,7 @@ var _warning_label: Label
 var _warning_tween: Tween
 var _reward_overlay: ColorRect
 var _reward_choices: HBoxContainer
+var _fps_update_timer: float = 0.0
 
 const ACTIVE_SLOT_COLOR: Color = Color(0.95, 0.72, 0.22)
 
@@ -108,6 +111,11 @@ func _ready() -> void:
 	update_mana({})
 
 func _process(delta: float) -> void:
+	if fps_label.visible:
+		_fps_update_timer -= delta
+		if _fps_update_timer <= 0.0:
+			_fps_update_timer = 0.25
+			fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
 
 	if _player == null or not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player")
@@ -262,6 +270,8 @@ func _setup_graphics_settings() -> void:
 	anti_aliasing_option.select(GraphicsSettings.msaa_level)
 	glow_checkbox.button_pressed = GraphicsSettings.glow_enabled
 	vsync_checkbox.button_pressed = GraphicsSettings.vsync_enabled
+	show_fps_checkbox.button_pressed = GraphicsSettings.show_fps
+	fps_label.visible = GraphicsSettings.show_fps
 	var current_method: String = GraphicsSettings.pending_rendering_method if GraphicsSettings.pending_rendering_method != "" else GraphicsSettings.active_rendering_method
 	var method_idx: int = RENDERER_METHODS.find(current_method)
 	renderer_option.select(maxi(method_idx, 0))
@@ -274,6 +284,7 @@ func _setup_graphics_settings() -> void:
 	anti_aliasing_option.item_selected.connect(_on_anti_aliasing_selected)
 	glow_checkbox.toggled.connect(_on_glow_toggled)
 	vsync_checkbox.toggled.connect(_on_vsync_toggled)
+	show_fps_checkbox.toggled.connect(_on_show_fps_toggled)
 	renderer_option.item_selected.connect(_on_renderer_selected)
 	apply_restart_btn.pressed.connect(_on_apply_restart_pressed)
 
@@ -320,6 +331,10 @@ func _on_glow_toggled(button_pressed: bool) -> void:
 func _on_vsync_toggled(button_pressed: bool) -> void:
 	GraphicsSettings.apply_vsync(button_pressed)
 	_mark_custom_preset()
+
+func _on_show_fps_toggled(button_pressed: bool) -> void:
+	GraphicsSettings.set_show_fps(button_pressed)
+	fps_label.visible = button_pressed
 
 func _on_renderer_selected(idx: int) -> void:
 	GraphicsSettings.set_pending_rendering_method(RENDERER_METHODS[idx])

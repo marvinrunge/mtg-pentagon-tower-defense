@@ -606,7 +606,7 @@ bone_name = "mixamorig_RightHand"
 [node name="Weapon" type="Node3D" parent="Skeleton3D/RightHandAttachment" instance=ExtResource("20_weapon")]
 transform = Transform3D(0.00588, 0.0, 0.0, 0.0, 0.00588, 0.0, 0.0, 0.0, 0.00588, 0.0, 0.005292, 0.0)
 
-[node name="mesh_node" type="MeshInstance3D" parent="Skeleton3D/RightHandAttachment/Weapon"]
+[node name="mesh_node" parent="Skeleton3D/RightHandAttachment/Weapon"]
 material_override = SubResource("StandardMaterial3D_weapon_aifbr")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1326450538]

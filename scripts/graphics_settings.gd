@@ -13,6 +13,7 @@ var shadows_enabled: bool = true
 var msaa_level: int = 0 # 0 = Off, 1 = MSAA 2x, 2 = MSAA 4x
 var glow_enabled: bool = true
 var vsync_enabled: bool = true
+var show_fps: bool = false
 var preset: int = Preset.HIGH
 
 ## The renderer the engine actually booted with this run (fixed until restart).
@@ -74,6 +75,13 @@ func apply_vsync(enabled: bool) -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if enabled else DisplayServer.VSYNC_DISABLED)
 
 
+## Just a persisted flag - the HUD owns the actual FPS counter label since it
+## lives in the HUD scene, not something reachable via a scene-wide group.
+func set_show_fps(enabled: bool) -> void:
+	show_fps = enabled
+	_save()
+
+
 ## Bundles the above into one-click tiers. LOW also switches the renderer to
 ## Compatibility (OpenGL-class, far lighter than Forward+) - that's the single
 ## biggest lever for a machine with only an integrated GPU, but it needs a
@@ -122,6 +130,7 @@ func _save() -> void:
 	cfg.set_value("graphics", "msaa_level", msaa_level)
 	cfg.set_value("graphics", "glow_enabled", glow_enabled)
 	cfg.set_value("graphics", "vsync_enabled", vsync_enabled)
+	cfg.set_value("graphics", "show_fps", show_fps)
 	cfg.set_value("graphics", "preset", preset)
 	var method_to_persist: String = pending_rendering_method if pending_rendering_method != "" else active_rendering_method
 	cfg.set_value("graphics", "rendering_method", method_to_persist)
@@ -145,6 +154,7 @@ func _load() -> void:
 	msaa_level = cfg.get_value("graphics", "msaa_level", msaa_level)
 	glow_enabled = cfg.get_value("graphics", "glow_enabled", glow_enabled)
 	vsync_enabled = cfg.get_value("graphics", "vsync_enabled", vsync_enabled)
+	show_fps = cfg.get_value("graphics", "show_fps", show_fps)
 	preset = cfg.get_value("graphics", "preset", preset)
 	var saved_method: String = cfg.get_value("graphics", "rendering_method", active_rendering_method)
 	if saved_method != active_rendering_method:

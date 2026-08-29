@@ -135,6 +135,27 @@ text = "Press [F] to Manage Base"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="FpsLabel" type="Label" parent="Control"]
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -90.0
+offset_top = -28.0
+offset_right = -8.0
+offset_bottom = -6.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.3, 1.0, 0.3, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 16
+text = "FPS: --"
+horizontal_alignment = 2
+
 [node name="Crosshair" type="ColorRect" parent="Control" unique_id=911640817]
 layout_mode = 1
 anchors_preset = 8
@@ -289,6 +310,11 @@ text = "Bloom / Glow"
 layout_mode = 2
 button_pressed = true
 text = "VSync"
+
+[node name="ShowFpsCheckbox" type="CheckBox" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
+layout_mode = 2
+button_pressed = false
+text = "Show FPS Counter"
 
 [node name="RendererLabel" type="Label" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
 layout_mode = 2

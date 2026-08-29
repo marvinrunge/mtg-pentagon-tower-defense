@@ -497,6 +497,26 @@ func _is_player_within(distance: float) -> bool:
 				return true
 	return false
 
+## Physics-space sphere query around this enemy, filtered by collision layer
+## (e.g. 4 = "Enemies"). Broadphase-accelerated, unlike looping every node in
+## a group - use this instead for AoE effects that scale with wave size.
+func _bodies_in_range(radius: float, mask: int) -> Array[Node3D]:
+	var results: Array[Node3D] = []
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var shape := SphereShape3D.new()
+	shape.radius = radius
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = shape
+	query.transform = Transform3D(Basis(), global_position)
+	query.collision_mask = mask
+	query.collide_with_bodies = true
+	query.collide_with_areas = false
+	for result: Dictionary in space_state.intersect_shape(query, 64):
+		var collider: Object = result.get("collider")
+		if collider is Node3D and is_instance_valid(collider):
+			results.append(collider as Node3D)
+	return results
+
 ## Heavy shakes are boss specials landing on the player; light ones are the boss's
 ## ordinary swing, or a special that just missed.
 func _request_camera_shake(is_heavy: bool) -> void:
@@ -571,12 +591,11 @@ func fire_projectile() -> void:
 func perform_mage_spell() -> void:
 	match enemy_data.color_identity:
 		"White":
-			# AoE Heal
-			var enemies = get_tree().get_nodes_in_group("enemies")
-			for e in enemies:
-				if is_instance_valid(e) and global_position.distance_to(e.global_position) < GameSettings.enemy_white_mage_range:
-					if e.has_method("heal"):
-						e.heal(GameSettings.enemy_white_mage_heal)
+			# AoE Heal - a physics broadphase query instead of scanning every
+			# enemy in the level, so this doesn't scale with wave size.
+			for e: Node3D in _bodies_in_range(GameSettings.enemy_white_mage_range, 4):
+				if e.has_method("heal"):
+					e.heal(GameSettings.enemy_white_mage_heal)
 		"Red":
 			# Damagedealer (Fireball at player)
 			var players = get_tree().get_nodes_in_group("player")

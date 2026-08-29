@@ -38,3 +38,7 @@ func _on_visibility_changed(_is_enabled: bool) -> void:
 
 func _update_visibility() -> void:
 	visible = GameSettings.show_enemy_health_bars and health_ratio > 0.0 and health_ratio < 1.0
+	# Most enemies sit at full health most of the time (or have bars disabled
+	# entirely) - skip the per-frame position/billboard work for hidden bars
+	# instead of just not drawing them.
+	set_process(visible)
