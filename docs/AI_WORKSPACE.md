@@ -78,6 +78,9 @@ After generation:
 - `scripts/run_state.gd`: the run's three currencies - shared XP/levels, the team mana pool, enchantment stacks
 - `scripts/player_registry.gd`: who is playing, and which one is local to this machine
 - `scripts/upkeep_panel.gd`: the build phase between waves - shop, enchantment votes, ready checks
+- `scripts/net.gd`: hosting, joining and the peer list; inert until someone hosts
+- `scripts/lobby.gd`: the F9 host/join panel
+- `tools/mcp.ps1`: shell client for the Godot MCP server, for when the editor holds the project lock
 - `scripts/ember_fx.gd`: every fire effect (fireball trail/burst, Rain of Ember, flickering fire light) - see `docs/VFX_TEXTURES.md`
 - `tools/build_vfx_textures.gd`: regenerates the placeholder VFX textures in `assets/vfx/`
 - `tools/animation_impact.gd`: measures the frame an attack clip connects on; used by the enemy and boss builders

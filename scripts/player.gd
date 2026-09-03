@@ -178,7 +178,14 @@ var is_local: bool = true
 func _ready() -> void:
 	add_to_group("player")
 	animator = $Animator
-	if has_meta("is_local"):
+	if Net.is_active():
+		# Networked: the peer that owns this avatar drives it, everyone else runs it as a
+		# puppet. Authority was set by MainController._spawn_avatar, which runs on every
+		# peer - so is_local is DERIVED from it rather than tracked separately, and the
+		# two can never disagree.
+		is_local = is_multiplayer_authority()
+		_build_synchronizer()
+	elif has_meta("is_local"):
 		is_local = bool(get_meta("is_local"))
 	PlayerRegistry.register(self, is_local)
 	if is_local:
@@ -280,6 +287,28 @@ func _apply_look_delta(yaw: float, pitch: float) -> void:
 	rotate_y(yaw)
 	camera_pivot.rotate_x(pitch)
 	camera_pivot.rotation.x = clamp(camera_pivot.rotation.x, -deg_to_rad(70.0), deg_to_rad(30.0))
+
+## Replicates the least that produces the most: position, rotation and VELOCITY.
+##
+## Velocity is the one that matters. `PlayerAnimator.update_locomotion()` already picks
+## idle, walk, run, strafe and their playback speeds from velocity alone, so sending it
+## reconstructs every locomotion animation on every client without replicating a single
+## bone. Actions - swings, casts, the heavy charge - are discrete events and are sent as
+## RPCs instead, in Phase 2.
+func _build_synchronizer() -> void:
+	var config := SceneReplicationConfig.new()
+	for property: String in [":position", ":rotation", ":velocity"]:
+		config.add_property(NodePath(property))
+		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+
+	var sync := MultiplayerSynchronizer.new()
+	sync.name = "Sync"
+	sync.replication_config = config
+	# The owner publishes; everyone else listens. Without this every peer would try to
+	# author every avatar and they would fight.
+	sync.set_multiplayer_authority(get_multiplayer_authority())
+	add_child(sync)
+
 
 func _exit_tree() -> void:
 	PlayerRegistry.unregister(self)
@@ -1342,6 +1371,12 @@ func _blocks_attack_from(source: Node3D) -> bool:
 	return -transform.basis.z.dot(to_source.normalized()) >= GameSettings.player_block_cone
 
 func _physics_process(delta: float) -> void:
+	if not is_local:
+		# A puppet's transform is authored by its owner and arrives over the wire. All
+		# this end has to do is keep the animator fed from the replicated velocity,
+		# which is what makes it walk, run and strafe correctly with nothing else sent.
+		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), false, is_on_floor(), is_blocking)
+		return
 	_sync_capstone_aura()
 	# Runs before the downed early-out so a shake still settles while downed.
 	_update_camera_shake(delta)

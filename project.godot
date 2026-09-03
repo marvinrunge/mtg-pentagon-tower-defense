@@ -25,7 +25,8 @@ DamageNumberPool="*res://scripts/damage_number_pool.gd"
 SoundBank="*res://scripts/sound_bank.gd"
 RunState="*res://scripts/run_state.gd"
 PlayerRegistry="*res://scripts/player_registry.gd"
-PlayerRegistry="*res://scripts/player_registry.gd"
+Net="*res://scripts/net.gd"
+MCPRuntimeProbe="*res://addons/godot_mcp/runtime/mcp_runtime_probe.gd"
 
 [editor_plugins]
 
@@ -96,6 +97,11 @@ spell_4={
 spell_5={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":53,"key_label":0,"unicode":53,"location":0,"echo":false,"script":null)
+]
+}
+lobby={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":4194340,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
 ]
 }
 skill_tree={

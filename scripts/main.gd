@@ -52,6 +52,12 @@ func _ready() -> void:
 	upkeep.name = "UpkeepPanel"
 	add_child(upkeep)
 
+	# Reachable from inside the map on F9 rather than sitting in front of it, so the
+	# game stays playable alone at every step of the networking work.
+	var lobby := Lobby.new()
+	lobby.name = "Lobby"
+	add_child(lobby)
+
 	RunState.reset()
 	
 	# Populate mana sources and spawners from the static lanes
@@ -79,7 +85,15 @@ func bake_map_navigation() -> void:
 	spawn_entities()
 
 func spawn_entities() -> void:
-	spawn_players(GameSettings.player_count)
+	# The spawn function runs on EVERY peer with the same argument, which is the only
+	# way to get per-avatar data across. Metadata set on the server's instance does not
+	# replicate - the client would rebuild the node from the scene file alone and fall
+	# back to defaults, giving every avatar authority 1 and is_local true.
+	$PlayerSpawner.spawn_function = _spawn_avatar
+	if Net.is_active():
+		spawn_networked_players()
+	else:
+		spawn_players(GameSettings.player_count)
 	
 	# Myrs are now spawned by the player via base UI, not here
 		
@@ -118,14 +132,46 @@ func spawn_players(count: int) -> void:
 	var total: int = maxi(count, 1)
 	for i in total:
 		var player: Node3D = player_scene.instantiate()
-		var angle: float = TAU * float(i) / float(total)
-		var offset: Vector3 = Vector3(sin(angle), 0.0, cos(angle)) * (0.0 if total == 1 else 2.5)
-		player.position = Vector3(0, 1.0, 0) + offset
+		player.position = _player_seat(i, total)
 		player.name = "Player" if i == 0 else "Player%d" % (i + 1)
 		# Player 0 is whoever is sitting here. The rest are placeholders until Phase 1
 		# gives them a peer to be driven by.
 		player.set_meta("is_local", i == 0)
-		add_child(player)
+		$Players.add_child(player)
+
+
+## One avatar per connected peer, in a seat order every machine agrees on.
+##
+## Only the server spawns - the nodes reach clients through the MultiplayerSpawner, so
+## a client that joins late still gets everybody. Seats come from Net.ordered_ids() so
+## the same peer stands in the same place on every screen.
+func spawn_networked_players() -> void:
+	if not multiplayer.is_server():
+		return
+	var ids: Array = Net.ordered_ids()
+	for i in ids.size():
+		$PlayerSpawner.spawn({"peer": int(ids[i]), "seat": i, "total": ids.size()})
+
+
+## Runs on every peer, server and client alike, with the argument the server passed to
+## spawn(). Authority and seat are set here rather than after add_child because the
+## client builds this node from scratch and has nothing else to go on.
+func _spawn_avatar(data: Variant) -> Node:
+	var info: Dictionary = data
+	var player: Node3D = player_scene.instantiate()
+	player.name = "Player_%d" % int(info["peer"])
+	player.set_multiplayer_authority(int(info["peer"]))
+	player.position = _player_seat(int(info["seat"]), int(info["total"]))
+	return player
+
+
+## Ringed around the crystal rather than stacked on one point, so five bodies do not
+## resolve their overlap by exploding outward on the first frame.
+func _player_seat(index: int, total: int) -> Vector3:
+	if total <= 1:
+		return Vector3(0, 1.0, 0)
+	var angle: float = TAU * float(index) / float(total)
+	return Vector3(0, 1.0, 0) + Vector3(sin(angle), 0.0, cos(angle)) * 2.5
 
 
 ## The one place that knows how to build a myr. Both the base UI and the Upkeep panel

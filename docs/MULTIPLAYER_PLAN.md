@@ -65,82 +65,105 @@ own hits instantly and other players' hits a ping late, which nobody notices.
 
 ---
 
-## Phase 0 — Make single-player multiplayer-shaped
+## Phase 0 — Make single-player multiplayer-shaped ✅ DONE
 
-**Still single-player when done. Nothing networked yet.** This is the whole refactor
-risk in one phase, done while the game is easy to test.
+No networking. The whole refactor risk in one phase, done while the game was easy to
+test.
 
-1. **Extract input from `Player`.** There are **19 `Input.` calls** in `player.gd`.
-   Replace them with a small `PlayerInput` object the player reads from. Locally it
-   polls `Input`; for a remote player it is fed by replication. One seam, nineteen call
-   sites, no behaviour change.
-2. **Gate the singleton grabs.** `Player._ready()` sets `Input.mouse_mode` globally and
-   `setup_camera()` calls `camera.make_current()`. Both must happen only for the local
-   player.
-3. **"The local player", not "the first player".** `hud.gd`, `skill_tree.gd` and
-   `base_ui.gd` all call `get_first_node_in_group("player")`. Add
-   `PlayerRegistry.local_player` and use it everywhere.
-4. **Let `main.gd` spawn N players.** Currently hardcoded to one. Take a list of
-   (peer, colour) and spawn from it — with a list of length 1 the game is unchanged.
-5. **Split `SignalBus`.** There are **63 emit sites**. Sort them into two groups:
-   *local/cosmetic* (damage numbers, shake, sound, HUD) which stay as they are, and
-   *world events* (crystal damaged, enemy died, wave started) which will become
-   server-driven. Just annotate them in this phase; do not move them yet.
+- `scripts/player_registry.gd` answers "whose screen is this". Every UI that called
+  `get_first_node_in_group("player")` now asks `PlayerRegistry.get_local()`.
+- `Player.is_local` gates the keyboard, the mouse capture and `camera.make_current()`.
+  A remote player still runs its own timers and cooldowns but reads no input.
+- `MainController.spawn_players(count)` rings N players around the crystal.
+- `RunState` and the Upkeep panel were built as autoload/scene singletons rather than
+  `MainController` state, precisely so they can become server-authoritative later.
 
-**Test:** the game plays exactly as it does now, but `main.gd` could spawn two players
-sharing a keyboard and neither would crash.
+**Verified in the running editor** at `player_count = 3`: three players at distinct
+positions, exactly one current camera, remotes with `is_local = false`, difficulty
+scaling at 0.60, and a clean output panel.
 
-## Phase 1 — Two players, moving and fighting
+## Phase 1 — Connection and avatars
 
-**Playable co-op, incomplete world.**
+Playable co-op with a shared world that only the host really simulates.
 
-1. Lobby scene: host / join by IP, colour pick, ready-up, start.
-2. `MultiplayerSpawner` for players; `set_multiplayer_authority(peer_id)` on each.
-3. `MultiplayerSynchronizer` on the player: position, rotation, velocity, and the
-   animation state `PlayerAnimator` needs (current clip, action shot, charge progress).
-4. Enemies stay server-simulated; replicate their transforms only. Clients see them
-   move; only the host's hits register at first.
-5. Melee hit RPC: client → server, server applies damage, health replicates back.
+1. `scripts/net.gd`: host/join over `ENetMultiplayerPeer`, peer bookkeeping, and a
+   `is_active()` that keeps every single-player path exactly as it is today.
+2. A lobby: host or join by address, see who is connected, start.
+3. `MultiplayerSpawner` for players; `set_multiplayer_authority(peer_id)` on each.
+4. `MultiplayerSynchronizer` on the player: position, rotation and **velocity**.
+   Velocity is the important one — `PlayerAnimator.update_locomotion()` already picks
+   walk/run/strafe/idle from it, so replicating velocity gets every locomotion
+   animation for free without replicating a single bone.
+5. Enemies stay host-simulated and unreplicated for now; clients will see them stand
+   still. That is the seam Phase 2 closes.
 
-**Test:** two players run around the same map and kill things together.
+**Ends at:** two to five players run around the same map and see each other move
+correctly.
 
-## Phase 2 — The whole world replicates
+## Phase 2 — The world replicates
 
-1. Enemy spawn/despawn through `MultiplayerSpawner`; health and status via synchroniser.
-2. `WaveManager` runs server-only; wave state broadcast to clients for the HUD.
+1. Enemies through `MultiplayerSpawner`; health, status and target via synchroniser.
+2. `WaveManager` server-only, wave state broadcast for the HUD.
 3. Crystal health server-authoritative; `crystal_damaged` becomes a server → client
    broadcast rather than a free-for-all signal.
-4. Projectiles: the **pool stays local for cosmetics**, but a projectile that deals
-   damage is spawned by the server. Split `Projectile` into "visual" and "authoritative"
-   rather than trying to replicate a pool.
-5. Boss specials: server decides and broadcasts; each client spawns its own
-   `AttackIndicator` locally from the event.
-6. DoT zones (Rain of Ember, Fog, Wall of Souls) — server owns damage ticks, clients
-   spawn the `EmberFx` visuals locally.
+4. **Melee hit RPC.** The client plays its own sound, VFX and shake immediately, then
+   RPCs the server, which range-checks loosely and applies the real damage. This is
+   also where attack ANIMATIONS replicate: send which action started and when, never
+   the pose — `PlayerAnimator` reconstructs the rest locally.
+5. Projectiles: the pool stays local for cosmetics; a projectile that deals damage is
+   spawned by the server.
+6. Boss specials and DoT zones: server decides, clients spawn their own
+   `AttackIndicator` and `EmberFx` from the broadcast.
 
-**Test:** a full wave, including a boss, plays identically for all clients.
+**Ends at:** a full wave, boss included, plays identically for every client.
 
-## Phase 3 — Economy and progression
+## Phase 3 — RunState becomes server-authoritative
 
-1. Mana drops spawn server-side; pickup is an RPC so two players cannot claim the same
-   drop.
-2. **Per-player mana pools, not the shared one.** With five players and personal skill
-   trees, a shared pot means the fastest clicker spends everyone's mana. Keep a small
-   shared "war chest" for crystal repair only, where cooperation is the point.
-3. Skill tree is per-player and entirely client-side except the purchase, which is an
-   RPC so the server can keep the authoritative build (needed for damage numbers).
-4. Guild camps: server-owned, cleared cooperatively, reward the two adjacent players.
+The economy was rebuilt since this plan was written, so this phase replaces the old
+"mana drops and per-player pools" one entirely. There are no drops to claim and no
+pools to divide — but there is now a singleton holding the whole run.
 
-## Phase 4 — Make it a five-player game rather than a co-op single-player game
+1. `RunState.on_enemy_killed()` runs **only on the server**. XP, levels and the mana
+   pool are the server's.
+2. `team_xp`, `team_level`, `mana_pool` and `enchantments` replicate to clients — a
+   `MultiplayerSynchronizer` on the autoload, or explicit broadcasts on change.
+3. `grant_skill_points()` becomes an RPC to every peer, so levels still land on
+   everyone simultaneously.
+4. Skill-point **spending** stays client-side and is simply mirrored to the server.
+   It is co-op; validating a build against cheating buys nothing.
+5. `PlayerRegistry.count()` already drives difficulty scaling and the Upkeep vote
+   threshold, so both start working the moment peers exist.
 
-1. **Rebalance `get_player_scaling_factor`.** It exists but has never been tested past
-   one player. Five players against current wave sizes will trivialise everything.
-2. Colour claiming in the lobby, so each player owns a lane.
-3. Downed/revive already exists — surface it: teammate markers, a downed HUD, a
+**Ends at:** the team levels together and shares one mana pool across the network.
+
+## Phase 4 — Upkeep over the network
+
+Entirely new work — the old plan had no vote to network.
+
+1. `upkeep_started` / `upkeep_finished` become server broadcasts. Only the server may
+   end Upkeep, because `upkeep_finished` is what starts the next wave.
+2. Proposals, votes and withdrawals are RPCs. The **server** holds the proposal state
+   and the mana reservations; clients render what it tells them.
+3. Ready checks are per peer. `_all_ready()` currently returns `_local_ready` — it
+   becomes a tally across connected peers, and `_vote_threshold()` already counts
+   players correctly.
+4. Purchases execute on the server: it spends the mana, spawns the myr, grants the
+   points, applies the enchantment, and broadcasts the result to the log.
+5. A disconnect mid-Upkeep must not deadlock a vote — the threshold counts *connected*
+   peers, recomputed when someone drops.
+
+**Ends at:** five players argue about Furnace of Rath and the majority wins.
+
+## Phase 5 — Actually a five-player game
+
+1. **Rebalance.** `get_player_scaling_factor()` has never run above one player in
+   anger. Five players against current wave sizes will trivialise everything, and the
+   Upkeep income curve in `docs/ECONOMY.md` was written for one.
+2. Downed and revive already exist — surface them: teammate markers, a downed HUD, a
    respawn timer.
-4. Reconnect, host migration or graceful "host left" handling, spectate on death.
-5. Voice/ping/marker system. In a five-lane map with one player per lane, "help, blue
-   lane" needs to be one keypress.
+3. Reconnect, and graceful "host left" handling.
+4. A ping or marker system. In a five-lane map, "help, blue lane" needs to be one
+   keypress.
 
 ---
 
@@ -153,6 +176,7 @@ sharing a keyboard and neither would crash.
 | **Navigation baking** | `main.gd` bakes the navmesh at runtime; enemies path server-side | Bake on the server only; clients never path |
 | **Animation state is complex** | The `AnimationTree` one-shot, charge easing and combo windows are all local timing | Replicate *intent* (which action started, when) and let each client's `PlayerAnimator` run it — do not replicate bone poses |
 | **63 SignalBus emit sites** | A global bus has no concept of "which peer" | Classify in Phase 0; only world events need to become RPCs |
+| **The economy changed under this plan** | It was written for per-player mana drops; the game now has shared XP, personal skill points and one team mana pool spent by vote | Phase 3 and Phase 4 were rewritten against what exists. `RunState` and `UpkeepPanel` were deliberately built as singletons so they can take server authority |
 | **Five-player balance is unknown territory** | The scaling factor has never run above 1 | Phase 4 is a real balancing pass, not a polish pass |
 
 ## What I would not do
