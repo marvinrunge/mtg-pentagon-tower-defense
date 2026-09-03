@@ -97,4 +97,14 @@ if (-not $SkipRuntime) {
     } else {
         Write-Output "PASS: main scene exited cleanly with code $($runtimeResult.ExitCode)."
     }
+
+    # Booting without errors is not the same as working. This drives the skill tree the
+    # way a player does and asserts that the purchases actually land - the exact thing
+    # that was broken for a whole release while every other check passed.
+    $skillResult = Invoke-GodotCheck -Name "skill-purchase" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/skill_purchase.tscn") -TimeoutSeconds 60
+    if ($skillResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($skillResult.Output)
+        throw "Skill tree purchases are broken."
+    }
+    Write-Output "PASS: skill tree purchases apply (free-debug, paid, out-of-points and centre node)."
 }

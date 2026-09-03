@@ -294,8 +294,7 @@ func _find_record(color: String, branch_index: int) -> Dictionary:
 
 func update_ui() -> void:
 	var player = PlayerRegistry.get_local()
-	var main_controller = get_tree().current_scene
-	if not player or not main_controller:
+	if player == null:
 		return
 	var mana_pool: Dictionary = RunState.mana_pool
 
@@ -337,8 +336,7 @@ func update_ui() -> void:
 
 func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	var player = PlayerRegistry.get_local()
-	var main_controller = get_tree().current_scene
-	if not player or not main_controller:
+	if player == null:
 		return
 	var mana_pool: Dictionary = RunState.mana_pool
 	_hovered_record = {"color": color, "branch_index": branch_index, "info": info}
@@ -376,10 +374,13 @@ func _hide_details() -> void:
 	if is_instance_valid(_detail_panel):
 		_detail_panel.hide()
 
+## Nothing here goes through MainController any more. This used to be guarded on
+## `main_controller.has_method("spend_mana_cost")`, which the economy rework deleted when
+## mana moved to RunState - so the guard silently refused EVERY purchase, debug switch
+## included. The only thing a purchase actually needs is the local player.
 func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> void:
 	var player = PlayerRegistry.get_local()
-	var main_controller = get_tree().current_scene
-	if not player or not main_controller or not main_controller.has_method("spend_mana_cost"):
+	if player == null:
 		return
 
 	if bool(info.get("is_center", false)):

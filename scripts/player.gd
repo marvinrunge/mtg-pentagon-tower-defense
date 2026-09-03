@@ -193,9 +193,13 @@ func _ready() -> void:
 	
 	setup_camera()
 	
-	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
-	SignalBus.spell_unlocked.connect(_on_spell_unlocked)
-	SignalBus.melee_combo_unlocked.connect(_on_melee_combo_unlocked)
+	# A skill tree is PERSONAL. These signals carry no owner, so every avatar in the
+	# scene would answer them - one player's purchase would unlock the spell on all four
+	# remote puppets too. Only the avatar the tree belongs to listens.
+	if is_local:
+		SignalBus.skill_unlocked.connect(_on_skill_unlocked)
+		SignalBus.spell_unlocked.connect(_on_spell_unlocked)
+		SignalBus.melee_combo_unlocked.connect(_on_melee_combo_unlocked)
 	
 	# Delay emitting the initial active spell until the HUD is ready
 	call_deferred("_emit_initial_spell")
@@ -335,11 +339,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		var keycode = event.keycode
 		if GameSettings.debug_mode:
 			if keycode == KEY_F1 or keycode == KEY_M:
-				var main_c = get_tree().current_scene
-				if main_c and main_c.has_method("add_mana"):
-					for c in ["White", "Blue", "Black", "Red", "Green"]:
-						main_c.add_mana(c, 100)
-					print("[DEBUG] Granted +100 of each Mana color!")
+				for c: String in RunState.COLORS:
+					RunState.add_mana(c, 100)
+				print("[DEBUG] Granted +100 of each Mana color!")
 				var st = get_tree().current_scene.get_node_or_null("SkillTree")
 				if st and st.has_method("update_ui"):
 					st.update_ui()
