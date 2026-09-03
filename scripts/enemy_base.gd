@@ -128,7 +128,10 @@ func _ready() -> void:
 
 func setup(data: EnemyData) -> void:
 	enemy_data = data
-	health = data.health
+	# EnemyDatabase hands out a fresh EnemyData per enemy, so scaling it here is safe and
+	# keeps max health, the health bar and the flinch threshold all reading one number.
+	enemy_data.health *= GameSettings.get_enemy_health_factor(PlayerRegistry.count())
+	health = enemy_data.health
 	
 	# Adjust Aggro Area based on range
 	if aggro_col and aggro_col.shape is SphereShape3D:

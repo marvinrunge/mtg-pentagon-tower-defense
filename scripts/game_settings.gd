@@ -360,6 +360,8 @@ func get_tier_cost(tier_index: int) -> int:
 ## against a solo-sized wave shred it without the crystal ever being threatened, and earn
 ## solo-sized income while doing it. At 0.45 a five-player wave is 2.8x a solo one.
 @export var wave_size_per_extra_player: float = 0.45
+## Extra enemy health per player beyond the first. 0.15 gives 1.6x at five players.
+@export var enemy_health_per_extra_player: float = 0.15
 @export var wave_dynamic_base_difficulty: int = 5
 @export var wave_dynamic_difficulty_per_wave: int = 2
 @export var wave_boss_interval: int = 5
@@ -591,13 +593,46 @@ const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
 # MULTIPLAYER SCALING
 # ============================================================
 @export var scale_by_players: bool = true
-@export var min_damage_scale: float = 0.2 # 20% damage at 1 player, scaling up to 100% at 5 players
+## Enemy DAMAGE at one player, rising to 100% at five.
+##
+## Deliberately shallow. Damage is the worst of the three difficulty levers to lean on,
+## because it is the only one that changes what a hit COSTS - at 0.2 a Cleric's swing was
+## worth 20% solo and 100% in a full team, so a player could never learn what any attack
+## is actually worth; it depended on how many friends had logged in. Worse, with five
+## players you are usually alone in your own lane, so it punished the individual for the
+## team growing.
+##
+## The solo assist now comes almost entirely from facing FEWER enemies
+## (wave_size_per_extra_player), which is the same help without the side effects. This
+## keeps a small cushion on top, because one player genuinely cannot cover five lanes and
+## some leakage is unavoidable.
+@export var min_damage_scale: float = 0.75
 
 ## Multiplier on a wave's enemy budget for the number of players present. Counts the
 ## registry rather than the group, so an avatar mid-spawn cannot briefly inflate a wave.
+##
+## The PRIMARY difficulty lever, because it is the only one that uses the map: more
+## enemies means more lanes under real pressure at once, which is the entire reason a
+## five-player team exists. It also leaves every enemy feeling exactly as it does solo.
 func get_wave_size_factor(player_count: int) -> float:
 	var players: int = clampi(player_count, 1, 5)
 	return 1.0 + float(players - 1) * wave_size_per_extra_player
+
+
+## Multiplier on an enemy's maximum health for the number of players present.
+##
+## The correction that wave size alone cannot make. Count scaling assumes players SPREAD
+## OUT - one per lane, each fighting alone, killing at solo speed. The moment they group
+## up, on a boss or a collapsing lane, five players focus-fire and delete each enemy
+## roughly five times faster, and more enemies does not help with that.
+##
+## Kept modest on purpose: this is the lever that makes things spongy, and melee suffers
+## most from sponginess because every swing is a committed animation.
+func get_enemy_health_factor(player_count: int) -> float:
+	if not scale_by_players:
+		return 1.0
+	var players: int = clampi(player_count, 1, 5)
+	return 1.0 + float(players - 1) * enemy_health_per_extra_player
 
 
 func get_player_scaling_factor(tree: SceneTree) -> float:
