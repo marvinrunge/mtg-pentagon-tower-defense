@@ -105,6 +105,24 @@ func spawn_entities() -> void:
 	add_child(wave_manager)
 	wave_manager.start_waves(self)
 
+## Undoes leakage, up to whatever is actually missing. Server-only for the same reason
+## damage is: five peers each healing their own copy would disagree instantly.
+func repair_crystal(amount: float) -> float:
+	if not Net.is_server():
+		return 0.0
+	var restored: float = minf(amount, max_crystal_health - crystal_health)
+	if restored <= 0.0:
+		return 0.0
+	_apply_crystal_damage(-restored)
+	if Net.is_active():
+		_sync_crystal_health.rpc(crystal_health)
+	return restored
+
+
+func crystal_missing() -> float:
+	return max_crystal_health - crystal_health
+
+
 ## Crystal health is the server's. Clients ask, the server decides, and the resulting
 ## value is broadcast - otherwise five peers each subtract their own damage and the
 ## crystal dies five times faster on some screens than others.

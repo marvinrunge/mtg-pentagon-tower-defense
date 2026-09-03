@@ -511,6 +511,12 @@ func get_tier_cost(tier_index: int) -> int:
 @export var upkeep_duration: float = 30.0
 ## What the team pays for one skill point FOR EVERY PLAYER, in any colour.
 @export var upkeep_skill_point_cost: int = 10
+## Crystal repair. The only way to undo leakage, and deliberately a PURCHASE rather than
+## an automatic scaling: the crystal is one shared objective whose maximum stays the same
+## whether one player is defending it or five, so a team that leaks pays to fix it out of
+## the same pool it wanted to spend on enchantments. That trade is the point.
+@export var upkeep_crystal_repair_amount: float = 200.0
+@export var upkeep_crystal_repair_cost: int = 8
 
 # ============================================================
 # ENCHANTMENTS

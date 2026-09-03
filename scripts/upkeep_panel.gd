@@ -177,6 +177,30 @@ func _request_myr() -> void:
 	_announce("Built a myr for %d" % GameSettings.myr_mana_cost)
 
 
+## Any player, like the myr: in an emergency you want whoever notices to be able to act,
+## and making the team vote while the crystal is at 10% would be agonising.
+func _buy_repair() -> void:
+	if Net.is_active() and not Net.is_server():
+		_request_repair.rpc_id(1)
+		return
+	_request_repair()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_repair() -> void:
+	if not Net.is_server():
+		return
+	var main_controller: Node = get_tree().current_scene
+	if main_controller == null or not main_controller.has_method("repair_crystal"):
+		return
+	if main_controller.crystal_missing() <= 1.0:
+		return
+	if not RunState.spend({"Colorless": GameSettings.upkeep_crystal_repair_cost}):
+		return
+	var restored: float = main_controller.repair_crystal(GameSettings.upkeep_crystal_repair_amount)
+	_announce("Repaired the crystal for %d" % int(restored))
+
+
 func _buy_skill_point() -> void:
 	if Net.is_active() and not Net.is_server():
 		_request_skill_point.rpc_id(1)
@@ -493,6 +517,15 @@ func _rebuild_shop() -> void:
 	_shop_rows.add_child(_purchase_row(
 		"Skill point for everyone", "+1 point to every player, not just the buyer.",
 		{"Colorless": GameSettings.upkeep_skill_point_cost}, _buy_skill_point, Color(0.9, 0.85, 0.5)))
+
+	# Only offered when there is something to fix, so a healthy team is not tempted to
+	# waste mana on it and a hurt one cannot miss it.
+	var main_controller: Node = get_tree().current_scene
+	if main_controller != null and main_controller.has_method("crystal_missing") and main_controller.crystal_missing() > 1.0:
+		_shop_rows.add_child(_purchase_row(
+			"Repair the crystal (%d missing)" % int(main_controller.crystal_missing()),
+			"Restores %d integrity. The only way to undo a leak." % int(GameSettings.upkeep_crystal_repair_amount),
+			{"Colorless": GameSettings.upkeep_crystal_repair_cost}, _buy_repair, Color(0.55, 0.85, 1.0)))
 
 	for color: String in COLORS:
 		var cost: Dictionary = RunState.enchantment_cost(color)

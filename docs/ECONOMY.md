@@ -83,11 +83,25 @@ Guild camps are only active during Upkeep, so clearing one costs shopping time.
 |---|---|---|---|
 | **Build a myr** | 2 colourless | A worker: harvests a lane, sweeps drops. Compounds, so worth most early | **Any player** |
 | **Skill point for everyone** | 10 colourless | +1 point to *every* player | **Any player** |
+| **Repair the crystal** | 8 colourless | Restores 200 integrity. Only offered when something is missing | **Any player** |
 | **Enchantment** | its colour, rising per stack | A permanent global buff | **Majority vote** |
 
-Colourless costs are paid from any colour, so myrs and points are affordable if the team
-has fought anywhere at all. Enchantments demand their own colour, which is what makes
-lane choice strategic rather than only tactical.
+Colourless costs are paid from any colour, so myrs, points and repairs are affordable if
+the team has fought anywhere at all. Enchantments demand their own colour, which is what
+makes lane choice strategic rather than only tactical.
+
+**Crystal maximum health does NOT scale with player count**, and repair is a purchase
+rather than a handout. The crystal is one shared objective, not a per-player resource:
+five players do not get five crystals, they get five defenders for the same one, and
+scaling its health would make each leak matter *less* exactly when the team has more
+people available to prevent it. It would also make the number unlearnable, which is the
+same mistake enemy damage scaling made.
+
+Instead, leakage is undone by spending the pool the team wanted for enchantments. That
+trade - "do we fix the crystal or buy Furnace of Rath?" - is the interesting decision,
+and it scales on its own: more players earn more mana, so more repair is affordable.
+Repair is any-player rather than a vote because in an emergency you want whoever notices
+to be able to act.
 
 ---
 
