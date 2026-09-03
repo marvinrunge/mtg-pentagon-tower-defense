@@ -26,6 +26,8 @@ extends RefCounted
 ## to see the latest source; read it with FileAccess and compile a class_name-
 ## stripped throwaway GDScript instead (see .agents/learnings.md).
 
+const AnimationImpact = preload("res://tools/animation_impact.gd")
+
 const ANIM_ROOT := "res://assets/animations/character/"
 const CHAR_ROOT := "res://assets/enemies/"
 const WEAPON_ROOT := "res://assets/weapons/"
@@ -50,9 +52,13 @@ const RACE_BY_COLOR := {
 
 ## animation-set name -> clip slot -> source fbx (or OWN_MESH_CLIP).
 const CLIP_SETS := {
+	# Attack borrowed from standing_melee per the user's instruction (2026-09-02)
+	# that the human's own swing reads as too strange - it is a shield-bash-then-slash
+	# that measured two impacts, at 25% and 55%, against the one clean strike at 40%
+	# every other melee enemy uses. Walk/hit/death stay sword-and-shield's own.
 	"sword_and_shield": {
 		"walk": ANIM_ROOT + "sword_and_shield/walk.fbx",
-		"attack": ANIM_ROOT + "sword_and_shield/attack.fbx",
+		"attack": ANIM_ROOT + "standing_melee/attack.fbx",
 		"hit": ANIM_ROOT + "sword_and_shield/hit.fbx",
 		"death": ANIM_ROOT + "sword_and_shield/death.fbx",
 	},
@@ -205,6 +211,11 @@ static func _build_character(color: String, race: String, class_suffix: String, 
 		anim_player.remove_animation_library(lib_name)
 
 	var library: AnimationLibrary = _ground_correct_library(template, anim_player, root, skeleton)
+	# Records where the swing actually connects, so EnemyBase can pay the hit out on
+	# that frame instead of on the frame the swing started. Measured after grounding
+	# because that is the clip that ships; the vertical shift is a constant and does
+	# not move the peak either way.
+	var impact_ratio: float = AnimationImpact.annotate(library, "attack", skeleton, anim_player, root)
 	var output_name: String = "%s_%s" % [race, class_suffix]
 	var library_path: String = ANIM_ROOT + "lib_%s.tres" % output_name
 	if ResourceSaver.save(library, library_path) != OK:
@@ -232,7 +243,7 @@ static func _build_character(color: String, race: String, class_suffix: String, 
 		push_error("ResourceSaver.save failed for %s" % output_name)
 		return false
 
-	print("Saved ", output_path, " (set=", config["set"], ")")
+	print("Saved ", output_path, " (set=", config["set"], ", attack impact at ", "%.0f%%" % (impact_ratio * 100.0), ")")
 	root.queue_free()
 	return true
 

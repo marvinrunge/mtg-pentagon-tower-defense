@@ -64,6 +64,15 @@ var _special_indicator: AttackIndicator
 var damage_penalty: float = 0.0
 var penalty_timer: float = 0.0
 var attack_cooldown: float = 0.0
+## Seconds until the swing in flight actually connects, or -1 when nothing is in
+## flight. An attack used to pay out on the frame it STARTED, which left its impact
+## sound - and its damage - landing while the weapon was still behind the enemy's
+## head. The clip now carries the frame it connects on, measured at build time by
+## tools/animation_impact.gd, and this is that moment counting down.
+var _impact_timer: float = -1.0
+## Seconds of flinch left, and the gap before another one may start.
+var _hit_react_timer: float = 0.0
+var _hit_react_cooldown: float = 0.0
 var frost_slow_timer: float = 0.0
 var path_update_timer: float = 0.0
 
@@ -212,6 +221,17 @@ func _physics_process(delta: float) -> void:
 			
 	if attack_cooldown > 0:
 		attack_cooldown -= delta
+
+	if _hit_react_cooldown > 0.0:
+		_hit_react_cooldown -= delta
+	if _hit_react_timer > 0.0:
+		_hit_react_timer -= delta
+
+	if _impact_timer >= 0.0:
+		_impact_timer -= delta
+		if _impact_timer <= 0.0:
+			_impact_timer = -1.0
+			_resolve_attack_impact()
 		
 	if enemy_data.enemy_class == "Mage":
 		cast_timer -= delta
@@ -273,6 +293,14 @@ func _physics_process(delta: float) -> void:
 	# look planted while the character visibly slides).
 	var is_attack_swing_playing: bool = visual_anim_player != null and visual_anim_player.current_animation == "attack" and visual_anim_player.is_playing()
 	if freeze_timer > 0 or stun_timer > 0 or is_attack_swing_playing:
+		# A shooter keeps tracking through its own wind-up. Its projectile leaves on a
+		# measured frame partway into the clip (see _resolve_attack_impact), and that
+		# shot is aimed from live positions - so a body still pointing where the target
+		# stood when the animation started reads as firing sideways. A melee swing is
+		# deliberately NOT tracked: committing to a direction is what makes stepping
+		# out of one work. Frozen or stunned, nothing turns at all.
+		if is_attack_swing_playing and freeze_timer <= 0 and stun_timer <= 0 and _tracks_target_while_attacking():
+			_face_target(delta)
 		velocity.x = 0.0
 		velocity.z = 0.0
 		move_and_slide()
@@ -292,7 +320,7 @@ func _physics_process(delta: float) -> void:
 		
 		if velocity.length_squared() > 0.01:
 			var target_rotation = atan2(velocity.x, velocity.z)
-			rotation.y = lerp_angle(rotation.y, target_rotation, 8.0 * delta)
+			rotation.y = lerp_angle(rotation.y, target_rotation, GameSettings.enemy_turn_speed * delta)
 			
 		move_and_slide()
 	else:
@@ -306,22 +334,46 @@ func _physics_process(delta: float) -> void:
 			_update_visual_animation()
 			return
 
-		if is_instance_valid(current_target):
-			var dir_to_target: Vector3 = (current_target.global_position - global_position).normalized()
-			if dir_to_target.length_squared() > 0.01:
-				var target_rotation: float = atan2(dir_to_target.x, dir_to_target.z)
-				rotation.y = lerp_angle(rotation.y, target_rotation, 8.0 * delta)
+		_face_target(delta)
 
 		if attack_cooldown <= 0 and blind_timer <= 0:
 			perform_attack()
 
 	_update_visual_animation()
 
+## Turns towards whatever this enemy is currently attacking. No-ops without a live
+## target, so callers do not each need their own validity check.
+func _face_target(delta: float) -> void:
+	if not is_instance_valid(current_target):
+		return
+	var to_target: Vector3 = current_target.global_position - global_position
+	to_target.y = 0.0
+	if to_target.length_squared() <= 0.0001:
+		return
+	var target_rotation: float = atan2(to_target.x, to_target.z)
+	rotation.y = lerp_angle(rotation.y, target_rotation, GameSettings.enemy_turn_speed * delta)
+
+
+## Whether this class attacks at range rather than by connecting with something.
+## Shooters keep aiming while their attack clip plays, because they release partway
+## through it - anything that swings a weapon does not, because a swing that tracked
+## its target could never be side-stepped - and they make a release noise rather than
+## a swing-and-impact pair.
+func _is_shooter() -> bool:
+	return enemy_data != null and (enemy_data.enemy_class == "Ranged" or enemy_data.enemy_class == "Mage")
+
+
+func _tracks_target_while_attacking() -> bool:
+	return _is_shooter()
+
+
 func _update_visual_animation() -> void:
 	if not visual_anim_player:
 		return
-	if knockback_velocity.length_squared() > 0.1 and _reaction_clip != "":
-		_play_visual_animation(_reaction_clip)
+	if (_hit_react_timer > 0.0 or knockback_velocity.length_squared() > 0.1) and _reaction_clip != "":
+		# Squeezed into the flinch window the same way the player's reactions are:
+		# the raw clips run about a second, which is far too long to hand over.
+		_play_visual_animation(_reaction_clip, _reaction_speed_scale())
 	elif visual_anim_player.current_animation == "attack" and visual_anim_player.is_playing():
 		pass # Let the attack swing finish before switching states.
 	elif Vector2(velocity.x, velocity.z).length_squared() > 0.01:
@@ -329,9 +381,19 @@ func _update_visual_animation() -> void:
 	else:
 		_rest_visual_animation()
 
-func _play_visual_animation(anim_name: String) -> void:
+func _play_visual_animation(anim_name: String, speed_scale: float = -1.0) -> void:
+	var speed: float = _anim_speed_scale if speed_scale <= 0.0 else speed_scale
 	if visual_anim_player.current_animation != anim_name or not visual_anim_player.is_playing():
-		visual_anim_player.play(anim_name, -1, _anim_speed_scale)
+		visual_anim_player.play(anim_name, -1, speed)
+
+
+## Playback rate that fits the flinch clip into enemy_hit_react_duration, scaled by
+## this enemy's own animation pace so a boss still flinches ponderously.
+func _reaction_speed_scale() -> float:
+	var clip: Animation = visual_anim_player.get_animation(_reaction_clip)
+	if clip == null or clip.length <= 0.0:
+		return _anim_speed_scale
+	return maxf(clip.length / maxf(GameSettings.enemy_hit_react_duration, 0.05), 0.05) * _anim_speed_scale
 
 ## Whichever name this enemy's animation library uses for its damage reaction.
 func _resolve_reaction_clip() -> String:
@@ -434,6 +496,10 @@ func _process_special(delta: float) -> void:
 func _resolve_special() -> void:
 	_special_resolved = true
 	_special_cooldown_timer = GameSettings.boss_special_cooldown
+	# Sounded from the boss's own feet rather than from whatever it caught: every
+	# special is a slam, a sweep or a landing centred on the boss, and it makes that
+	# noise whether or not anyone was still standing in the circle.
+	SoundBank.play_at(&"heavy_landing", global_position)
 
 	if _special_indicator and is_instance_valid(_special_indicator):
 		_special_indicator.resolve()
@@ -545,28 +611,70 @@ func perform_attack() -> void:
 
 	# Every class now has a real "attack" clip (Ranged/Mage previously fired with
 	# no visual windup at all - their models only got real animations recently).
+	var impact_ratio: float = 0.5
 	if visual_anim_player and visual_anim_player.has_animation("attack"):
 		# Match the swing's playback speed to the actual attack cadence so it always
 		# finishes exactly as the next attack fires, instead of restarting mid-swing.
 		var attack_anim: Animation = visual_anim_player.get_animation("attack")
 		var speed_scale: float = attack_anim.length / attack_cooldown if attack_cooldown > 0.0 else 1.0
 		visual_anim_player.play("attack", -1, speed_scale)
+		impact_ratio = float(attack_anim.get_meta("hit_ratio", 0.5))
 
-	if enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged":
+	# A shooter's noise is its release, which happens partway into the clip; everyone
+	# else is swinging something, and that is heard now whether or not it connects.
+	if not _is_shooter():
+		SoundBank.play_at(&"blunt_swing", global_position)
+
+	# Nothing lands yet. The swing is stretched to fill exactly one attack cooldown,
+	# so the measured fraction converts straight into seconds from here, and what the
+	# swing commits to is settled in _resolve_attack_impact.
+	_impact_timer = maxf(impact_ratio * attack_cooldown, 0.01)
+
+
+## The frame the swing in flight connects on. What that means depends on the class:
+## a shooter releases its projectile, everyone else lands - or misses - a hit.
+##
+## Re-checking the target here rather than trusting the one picked when the swing
+## started is the point of moving the payout. The enemy is rooted for the whole
+## swing (see the is_attack_swing_playing guard in _physics_process), so a target
+## that walks out of reach during the wind-up now escapes the hit instead of being
+## struck from across the gap; GameSettings.enemy_attack_impact_range_grace is the
+## forgiveness on that.
+func _resolve_attack_impact() -> void:
+	if is_dying or enemy_data == null:
+		return
+
+	if _is_shooter():
+		if not is_instance_valid(current_target):
+			return
+		SoundBank.play_at(&"arrow_shot", global_position)
 		fire_projectile()
 		return
 
-	var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
+	var reach: float = enemy_data.attack_range * GameSettings.enemy_attack_impact_range_grace
+	if not is_instance_valid(current_target) or global_position.distance_to(current_target.global_position) > reach:
+		# Missed. The swing through the air was already heard when it started, and
+		# nothing arrives after it.
+		return
+
+	var actual_damage: float = max(0.0, enemy_data.attack_damage - damage_penalty)
 	if current_target == target_crystal:
 		actual_damage *= elite_crystal_damage_multiplier
 	actual_damage *= GameSettings.get_player_scaling_factor(get_tree())
-	
+
+	# The crystal has no take_damage() of its own - it is hit through the bus - but a
+	# weapon landing on it still sounds like a weapon landing.
 	if current_target == target_crystal:
+		SoundBank.play_at(&"blunt_hit", current_target.global_position)
 		SignalBus.crystal_damaged.emit(actual_damage)
-	elif current_target.has_method("take_damage"):
+		return
+
+	if current_target.has_method("take_damage"):
+		SoundBank.play_at(&"blunt_hit", current_target.global_position)
 		current_target.take_damage(actual_damage, self, true)
 		if enemy_data.enemy_class == "Boss" and current_target.is_in_group("player"):
 			_request_camera_shake(false)
+
 
 func fire_projectile() -> void:
 	var proj = ProjectilePool.get_projectile()
@@ -724,13 +832,38 @@ func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false) 
 	SignalBus.damage_number_requested.emit(spawn_pos, amount, Color(1.0, 0.95, 0.2))
 	if health <= 0.0:
 		die()
+		return
+	_react_to_hit(damage_dealt)
+
+
+## Starts the flinch, if the hit was worth flinching at. Driven from take_damage
+## rather than from knockback, which is what it used to key off: a shooter standing
+## its ground is the enemy most often shot at and the one least often knocked back,
+## so it never visibly reacted to anything.
+func _react_to_hit(damage_dealt: float) -> void:
+	if _reaction_clip == "" or enemy_data == null:
+		return
+	if _hit_react_cooldown > 0.0:
+		return
+	if damage_dealt < enemy_data.health * GameSettings.enemy_hit_react_damage_pct:
+		return
+	_hit_react_timer = GameSettings.enemy_hit_react_duration
+	_hit_react_cooldown = GameSettings.enemy_hit_react_cooldown
+	if GameSettings.enemy_hit_react_interrupts_attack:
+		# The swing is dropped along with the pose that was building it. Damage is
+		# scheduled separately from the animation now, so without this the enemy
+		# would flinch and still land the hit it was in the middle of.
+		_impact_timer = -1.0
 
 func die() -> void:
 	if enemy_data:
 		SignalBus.enemy_died.emit()
 
-	# Dying mid-windup drops the telegraph without dealing its damage.
+	# Dying mid-windup drops the telegraph without dealing its damage - and the same
+	# goes for an ordinary swing whose impact frame has not arrived yet.
 	_cancel_special()
+	_impact_timer = -1.0
+	_hit_react_timer = 0.0
 
 	if visual_anim_player and visual_anim_player.has_animation("death"):
 		is_dying = true

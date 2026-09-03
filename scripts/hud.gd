@@ -30,6 +30,7 @@ class_name HUD
 @onready var glow_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/GlowCheckbox
 @onready var vsync_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/VSyncCheckbox
 @onready var show_fps_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ShowFpsCheckbox
+@onready var free_skills_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/FreeSkillsCheckbox
 @onready var fps_label: Label = $Control/FpsLabel
 @onready var renderer_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RendererOption
 @onready var restart_required_label: Label = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RestartRequiredLabel
@@ -243,6 +244,16 @@ func _on_attack_indicators_toggled(button_pressed: bool) -> void:
 func _on_camera_shake_toggled(button_pressed: bool) -> void:
 	GameSettings.camera_shake_enabled = button_pressed
 
+
+## Debug: makes every skill-tree node free and ungated. The tree redraws itself off
+## the mana_changed signal, so nudging it is what repaints the nodes that just became
+## affordable without waiting for the next mana pickup.
+func _on_free_skills_toggled(button_pressed: bool) -> void:
+	GameSettings.debug_free_skills = button_pressed
+	var main_controller: Node = get_tree().current_scene
+	if main_controller != null and "mana_pool" in main_controller:
+		SignalBus.mana_changed.emit(main_controller.mana_pool)
+
 func _on_minimap_size_changed(value: float) -> void:
 	minimap.custom_minimum_size = Vector2(value, value)
 
@@ -277,6 +288,9 @@ func _setup_graphics_settings() -> void:
 	renderer_option.select(maxi(method_idx, 0))
 	_applying_preset = false
 	_update_restart_notice()
+
+	free_skills_checkbox.button_pressed = GameSettings.debug_free_skills
+	free_skills_checkbox.toggled.connect(_on_free_skills_toggled)
 
 	quality_preset_option.item_selected.connect(_on_quality_preset_selected)
 	render_scale_slider.value_changed.connect(_on_render_scale_changed)
@@ -346,7 +360,7 @@ func _on_apply_restart_pressed() -> void:
 
 func _on_at_base_changed(is_at_base: bool) -> void:
 	if interact_label:
-		interact_label.text = "Press [F] to Manage Base"
+		interact_label.text = "Press [E] to Manage Base"
 		interact_label.visible = is_at_base
 
 func _on_interact_prompt_changed(text: String, visible: bool) -> void:

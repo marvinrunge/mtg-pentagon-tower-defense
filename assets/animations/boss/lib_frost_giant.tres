@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" format=3 uid="uid://dp3nype23j4wf"]
+[gd_resource type="AnimationLibrary" format=3]
 
 [sub_resource type="Animation" id="Animation_wwixu"]
 resource_name = "mixamo_com"
@@ -248,6 +248,7 @@ tracks/34/path = NodePath("Skeleton3D:mixamorig_RightHandIndex3")
 tracks/34/interp = 1
 tracks/34/loop_wrap = true
 tracks/34/keys = PackedFloat32Array(0, 1, 0.26857543, -0.058070734, -0.33306462, 0.90197724)
+metadata/hit_ratio = 0.36764705005814047
 
 [sub_resource type="Animation" id="Animation_qp06q"]
 resource_name = "mixamo_com"

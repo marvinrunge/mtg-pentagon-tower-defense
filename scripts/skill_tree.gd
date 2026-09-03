@@ -2,6 +2,18 @@ extends CanvasLayer
 class_name SkillTree
 
 const COLOR_NAMES: Array[String] = ["white", "blue", "black", "red", "green"]
+## The hub at the middle of the pentagon. It belongs to no colour and gates no
+## spell - it is the one colourless purchase, paid for out of any mana, and it
+## lengthens the player's light attack chain by a stage.
+const CENTER_KEY: String = "center"
+const CENTER_BRANCH: int = -1
+const CENTER_INFO: Dictionary = {
+	"id": "melee_combo",
+	"name": "Blade Dance",
+	"desc": "Extends the light attack chain with a third strike that lands harder.",
+	"is_affinity": false,
+	"is_center": true,
+}
 const COLOR_DISPLAY: Dictionary = {
 	"white": "White", "blue": "Blue", "black": "Black", "red": "Red", "green": "Green",
 }
@@ -25,44 +37,8 @@ const AFFINITY_DATA: Dictionary = {
 	"red": {"name": "Reckless Charge", "mechanic": "+% Total Damage", "flavor": "Explosive aggression, raw power, and volatility."},
 	"green": {"name": "Wild Growth", "mechanic": "+% Maximum HP", "flavor": "Primal vitality, physical mass, and resilience."},
 }
-const SPELL_DATA: Dictionary = {
-	"white": [
-		{"id": "white_1", "name": "Swords to Plowshares", "cost": 1, "desc": "Radiant projectile dealing maximum-HP damage or healing an ally."},
-		{"id": "white_2", "name": "Path to Exile", "cost": 3, "desc": "Charged execute projectile that leaves a holy trail."},
-		{"id": "white_3", "name": "Wrath of God", "cost": 7, "desc": "Charged nova that heals allies, damages enemies, and blinds."},
-		{"id": "white_4", "name": "Pacifism", "cost": 15, "desc": "Reduces enemy damage and clears its current aggro."},
-		{"id": "white_5", "name": "Gideon's Reproach", "cost": 30, "desc": "Reflects a portion of incoming damage for a short duration."},
-	],
-	"blue": [
-		{"id": "blue_1", "name": "Unsummon", "cost": 1, "desc": "Damaging force projectile with obstacle-impact damage."},
-		{"id": "blue_2", "name": "Aetherize", "cost": 3, "desc": "Charged frontal wave that throws enemies backward."},
-		{"id": "blue_3", "name": "Psionic Blast", "cost": 7, "desc": "Powerful long-range strike with a self-HP cost."},
-		{"id": "blue_4", "name": "Freeze Breath", "cost": 15, "desc": "Builds Chill stacks that trigger a freezing Shatter blast."},
-		{"id": "blue_5", "name": "Counterspell", "cost": 30, "desc": "Briefly negates a hit and clears active spell cooldowns."},
-	],
-	"black": [
-		{"id": "black_1", "name": "Drain Life", "cost": 1, "desc": "Damaging projectile that returns health to its caster."},
-		{"id": "black_2", "name": "Toxic Deluge", "cost": 3, "desc": "Sacrifices current HP to create a charged poison zone."},
-		{"id": "black_3", "name": "Doom Blade", "cost": 7, "desc": "Heavy strike that curses the target to take more damage."},
-		{"id": "black_4", "name": "Tendrils of Agony", "cost": 15, "desc": "Life drain that chains after another recent spell cast."},
-		{"id": "black_5", "name": "Sign in Blood", "cost": 30, "desc": "Sacrifices current HP to reset the other cooldowns."},
-	],
-	"red": [
-		{"id": "red_1", "name": "Shock / Lightning Bolt", "cost": 1, "desc": "Fast direct-damage projectile that can gain a chain hit."},
-		{"id": "red_2", "name": "Fireball", "cost": 3, "desc": "Charged explosive projectile with a scaling blast radius."},
-		{"id": "red_3", "name": "Rain of Ember", "cost": 7, "desc": "Ground-targeted fire zone that burns enemies over time."},
-		{"id": "red_4", "name": "Act of Treason", "cost": 15, "desc": "Short-range strike with knockback and stun."},
-		{"id": "red_5", "name": "Chandra's Ignition", "cost": 30, "desc": "Large fiery shockwave that damages and pushes enemies."},
-	],
-	"green": [
-		{"id": "green_1", "name": "Titanic Growth", "cost": 1, "desc": "Frontal cleave whose damage scales with maximum HP."},
-		{"id": "green_2", "name": "Hurricane / Entangle", "cost": 3, "desc": "Charged rooting field with persistent poison damage."},
-		{"id": "green_3", "name": "Overrun", "cost": 7, "desc": "Forward trampling dash with damage and knockback."},
-		{"id": "green_4", "name": "Rabid Bite", "cost": 15, "desc": "Heavy bite that heals when used against a rooted enemy."},
-		{"id": "green_5", "name": "Briar Patch", "cost": 30, "desc": "Reflects a portion of incoming melee damage."},
-	],
-}
-
+# Spell rows come from SpellDatabase - names, costs and descriptions used to be
+# duplicated here and drifted from the versions in player.gd and game_settings.gd.
 @onready var control_root: Control = $Control
 
 var _board: Control
@@ -70,7 +46,6 @@ var _outer_line: Line2D
 var _branch_lines: Dictionary = {}
 var _button_records: Array[Dictionary] = []
 var _texture_cache: Dictionary = {}
-var _center_icon: TextureRect
 var _detail_panel: PanelContainer
 var _detail_title: Label
 var _detail_status: Label
@@ -118,10 +93,10 @@ func _input(event: InputEvent) -> void:
 		_select_node(wrapi(_selected_color_index + 1, 0, COLOR_NAMES.size()), _selected_branch_index)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_up"):
-		_select_node(_selected_color_index, wrapi(_selected_branch_index - 1, 0, 6))
+		_select_node(_selected_color_index, wrapi(_selected_branch_index - 1, CENTER_BRANCH, 6))
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_down"):
-		_select_node(_selected_color_index, wrapi(_selected_branch_index + 1, 0, 6))
+		_select_node(_selected_color_index, wrapi(_selected_branch_index + 1, CENTER_BRANCH, 6))
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_accept"):
 		var record: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
@@ -136,7 +111,7 @@ func _select_node(color_index: int, branch_index: int) -> void:
 	var record: Dictionary = _find_record(color, branch_index)
 	if record.is_empty():
 		return
-	_show_details(color, branch_index, record["info"])
+	_show_details(record["color"], branch_index, record["info"])
 	_position_selection_ring(record["button"])
 
 func _position_selection_ring(button: TextureButton) -> void:
@@ -176,12 +151,9 @@ func _build_ui() -> void:
 		_board.add_child(branch_line)
 		_branch_lines[color] = branch_line
 
-	_center_icon = TextureRect.new()
-	_center_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_center_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	_center_icon.texture = _get_placeholder_texture("center", 0, "available")
-	_center_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_board.add_child(_center_icon)
+	var center_info: Dictionary = CENTER_INFO.duplicate()
+	center_info["cost"] = GameSettings.melee_combo_unlock_cost
+	_create_icon_node(CENTER_KEY, CENTER_BRANCH, center_info)
 
 	for color: String in COLOR_NAMES:
 		var affinity_info: Dictionary = AFFINITY_DATA[color].duplicate()
@@ -190,7 +162,7 @@ func _build_ui() -> void:
 		affinity_info["is_affinity"] = true
 		_create_icon_node(color, 0, affinity_info)
 
-		var spells: Array = SPELL_DATA[color]
+		var spells: Array = SpellDatabase.get_spells_for_color(color)
 		for spell_index: int in range(spells.size()):
 			var spell_info: Dictionary = spells[spell_index].duplicate()
 			spell_info["is_affinity"] = false
@@ -273,8 +245,11 @@ func _layout_nodes() -> void:
 	var inner_radius: float = outer_radius * 0.18
 	var outer_vertices := PackedVector2Array()
 
-	_center_icon.size = Vector2(48.0, 48.0)
-	_center_icon.position = center - _center_icon.size * 0.5
+	var center_record: Dictionary = _find_record(CENTER_KEY, CENTER_BRANCH)
+	if not center_record.is_empty():
+		var center_button: TextureButton = center_record["button"]
+		center_button.size = Vector2(48.0, 48.0)
+		center_button.position = center - center_button.size * 0.5
 
 	for color_index: int in range(COLOR_NAMES.size()):
 		var color: String = COLOR_NAMES[color_index]
@@ -308,6 +283,10 @@ func _layout_nodes() -> void:
 			_position_selection_ring(current_record["button"])
 
 func _find_record(color: String, branch_index: int) -> Dictionary:
+	# The hub sits under every colour: whichever branch the selection is on, stepping
+	# inward past the affinity node arrives at the same node.
+	if branch_index == CENTER_BRANCH:
+		color = CENTER_KEY
 	for record: Dictionary in _button_records:
 		if record["color"] == color and record["branch_index"] == branch_index:
 			return record
@@ -325,18 +304,28 @@ func update_ui() -> void:
 		var color: String = record["color"]
 		var branch_index: int = record["branch_index"]
 		var info: Dictionary = record["info"]
+		if bool(info.get("is_center", false)):
+			var center_state: String = "available"
+			if bool(player.melee_combo_extended):
+				center_state = "unlocked"
+			elif not _affordable(_total_mana(mana_pool), int(info["cost"])):
+				center_state = "locked"
+			button.texture_normal = _get_placeholder_texture(color, branch_index, center_state)
+			button.texture_hover = _get_placeholder_texture(color, branch_index, "hover")
+			button.modulate = Color.WHITE
+			continue
+
 		var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
 		var state: String = "available"
 
 		if bool(info["is_affinity"]):
-			if available_mana < int(info["cost"]):
+			if not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
 		else:
 			var is_unlocked: bool = player.unlocked_spells_in_path.has(info["id"])
-			var gate_met: bool = player.get_affinity_rank(color) >= int(info["rank_requirement"])
 			if is_unlocked:
 				state = "unlocked"
-			elif not gate_met or available_mana < int(info["cost"]):
+			elif not _gate_met(player, color, info) or not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
 
 		button.texture_normal = _get_placeholder_texture(color, branch_index, state)
@@ -352,9 +341,18 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	if not player or not main_controller:
 		return
 	var mana_pool: Dictionary = main_controller.mana_pool
-	var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
 	_hovered_record = {"color": color, "branch_index": branch_index, "info": info}
 	_detail_panel.show()
+
+	if bool(info.get("is_center", false)):
+		_detail_title.text = info["name"]
+		_detail_title.add_theme_color_override("font_color", Color(0.86, 0.84, 0.72))
+		var center_status: String = "UNLOCKED" if bool(player.melee_combo_extended) else "Cost %d mana of any colour" % int(info["cost"])
+		_detail_status.text = "%s  Mana %d" % [center_status, _total_mana(mana_pool)]
+		_detail_body.text = info["desc"]
+		return
+
+	var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
 	_detail_title.text = "%s - %s" % [COLOR_DISPLAY[color], info["name"]]
 	_detail_title.add_theme_color_override("font_color", COLOR_HEX[color])
 
@@ -368,7 +366,9 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 		var gate: int = int(info["rank_requirement"])
 		var unlocked: bool = player.unlocked_spells_in_path.has(info["id"])
 		var status: String = "UNLOCKED" if unlocked else "Requires affinity rank %d" % gate
-		_detail_status.text = "%s  %s  Cost %d mana  Cooldown %.1fs" % [COLOR_SYMBOL[color], status, int(info["cost"]), GameSettings.get_spell_cooldown(info["id"])]
+		if not unlocked and GameSettings.debug_free_skills:
+			status = "FREE (debug)"
+		_detail_status.text = "%s  %s  Cost %d mana  Cooldown %.1fs" % [COLOR_SYMBOL[color], status, int(info["cost"]), SpellDatabase.get_cooldown(info["id"])]
 		_detail_body.text = info["desc"]
 
 func _hide_details() -> void:
@@ -381,10 +381,20 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 	var main_controller = get_tree().current_scene
 	if not player or not main_controller or not main_controller.has_method("spend_mana_cost"):
 		return
+
+	if bool(info.get("is_center", false)):
+		if bool(player.melee_combo_extended):
+			return
+		# Colourless, so it draws from whichever pools happen to hold mana.
+		if _pay(main_controller, {"Colorless": int(info["cost"])}):
+			SignalBus.melee_combo_unlocked.emit()
+			update_ui()
+		return
+
 	var mana_key: String = COLOR_MANA[color]
 
 	if bool(info["is_affinity"]):
-		if main_controller.spend_mana_cost({mana_key: int(info["cost"])}):
+		if _pay(main_controller, {mana_key: int(info["cost"])}):
 			player.invest_affinity(color)
 			update_ui()
 		return
@@ -393,11 +403,37 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 		player.select_color_path(color)
 		update_ui()
 		return
-	if player.get_affinity_rank(color) < int(info["rank_requirement"]):
+	if not _gate_met(player, color, info):
 		return
-	if main_controller.spend_mana_cost({mana_key: int(info["cost"])}):
+	if _pay(main_controller, {mana_key: int(info["cost"])}):
 		SignalBus.spell_unlocked.emit(color, info["id"])
 		update_ui()
+
+
+## Charges for a node, or waves it through when the free-skills debug switch is on.
+## Every purchase goes through here so the switch cannot be half-applied - a node
+## that skipped the rank gate but still charged mana would be worse than either.
+func _pay(main_controller: Node, cost: Dictionary) -> bool:
+	if GameSettings.debug_free_skills:
+		return true
+	return bool(main_controller.spend_mana_cost(cost))
+
+
+func _gate_met(player: Node, color: String, info: Dictionary) -> bool:
+	if GameSettings.debug_free_skills:
+		return true
+	return player.get_affinity_rank(color) >= int(info["rank_requirement"])
+
+func _affordable(available: int, cost: int) -> bool:
+	return GameSettings.debug_free_skills or available >= cost
+
+
+func _total_mana(mana_pool: Dictionary) -> int:
+	var total: int = 0
+	for color: String in mana_pool.keys():
+		total += int(mana_pool[color])
+	return total
+
 
 func _get_next_rank_bonus(next_rank: int) -> float:
 	if next_rank <= 10:
@@ -442,6 +478,11 @@ func _get_placeholder_texture(color: String, branch_index: int, state: String) -
 func _is_placeholder_mark(offset: Vector2, branch_index: int) -> bool:
 	var abs_x: float = absf(offset.x)
 	var abs_y: float = absf(offset.y)
+	# Kept out of the match below rather than added as a case: a bare constant name
+	# in a match pattern reads as a binding, not a comparison.
+	if branch_index == CENTER_BRANCH:
+		# Crossed blades: the one node that is about melee rather than magic.
+		return (absf(abs_x - abs_y) < 3.0 and offset.length() < 21.0) or offset.length() < 4.0
 	match branch_index:
 		0:
 			return absf(offset.length() - 16.0) < 3.0 or (abs_x < 3.0 and abs_y < 10.0)

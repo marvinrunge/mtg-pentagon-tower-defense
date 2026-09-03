@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" format=3 uid="uid://g2ftj5titikr"]
+[gd_resource type="AnimationLibrary" format=3]
 
 [sub_resource type="Animation" id="Animation_s5scx"]
 resource_name = "mixamo_com"
@@ -374,6 +374,7 @@ tracks/52/path = NodePath("Skeleton3D:mixamorig_RightHandPinky3")
 tracks/52/interp = 1
 tracks/52/loop_wrap = true
 tracks/52/keys = PackedFloat32Array(0, 1, 0.34232727, -0.0014178194, 0.0873394, 0.9355115)
+metadata/hit_ratio = 0.27272728356448084
 
 [sub_resource type="Animation" id="Animation_pscm4"]
 resource_name = "mixamo_com"
@@ -1376,7 +1377,7 @@ tracks/52/keys = PackedFloat32Array(0, 1, 0.34236327, -0.0013591606, 0.087187156
 
 [sub_resource type="Animation" id="Animation_65bs5"]
 resource_name = "mixamo_com"
-length = 1.4333333333333331
+length = 1.4333333333333333
 loop_mode = 1
 tracks/0/type = "position_3d"
 tracks/0/imported = true

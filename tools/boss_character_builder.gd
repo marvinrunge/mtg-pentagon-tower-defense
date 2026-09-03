@@ -21,6 +21,8 @@ extends RefCounted
 ## lock; while the editor is open call BossCharacterBuilder.build_all() through
 ## Godot MCP's execute_editor_script instead.
 
+const AnimationImpact = preload("res://tools/animation_impact.gd")
+
 const ANIM_ROOT := "res://assets/animations/boss/"
 const LIBRARY_DIR := "res://assets/animations/boss/"
 const SCENE_DIR := "res://scenes/bosses/"
@@ -292,6 +294,12 @@ static func _build_boss(boss_name: String, mesh_fbx_path: String, template_libra
 		push_error("%s has no Skeleton3D" % mesh_fbx_path)
 		return false
 	var library: AnimationLibrary = _ground_correct_library(template_library, anim_player, root, skeleton)
+	# Records where the ordinary swing actually connects, so EnemyBase can pay the
+	# hit out on that frame instead of on the frame the swing started. The SPECIAL is
+	# deliberately not measured: its impact moment is authored in BossDatabase
+	# because it also sets how long the dodge indicator fills, and the leap-and-land
+	# specials connect with the whole body rather than with a limb a peak can see.
+	var impact_ratio: float = AnimationImpact.annotate(library, "attack", skeleton, anim_player, root)
 	var library_path: String = LIBRARY_DIR + "lib_%s.tres" % boss_name
 	var lib_save_result := ResourceSaver.save(library, library_path)
 	if lib_save_result != OK:
@@ -318,7 +326,7 @@ static func _build_boss(boss_name: String, mesh_fbx_path: String, template_libra
 		push_error("ResourceSaver.save failed for %s: %d" % [boss_name, save_result])
 		return false
 
-	print("Saved ", output_path)
+	print("Saved ", output_path, " (attack impact at ", "%.0f%%" % (impact_ratio * 100.0), ")")
 	root.queue_free()
 	return true
 

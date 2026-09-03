@@ -38,6 +38,12 @@ func _ready() -> void:
 
 	GraphicsSettings.apply_scene_dependent()
 
+	# The crystal hums for the whole match, from where it hangs rather than from the
+	# anchor on the floor beneath it - the sound is the levitation, not the base.
+	var crystal_visual: Node3D = nav_region.get_node_or_null("MainCrystal") as Node3D
+	if crystal_visual != null:
+		SoundBank.attach_loop(&"crystal_ambience", crystal_visual)
+
 	# Instantiate Base UI
 	if base_ui_scene:
 		base_ui_instance = base_ui_scene.instantiate()

@@ -69,6 +69,16 @@ After generation:
 - `scripts/wave_manager.gd`: wave composition, spawn timing, lane selection
 - `scripts/enemy_database.gd` and enemy data resources: enemy definitions
 - `scripts/projectile_pool.gd`: reusable projectile lifetime management
+- `scripts/player_animator.gd`: which player clip plays and how fast; owns `scenes/misc/player_visual.tscn`
+- `scripts/spell_database.gd`: the one definition of every player spell (cooldown, charge, cast clip/duration, rooting, commit)
+- `docs/SKILL_DESIGN.md`: the planned skill roster, skill tree and guild camps
+- `docs/ECONOMY.md`: where mana comes from, how it is collected and what it competes for
+- `docs/MULTIPLAYER_PLAN.md`: phased plan for five-player co-op, and the single-player assumptions it has to undo
+- `scripts/sound_bank.gd`: which file every game event sounds like, and the pooled voices that play it
+- `scripts/ember_fx.gd`: every fire effect (fireball trail/burst, Rain of Ember, flickering fire light) - see `docs/VFX_TEXTURES.md`
+- `tools/build_vfx_textures.gd`: regenerates the placeholder VFX textures in `assets/vfx/`
+- `tools/animation_impact.gd`: measures the frame an attack clip connects on; used by the enemy and boss builders
+- `tools/player_character_builder.gd`: builds the player visual + `assets/animations/player/lib_player.tres` from `assets/player/`
 - `scenes/main.tscn`: pentagonal map, five ordered lanes, navigation region, HUD
 
 The lane order is a contract: White, Blue, Black, Red, Green. Node paths, mana identity, and spawn indices depend on it.
@@ -87,5 +97,6 @@ Official references:
 
 - Godot latest documentation: https://docs.godotengine.org/en/latest/
 - Godot 3D import pipeline: https://docs.godotengine.org/en/latest/tutorials/assets_pipeline/importing_3d_scenes/index.html
+- Textures for VFX Database: https://simonschreibt.notion.site/Textures-for-VFX-Database-2c72eccccfa84a0eae927d778ad746cc
 - Meshy Text to 3D API: https://docs.meshy.ai/en/api/text-to-3d
 - VS Code MCP servers: https://code.visualstudio.com/docs/copilot/customization/mcp-servers

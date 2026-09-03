@@ -131,7 +131,7 @@ offset_bottom = 50.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_font_sizes/font_size = 20
-text = "Press [F] to Manage Base"
+text = "Press [E] to Manage Base"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -333,6 +333,18 @@ horizontal_alignment = 1
 [node name="ApplyRestartBtn" type="Button" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
 layout_mode = 2
 text = "Save & Quit to Apply"
+
+[node name="DebugSeparator" type="HSeparator" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="DebugHeaderLabel" type="Label" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
+layout_mode = 2
+text = "Debug"
+
+[node name="FreeSkillsCheckbox" type="CheckBox" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
+layout_mode = 2
+button_pressed = false
+text = "Free Skills (no mana, no rank gates)"
 
 [node name="GameOverPanel" type="PanelContainer" parent="Control" unique_id=987103810]
 visible = false

@@ -40,3 +40,13 @@ assets/*-melee/*_melee_texture_0.png*
 # renamed *_albedo.jpg loose file sitting next to it. tools/melee_character_builder.gd
 # builds the weapon material from *_albedo.jpg explicitly, so this is dead weight.
 assets/*-melee/weapon/*_weapon_base_color.jpg*
+
+# The player weapon glb embeds its own texture data, so Godot's importer re-extracts
+# the albedo as "<glb>_base_color.jpg" alongside the renamed *_albedo.jpg. Confirmed
+# byte-identical (md5 3e91b181a05a39ebb37e05ee6a8c34dd). Same story as the -melee
+# weapons above, just a path that glob does not reach.
+assets/weapons/player/player_weapon_base_color.jpg*
+
+# Meshy's raw download archive for the player mesh. Godot cannot read a zip, nothing
+# references it, and the extracted fbx/textures next to it are what the project uses.
+assets/player/*_texture_fbx.zip

@@ -11,6 +11,11 @@ var caster: Node3D = null
 var _tick_timer: float = 0.0
 var _life_timer: float = 0.0
 var visual: CSGCylinder3D
+## Only fire_rain builds these; the other zone types stay the plain disc they were.
+var _rain: GPUParticles3D
+var _ground_fire: GPUParticles3D
+var _light: OmniLight3D
+var _flicker_phase: float = 0.0
 
 func setup(p_type: String, p_radius: float, p_dps: float, p_duration: float, p_caster: Node3D = null) -> void:
 	zone_type = p_type
@@ -54,13 +59,75 @@ func _ready() -> void:
 		
 	visual.material = mat
 	add_child(visual)
+	if zone_type == "fire_rain":
+		_build_firestorm()
 	_life_timer = duration
+
+
+## Turns the flat disc into an actual firestorm: embers falling into it from above,
+## flames coming up off the ground, and a light that flickers with them so the effect
+## lands on everything standing in it rather than only on itself.
+##
+## Built here rather than authored as a scene because the zone's radius is a runtime
+## number - every emitter is sized from it, and a fixed .tscn would only ever be right
+## at one radius.
+func _build_firestorm() -> void:
+	# The disc itself becomes a soft scorch mark under the flames, rather than the
+	# whole effect: at the old opacity it read as a flat sticker once the particles
+	# were on top of it.
+	var disc_material: StandardMaterial3D = visual.material as StandardMaterial3D
+	disc_material.albedo_color = Color(0.75, 0.16, 0.03, 0.5)
+	disc_material.emission = Color(1.0, 0.35, 0.05)
+	disc_material.emission_energy_multiplier = 2.2
+	disc_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	disc_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	visual.height = 0.06
+
+	# A brighter rim, so the edge of the danger is readable from across the map -
+	# this zone is something the player has to place, and then avoid standing in.
+	var rim := CSGTorus3D.new()
+	rim.inner_radius = radius * 0.94
+	rim.outer_radius = radius
+	rim.sides = 8
+	rim.ring_sides = 6
+	var rim_material := StandardMaterial3D.new()
+	rim_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rim_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	rim_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	rim_material.albedo_color = Color(1.0, 0.55, 0.15, 0.85)
+	rim.material = rim_material
+	rim.position = Vector3(0.0, 0.08, 0.0)
+	add_child(rim)
+
+	_rain = EmberFx.build_rain(radius)
+	add_child(_rain)
+	_ground_fire = EmberFx.build_ground_fire(radius)
+	add_child(_ground_fire)
+
+	_light = EmberFx.build_fire_light(radius * 2.4, 3.0)
+	_light.position = Vector3(0.0, 1.6, 0.0)
+	add_child(_light)
+
+	# Nothing spawns at full strength: the storm rolls in over its first moments,
+	# which also stops the light from popping on.
+	scale = Vector3(0.4, 1.0, 0.4)
+	var tween := create_tween()
+	tween.tween_property(self, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 func _process(delta: float) -> void:
 	_life_timer -= delta
 	if _life_timer <= 0.0:
 		queue_free()
 		return
+
+	if _light != null:
+		_flicker_phase += delta
+		EmberFx.flicker(_light, _flicker_phase)
+	# Emitters stop early so the last embers in the air get to finish falling instead
+	# of vanishing with the zone.
+	if _life_timer < 0.6 and _rain != null and _rain.emitting:
+		_rain.emitting = false
+		_ground_fire.emitting = false
 		
 	_tick_timer += delta
 	if _tick_timer >= tick_interval:

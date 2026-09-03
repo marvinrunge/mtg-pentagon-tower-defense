@@ -20,6 +20,10 @@ var effect_multiplier: float = 1.0
 
 @onready var visual: CSGSphere3D = $Visual
 var projectile_material: StandardMaterial3D
+## Built once per pooled projectile and retinted per shot, rather than per spell:
+## these live and die with the pool entry, not with the bolt.
+var _trail: GPUParticles3D
+var _glow: OmniLight3D
 
 func _ready() -> void:
 	base_speed = GameSettings.projectile_base_speed
@@ -30,6 +34,13 @@ func _ready() -> void:
 	lifetime = base_lifetime
 	projectile_material = visual.material.duplicate() as StandardMaterial3D
 	visual.material = projectile_material
+	_trail = EmberFx.build_trail(28)
+	_trail.emitting = false
+	add_child(_trail)
+	_glow = OmniLight3D.new()
+	_glow.omni_range = 4.5
+	_glow.light_energy = 0.0
+	add_child(_glow)
 	body_entered.connect(_on_body_entered)
 
 func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = false, multiplier: float = 1.0, damage_override: float = -1.0, p_aoe_radius: float = 0.0, p_caster: Node3D = null) -> void:
@@ -98,10 +109,47 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 		
 	if damage_override >= 0.0:
 		damage = damage_override
-	
+
+	# Every bolt carries its own light and tail, tinted to match itself; the fireball
+	# just gets much more of both, because it is the one meant to look dangerous while
+	# it is still in the air.
+	_glow.light_color = mat.emission
+	_glow.light_energy = 3.2 if type == 4 else 1.4
+	_glow.omni_range = 6.5 if type == 4 else 3.5
+	# Tinting the RAMP rather than the mesh: the texture is white, and the ramp is
+	# what actually colours each particle. Only the fireball keeps the full fire
+	# gradient - everything else is a bolt of its own colour, fading out.
+	var trail_process: ParticleProcessMaterial = _trail.process_material
+	if type != 4:
+		var gradient := Gradient.new()
+		gradient.set_offset(0, 0.0)
+		gradient.set_color(0, Color(mat.emission, 1.0))
+		gradient.set_offset(1, 1.0)
+		gradient.set_color(1, Color(mat.emission.darkened(0.5), 0.0))
+		var ramp := GradientTexture1D.new()
+		ramp.gradient = gradient
+		trail_process.color_ramp = ramp
+	_trail.amount = 28 if type == 4 else 14
+	_trail.restart()
+	_trail.emitting = true
+
 	life_timer = base_lifetime
 
+## Only the enemy shots have recordings of their own; a spell's own effect is
+## already what the player hears, and firing an arrow sound off a fireball would be
+## worse than the silence.
+func _play_impact_sound() -> void:
+	if is_enemy:
+		SoundBank.play_at(&"arrow_hit", global_position)
+
+
 func deactivate() -> void:
+	# Only stopped, never hidden with the body: the tail still in the air belongs to
+	# where the bolt WAS, and clearing it outright snips the trail off mid-flight.
+	if _trail != null:
+		_trail.emitting = false
+	if _glow != null:
+		_glow.light_energy = 0.0
 	active = false
 	visible = false
 	caster_ref = null
@@ -148,6 +196,7 @@ func _on_body_entered(body: Node3D) -> void:
 			body.take_damage(damage, _get_caster(), false)
 		elif body.is_in_group("crystal_hitbox"):
 			SignalBus.crystal_damaged.emit(damage)
+		_play_impact_sound()
 		deactivate()
 		return
 
@@ -203,6 +252,14 @@ func _on_body_entered(body: Node3D) -> void:
 
 func _trigger_fireball_aoe() -> void:
 	var radius = aoe_radius if aoe_radius > 0.0 else GameSettings.spell_red_fireball_base_radius
+	var burst: Node3D = EmberFx.build_burst(radius)
+	get_tree().current_scene.add_child(burst)
+	burst.global_position = global_position
+	SoundBank.play_at(&"heavy_landing", global_position)
+	SignalBus.camera_shake_requested.emit(
+		GameSettings.spell_red_fireball_shake_strength,
+		GameSettings.spell_red_fireball_shake_duration
+	)
 	var enemies = get_tree().get_nodes_in_group("enemies")
 	for e in enemies:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:

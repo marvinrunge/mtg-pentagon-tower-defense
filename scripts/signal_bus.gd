@@ -12,6 +12,9 @@ signal game_over()
 signal enemy_died()
 signal skill_unlocked(color: String)
 signal spell_unlocked(color: String, spell_id: String)
+## The colourless skill-tree node at the centre of the pentagon: lengthens the
+## player's light attack chain from two stages to three.
+signal melee_combo_unlocked()
 signal color_path_chosen(color: String)
 signal spell_charge_changed(current_charge: float, max_charge: float, is_charging: bool)
 signal status_effect_applied(target: Node3D, effect_type: String, duration: float)

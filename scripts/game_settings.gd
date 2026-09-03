@@ -26,6 +26,195 @@ extends Node
 @export var player_base_hp_regen: float = 1.0
 
 # ============================================================
+# PLAYER CAMERA
+# ============================================================
+## Classic over-the-shoulder third person. The offset shifts the whole orbit to the
+## player's right so the character sits left of screen centre and the aim line stays
+## clear; the height is the point the camera orbits around; the distance is the
+## SpringArm3D's length, which still shortens automatically when geometry gets
+## between the camera and the player.
+##
+## Pulled in from 4.5 on 2026-08-30. The offset and height are not guesses: 0.85 at
+## 3.2 reproduces the 15-degree off-axis angle the old 1.2-at-4.5 rig framed the
+## character with, and 1.80 is what that rig's orbit height actually was once the
+## spring arm's own hidden +0.2 is folded in. So this is the same shot, just nearer.
+@export var player_camera_shoulder_offset: float = 0.85
+@export var player_camera_height: float = 1.80
+@export var player_camera_distance: float = 3.2
+
+# ============================================================
+# PLAYER ANIMATION
+# ============================================================
+## Seconds of uninterrupted standing still before the player plays one of the
+## "idle looking" variations instead of the plain idle loop.
+@export var player_idle_variation_delay_min: float = 8.0
+@export var player_idle_variation_delay_max: float = 16.0
+## How far a locomotion clip may be sped up or slowed down to match real velocity
+## before the feet start reading as skating either way.
+@export var player_locomotion_speed_min: float = 0.6
+@export var player_locomotion_speed_max: float = 1.8
+## Cross-fade lengths. Locomotion changes often, so it gets the longer blend;
+## a strike has to land on the frame it says it does.
+@export var player_anim_blend_locomotion: float = 0.16
+## Long enough that one swing chaining into the next reads as a blend rather than a
+## snap, short enough that a strike still lands on the frame it says it does.
+@export var player_anim_blend_action: float = 0.12
+
+# ============================================================
+# PLAYER MELEE COMBO
+# ============================================================
+## One stage of the light attack chain occupies this long; the stage is speed-scaled
+## onto it, so a full chain runs one of these per click regardless of how the clip
+## splits up.
+@export var player_swing_duration: float = 0.5
+## Swings fire when the attack button is RELEASED. A release before this counts as a
+## tap and swings light; at or after it, heavy. Nothing is in flight while the button
+## is down, so unlike the old fire-on-press scheme this has no upper bound tied to
+## the swing's impact frame - it only has to be long enough that a deliberate tap
+## does not overshoot it.
+@export var player_heavy_hold_time: float = 0.25
+## How long a resolved swing waits for the combo window to open before it is dropped.
+## Without this, releasing a fraction too early is silently ignored and the chain
+## feels like it is eating inputs.
+@export var player_attack_buffer_time: float = 0.25
+## The last FRACTION of a swing during which another attack chains instead of being
+## dropped. Every chained swing cuts the one before it short at exactly this point,
+## so a wide window throws the follow-through away on every hit of a combo: at 0.5
+## the swing was cut the instant it landed, which read as the animations being
+## truncated. 0.3 lets ~70% of each swing play. It costs nothing in feel because
+## player_attack_buffer_time already holds an early release until the window opens.
+@export var player_combo_window: float = 0.30
+## SECONDS after a swing ends that the recorded combo symbols survive. Kept separate
+## from player_combo_window, which is a fraction - the two used to be added together,
+## mixing units.
+@export var player_combo_grace: float = 0.45
+## The heavy attack is a full 360 spin (1.22s of usable clip) rather than a single
+## chop, so it gets its own, longer commitment instead of the light chain's cadence.
+@export var player_heavy_duration: float = 0.9
+## How long the heavy's wind-up can be held before it goes off on its own. The clip's
+## whole discarded lead-in is stretched across this, so a full charge is a slow raise
+## rather than a pose that snapped into place and then froze. Releasing early fires
+## early; the strike that follows is identical either way, so this buys the player
+## nothing but the timing.
+@export var player_heavy_charge_max: float = 1.0
+## How front-loaded the raise is inside that window. The wind-up's playback rate is
+## the derivative of `1 - (1 - t)^this`, so at 3.0 the axe comes up three times faster
+## than a flat rate at the start and has all but settled by two thirds through - which
+## is what a wind-up being HELD should feel like, rather than one steady crawl. 1.0 is
+## exactly the old flat rate; higher snaps harder and holds longer. The raise still
+## finishes exactly as the charge does, whatever this is set to.
+@export var player_heavy_charge_ease: float = 3.0
+@export var player_heavy_damage_mult: float = 1.6
+## Damage multiplier on the THIRD stage of the light chain, which only exists once
+## the chain extension has been bought in the skill tree.
+@export var player_combo_finisher_damage_mult: float = 1.5
+## Mana (any colour) the skill tree charges for that extension.
+@export var melee_combo_unlock_cost: int = 12
+## Seconds taken off every spell cooldown by each melee impact frame that connects.
+## This is the melee/spell interlock: swinging between casts brings them back faster.
+## Paid per impact frame, so a stage that lands two of them refunds twice over. A
+## whiff refunds nothing. The kick's own cooldown is never refunded (see
+## Player._reduce_spell_cooldowns).
+@export var melee_hit_cooldown_reduction: float = 0.35
+
+## Movement multiplier during a light attack STARTED ON THE MOVE, which is the only
+## melee move the player can walk through - it plays on the upper body while the legs
+## keep their walk cycle. A light attack started standing still takes the whole body
+## and holds the player there instead, as do heavy attacks, kicks and staggers (see
+## Player._advance_light_chain and Player._begin_action).
+@export var player_attack_move_mult: float = 1.0
+
+# ============================================================
+# SOUND EFFECTS
+# ============================================================
+## Voices SoundBank keeps alive. Positional ones carry world impacts; the flat ones
+## are for the few events with no place on the map. A wave lands far more hits than
+## this per second, but they overlap for a fraction of a second each - the pool only
+## has to cover that overlap, and the oldest voice is recycled past it.
+@export var sfx_positional_voices: int = 16
+@export var sfx_flat_voices: int = 4
+@export var sfx_volume_db: float = -6.0
+## Random detune either side of 1.0, so a handful of recordings survive being heard
+## thousands of times without reading as a loop.
+@export var sfx_pitch_jitter: float = 0.08
+## Minimum gap between two triggers of the SAME event. Thirty enemies connecting on
+## one frame is one impact sound, not thirty stacked into a clipping mess.
+@export var sfx_min_retrigger: float = 0.05
+## Beyond this the sound is inaudible; unit_size sets how quickly it falls off on
+## the way there.
+@export var sfx_max_distance: float = 45.0
+@export var sfx_unit_size: float = 8.0
+## A sustained ambience sits under the action rather than in it, so it is quieter
+## than an impact - but it carries further, because it is what tells the player
+## where the crystal is from across the map.
+@export var sfx_ambience_volume_db: float = -14.0
+@export var sfx_ambience_max_distance: float = 70.0
+
+## The kick a fireball detonation gives the camera. Still under the leap's slam - a
+## fireball usually goes off across the map rather than under the player's feet - but
+## well above a melee hit, because it is a detonation and should read as one.
+@export var spell_red_fireball_shake_strength: float = 0.45
+@export var spell_red_fireball_shake_duration: float = 0.35
+
+# ============================================================
+# GREEN: TITANIC LEAP
+# ============================================================
+## The launch impulse. Forward speed decides how far the leap carries; the rise is
+## tuned against the clip rather than to taste - the jump_attack clip lands its slam
+## at 79% of a 1.1s cast, i.e. 0.87s in, and at the engine's 9.8 gravity an initial
+## 4.25/s puts the character back on the floor at exactly that moment. Retune it
+## alongside spell green_1's cast_duration, never on its own.
+@export var spell_green_leap_speed: float = 11.0
+@export var spell_green_leap_rise: float = 4.25
+## How long the player's own movement input stays suspended. Ends early at the slam.
+@export var spell_green_leap_duration: float = 1.1
+## The slam. Heavy single-target damage spread over an area, which is what makes it
+## worth a leap rather than a swing.
+@export var spell_green_leap_damage: float = 90.0
+@export var spell_green_leap_radius: float = 6.0
+@export var spell_green_leap_knockback: float = 12.0
+## The hardest shake in the game, and the only one the player lands on themselves:
+## the slam happens directly under the camera, so it can carry more than a detonation
+## going off at range without reading as a glitch.
+@export var spell_green_leap_shake_strength: float = 0.75
+@export var spell_green_leap_shake_duration: float = 0.45
+
+# ============================================================
+# PLAYER KICK
+# ============================================================
+@export var spell_melee_kick_damage: float = 12.0
+@export var spell_melee_kick_range: float = 2.6
+@export var spell_melee_kick_knockback: float = 14.0
+@export var spell_cooldown_kick: float = 1.5
+
+# ============================================================
+# PLAYER BLOCK
+# ============================================================
+## Fraction of incoming damage a successful block removes.
+@export var player_block_damage_reduction: float = 0.8
+## Minimum dot() between the player's facing and the direction to the attacker for
+## a hit to count as coming from the front. 0.35 is roughly a 140-degree arc.
+@export var player_block_cone: float = 0.35
+@export var player_block_speed_mult: float = 0.4
+## Bosses swing straight through a guard - blocking one does nothing.
+@export var player_block_ignores_boss: bool = true
+## How long the guard-flinch clip is squeezed into. Does not take control away -
+## the player keeps blocking through it.
+@export var player_block_react_duration: float = 0.35
+
+# ============================================================
+# PLAYER HIT REACTION
+# ============================================================
+## A hit only staggers the player when it takes at least this fraction of max HP in
+## one go; chip damage would otherwise leave the character permanently flinching.
+@export var player_hit_react_damage_pct: float = 0.12
+## Minimum gap between staggers, so a burst of large hits can't lock the player out.
+@export var player_hit_react_cooldown: float = 1.2
+## How long a stagger takes control away. The raw reaction clips run 1.0-1.8s,
+## which would be punishing; they get squeezed into this instead.
+@export var player_hit_react_duration: float = 0.55
+
+# ============================================================
 # PLAYER SPELLS
 # ============================================================
 @export var spell_melee_range: float = 3.5
@@ -52,37 +241,8 @@ extends Node
 @export var affinity_rank_bonus_late: float = 0.005
 @export var affinity_spell_rank_requirements: Array[int] = [1, 5, 10, 15, 25]
 
-const SPELL_COOLDOWNS: Dictionary = {
-	"basic_attack": 0.5,
-	"red_1": 2.5,
-	"red_2": 5.0,
-	"red_3": 9.0,
-	"red_4": 7.0,
-	"red_5": 11.0,
-	"blue_1": 3.0,
-	"blue_2": 7.0,
-	"blue_3": 6.0,
-	"blue_4": 4.5,
-	"blue_5": 14.0,
-	"green_1": 2.0,
-	"green_2": 8.0,
-	"green_3": 7.0,
-	"green_4": 6.0,
-	"green_5": 16.0,
-	"white_1": 4.5,
-	"white_2": 8.0,
-	"white_3": 18.0,
-	"white_4": 10.0,
-	"white_5": 14.0,
-	"black_1": 4.0,
-	"black_2": 10.0,
-	"black_3": 7.0,
-	"black_4": 8.0,
-	"black_5": 20.0,
-}
-
-func get_spell_cooldown(spell_id: String) -> float:
-	return float(SPELL_COOLDOWNS.get(spell_id, 1.0))
+# Per-spell cooldowns moved to scripts/spell_database.gd, which owns one row per
+# spell. Tier costs stay here: they are shared tuning, not per-spell data.
 
 # --- MTG 5-Color Tier Costs ---
 const TIER_COSTS: Array[int] = [1, 3, 7, 15, 30, 50]
@@ -195,6 +355,31 @@ func get_tier_cost(tier_index: int) -> int:
 # ENEMIES
 # ============================================================
 @export var enemy_aggro_radius: float = 12.0
+## How much further than its own attack range an enemy may still connect at the
+## moment its swing actually lands. Damage now pays out on the clip's measured
+## impact frame rather than on the frame the swing started, so a target that walks
+## away during the wind-up escapes it - this is the forgiveness on that. Set it very
+## high to go back to the old "committed swings always hit" behaviour.
+@export var enemy_attack_impact_range_grace: float = 1.35
+## How fast an enemy swings its facing around, in lerp weight per second.
+@export var enemy_turn_speed: float = 8.0
+
+# --- enemy hit reaction ---
+# Every enemy library ships a flinch clip, but until 2026-09-02 it only ever played
+# while knockback was still carrying the body - so anything killed at range, which is
+# most of what a Mage or Ranged enemy ever takes, never visibly reacted at all.
+## A hit only flinches an enemy when it takes at least this fraction of its maximum
+## health in one go; chip damage would otherwise leave a wave permanently twitching.
+@export var enemy_hit_react_damage_pct: float = 0.08
+## Minimum gap between two flinches, so a fast weapon cannot chain them.
+@export var enemy_hit_react_cooldown: float = 1.0
+## How long the flinch takes; the clip is squeezed into it the same way the player's
+## reactions are.
+@export var enemy_hit_react_duration: float = 0.4
+## Whether a flinch also throws away the swing in flight. True is what "getting hit"
+## normally means, and the cooldown above is what keeps it from becoming a stunlock -
+## set false to make flinches purely cosmetic and leave the old balance untouched.
+@export var enemy_hit_react_interrupts_attack: bool = true
 @export var enemy_melee_detection_range: float = 15.0
 @export var enemy_ranged_detection_range: float = 35.0
 @export var enemy_target_eval_interval: float = 0.5
@@ -259,6 +444,13 @@ func get_tier_cost(tier_index: int) -> int:
 @export var camera_shake_light_strength: float = 0.12
 @export var camera_shake_light_duration: float = 0.22
 @export var camera_shake_frequency: float = 26.0
+## The player's own melee connecting. Much smaller than being hit: this fires on every
+## landed swing, several times a second through a chain, so anything larger reads as
+## the camera being broken rather than as weight.
+@export var camera_shake_melee_strength: float = 0.09
+## The heavy spin and the chain's third stage, which land far less often.
+@export var camera_shake_melee_heavy_strength: float = 0.2
+@export var camera_shake_melee_duration: float = 0.16
 
 # ============================================================
 # RUN REWARDS
@@ -298,6 +490,11 @@ func get_tier_cost(tier_index: int) -> int:
 # UI & DEBUG
 # ============================================================
 @export var show_damage_numbers: bool = true
+## Debug: everything in the skill tree is free and ungated. Costs nothing, requires
+## no affinity rank, and spends no mana - for trying builds out without farming them.
+## Deliberately not persisted: it resets to off every launch, so it cannot be left on
+## by accident. Toggled from the in-game options panel.
+@export var debug_free_skills: bool = false
 @export var damage_number_pool_size: int = 40
 @export var show_enemy_health_bars: bool = true
 @export var enemy_health_bar_height: float = 2.35
