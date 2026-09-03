@@ -15,6 +15,15 @@ var _done: bool = false
 var _failures: Array[String] = []
 var _player: Node = null
 var _scene: Node = null
+## Sections that ran all the way to their end.
+##
+## Without this the suite lies. A script error mid-section aborts that section, leaves
+## `_failures` empty, and the run prints PASS having checked nothing - which is exactly
+## what happened the first time the multicolour section was added, and exactly the class
+## of false green this whole file exists to prevent.
+var _completed: Array[String] = []
+
+const SECTIONS: Array[String] = ["white", "blue", "black", "red", "green", "capstones", "ranks", "multicolour"]
 
 
 func _process(_delta: float) -> void:
@@ -94,11 +103,22 @@ func _run() -> void:
 	_check_red()
 	_check_green()
 	_check_capstones()
+	_check_ranks()
+	_check_multicolour()
+
+	for section: String in SECTIONS:
+		if not _completed.has(section):
+			_failures.append("section '%s' did not finish - look for a SCRIPT ERROR above" % section)
 
 	if _failures.is_empty():
-		print("TEST RESULT: PASS (25 spells, 10 capstones)")
+		print("TEST RESULT: PASS (25 spells, 10 capstones, ranks, multicolour)")
 	else:
-		print("TEST RESULT: FAIL - %d did nothing: %s" % [_failures.size(), ", ".join(_failures)])
+		print("TEST RESULT: FAIL - %d failed: %s" % [_failures.size(), ", ".join(_failures)])
+
+
+## Called as the LAST line of every section. Reaching it is the proof the section ran.
+func _done_with(section: String) -> void:
+	_completed.append(section)
 
 
 func _check_white() -> void:
@@ -124,6 +144,7 @@ func _check_white() -> void:
 	_player.hp = 10.0
 	_cast("white_5")
 	_check("white_5 Rally the Fallen", _player.hp > 10.0, "no heal")
+	_done_with("white")
 
 
 func _check_blue() -> void:
@@ -156,6 +177,7 @@ func _check_blue() -> void:
 	var decoys: Array[Node] = _nodes_of("TemporaryAlly")
 	_check("blue_5 Phantasmal Decoy", decoys.size() == 1 and decoys[0].kind == "decoy", "no decoy")
 	_clear_spawned()
+	_done_with("blue")
 
 
 func _check_black() -> void:
@@ -197,6 +219,7 @@ func _check_black() -> void:
 	_check("black_5 Zombify", raised.size() >= 1 and raised[0].kind == "undead", "nothing raised")
 	_clear_spawned()
 	_clear_enemies()
+	_done_with("black")
 
 
 func _check_red() -> void:
@@ -231,6 +254,7 @@ func _check_red() -> void:
 		if child.name.begins_with("BoltTelegraph"):
 			telegraphs += 1
 	_check("red_5 Lightning Bolt", telegraphs > 0, "no telegraph")
+	_done_with("red")
 
 
 func _check_green() -> void:
@@ -262,6 +286,7 @@ func _check_green() -> void:
 	_cast("green_5")
 	_check("green_5 Ironbark", _player._ironbark_timer > 0.0 and _player.is_control_immune(), "not warded")
 	_player._ironbark_timer = 0.0
+	_done_with("green")
 
 
 func _check_capstones() -> void:
@@ -287,3 +312,181 @@ func _check_capstones() -> void:
 		"replaced by %s" % _player.unlocked_capstone_aura)
 	_player.unlocked_capstone_aura = ""
 	_player._sync_capstone_aura()
+	_done_with("capstones")
+
+# --- ranks ---------------------------------------------------------------------
+
+## Sets the player to exactly `rank` in `spell_id`, bypassing the tree. The purchase path
+## is covered by skill_purchase.gd; what this file cares about is whether the rank changes
+## what the spell DOES.
+func _set_rank(spell_id: String, rank: int) -> void:
+	_player.spell_ranks[spell_id] = rank
+	if not _player.unlocked_spells_in_path.has(spell_id):
+		_player.unlocked_spells_in_path.append(spell_id)
+
+
+## Casts once at rank 1 and once at rank 5 and hands both readings back, so each check
+## below is one line about which way the number should move.
+func _measure(spell_id: String, probe: Callable) -> Array:
+	_set_rank(spell_id, 1)
+	var low: float = float(probe.call())
+	_set_rank(spell_id, GameSettings.spell_max_rank)
+	var high: float = float(probe.call())
+	return [low, high]
+
+
+## Damage a single enemy takes from one cast. The enemy is fresh each time, so nothing
+## leaks between the two readings.
+func _damage_probe(spell_id: String, offset: Vector3) -> float:
+	var victim: EnemyBase = _spawn_enemy(offset)
+	var before: float = victim.health
+	_cast(spell_id)
+	var dealt: float = before - victim.health
+	_clear_enemies()
+	return dealt
+
+
+func _check_ranks() -> void:
+	print("RANKS")
+
+	# --- the three generic curves actually rise -------------------------------
+	_check("curve: damage rises", GameSettings.rank_damage_mult(5) > GameSettings.rank_damage_mult(1) * 1.9,
+		"x%.2f" % GameSettings.rank_damage_mult(5))
+	_check("curve: area rises", GameSettings.rank_area_mult(5) > GameSettings.rank_area_mult(1) * 1.5,
+		"x%.2f" % GameSettings.rank_area_mult(5))
+	_check("curve: duration rises", GameSettings.rank_duration_mult(5) > GameSettings.rank_duration_mult(1) * 1.4,
+		"x%.2f" % GameSettings.rank_duration_mult(5))
+
+	# --- DAMAGE, on one skill per colour that deals it ------------------------
+	var forward: Vector3 = -_player.transform.basis.z
+	for entry: Array in [
+		["white_4", Vector3(3.0, 0.0, 0.0)],
+		["blue_2", Vector3(3.0, 0.0, 0.0)],
+		["black_1", forward * 6.0],
+		["green_1", Vector3(2.0, 0.0, 0.0)],
+	]:
+		var readings: Array = _measure(entry[0], func() -> float: return _damage_probe(entry[0], entry[1]))
+		_check("%s damage scales" % entry[0], readings[1] > readings[0] * 1.5,
+			"%.0f -> %.0f" % [readings[0], readings[1]])
+
+	# --- AREA: an enemy outside the rank-1 radius is inside the rank-5 one ----
+	# Roar's radius is 14 at rank 1 and 22.4 at rank 5, so 18 units out is the honest
+	# test of whether the radius moved at all.
+	var far_enemy: EnemyBase = _spawn_enemy(Vector3(18.0, 0.0, 0.0))
+	_set_rank("green_4", 1)
+	_cast("green_4")
+	var taunted_at_1: bool = far_enemy.taunt_timer > 0.0
+	far_enemy.taunt_timer = 0.0
+	far_enemy.taunt_source = null
+	_set_rank("green_4", GameSettings.spell_max_rank)
+	_cast("green_4")
+	var taunted_at_5: bool = far_enemy.taunt_timer > 0.0
+	_check("green_4 radius scales", not taunted_at_1 and taunted_at_5,
+		"rank1=%s rank5=%s" % [taunted_at_1, taunted_at_5])
+	_clear_enemies()
+
+	# --- DURATION -------------------------------------------------------------
+	var ironbark: Array = _measure("green_5", func() -> float:
+		_player._ironbark_timer = 0.0
+		_cast("green_5")
+		return _player._ironbark_timer)
+	_check("green_5 duration scales", ironbark[1] > ironbark[0] * 1.4,
+		"%.1fs -> %.1fs" % [ironbark[0], ironbark[1]])
+
+	# --- FRACTIONS: must rise, and must NOT run past their ceiling ------------
+	var reduction: Array = _measure("green_5", func() -> float:
+		_cast("green_5")
+		return _player._ironbark_reduction)
+	_check("green_5 reduction walks to its ceiling",
+		reduction[1] > reduction[0] and is_equal_approx(reduction[1], GameSettings.spell_green_ironbark_reduction_max),
+		"%.2f -> %.2f (cap %.2f)" % [reduction[0], reduction[1], GameSettings.spell_green_ironbark_reduction_max])
+	_check("green_5 reduction never reaches immunity", reduction[1] < 1.0, "%.2f" % reduction[1])
+
+	var block: Array = _measure("white_3", func() -> float:
+		_cast("white_3")
+		return _player._reprisal_block_chance)
+	_check("white_3 block chance scales", block[1] > block[0] and block[1] <= 1.0,
+		"%.2f -> %.2f" % [block[0], block[1]])
+
+	# --- COUNTS ---------------------------------------------------------------
+	var charges: Array = _measure("white_1", func() -> float:
+		_cast("white_1")
+		return float(_player.exalted_charges))
+	_check("white_1 charges scale", charges[1] > charges[0], "%.0f -> %.0f" % [charges[0], charges[1]])
+
+	var raised_low: int = _raise_and_count(1)
+	var raised_high: int = _raise_and_count(GameSettings.spell_max_rank)
+	_check("black_5 raises more bodies", raised_high > raised_low, "%d -> %d" % [raised_low, raised_high])
+
+	# --- Kill is the one skill whose COOLDOWN is the rank curve ---------------
+	_set_rank("black_3", 1)
+	var cooldown_low: float = _player._get_spell_cooldown("black_3")
+	_set_rank("black_3", GameSettings.spell_max_rank)
+	var cooldown_high: float = _player._get_spell_cooldown("black_3")
+	_check("black_3 cooldown falls with rank", cooldown_high < cooldown_low * 0.8,
+		"%.0fs -> %.0fs" % [cooldown_low, cooldown_high])
+
+	# --- and a rank the player does not have must not scale anything ----------
+	_player.spell_ranks.erase("white_4")
+	var unowned: float = _damage_probe("white_4", Vector3(3.0, 0.0, 0.0))
+	_set_rank("white_4", 1)
+	var owned: float = _damage_probe("white_4", Vector3(3.0, 0.0, 0.0))
+	_check("an unowned spell casts at rank 1", is_equal_approx(unowned, owned),
+		"%.0f vs %.0f" % [unowned, owned])
+	_done_with("ranks")
+
+
+## Zombify at a given rank, returning how many undead it raised. Needs corpses, so it
+## makes more than the maximum any rank could consume.
+func _raise_and_count(rank: int) -> int:
+	_clear_spawned()
+	for i: int in range(GameSettings.spell_black_zombify_count_max + 2):
+		var corpse: EnemyBase = _spawn_enemy(Vector3(2.0 + float(i), 0.0, 2.0))
+		corpse._register_corpse()
+	_set_rank("black_5", rank)
+	_cast("black_5")
+	var raised: int = _nodes_of("TemporaryAlly").size()
+	_clear_spawned()
+	_clear_enemies()
+	return raised
+
+
+# --- multicolour ---------------------------------------------------------------
+
+func _check_multicolour() -> void:
+	print("MULTICOLOUR")
+	_player.spell_ranks.clear()
+	_player.unlocked_spells_in_path.clear()
+	_player.reset_quick_slots()
+
+	# A red main who also took one blue spell. This is the build the old single
+	# `chosen_color_path` made impossible: picking up blue_2 threw the red bar away.
+	for spell_id: String in ["red_1", "red_2", "red_3", "blue_2"]:
+		_player.grant_spell_rank(spell_id)
+
+	_check("newly bought spells bind themselves",
+		_player.quick_slots.slice(0, 4) == ["red_1", "red_2", "red_3", "blue_2"],
+		str(_player.quick_slots))
+
+	var castable: Array[String] = []
+	for slot: int in range(5):
+		if _player.is_spell_unlocked(slot):
+			castable.append(_player._get_spell_id_for_slot(slot))
+	_check("two colours are castable at once", castable.has("red_1") and castable.has("blue_2"),
+		str(castable))
+
+	# Selecting a colour used to REPLACE the bar. It must now only highlight.
+	_player.select_color_path("green")
+	_check("choosing a colour leaves the bar alone",
+		_player._get_spell_id_for_slot(0) == "red_1", _player._get_spell_id_for_slot(0))
+
+	# Rebinding swaps rather than duplicating.
+	_player.assign_quick_slot(0, "blue_2")
+	_check("rebinding swaps, never duplicates",
+		_player.quick_slots[0] == "blue_2" and _player.quick_slots[3] == "red_1",
+		str(_player.quick_slots))
+
+	_check("an unowned spell cannot be bound",
+		not _player.assign_quick_slot(4, "black_5") and _player.quick_slots[4] == "",
+		str(_player.quick_slots))
+	_done_with("multicolour")

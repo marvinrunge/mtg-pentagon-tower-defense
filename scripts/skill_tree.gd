@@ -69,6 +69,8 @@ func _ready() -> void:
 	SignalBus.mana_changed.connect(func(_pool: Dictionary): update_ui())
 	SignalBus.skill_unlocked.connect(func(_color: String): update_ui())
 	SignalBus.spell_unlocked.connect(func(_color: String, _spell_id: String): update_ui())
+	SignalBus.spell_rank_changed.connect(func(_spell_id: String, _rank: int): update_ui())
+	SignalBus.quick_slots_changed.connect(update_ui)
 	_build_ui()
 	update_ui()
 
@@ -108,6 +110,14 @@ func _input(event: InputEvent) -> void:
 		var record: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
 		if not record.is_empty():
 			_on_node_pressed(record["color"], record["branch_index"], record["info"])
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo \
+			and event.keycode >= KEY_1 and event.keycode <= KEY_5:
+		# Number keys bind whatever the pointer or the selection is on to that hotbar
+		# slot. This is the whole loadout UI: the alternative was a drag-and-drop bar,
+		# and the keys being bound ARE the keys you press to cast, which is easier to
+		# explain than any widget would be.
+		_bind_hovered_to_slot(event.keycode - KEY_1)
 		get_viewport().set_input_as_handled()
 
 func _select_node(color_index: int, branch_index: int) -> void:
@@ -213,7 +223,51 @@ func _create_icon_node(color: String, branch_index: int, info: Dictionary) -> vo
 	button.mouse_exited.connect(_hide_details)
 	button.pressed.connect(_on_node_pressed.bind(color, branch_index, info))
 	_board.add_child(button)
-	_button_records.append({"button": button, "color": color, "branch_index": branch_index, "info": info})
+
+	# Rank and hotbar key, drawn on the node itself. A tree where you have to hover every
+	# node to find out what you already own is a tree nobody reads.
+	var badge := Label.new()
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_theme_font_size_override("font_size", 13)
+	badge.add_theme_color_override("font_color", Color(1.0, 0.95, 0.75))
+	badge.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	badge.add_theme_constant_override("outline_size", 4)
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.hide()
+	_board.add_child(badge)
+
+	_button_records.append({
+		"button": button, "badge": badge, "color": color,
+		"branch_index": branch_index, "info": info,
+	})
+
+## Binds whatever node the player is pointing at to a hotbar slot. Silent on anything
+## that is not an owned spell - a capstone or an affinity node has nothing to cast.
+func _bind_hovered_to_slot(slot_index: int) -> void:
+	var record: Dictionary = _hovered_record
+	if record.is_empty():
+		record = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
+	if record.is_empty():
+		return
+	var info: Dictionary = record["info"]
+	if bool(info.get("is_affinity", false)) or bool(info.get("is_capstone", false)) or bool(info.get("is_center", false)):
+		return
+	var player = PlayerRegistry.get_local()
+	if player == null or not player.has_method("assign_quick_slot"):
+		return
+	if player.assign_quick_slot(slot_index, String(info["id"])):
+		update_ui()
+		_show_details(String(record["color"]), int(record["branch_index"]), info)
+
+
+## Which hotbar key casts this spell, or 0 for one that is not bound. Printed in the
+## detail panel, because a loadout the player cannot read is a loadout they will not use.
+func _slot_of(player: Node, spell_id: String) -> int:
+	if player == null or not ("quick_slots" in player):
+		return 0
+	var index: int = player.quick_slots.find(spell_id)
+	return index + 1
+
 
 func _build_detail_panel() -> void:
 	_detail_panel = PanelContainer.new()
@@ -297,6 +351,7 @@ func _layout_nodes() -> void:
 				var diameter: float = 48.0 if branch_index == 0 else 40.0
 				button.size = Vector2(diameter, diameter)
 				button.position = point - button.size * 0.5
+				_place_badge(record, button)
 
 		# The fork: past the end of the branch and splayed to either side of it, so the
 		# two halves read as alternatives to each other rather than as two more steps.
@@ -310,6 +365,7 @@ func _layout_nodes() -> void:
 			var fork_button: TextureButton = fork_record["button"]
 			fork_button.size = Vector2(44.0, 44.0)
 			fork_button.position = center + fork_direction * fork_radius - fork_button.size * 0.5
+			_place_badge(fork_record, fork_button)
 
 		var branch_line: Line2D = _branch_lines[color]
 		branch_line.points = branch_points
@@ -323,6 +379,16 @@ func _layout_nodes() -> void:
 		var current_record: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
 		if not current_record.is_empty():
 			_position_selection_ring(current_record["button"])
+
+## The rank badge sits just under its node. Its own child of the board rather than a
+## child of the button, because a TextureButton lays its children out to fill itself.
+func _place_badge(record: Dictionary, button: TextureButton) -> void:
+	if not record.has("badge"):
+		return
+	var badge: Label = record["badge"]
+	badge.size = Vector2(button.size.x + 24.0, 16.0)
+	badge.position = Vector2(button.position.x - 12.0, button.position.y + button.size.y - 2.0)
+
 
 func _find_record(color: String, branch_index: int) -> Dictionary:
 	# The hub sits under every colour: whichever branch the selection is on, stepping
@@ -379,12 +445,14 @@ func update_ui() -> void:
 		if bool(info["is_affinity"]):
 			if not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
+			_set_badge(record, "", Color.WHITE)
 		else:
-			var is_unlocked: bool = player.unlocked_spells_in_path.has(info["id"])
-			if is_unlocked:
+			var rank: int = int(player.get_spell_rank(info["id"]))
+			if rank > 0:
 				state = "unlocked"
 			elif not _gate_met(player, color, info) or not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
+			_set_spell_badge(record, player, String(info["id"]), rank)
 
 		button.texture_normal = _get_placeholder_texture(color, branch_index, state)
 		button.texture_hover = _get_placeholder_texture(color, branch_index, "hover")
@@ -392,6 +460,31 @@ func update_ui() -> void:
 
 	if not _hovered_record.is_empty():
 		_show_details(_hovered_record["color"], _hovered_record["branch_index"], _hovered_record["info"])
+
+## What a spell node says about itself without being hovered: its rank, and which key
+## casts it. "3/5 [2]" is a whole build decision read at a glance.
+func _set_spell_badge(record: Dictionary, player: Node, spell_id: String, rank: int) -> void:
+	if rank <= 0:
+		_set_badge(record, "", Color.WHITE)
+		return
+	var text: String = "%d/%d" % [rank, GameSettings.spell_max_rank]
+	var slot: int = _slot_of(player, spell_id)
+	if slot > 0:
+		text += "  [%d]" % slot
+	# Maxed reads gold, still-rankable reads plain, so a board full of ranks still shows
+	# where there is room left.
+	var tint: Color = Color(1.0, 0.85, 0.35) if rank >= GameSettings.spell_max_rank else Color(0.88, 0.92, 0.96)
+	_set_badge(record, text, tint)
+
+
+func _set_badge(record: Dictionary, text: String, tint: Color) -> void:
+	if not record.has("badge"):
+		return
+	var badge: Label = record["badge"]
+	badge.text = text
+	badge.add_theme_color_override("font_color", tint)
+	badge.visible = text != ""
+
 
 func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	var player = PlayerRegistry.get_local()
@@ -435,12 +528,30 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 		_detail_status.text = "%s  Rank %d  Total %.1f%%  Next +%.1f%%  Mana %d" % [COLOR_SYMBOL[color], rank, bonus, next_bonus, available_mana]
 		_detail_body.text = "%s  %s" % [info["mechanic"], info["flavor"]]
 	else:
-		var gate: int = int(info["rank_requirement"])
-		var unlocked: bool = player.unlocked_spells_in_path.has(info["id"])
-		var status: String = "UNLOCKED" if unlocked else "Requires affinity rank %d" % gate
-		if not unlocked and GameSettings.debug_free_skills:
-			status = "FREE (debug)"
-		_detail_status.text = "%s  %s  Cost %d mana  Cooldown %.1fs" % [COLOR_SYMBOL[color], status, int(info["cost"]), SpellDatabase.get_cooldown(info["id"])]
+		var spell_id: String = String(info["id"])
+		var rank: int = int(player.get_spell_rank(spell_id))
+		var status: String = ""
+		if rank <= 0:
+			# Not owned yet: the affinity gate is the thing standing in the way.
+			if _gate_met(player, color, info):
+				status = "Unlock for %d point" % GameSettings.spell_rank_point_cost
+			else:
+				status = "Requires affinity rank %d" % int(info["rank_requirement"])
+		else:
+			# Owned: what matters is what the NEXT rank costs and what is stopping it.
+			var blocker: String = String(player.spell_rank_blocker(spell_id))
+			status = "Rank %d/%d" % [rank, GameSettings.spell_max_rank]
+			if blocker == "":
+				status += "  -  next rank %d point" % GameSettings.spell_rank_point_cost
+			else:
+				status += "  -  " + blocker
+		if GameSettings.debug_free_skills and rank < GameSettings.spell_max_rank:
+			status += "  (free: debug)"
+		var slot: int = _slot_of(player, spell_id)
+		var binding: String = ("Key %d" % slot) if slot > 0 else "Unbound - press 1-5"
+		_detail_status.text = "%s  %s  |  %s  |  Points %d  |  Cooldown %.1fs" % [
+			COLOR_SYMBOL[color], status, binding, _skill_points(player), SpellDatabase.get_cooldown(spell_id),
+		]
 		_detail_body.text = info["desc"]
 
 func _hide_details() -> void:
@@ -484,15 +595,47 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 			update_ui()
 		return
 
-	if player.unlocked_spells_in_path.has(info["id"]):
+	# One click, one rank - the first buys the spell, the next four deepen it. Clicking a
+	# node you already own used to only re-select its colour, which is what a mono-colour
+	# tree needed and a loadout does not.
+	var spell_id: String = String(info["id"])
+	var rank: int = int(player.get_spell_rank(spell_id))
+	if rank <= 0:
+		if not _gate_met(player, color, info):
+			return
+		if _pay(player, GameSettings.spell_rank_point_cost):
+			SignalBus.spell_unlocked.emit(color, spell_id)
+			update_ui()
+		return
+
+	# Level gates come from the team's level, not from anything the player can buy in
+	# here, so a refusal has to SAY so rather than looking like a dead button.
+	var blocker: String = String(player.spell_rank_blocker(spell_id))
+	if blocker != "":
+		_flash_status(blocker)
+		return
+	if _pay(player, GameSettings.spell_rank_point_cost):
+		player.grant_spell_rank(spell_id)
 		player.select_color_path(color)
 		update_ui()
+
+
+## Says why a click did nothing, in the panel the player is already looking at. A skill
+## tree that refuses silently is indistinguishable from a broken one - which this project
+## has now learned twice.
+func _flash_status(message: String) -> void:
+	if not is_instance_valid(_detail_status):
 		return
-	if not _gate_met(player, color, info):
-		return
-	if _pay(player, 1):
-		SignalBus.spell_unlocked.emit(color, info["id"])
-		update_ui()
+	_detail_panel.show()
+	_detail_status.text = message
+	_detail_status.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
+	var tween: Tween = create_tween()
+	tween.tween_interval(1.2)
+	tween.tween_callback(func() -> void:
+		if is_instance_valid(_detail_status):
+			_detail_status.remove_theme_color_override("font_color")
+		if not _hovered_record.is_empty():
+			_show_details(_hovered_record["color"], _hovered_record["branch_index"], _hovered_record["info"]))
 
 
 ## Charges for a node, or waves it through when the free-skills debug switch is on.

@@ -29,8 +29,34 @@ var max_hp: float = GameSettings.player_max_hp
 var is_at_base: bool = false
 
 # --- MTG 5-Color State ---
+## The colour whose branch the tree last highlighted. PURELY COSMETIC now: it used to
+## decide which five spells the hotbar showed, which is what made every build mono-colour.
 var chosen_color_path: String = ""
 var unlocked_spells_in_path: Array[String] = []
+## spell id -> rank, 1 to GameSettings.spell_max_rank. Absent means not owned. This is the
+## source of truth; `unlocked_spells_in_path` is kept beside it for the code that only
+## asks "do I have this at all".
+var spell_ranks: Dictionary = {}
+## What each of the five hotbar keys casts, chosen by the PLAYER rather than derived from
+## a colour. Empty means the slot is free.
+##
+## This is what makes multicolour builds real: a red main can carry Fireball, Fire Dash
+## and Rain of Ember and still keep a slot for blue's Frostwave, because the slots are a
+## loadout and not a view of one branch of the tree.
+var quick_slots: Array[String] = ["", "", "", "", ""]
+## The rank of the spell currently being cast. Set once where the cast starts and read by
+## the cast functions, rather than threaded through twenty-five signatures - every one of
+## them would have to pass it down to the same three helpers anyway.
+var _casting_rank: int = 1
+## Exalted Strike and Fire Dash both outlive the cast that started them - the first waits
+## for a melee hit, the second keeps dropping fire for a third of a second - so both
+## resolve their numbers AT CAST TIME rather than reading _casting_rank later, when
+## another spell may have moved it.
+var _exalted_damage_mult: float = 1.0
+var _exalted_reach_bonus: float = 0.0
+var _dash_trail_dps: float = 0.0
+var _dash_trail_duration: float = 0.0
+var _dash_trail_radius: float = 0.0
 var unlocked_capstone_aura: String = ""
 var affinity_ranks: Dictionary = {
 	"white": 0,
@@ -73,10 +99,14 @@ var exalted_charges: int = 0
 ## Circle of Protection (white_2). A third shield pool beside the two capstone ones, kept
 ## separate so a capstone re-sync cannot wipe a shield the player just cast.
 var protection_shield: float = 0.0
-## Reprisal Ward (white_3)
+## Reprisal Ward (white_3). The two fractions are resolved at cast time and read back
+## in take_damage, because a buff with a duration outlives the cast that set it.
 var _reprisal_timer: float = 0.0
+var _reprisal_reflect: float = 0.0
+var _reprisal_block_chance: float = 0.0
 ## Ironbark (green_5). The only CC immunity in the game.
 var _ironbark_timer: float = 0.0
+var _ironbark_reduction: float = 0.0
 ## Giant Growth (green_2). `is_giant` / `giant_timer` / `base_scale` are declared above -
 ## they were stubbed long before the skill existed. This is the health half.
 var _giant_bonus_hp: float = 0.0
@@ -87,6 +117,9 @@ var _dash_trail_timer: float = 0.0
 ## Fire Cone (red_4). The only HELD spell: it runs while the button is down.
 var _channel_id: String = ""
 var _channel_timer: float = 0.0
+## The rank the channel was started at. Fire Cone pays out per frame for seconds, so it
+## cannot read _casting_rank - anything cast in between would move it.
+var _channel_rank: int = 1
 ## Whether the button that started the channel is one this can watch for a release.
 var _channel_held: bool = false
 var _channel_fx: Node3D = null
@@ -379,6 +412,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif keycode == KEY_F2:
 				chosen_color_path = ""
 				unlocked_spells_in_path.clear()
+				spell_ranks.clear()
+				reset_quick_slots()
 				unlocked_capstone_aura = ""
 				for color: String in affinity_ranks:
 					affinity_ranks[color] = 0
@@ -398,6 +433,12 @@ func _unhandled_input(event: InputEvent) -> void:
 					var sid = target_color + "_" + str(i)
 					if not unlocked_spells_in_path.has(sid):
 						unlocked_spells_in_path.append(sid)
+					# Straight to max: the point of the key is to try a colour out, and a
+					# rank-1 version of it is not the thing being tried.
+					spell_ranks[sid] = GameSettings.spell_max_rank
+					var free_slot: int = first_free_quick_slot()
+					if free_slot >= 0:
+						assign_quick_slot(free_slot, sid)
 				_applied_green_affinity_rank = -1
 				_sync_capstone_aura()
 				SignalBus.color_path_chosen.emit(target_color)
@@ -456,7 +497,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func cycle_spell(dir: int) -> void:
 	var original_index = active_spell_index
-	var max_spells = 5
+	var max_spells = quick_slots.size()
 	
 	active_spell_index = (active_spell_index + dir) % max_spells
 	if active_spell_index < 0:
@@ -473,17 +514,118 @@ func cycle_spell(dir: int) -> void:
 		SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
 
 func _get_spell_id_for_slot(slot_idx: int) -> String:
-	if chosen_color_path != "" and slot_idx >= 0 and slot_idx <= 4:
-		return chosen_color_path + "_" + str(slot_idx + 1)
+	if slot_idx < 0 or slot_idx >= quick_slots.size():
+		return ""
+	return String(quick_slots[slot_idx])
+
+
+## Binds a spell to one of the five hotbar keys. Owning it is the only requirement - any
+## spell in any colour can go in any slot.
+##
+## A spell already sitting in another slot SWAPS with whatever is in the target, rather
+## than appearing twice: two keys casting the same thing is never what anyone meant, and
+## a silent removal from the old slot is worse than a swap the player can see.
+func assign_quick_slot(slot_idx: int, spell_id: String) -> bool:
+	if slot_idx < 0 or slot_idx >= quick_slots.size():
+		return false
+	if spell_id != "" and not is_spell_owned(spell_id):
+		return false
+	var previous: String = String(quick_slots[slot_idx])
+	var existing_slot: int = quick_slots.find(spell_id)
+	if existing_slot >= 0 and existing_slot != slot_idx:
+		quick_slots[existing_slot] = previous
+	quick_slots[slot_idx] = spell_id
+	SignalBus.quick_slots_changed.emit()
+	SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
+	return true
+
+
+## The first empty slot, or -1. Used to bind a newly bought spell without asking - a
+## player who just spent a point should be able to cast the thing they bought.
+func first_free_quick_slot() -> int:
+	return quick_slots.find("")
+
+
+## Empties the bar. A method rather than an assignment at each call site because
+## `quick_slots` is an `Array[String]`, and an untyped array literal assigned to it from
+## ANOTHER script is a runtime error - the literal only infers its type inside the script
+## that declares the property.
+func reset_quick_slots() -> void:
+	quick_slots.clear()
+	for _i: int in range(5):
+		quick_slots.append("")
+	SignalBus.quick_slots_changed.emit()
+
+
+func is_spell_owned(spell_id: String) -> bool:
+	return get_spell_rank(spell_id) > 0
+
+
+func get_spell_rank(spell_id: String) -> int:
+	return int(spell_ranks.get(spell_id, 0))
+
+
+## Whether the NEXT rank of this spell is reachable right now, and why not if it is not.
+## Returns an empty string when it is buyable, otherwise the reason to show the player -
+## the tree prints it verbatim, so "cannot" is never silent.
+func spell_rank_blocker(spell_id: String) -> String:
+	var rank: int = get_spell_rank(spell_id)
+	if rank >= GameSettings.spell_max_rank:
+		return "Maximum rank"
+	var required_level: int = GameSettings.rank_level_requirement(rank + 1)
+	if RunState.team_level < required_level:
+		return "Needs team level %d" % required_level
+	if not GameSettings.debug_free_skills and skill_points < GameSettings.spell_rank_point_cost:
+		return "Needs %d skill point" % GameSettings.spell_rank_point_cost
 	return ""
 
+
+## The rank curves for the spell being cast. Named for what they scale rather than for
+## the curve behind them, so a cast reads as "damage times rank" and the shape of that
+## relationship stays in GameSettings where a designer can change it once.
+func _rank_damage() -> float:
+	return GameSettings.rank_damage_mult(_casting_rank)
+
+
+func _rank_area() -> float:
+	return GameSettings.rank_area_mult(_casting_rank)
+
+
+func _rank_duration() -> float:
+	return GameSettings.rank_duration_mult(_casting_rank)
+
+
+## Adds one rank. The tree charges the point; this only moves the rank, so a debug-free
+## purchase and a paid one land in exactly the same state.
+func grant_spell_rank(spell_id: String) -> bool:
+	if not SpellDatabase.has_spell(spell_id):
+		return false
+	var rank: int = get_spell_rank(spell_id)
+	if rank >= GameSettings.spell_max_rank:
+		return false
+	spell_ranks[spell_id] = rank + 1
+	if rank == 0:
+		if not unlocked_spells_in_path.has(spell_id):
+			unlocked_spells_in_path.append(spell_id)
+		# Newly bought spells land on the bar by themselves. A spell you own and cannot
+		# cast because every slot is full is a bug report waiting to happen.
+		var free_slot: int = first_free_quick_slot()
+		if free_slot >= 0:
+			assign_quick_slot(free_slot, spell_id)
+	SignalBus.spell_rank_changed.emit(spell_id, get_spell_rank(spell_id))
+	return true
+
+## Highlights a colour in the tree. It used to REPLACE the hotbar with that colour's five
+## spells, which is why a build could only ever be one colour - and why investing a single
+## point in a second colour silently threw the first colour's bar away.
+##
+## Now it only marks which branch the player is looking at. What they cast is their
+## loadout, in `quick_slots`.
 func select_color_path(color: String) -> void:
 	if not affinity_ranks.has(color):
 		return
 	chosen_color_path = color
-	active_spell_index = 0
 	SignalBus.color_path_chosen.emit(color)
-	SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
 
 func invest_affinity(color: String) -> void:
 	if not affinity_ranks.has(color):
@@ -524,8 +666,7 @@ func get_spell_name_for_slot(slot_idx: int) -> String:
 	return SpellDatabase.get_display_name(_get_spell_id_for_slot(slot_idx))
 
 func is_spell_unlocked(slot_idx: int) -> bool:
-	var spell_id = _get_spell_id_for_slot(slot_idx)
-	return unlocked_spells_in_path.has(spell_id)
+	return is_spell_owned(_get_spell_id_for_slot(slot_idx))
 
 ## Melee feeding back into the spell kit: every impact frame that actually connects
 ## takes `seconds` off every spell on cooldown, so weaving swings between casts is
@@ -554,8 +695,16 @@ func _clear_spell_cooldowns() -> void:
 		if SpellDatabase.has_spell(key):
 			spell_cooldown_timers.erase(key)
 
+## Cooldowns are flat across ranks with exactly one exception: black's Kill, whose whole
+## rank curve IS its cooldown (docs/SKILL_DESIGN.md - "Scales with rank: cooldown, boss
+## execute threshold"). An instant delete cannot be made stronger, only more frequent.
 func _get_spell_cooldown(spell_id: String) -> float:
-	return SpellDatabase.get_cooldown(spell_id)
+	var cooldown: float = SpellDatabase.get_cooldown(spell_id)
+	if spell_id == "black_3":
+		cooldown *= GameSettings.rank_fraction(
+			1.0, GameSettings.spell_black_kill_cooldown_max_rank_mult, get_spell_rank(spell_id)
+		)
+	return cooldown
 
 func is_chargeable(spell_id: String) -> bool:
 	return SpellDatabase.is_chargeable(spell_id)
@@ -611,6 +760,7 @@ func _begin_cast(spell_id: String, charge_pct: float) -> void:
 		execute_spell(spell_id, charge_pct)
 		return
 
+	_casting_rank = get_spell_rank(spell_id)
 	_pending_cast_id = spell_id
 	_pending_cast_charge = charge_pct
 	_pending_cast_time = animator.release_time(clip, duration, bool(row.get("release_on_last", false)))
@@ -637,7 +787,7 @@ func release_charged_spell() -> void:
 	is_charging = false
 	charge_timer = 0.0
 	SignalBus.spell_charge_changed.emit(0.0, charge_max_time, false)
-	if not unlocked_spells_in_path.has(spell_id) or spell_cooldown_timers.get(spell_id, 0.0) > 0.0:
+	if not is_spell_owned(spell_id) or spell_cooldown_timers.get(spell_id, 0.0) > 0.0:
 		return
 	if not _can_start_cast():
 		return
@@ -664,6 +814,9 @@ func _request_spell(spell_id: String, charge_pct: float) -> void:
 
 
 func _run_spell_effect(spell_id: String, charge_pct: float) -> void:
+	# A spell cast by a CLIENT arrives here on the server, where _begin_cast never ran -
+	# so the rank is resolved again rather than assumed to be left over from the cast.
+	_casting_rank = maxi(get_spell_rank(spell_id), 1)
 	
 	# Rhystic Study Shield trigger on cast
 	if unlocked_capstone_aura == "aura_rhystic_study":
@@ -724,9 +877,7 @@ func _on_melee_combo_unlocked() -> void:
 
 func _on_spell_unlocked(color: String, spell_id: String) -> void:
 	select_color_path(color)
-	if not unlocked_spells_in_path.has(spell_id):
-		unlocked_spells_in_path.append(spell_id)
-			
+	grant_spell_rank(spell_id)
 	SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
 
 func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -> void:
@@ -746,7 +897,7 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -
 	# Reprisal Ward's passive block: a flat chance to turn the hit aside entirely. Rolled
 	# BEFORE the reflect, because an attack that never landed cannot be reflected.
 	if can_use_defenses and _reprisal_timer > 0.0:
-		if randf() < GameSettings.spell_white_reprisal_block_chance:
+		if randf() < _reprisal_block_chance:
 			animator.play_reaction("block_react", GameSettings.player_block_react_duration)
 			_spawn_cast_flash(Color(1.0, 0.95, 0.7), 1.6)
 			return
@@ -754,12 +905,12 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -
 		# on the incoming damage rather than on what survives the shields, so stacking
 		# shields with the ward does not quietly turn the reflect off.
 		if is_instance_valid(source) and source.has_method("take_damage") and source.is_in_group("enemies"):
-			source.take_damage(remaining_damage * GameSettings.spell_white_reprisal_reflect, self)
+			source.take_damage(remaining_damage * _reprisal_reflect, self)
 
 	# Ironbark: the only damage REDUCTION the player has. Applied before the shields so
 	# it makes them last longer rather than being wasted on damage they already ate.
 	if can_use_defenses and _ironbark_timer > 0.0:
-		remaining_damage *= 1.0 - GameSettings.spell_green_ironbark_reduction
+		remaining_damage *= 1.0 - _ironbark_reduction
 
 	if can_use_defenses:
 		var absorbed: float = minf(glorious_anthem_shield, remaining_damage)
@@ -1013,8 +1164,10 @@ func cast_red_fireball(charge_pct: float) -> void:
 	var proj = ProjectilePool.get_projectile()
 	var spawn_pos = camera.global_position - camera.global_basis.z * 1.5
 	var dir = -camera.global_basis.z.normalized()
-	var radius = GameSettings.spell_red_fireball_base_radius * (0.8 + 0.7 * charge_pct)
-	var mult = (0.6 + 1.2 * charge_pct) * get_spell_damage_multiplier()
+	# Charge and rank multiply INTO each other: a rank-5 Fireball held to full is the
+	# biggest single thing red can do, and that is the intended top of the colour.
+	var radius = GameSettings.spell_red_fireball_base_radius * (0.8 + 0.7 * charge_pct) * _rank_area()
+	var mult = (0.6 + 1.2 * charge_pct) * get_spell_damage_multiplier() * _rank_damage()
 	proj.activate(spawn_pos, dir, 4, false, mult, -1.0, radius, self)
 
 ## The green ability: a running leap that ends in a ground slam.
@@ -1043,12 +1196,13 @@ func _slam_ground() -> void:
 		GameSettings.spell_green_leap_shake_strength,
 		GameSettings.spell_green_leap_shake_duration
 	)
-	var damage: float = GameSettings.spell_green_leap_damage * get_spell_damage_multiplier()
+	var damage: float = GameSettings.spell_green_leap_damage * get_spell_damage_multiplier() * _rank_damage()
+	var radius: float = GameSettings.spell_green_leap_radius * _rank_area()
 	for enemy: Node3D in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy):
 			continue
 		var offset: Vector3 = enemy.global_position - global_position
-		if offset.length() > GameSettings.spell_green_leap_radius:
+		if offset.length() > radius:
 			continue
 		_deal_damage(enemy, damage, true)
 		if enemy.has_method("apply_knockback"):
@@ -1067,7 +1221,13 @@ func cast_red_rain_ember() -> void:
 	var target_pos = result.position if result else (global_position - transform.basis.z * 8.0)
 	
 	var zone = DoTZone.new()
-	zone.setup("fire_rain", GameSettings.spell_red_rain_ember_radius, GameSettings.spell_red_rain_ember_dps * get_spell_damage_multiplier(), GameSettings.spell_red_rain_ember_duration, self)
+	zone.setup(
+		"fire_rain",
+		GameSettings.spell_red_rain_ember_radius * _rank_area(),
+		GameSettings.spell_red_rain_ember_dps * get_spell_damage_multiplier() * _rank_damage(),
+		GameSettings.spell_red_rain_ember_duration * _rank_duration(),
+		self
+	)
 	get_tree().current_scene.add_child(zone)
 	zone.global_position = target_pos
 
@@ -1153,7 +1313,12 @@ func _place_in_world(node: Node3D, world_position: Vector3) -> void:
 ## white_1. Charges the NEXT melee hit rather than dealing damage itself - see
 ## _apply_melee_damage, which spends the charge and exiles anything the hit kills.
 func cast_white_exalted_strike() -> void:
-	exalted_charges = GameSettings.spell_white_exalted_charges
+	exalted_charges = GameSettings.rank_count(
+		GameSettings.spell_white_exalted_charges, GameSettings.spell_white_exalted_charges_max, _casting_rank
+	)
+	# Resolved now, not on the hit: the charge can sit unspent through several other casts.
+	_exalted_damage_mult = GameSettings.spell_white_exalted_damage_mult * _rank_damage()
+	_exalted_reach_bonus = GameSettings.spell_white_exalted_reach_bonus * _rank_area()
 	SoundBank.play_at(&"blade_heavy_swing", global_position)
 	_spawn_cast_flash(Color(1.0, 0.95, 0.7), 2.4)
 
@@ -1162,10 +1327,10 @@ func cast_white_exalted_strike() -> void:
 ## pool on the caster, which is what makes the skill honest in single-player without
 ## being a strictly better personal shield in a group.
 func cast_white_circle_of_protection() -> void:
-	var allies: Array[Node3D] = _allies_in_radius(GameSettings.spell_white_circle_radius)
+	var allies: Array[Node3D] = _allies_in_radius(GameSettings.spell_white_circle_radius * _rank_area())
 	if allies.is_empty():
 		return
-	var each: float = GameSettings.spell_white_circle_shield_total / float(allies.size())
+	var each: float = GameSettings.spell_white_circle_shield_total * _rank_damage() / float(allies.size())
 	for ally: Node3D in allies:
 		if "protection_shield" in ally:
 			ally.protection_shield += each
@@ -1179,36 +1344,52 @@ func cast_white_circle_of_protection() -> void:
 
 ## white_3. Reflect and block, for a duration. Both halves are applied in take_damage.
 func cast_white_reprisal_ward() -> void:
-	_reprisal_timer = GameSettings.spell_white_reprisal_duration
+	_reprisal_timer = GameSettings.spell_white_reprisal_duration * _rank_duration()
+	# Both halves are chances, so both walk to a ceiling instead of being multiplied.
+	_reprisal_reflect = GameSettings.rank_fraction(
+		GameSettings.spell_white_reprisal_reflect, GameSettings.spell_white_reprisal_reflect_max, _casting_rank
+	)
+	_reprisal_block_chance = GameSettings.rank_fraction(
+		GameSettings.spell_white_reprisal_block_chance, GameSettings.spell_white_reprisal_block_chance_max, _casting_rank
+	)
 	_spawn_cast_flash(Color(1.0, 0.9, 0.55), 2.6)
 
 
 ## white_4. White's one panic button: heavy damage, wide, around the caster.
 func cast_white_wrath_of_god() -> void:
-	var damage: float = GameSettings.spell_white_wrath_damage * get_spell_damage_multiplier()
-	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_white_wrath_radius):
+	var damage: float = GameSettings.spell_white_wrath_damage * get_spell_damage_multiplier() * _rank_damage()
+	var radius: float = GameSettings.spell_white_wrath_radius * _rank_area()
+	for enemy: Node3D in _enemies_in_radius(global_position, radius):
 		_deal_damage(enemy, damage, false)
 	SoundBank.play_at(&"heavy_landing", global_position)
 	SignalBus.camera_shake_requested.emit(0.6, 0.4)
-	_spawn_ring(global_position, Color(1.0, 0.97, 0.8), GameSettings.spell_white_wrath_radius)
+	_spawn_ring(global_position, Color(1.0, 0.97, 0.8), radius)
 
 
 ## white_5. The only skill in all thirty that UNDOES a loss rather than preventing one,
 ## which is about as white as a mechanic gets - and the only one that touches the co-op
 ## revive system.
 func cast_white_rally_the_fallen() -> void:
-	for ally: Node3D in _allies_in_radius(GameSettings.spell_white_rally_radius):
+	var heal_amount: float = GameSettings.spell_white_rally_heal * _rank_damage()
+	# How many people one cast can pick up. Rank 1 is a rescue; rank 5 is a wipe undone.
+	var revives_left: int = GameSettings.rank_count(
+		GameSettings.spell_white_rally_revives, GameSettings.spell_white_rally_revives_max, _casting_rank
+	)
+	for ally: Node3D in _allies_in_radius(GameSettings.spell_white_rally_radius * _rank_area()):
 		if ally == self:
 			continue
 		if "is_downed" in ally and ally.is_downed and ally.has_method("revive"):
+			if revives_left <= 0:
+				continue
+			revives_left -= 1
 			ally.revive()
 			_spawn_ring(ally.global_position, Color(1.0, 1.0, 0.85), 2.2)
 			continue
 		if ally.has_method("heal"):
-			ally.heal(GameSettings.spell_white_rally_heal)
+			ally.heal(heal_amount)
 	# The caster is healed too, but never revived by their own cast - a downed player
 	# cannot cast anything, so that branch could only ever be dead code.
-	heal(GameSettings.spell_white_rally_heal)
+	heal(heal_amount)
 	SoundBank.play_at(&"blade_heavy_swing", global_position)
 
 
@@ -1218,15 +1399,19 @@ func cast_white_rally_the_fallen() -> void:
 ## anything thrown into a wall is EnemyBase's, on the knockback path.
 func cast_blue_unsummon() -> void:
 	var pushed: int = 0
+	# Push distance and stun duration are what rank buys here - the cone itself does not
+	# widen, so aiming it stays the skill.
+	var push: float = GameSettings.spell_blue_unsummon_knockback * _rank_area()
+	var stun: float = GameSettings.spell_blue_unsummon_stun * _rank_duration()
 	for enemy: Node3D in _enemies_in_cone(GameSettings.spell_blue_unsummon_range, GameSettings.spell_blue_unsummon_cone_dot):
 		var away: Vector3 = enemy.global_position - global_position
 		away.y = 0.0
 		if away.length_squared() < 0.01:
 			away = -transform.basis.z
 		if enemy.has_method("apply_knockback"):
-			enemy.apply_knockback(away.normalized() * GameSettings.spell_blue_unsummon_knockback)
+			enemy.apply_knockback(away.normalized() * push)
 		if enemy.has_method("apply_stun") and not (enemy.has_method("is_immune_to_control") and enemy.is_immune_to_control()):
-			enemy.apply_stun(GameSettings.spell_blue_unsummon_stun)
+			enemy.apply_stun(stun)
 		pushed += 1
 	if pushed > 0:
 		SoundBank.play_at(&"blade_heavy_hit", global_position)
@@ -1236,35 +1421,38 @@ func cast_blue_unsummon() -> void:
 ## blue_2. Freezes everything around the caster. BOSSES ARE SLOWED, NEVER FROZEN - that
 ## clause is what stops one blue skill deleting a boss fight.
 func cast_blue_frostwave() -> void:
-	var damage: float = GameSettings.spell_blue_frostwave_damage * get_spell_damage_multiplier()
-	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_blue_frostwave_radius):
+	var damage: float = GameSettings.spell_blue_frostwave_damage * get_spell_damage_multiplier() * _rank_damage()
+	var radius: float = GameSettings.spell_blue_frostwave_radius * _rank_area()
+	var freeze: float = GameSettings.spell_blue_frostwave_freeze * _rank_duration()
+	for enemy: Node3D in _enemies_in_radius(global_position, radius):
 		_deal_damage(enemy, damage, false)
 		var is_boss: bool = enemy.has_method("is_boss") and enemy.is_boss()
 		if is_boss:
 			if enemy.has_method("apply_frost_slow"):
-				enemy.apply_frost_slow(GameSettings.spell_blue_frostwave_boss_slow)
+				enemy.apply_frost_slow(GameSettings.spell_blue_frostwave_boss_slow * _rank_duration())
 		elif "freeze_timer" in enemy:
-			enemy.freeze_timer = maxf(enemy.freeze_timer, GameSettings.spell_blue_frostwave_freeze)
-	_spawn_ring(global_position, Color(0.55, 0.85, 1.0), GameSettings.spell_blue_frostwave_radius)
+			enemy.freeze_timer = maxf(enemy.freeze_timer, freeze)
+	_spawn_ring(global_position, Color(0.55, 0.85, 1.0), radius)
 	SignalBus.camera_shake_requested.emit(0.35, 0.3)
 
 
 ## blue_3. Cover. See FrostGlobe for why one collision layer is the whole skill.
 func cast_blue_frost_globe() -> void:
 	var target: Vector3 = _aim_point(18.0)
-	var globe := FrostGlobe.create(
-		GameSettings.spell_blue_frost_globe_radius,
-		GameSettings.spell_blue_frost_globe_duration
-	)
-	_place_in_world(globe, target + Vector3(0.0, GameSettings.spell_blue_frost_globe_radius * 0.8, 0.0))
+	var radius: float = GameSettings.spell_blue_frost_globe_radius * _rank_area()
+	var globe := FrostGlobe.create(radius, GameSettings.spell_blue_frost_globe_duration * _rank_duration())
+	_place_in_world(globe, target + Vector3(0.0, radius * 0.8, 0.0))
 
 
 ## blue_4. Packs enemies together for an area follow-up. The pull is a knockback aimed
 ## INWARD - one impulse toward the centre rather than a sustained drag, so an enemy can
 ## still walk out of it. Strength is fixed on purpose: see GameSettings.
 func cast_blue_suction() -> void:
-	var center: Vector3 = _aim_point(GameSettings.spell_blue_suction_radius)
-	for enemy: Node3D in _enemies_in_radius(center, GameSettings.spell_blue_suction_radius):
+	# RADIUS scales, pull speed does not - a rank-5 pull that yanked everything in
+	# instantly would remove the counterplay of walking out of it. See GameSettings.
+	var radius: float = GameSettings.spell_blue_suction_radius * _rank_area()
+	var center: Vector3 = _aim_point(radius)
+	for enemy: Node3D in _enemies_in_radius(center, radius):
 		if not enemy.has_method("apply_knockback"):
 			continue
 		var inward: Vector3 = center - enemy.global_position
@@ -1272,7 +1460,7 @@ func cast_blue_suction() -> void:
 		if inward.length_squared() < 0.04:
 			continue
 		enemy.apply_knockback(inward.normalized() * GameSettings.spell_blue_suction_pull_speed)
-	_spawn_ring(center, Color(0.35, 0.6, 1.0), GameSettings.spell_blue_suction_radius * 0.6)
+	_spawn_ring(center, Color(0.35, 0.6, 1.0), radius * 0.6)
 
 
 ## blue_5. An illusion enemies attack instead of the player. See TemporaryAlly.
@@ -1280,8 +1468,8 @@ func cast_blue_phantasmal_decoy() -> void:
 	var decoy := TemporaryAlly.new()
 	decoy.configure(
 		"decoy",
-		GameSettings.spell_blue_decoy_hp,
-		GameSettings.spell_blue_decoy_duration,
+		GameSettings.spell_blue_decoy_hp * _rank_damage(),
+		GameSettings.spell_blue_decoy_duration * _rank_duration(),
 		0.0,
 		self
 	)
@@ -1301,9 +1489,13 @@ func cast_black_doom_blade() -> void:
 	var forward: Vector3 = -transform.basis.z
 	forward.y = 0.0
 	forward = forward.normalized()
-	var length: float = GameSettings.spell_black_doom_blade_length
-	var half_width: float = GameSettings.spell_black_doom_blade_width * 0.5
-	var damage: float = GameSettings.spell_black_doom_blade_damage * get_spell_damage_multiplier()
+	var length: float = GameSettings.spell_black_doom_blade_length * _rank_area()
+	# "Width (barely)" in the design doc, so barely: a blade that widened with the rest
+	# would stop being a line and start being a cone.
+	var half_width: float = GameSettings.rank_fraction(
+		GameSettings.spell_black_doom_blade_width, GameSettings.spell_black_doom_blade_width_max, _casting_rank
+	) * 0.5
+	var damage: float = GameSettings.spell_black_doom_blade_damage * get_spell_damage_multiplier() * _rank_damage()
 
 	for enemy: Node3D in _enemies_in_radius(global_position, length):
 		var offset: Vector3 = enemy.global_position - global_position
@@ -1323,10 +1515,11 @@ func cast_black_doom_blade() -> void:
 ## black_2. The colour's answer to being surrounded: they leave rather than stop. See
 ## EnemyBase.apply_fear, which moves the body rather than only suppressing the attack.
 func cast_black_fear() -> void:
-	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_black_fear_radius):
+	var radius: float = GameSettings.spell_black_fear_radius * _rank_area()
+	for enemy: Node3D in _enemies_in_radius(global_position, radius):
 		if enemy.has_method("apply_fear"):
-			enemy.apply_fear(GameSettings.spell_black_fear_duration, global_position)
-	_spawn_ring(global_position, Color(0.45, 0.15, 0.6), GameSettings.spell_black_fear_radius)
+			enemy.apply_fear(GameSettings.spell_black_fear_duration * _rank_duration(), global_position)
+	_spawn_ring(global_position, Color(0.45, 0.15, 0.6), radius)
 
 
 ## black_3. The only outright delete in the game. Bosses are executed ONLY below the
@@ -1339,7 +1532,7 @@ func cast_black_kill() -> void:
 	var best_dot: float = 0.55
 	# Whatever the player is most directly looking at, rather than whatever is nearest:
 	# a single-target execute that picked its own victim would be a different skill.
-	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_black_kill_range):
+	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_black_kill_range * _rank_area()):
 		var to_enemy: Vector3 = enemy.global_position - global_position
 		to_enemy.y = 0.0
 		if to_enemy.length_squared() < 0.01:
@@ -1353,7 +1546,12 @@ func cast_black_kill() -> void:
 		return
 	if target.has_method("is_boss") and target.is_boss():
 		var ratio: float = HealthReader.ratio(target)
-		if ratio < 0.0 or ratio > GameSettings.spell_black_kill_boss_threshold:
+		# The window a boss can be executed inside is what rank widens - the cooldown is
+		# the other half, in _get_spell_cooldown.
+		var threshold: float = GameSettings.rank_fraction(
+			GameSettings.spell_black_kill_boss_threshold, GameSettings.spell_black_kill_boss_threshold_max, _casting_rank
+		)
+		if ratio < 0.0 or ratio > threshold:
 			# Too healthy to execute. The cooldown is still spent - the risk of calling it
 			# early is what makes the threshold a decision rather than a formality.
 			_notify("Not weak enough to kill")
@@ -1372,10 +1570,13 @@ func cast_black_kill() -> void:
 func cast_black_wall_of_souls() -> void:
 	var center: Vector3 = _aim_point(20.0)
 	var wall := SoulWall.create(
-		GameSettings.spell_black_wall_length,
+		GameSettings.spell_black_wall_length * _rank_area(),
 		GameSettings.spell_black_wall_duration,
-		GameSettings.spell_black_wall_mark_duration,
-		GameSettings.spell_black_wall_mark_mult,
+		GameSettings.spell_black_wall_mark_duration * _rank_duration(),
+		# x2 damage is the headline at rank 1; x4 would eclipse every other black skill.
+		GameSettings.rank_fraction(
+			GameSettings.spell_black_wall_mark_mult, GameSettings.spell_black_wall_mark_mult_max, _casting_rank
+		),
 		self
 	)
 	_place_in_world(wall, center)
@@ -1399,8 +1600,11 @@ func cast_black_zombify() -> void:
 		return global_position.distance_squared_to(a.global_position) < global_position.distance_squared_to(b.global_position))
 
 	var raised: int = 0
+	var to_raise: int = GameSettings.rank_count(
+		GameSettings.spell_black_zombify_count, GameSettings.spell_black_zombify_count_max, _casting_rank
+	)
 	for corpse: EnemyBase in corpses:
-		if raised >= GameSettings.spell_black_zombify_count:
+		if raised >= to_raise:
 			break
 		var where: Vector3 = corpse.global_position
 		var source: EnemyData = corpse.enemy_data
@@ -1408,9 +1612,9 @@ func cast_black_zombify() -> void:
 		var undead := TemporaryAlly.new()
 		undead.configure(
 			"undead",
-			GameSettings.spell_black_zombify_hp,
-			GameSettings.spell_black_zombify_duration,
-			GameSettings.spell_black_zombify_damage * get_spell_damage_multiplier(),
+			GameSettings.spell_black_zombify_hp * _rank_damage(),
+			GameSettings.spell_black_zombify_duration * _rank_duration(),
+			GameSettings.spell_black_zombify_damage * get_spell_damage_multiplier() * _rank_damage(),
 			self,
 			source
 		)
@@ -1427,10 +1631,17 @@ func cast_black_zombify() -> void:
 func cast_red_fire_dash() -> void:
 	var forward: Vector3 = -transform.basis.z
 	forward.y = 0.0
-	velocity = forward.normalized() * GameSettings.spell_red_dash_speed
+	# Distance is speed x time, and it is the DISTANCE the design doc scales - so the
+	# speed rises and the dash stays as short as it reads.
+	velocity = forward.normalized() * GameSettings.spell_red_dash_speed * _rank_area()
 	velocity.y = 0.0
 	_dash_timer = GameSettings.spell_red_dash_duration
 	_dash_trail_timer = 0.0
+	# Fixed now: the trail keeps being laid after the cast is over, by which time
+	# _casting_rank may belong to something else entirely.
+	_dash_trail_dps = GameSettings.spell_red_dash_trail_dps * get_spell_damage_multiplier() * _rank_damage()
+	_dash_trail_duration = GameSettings.spell_red_dash_trail_duration * _rank_duration()
+	_dash_trail_radius = GameSettings.spell_red_dash_trail_radius * _rank_area()
 	SoundBank.play_at(&"blade_heavy_swing", global_position)
 
 
@@ -1446,13 +1657,7 @@ func _lay_fire_trail() -> void:
 ## line of them that does the damage.
 func _drop_trail_segment() -> void:
 	var zone := DoTZone.new()
-	zone.setup(
-		"fire_rain",
-		GameSettings.spell_red_dash_trail_radius,
-		GameSettings.spell_red_dash_trail_dps * get_spell_damage_multiplier(),
-		GameSettings.spell_red_dash_trail_duration,
-		self
-	)
+	zone.setup("fire_rain", _dash_trail_radius, _dash_trail_dps, _dash_trail_duration, self)
 	_place_in_world(zone, global_position)
 
 
@@ -1465,7 +1670,8 @@ func cast_red_fire_cone() -> void:
 	# Whether the player is HOLDING the cast button decides how it ends. Started from the
 	# number-key hotbar instead, there is no hold to watch, so it simply runs its length.
 	_channel_held = Input.is_action_pressed("cast_spell")
-	_channel_fx = EmberFx.build_flame(GameSettings.spell_red_fire_cone_length * 0.25, 60)
+	_channel_rank = _casting_rank
+	_channel_fx = EmberFx.build_flame(GameSettings.spell_red_fire_cone_length * _rank_area() * 0.25, 60)
 	_channel_fx.position = Vector3(0.0, 1.2, -1.2)
 	var process: ParticleProcessMaterial = _channel_fx.process_material
 	process.direction = Vector3(0.0, 0.0, -1.0)
@@ -1479,6 +1685,10 @@ func cast_red_fire_cone() -> void:
 ## red_5. The smallest area in the game and the biggest single number, telegraphed so the
 ## precision is the player's rather than the spell's.
 func cast_red_lightning_bolt() -> void:
+	# "Radius (slightly)" in the design doc: the smallest area in the game is the point of
+	# the skill, so rank buys damage and only a little forgiveness on the aim.
+	var bolt_radius: float = GameSettings.spell_red_bolt_radius * GameSettings.rank_fraction(1.0, 1.25, _casting_rank)
+	var bolt_damage: float = GameSettings.spell_red_bolt_damage * _rank_damage()
 	var target: Vector3 = _aim_point(GameSettings.spell_red_bolt_range, 5)
 	# AttackIndicator parents itself to whatever it is told to mark - the enemies pass
 	# themselves, so the telegraph tracks them. A ground strike has nothing to track, so
@@ -1489,7 +1699,7 @@ func cast_red_lightning_bolt() -> void:
 	var indicator: AttackIndicator = AttackIndicator.spawn(
 		anchor,
 		AttackIndicator.Shape.CIRCLE,
-		GameSettings.spell_red_bolt_radius,
+		bolt_radius,
 		0.0,
 		GameSettings.spell_red_bolt_delay,
 		Color(0.7, 0.85, 1.0)
@@ -1507,11 +1717,11 @@ func cast_red_lightning_bolt() -> void:
 			anchor.get_tree().create_timer(0.5).timeout.connect(anchor.queue_free)
 		if not is_instance_valid(self) or not is_inside_tree():
 			return
-		var damage: float = GameSettings.spell_red_bolt_damage * get_spell_damage_multiplier()
-		for enemy: Node3D in _enemies_in_radius(target, GameSettings.spell_red_bolt_radius):
+		var damage: float = bolt_damage * get_spell_damage_multiplier()
+		for enemy: Node3D in _enemies_in_radius(target, bolt_radius):
 			_deal_damage(enemy, damage, false)
 		_spawn_beam(target + Vector3(0.0, 18.0, 0.0), Vector3.DOWN, 18.0, Color(0.75, 0.9, 1.0))
-		_spawn_ring(target, Color(0.8, 0.9, 1.0), GameSettings.spell_red_bolt_radius)
+		_spawn_ring(target, Color(0.8, 0.9, 1.0), bolt_radius)
 		SoundBank.play_at(&"heavy_landing", target)
 		SignalBus.camera_shake_requested.emit(0.55, 0.35))
 
@@ -1522,17 +1732,20 @@ func cast_red_lightning_bolt() -> void:
 ## skill actually does. `_sync_capstone_aura` owns the health half so it cannot drift.
 func cast_green_giant_growth() -> void:
 	is_giant = true
-	giant_timer = GameSettings.spell_green_giant_duration
-	_giant_bonus_hp = GameSettings.spell_green_giant_bonus_hp
+	giant_timer = GameSettings.spell_green_giant_duration * _rank_duration()
+	_giant_bonus_hp = GameSettings.spell_green_giant_bonus_hp * _rank_damage()
+	var giant_scale: float = GameSettings.rank_fraction(
+		GameSettings.spell_green_giant_scale, GameSettings.spell_green_giant_scale_max, _casting_rank
+	)
 	# Grown into rather than snapped to: an instant scale change reads as a glitch, and
 	# the character's feet visibly leave the floor for a frame.
 	var tween: Tween = create_tween()
-	tween.tween_property(self, "scale", base_scale * GameSettings.spell_green_giant_scale, 0.25) \
+	tween.tween_property(self, "scale", base_scale * giant_scale, 0.25) \
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_sync_capstone_aura()
 	# Gaining maximum health should ARRIVE as health, or the buff reads as a downgrade
 	# for the first few seconds while the bar sits at a lower fraction than before.
-	heal(GameSettings.spell_green_giant_bonus_hp, false)
+	heal(_giant_bonus_hp, false)
 	SoundBank.play_at(&"blade_heavy_swing", global_position)
 
 
@@ -1540,7 +1753,13 @@ func cast_green_giant_growth() -> void:
 func cast_green_fog() -> void:
 	var target: Vector3 = _aim_point(20.0)
 	var zone := DoTZone.new()
-	zone.setup("fog", GameSettings.spell_green_fog_radius, 0.0, GameSettings.spell_green_fog_duration, self)
+	zone.setup(
+		"fog",
+		GameSettings.spell_green_fog_radius * _rank_area(),
+		0.0,
+		GameSettings.spell_green_fog_duration * _rank_duration(),
+		self
+	)
 	_place_in_world(zone, target)
 
 
@@ -1548,11 +1767,12 @@ func cast_green_fog() -> void:
 ## player, which is the only skill in the game that moves aggro deliberately.
 func cast_green_roar() -> void:
 	var taunted: int = 0
-	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_green_roar_radius):
+	var radius: float = GameSettings.spell_green_roar_radius * _rank_area()
+	for enemy: Node3D in _enemies_in_radius(global_position, radius):
 		if enemy.has_method("apply_taunt"):
-			enemy.apply_taunt(self, GameSettings.spell_green_roar_duration)
+			enemy.apply_taunt(self, GameSettings.spell_green_roar_duration * _rank_duration())
 			taunted += 1
-	_spawn_ring(global_position, Color(0.35, 0.85, 0.3), GameSettings.spell_green_roar_radius)
+	_spawn_ring(global_position, Color(0.35, 0.85, 0.3), radius)
 	SignalBus.camera_shake_requested.emit(0.3, 0.3)
 	if taunted > 0:
 		_notify("%d enemies turned on you" % taunted)
@@ -1562,7 +1782,11 @@ func cast_green_roar() -> void:
 ## in the game to being controlled. Both halves are read where they apply: take_damage
 ## for the reduction, _try_hit_reaction and apply_slow for the immunity.
 func cast_green_ironbark() -> void:
-	_ironbark_timer = GameSettings.spell_green_ironbark_duration
+	_ironbark_timer = GameSettings.spell_green_ironbark_duration * _rank_duration()
+	# A fraction, so it walks to a ceiling: x2 on 0.6 is 1.2, which is immunity.
+	_ironbark_reduction = GameSettings.rank_fraction(
+		GameSettings.spell_green_ironbark_reduction, GameSettings.spell_green_ironbark_reduction_max, _casting_rank
+	)
 	_stagger_timer = 0.0
 	_spawn_cast_flash(Color(0.45, 0.32, 0.16), 2.2)
 	SoundBank.play_at(&"blunt_hit", global_position)
@@ -1634,8 +1858,10 @@ func _update_channel(delta: float) -> void:
 		velocity.y = 0.0
 	move_and_slide()
 
-	var damage: float = GameSettings.spell_red_fire_cone_dps * get_spell_damage_multiplier() * delta
-	for enemy: Node3D in _enemies_in_cone(GameSettings.spell_red_fire_cone_length, GameSettings.spell_red_fire_cone_dot):
+	var damage: float = GameSettings.spell_red_fire_cone_dps * get_spell_damage_multiplier() \
+		* GameSettings.rank_damage_mult(_channel_rank) * delta
+	var length: float = GameSettings.spell_red_fire_cone_length * GameSettings.rank_area_mult(_channel_rank)
+	for enemy: Node3D in _enemies_in_cone(length, GameSettings.spell_red_fire_cone_dot):
 		_deal_damage(enemy, damage, false)
 	animator.update_locomotion(delta, Vector3.ZERO, false, is_on_floor(), false)
 
@@ -2175,8 +2401,8 @@ func _apply_melee_damage(damage_mult: float) -> int:
 	var exalted: bool = exalted_charges > 0 and not is_kick
 	if exalted:
 		exalted_charges -= 1
-		dmg *= GameSettings.spell_white_exalted_damage_mult
-		reach += GameSettings.spell_white_exalted_reach_bonus
+		dmg *= _exalted_damage_mult
+		reach += _exalted_reach_bonus
 		_spawn_cast_flash(Color(1.0, 0.97, 0.75), 2.0)
 
 	var space_state = get_world_3d().direct_space_state

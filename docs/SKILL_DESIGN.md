@@ -21,18 +21,54 @@ That is not an arbitrary split — it is what the codebase is already built for:
 > point. Mana is a separate, shared resource spent only on team purchases at Upkeep.
 > Nothing in this tree costs mana.
 
-Every skill can be bought **five times**. A rank is a purchase in the skill tree, not
-a stacking buff applied in combat. Rank 1 is the skill working; ranks 2–5 scale the
-two or three numbers listed in its **Scales** column.
+Every skill is bought **five times** ✅. A rank is a purchase in the skill tree, not a
+stacking buff applied in combat. Rank 1 is the skill working; ranks 2–5 scale the two or
+three numbers listed in its **Scales** column.
 
-This is a change from how the tree works today, where a colour's five *tiers* are five
-*different* spells. Under this model the tree holds six things per colour and each is
-bought up to five times, so the same board expresses "wide and shallow" or "one skill
-mastered" instead of a fixed unlock order.
+Rank 5 is roughly **2× damage**, **1.6× area/range**, **1.5× duration**
+(`GameSettings.RANK_DAMAGE_CURVE` and its two siblings — one place, so twenty-five skills
+cannot each drift from it). Capstones are **not** rankable: the moment a capstone becomes
+a slider it stops being a decision.
 
-Suggested curve: rank 1 is the baseline below, rank 5 is roughly **2× damage**,
-**1.6× area/range**, **1.5× duration**. Cost rises per rank so a rank-5 skill is a
-real commitment against spreading out.
+### The price is a level, not a sum
+
+**One skill point per rank, flat — and the scarcity is the team level instead.** Rank *n*
+needs the team at `spell_rank_level_requirements[n]`, currently **1 / 3 / 5 / 7 / 9**, the
+MOBA shape.
+
+This is the shape it is for a reason. A flat price with no gate makes maxing one skill
+strictly correct. A rising price makes every purchase a sums puzzle. **A level gate makes
+it a question of *when*** — which is the one version of the question whose answer changes
+as a run goes on: early you take breadth because depth is not available yet, and later you
+choose what to deepen. Levels are shared across the team (`docs/ECONOMY.md`), so it is the
+same clock for everyone and nobody is ranked up for having got the last hit.
+
+### Numbers that cannot be multiplied
+
+A fraction cannot take the damage curve: ×2 on Ironbark's 0.6 damage reduction is 1.2,
+which is immunity. Fractions walk from their rank-1 value to an **explicit ceiling**
+(`GameSettings.rank_fraction`), so the top of the curve is a number someone chose:
+
+| Skill | Rank 1 → 5 |
+|---|---|
+| Ironbark — damage reduction | 0.60 → **0.80** |
+| Reprisal Ward — reflect | 0.45 → **0.90** |
+| Reprisal Ward — block chance | 0.30 → **0.50** |
+| Wall of Souls — damage taken | ×2.0 → **×3.0** |
+| Kill — boss execute window | 33% → **50%** |
+| Kill — cooldown | 60s → **36s** |
+| Giant Growth — size | ×1.5 → **×1.9** |
+| Doom Blade — width ("barely") | 1.6 → **1.9** |
+| Lightning Bolt — radius ("slightly") | ×1.0 → **×1.25** |
+
+Counts round rather than truncate (`rank_count`), so the middle ranks are not silently
+identical: Zombify raises **3 → 7** bodies, Exalted Strike holds **1 → 3** charges, Rally
+the Fallen picks up **1 → 5** downed teammates.
+
+Two things deliberately do **not** scale. Suction's pull *strength* is fixed — a rank-5
+pull that yanked everything in instantly would remove the counterplay of walking out of
+it, so only its radius grows. And every cooldown except Kill's is flat: Kill is the one
+skill that cannot be made stronger, only more frequent.
 
 ### Legend
 
@@ -368,6 +404,9 @@ every capstone fork. What that means concretely:
 | Every tuning number | `GameSettings`, under *SKILL ROSTER* |
 | 10 capstones, two per colour | `SpellDatabase.CAPSTONES`, taken via `Player.unlock_capstone` |
 | The fork on the board | `SkillTree`, branch indices 6 and 7 |
+| Ranks 1-5, and the level gate on each | `Player.spell_ranks`, `grant_spell_rank`, `spell_rank_blocker` |
+| The rank curves | `GameSettings.rank_damage_mult` / `_area_` / `_duration_` / `rank_fraction` / `rank_count` |
+| The player-assigned hotbar | `Player.quick_slots`, `assign_quick_slot` |
 
 Five pieces of shared machinery were built because more than one skill needed them, and
 each is worth knowing about before adding the twenty-sixth:
@@ -395,17 +434,40 @@ are a colour's Core ring, slots 3–5 its Specialist ring. So `red_2` is Fire Da
 `red_3` is Rain of Ember, not the other way round — the gates are on slot index, and
 putting the Core skills first is what makes a colour playable the moment it is invested in.
 
+### Multicolour: the hotbar is a loadout ✅
+
+**The five hotbar keys are assigned by the player, not derived from a colour.**
+
+They used to be `chosen_color_path + "_" + slot`, which meant a build could only ever be
+one colour — and worse, that investing a single point in a second colour silently replaced
+the first colour's whole bar. That is the thing that made multicolour impossible, and it
+was one function.
+
+`Player.quick_slots` is now a five-entry loadout. Any owned spell in any colour can sit in
+any slot; **hover a spell in the tree and press 1–5** to bind it. A spell already in
+another slot *swaps* rather than appearing twice. Newly bought spells bind themselves to
+the first free slot, because a spell you own and cannot cast is a bug report waiting to
+happen.
+
+`chosen_color_path` still exists but is now **purely cosmetic** — it marks which branch
+the tree is highlighting and nothing reads it for gameplay.
+
+Affinity stays buyable in **every** colour at the same time, deliberately: a player who
+maxes red should still be able to put points into blue's cooldown reduction. Affinity is
+the stat line; the loadout is what you cast; neither constrains the other.
+
 ### Not built — deliberately
 
-Three things described elsewhere in this document are **design, not code**, and nothing
+Two things described elsewhere in this document are **design, not code**, and nothing
 above depends on them:
 
-1. **Ranks 1–5 per skill.** Each skill is currently bought once. The rank curve in
-   *Ranks* and the *Scales with rank* column are a future change to how the tree charges,
-   not to what any skill does.
-2. **Affinity as a derived number** (*Resolutions §1*). Affinity ranks are still bought
-   at a colour's centre node and still gate its spells at `[1, 5, 10, 15, 25]`.
-3. **Guild nodes and guild camps.** No node sits between two branches yet, and the back
+1. **Affinity as a derived number** (*Resolutions §1*). Affinity ranks are still bought at
+   a colour's centre node and still gate its spells at `[1, 5, 10, 15, 25]`. This was a
+   deliberate call rather than an omission: §1's model makes affinity a *consequence* of
+   where you spent, which would mean a red main could never buy into blue's cooldown
+   reduction without also buying blue spells. Keeping the node buyable in every colour is
+   what lets a build's stat line and its loadout be two separate decisions.
+2. **Guild nodes and guild camps.** No node sits between two branches yet, and the back
    corners of the lanes are still empty.
 
 The capstone gate is `GameSettings.capstone_rank_requirement` (20 ranks in that colour)

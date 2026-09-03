@@ -101,6 +101,7 @@ func _run() -> void:
 	if player.unlocked_capstone_aura != "aura_fervor":
 		failures.append("the fork let a second capstone be bought")
 
+	_check_ranks(st, player, failures)
 	_check_layout(st, failures)
 
 	if failures.is_empty():
@@ -134,3 +135,54 @@ func _check_layout(st: Node, failures: Array[String]) -> void:
 			failures.append("%d nodes fall outside a %dx%d board" % [off_board, size.x, size.y])
 		if behind_panel > 0:
 			failures.append("%d nodes sit under the detail panel at %dx%d" % [behind_panel, size.x, size.y])
+
+## Ranks, bought the way a player buys them: by clicking the same node again.
+##
+## The LEVEL gate is the interesting half - it is the only thing in the tree a player
+## cannot buy their way past, so a refusal there must be real and must be explained.
+func _check_ranks(st: Node, player: Node, failures: Array[String]) -> void:
+	GameSettings.debug_free_skills = false
+	player.spell_ranks.clear()
+	player.unlocked_spells_in_path.clear()
+	player.reset_quick_slots()
+	player.affinity_ranks["red"] = 30
+	player.skill_points = 20
+	RunState.team_level = 1
+
+	var node: Dictionary = _record(st, "red", 1)
+	st._on_node_pressed("red", 1, node["info"])
+	print("TEST H rank=%d slot0=%s points=%d" % [
+		player.get_spell_rank("red_1"), player._get_spell_id_for_slot(0), player.skill_points])
+	if player.get_spell_rank("red_1") != 1:
+		failures.append("clicking an unowned spell did not unlock it")
+	if player._get_spell_id_for_slot(0) != "red_1":
+		failures.append("a newly bought spell did not bind itself to the bar")
+
+	# Rank 2 needs team level 3. At level 1 the click has to be refused.
+	st._on_node_pressed("red", 1, node["info"])
+	print("TEST I rank at team level 1 = %d" % player.get_spell_rank("red_1"))
+	if player.get_spell_rank("red_1") != 1:
+		failures.append("the level gate let rank 2 through at team level 1")
+
+	# ...and the refusal has to SAY why, rather than being a dead button.
+	var blocker: String = String(player.spell_rank_blocker("red_1"))
+	if not blocker.contains("level"):
+		failures.append("a level-gated rank gave no reason: '%s'" % blocker)
+
+	# With the levels, every rank up to the cap is buyable, one point each.
+	RunState.team_level = 20
+	var points_before: int = player.skill_points
+	for _i: int in range(6):
+		st._on_node_pressed("red", 1, node["info"])
+	var spent: int = points_before - player.skill_points
+	print("TEST J maxed rank=%d spent=%d" % [player.get_spell_rank("red_1"), spent])
+	if player.get_spell_rank("red_1") != GameSettings.spell_max_rank:
+		failures.append("ranks did not reach the maximum with the levels for them")
+	if spent != GameSettings.spell_max_rank - 1:
+		failures.append("ranking up spent %d points for 4 ranks" % spent)
+
+	# Six clicks for five ranks: the last one must have been refused, not charged.
+	if player.get_spell_rank("red_1") > GameSettings.spell_max_rank:
+		failures.append("rank ran past the maximum")
+
+	RunState.team_level = 1

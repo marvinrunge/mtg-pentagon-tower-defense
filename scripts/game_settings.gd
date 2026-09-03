@@ -451,9 +451,103 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_grave_pact_max_stacks: int = 8
 @export var aura_grave_pact_stack_duration: float = 6.0
 
+# --- RANK CEILINGS ---
+# The handful of skill numbers the generic curves cannot express, each with the value it
+# reaches at rank 5. Fractions and counts, per docs/SKILL_DESIGN.md's "Scales with rank".
+## Exalted Strike: charges held, not damage - the damage rides the generic curve.
+@export var spell_white_exalted_charges_max: int = 3
+## Reprisal Ward: both halves are chances, so both walk to a ceiling.
+@export var spell_white_reprisal_reflect_max: float = 0.9
+@export var spell_white_reprisal_block_chance_max: float = 0.5
+## Rally the Fallen: how many downed teammates one cast can pick up.
+@export var spell_white_rally_revives: int = 1
+@export var spell_white_rally_revives_max: int = 5
+## Kill: the ONLY skill whose cooldown scales, and the only one where a higher rank
+## widens the boss window rather than adding damage.
+@export var spell_black_kill_cooldown_max_rank_mult: float = 0.6
+@export var spell_black_kill_boss_threshold_max: float = 0.5
+## Wall of Souls: x2 damage is the headline at rank 1; x4 would eclipse every other
+## black skill, so the mark walks to x3.
+@export var spell_black_wall_mark_mult_max: float = 3.0
+## Zombify: bodies raised per cast.
+@export var spell_black_zombify_count_max: int = 7
+## Ironbark: reduction is a fraction, and 1.0 would be immunity.
+@export var spell_green_ironbark_reduction_max: float = 0.8
+## Giant Growth: how much bigger, which is the half of the skill the player sees.
+@export var spell_green_giant_scale_max: float = 1.9
+## Doom Blade: "width (barely)" in the design doc, so barely.
+@export var spell_black_doom_blade_width_max: float = 1.9
+
 ## How fast a feared enemy runs compared with how fast it advances. Slightly quicker,
 ## so Fear visibly creates space rather than only stopping the attacks.
 @export var enemy_flee_speed_mult: float = 1.15
+
+
+# ============================================================
+# SKILL RANKS
+# ============================================================
+# Every active skill is bought up to five times. Rank 1 is the skill working; ranks 2-5
+# scale the two or three numbers its row in docs/SKILL_DESIGN.md lists under "Scales with
+# rank". The capstones are deliberately NOT rankable - the moment a capstone becomes a
+# slider it stops being a decision.
+#
+# The price is flat, one skill point per rank, and the SCARCITY IS THE TEAM LEVEL instead
+# - the MOBA shape. A flat price with no gate would make maxing one skill strictly
+# correct; a rising price would make it a sums puzzle. A level gate makes it a question of
+# WHEN, which is the one form of the question that changes as a run goes on: early you
+# take breadth because depth is not available yet, and late you choose what to deepen.
+@export var spell_max_rank: int = 5
+@export var spell_rank_point_cost: int = 1
+## Team level needed for each rank, rank 1 first. Levels are shared across the team
+## (docs/ECONOMY.md), so this is the same clock for everybody - nobody is ranked up
+## because they got the last hit.
+@export var spell_rank_level_requirements: Array[int] = [1, 3, 5, 7, 9]
+
+## Rank 5 is roughly x2 damage, x1.6 area/range, x1.5 duration - the curve suggested in
+## the design doc, kept in one place so twenty-five skills cannot each drift from it.
+const RANK_DAMAGE_CURVE: Array[float] = [1.0, 1.25, 1.5, 1.75, 2.0]
+const RANK_AREA_CURVE: Array[float] = [1.0, 1.15, 1.3, 1.45, 1.6]
+const RANK_DURATION_CURVE: Array[float] = [1.0, 1.125, 1.25, 1.375, 1.5]
+
+
+func _rank_index(rank: int) -> int:
+	return clampi(rank - 1, 0, spell_max_rank - 1)
+
+
+func rank_damage_mult(rank: int) -> float:
+	return RANK_DAMAGE_CURVE[_rank_index(rank)]
+
+
+func rank_area_mult(rank: int) -> float:
+	return RANK_AREA_CURVE[_rank_index(rank)]
+
+
+func rank_duration_mult(rank: int) -> float:
+	return RANK_DURATION_CURVE[_rank_index(rank)]
+
+
+## For anything that is already a FRACTION - damage reduction, a block chance, a reflect
+## share. These cannot be multiplied: x2 on Ironbark's 0.6 reduction is 1.2, which is
+## immunity. They walk from their rank-1 value to an explicit ceiling instead, so the
+## ceiling is a number a designer chose rather than one the curve happened to produce.
+func rank_fraction(base: float, ceiling: float, rank: int) -> float:
+	if spell_max_rank <= 1:
+		return base
+	return lerpf(base, ceiling, float(_rank_index(rank)) / float(spell_max_rank - 1))
+
+
+## For anything counted in whole things - corpses raised, charges held, allies revived.
+## Rounded rather than floored so the middle ranks are not all silently identical.
+func rank_count(base: int, top: int, rank: int) -> int:
+	return int(roundf(rank_fraction(float(base), float(top), rank)))
+
+
+## The team level this rank needs. Rank 1 is the unlock itself.
+func rank_level_requirement(rank: int) -> int:
+	if spell_rank_level_requirements.is_empty():
+		return 1
+	var index: int = clampi(rank - 1, 0, spell_rank_level_requirements.size() - 1)
+	return spell_rank_level_requirements[index]
 
 
 # ============================================================

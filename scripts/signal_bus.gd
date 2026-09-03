@@ -20,6 +20,10 @@ signal spell_unlocked(color: String, spell_id: String)
 ## player's light attack chain from two stages to three.
 signal melee_combo_unlocked()
 signal color_path_chosen(color: String)
+## A spell gained a rank, or was bound to a different quick slot. Both redraw the same
+## things - the hotbar and the tree - so both ride one signal.
+signal spell_rank_changed(spell_id: String, rank: int)
+signal quick_slots_changed()
 signal spell_charge_changed(current_charge: float, max_charge: float, is_charging: bool)
 signal status_effect_applied(target: Node3D, effect_type: String, duration: float)
 signal active_spell_changed(spell_name: String)

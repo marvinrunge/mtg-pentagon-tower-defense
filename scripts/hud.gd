@@ -67,6 +67,10 @@ func _ready() -> void:
 	SignalBus.spell_charge_changed.connect(_on_spell_charge_changed)
 	SignalBus.spell_unlocked.connect(func(_c, _s): _update_hotbar_display(_active_spell_idx))
 	SignalBus.color_path_chosen.connect(func(_c): _update_hotbar_display(_active_spell_idx))
+	# The bar is a LOADOUT now, so it has to follow the loadout: a rank bought or a slot
+	# rebound in the skill tree changes what these five keys say they do.
+	SignalBus.spell_rank_changed.connect(func(_id, _rank): _update_hotbar_display(_active_spell_idx))
+	SignalBus.quick_slots_changed.connect(func(): _update_hotbar_display(_active_spell_idx))
 	SignalBus.wave_state_changed.connect(_on_wave_state_changed)
 	SignalBus.lane_warning_requested.connect(_on_lane_warning_requested)
 	
@@ -385,7 +389,15 @@ func _update_hotbar_display(active_idx: int) -> void:
 		if _player and _player.has_method("is_spell_unlocked"):
 			is_unlocked = _player.is_spell_unlocked(i)
 		if name_label:
-			name_label.text = _player.get_spell_name_for_slot(i) if _player and is_unlocked else "Locked"
+			# The rank rides on the name, because the rank IS how strong this key is and
+			# the bar is where the player looks when deciding which one to press.
+			var slot_text: String = "Empty"
+			if _player and is_unlocked:
+				slot_text = _player.get_spell_name_for_slot(i)
+				var rank: int = int(_player.get_spell_rank(_player._get_spell_id_for_slot(i)))
+				if rank > 0:
+					slot_text += "  %d/%d" % [rank, GameSettings.spell_max_rank]
+			name_label.text = slot_text
 			
 		if i == active_idx:
 			sb.bg_color = Color(0.15, 0.15, 0.15, 0.95)
