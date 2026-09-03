@@ -14,14 +14,22 @@ extends Node
 # PLAYER
 # ============================================================
 @export var player_max_hp: float = 100.0
+## How many players the map spawns. 1 is single-player; the lobby will set this once
+## Phase 1 of docs/MULTIPLAYER_PLAN.md lands. Everything downstream already scales -
+## enemy damage, target selection and the Upkeep vote threshold all read the count.
+@export var player_count: int = 1
 @export var player_base_speed: float = 6.0
 @export var player_sprint_speed_mult: float = 1.5
 @export var player_jump_velocity: float = 4.5
 @export var player_mouse_sensitivity: float = 0.002
 @export var player_gamepad_look_sensitivity: float = 2.5
+## Myrs only. The player no longer harvests: mana banks automatically on kill, because
+## the pool is the team's and there is nobody for a pickup to belong to. Walking a well
+## round trip used to cost the player ~40 seconds for a single mana.
 @export var player_mana_harvest_distance: float = 6.0
 @export var player_mana_harvest_time: float = 3.0
 @export var player_base_proximity: float = 5.0
+## Myrs only, for the same reason - the player never carries anything now.
 @export var player_carry_speed_penalty: float = 0.5
 @export var player_base_hp_regen: float = 1.0
 
@@ -108,7 +116,9 @@ extends Node
 ## Damage multiplier on the THIRD stage of the light chain, which only exists once
 ## the chain extension has been bought in the skill tree.
 @export var player_combo_finisher_damage_mult: float = 1.5
-## Mana (any colour) the skill tree charges for that extension.
+## Skill points the tree charges for that extension.
+@export var skill_point_cost_melee_combo: int = 3
+## Legacy mana price, kept only so old saves and the tree's display do not break.
 @export var melee_combo_unlock_cost: int = 12
 ## Seconds taken off every spell cooldown by each melee impact frame that connects.
 ## This is the melee/spell interlock: swinging between casts brings them back faster.
@@ -340,6 +350,7 @@ func get_tier_cost(tier_index: int) -> int:
 # ============================================================
 @export var wave_initial_warning_time: float = 2.5
 @export var wave_delay_between_colors: float = 3.5
+## Superseded by upkeep_duration - kept only as the pause before the very first wave.
 @export var wave_rest_period: float = 3.0
 @export var wave_spawn_delay_base: float = 1.0
 @export var wave_spawn_delay_scaling: float = 0.05
@@ -455,9 +466,77 @@ func get_tier_cost(tier_index: int) -> int:
 # ============================================================
 # RUN REWARDS
 # ============================================================
-@export var reward_power_surge_damage_mult: float = 1.15
-@export var reward_arcane_tempo_recovery_mult: float = 1.12
-@export var reward_crystal_repair_amount: float = 150.0
+# ============================================================
+# XP, LEVELS AND SKILL POINTS
+# ============================================================
+## XP is shared by the whole team and every kill feeds one pool, so levels arrive for
+## everyone at the same moment. Each level grants every player one skill point.
+@export var xp_per_basic: float = 10.0
+@export var xp_per_elite: float = 40.0
+@export var xp_per_boss: float = 250.0
+@export var xp_per_camp: float = 120.0
+## Total XP to reach level N is base*(N-1) + growth*(N-1)^2 - superlinear, so early
+## levels land every wave or two and late ones take three or four. Target is roughly
+## 15-18 levels across a full run.
+@export var xp_level_base: float = 90.0
+@export var xp_level_growth: float = 26.0
+
+# ============================================================
+# TEAM MANA
+# ============================================================
+## Banked automatically on kill, in the dead enemy's own colour. There is no pickup:
+## the pool is shared, so there is nobody for a drop to belong to and no reason to make
+## anyone walk to it.
+@export var mana_per_basic: int = 1
+@export var mana_per_elite: int = 4
+@export var mana_per_boss: int = 25
+@export var mana_per_camp: int = 12
+
+# ============================================================
+# UPKEEP
+# ============================================================
+## The build phase between waves: the only time mana can be spent, and the one moment
+## each wave the whole team is in the same place. Replaces a 3-second rest that was long
+## enough for nothing.
+@export var upkeep_duration: float = 30.0
+## What the team pays for one skill point FOR EVERY PLAYER, in any colour.
+@export var upkeep_skill_point_cost: int = 10
+
+# ============================================================
+# ENCHANTMENTS
+# ============================================================
+## Permanent, stackable, global. Bought at Upkeep in their own colour, which is what
+## makes lane choice strategic rather than only tactical.
+@export var enchantment_base_cost: int = 8
+@export var enchantment_cost_step: int = 6
+## Red - Furnace of Rath: every player deals more damage. The benchmark buy.
+@export var enchantment_red_damage: float = 0.08
+## Blue - Propaganda: enemies attack and cast more slowly. Scales into the late game.
+@export var enchantment_blue_attack_slow: float = 0.06
+## Black - Exquisite Blood: players heal for a share of the damage they deal. Keeps the
+## PLAYERS alive, where white keeps the CRYSTAL alive.
+@export var enchantment_black_lifesteal: float = 0.03
+## White - Sphere of Safety: enemies near the crystal hurt it less. Does nothing while
+## the team is winning; saves the run when they are not.
+@export var enchantment_white_reduction: float = 0.08
+@export var enchantment_white_radius: float = 2.0
+## Green - Overgrowth: all mana income rises. Compounds, so it is a bet on a long run.
+@export var enchantment_green_income: float = 0.12
+
+const ENCHANTMENT_NAMES: Dictionary = {
+	"White": "Sphere of Safety",
+	"Blue": "Propaganda",
+	"Black": "Exquisite Blood",
+	"Red": "Furnace of Rath",
+	"Green": "Overgrowth",
+}
+const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
+	"White": "Enemies near the crystal deal less damage to it",
+	"Blue": "All enemies attack and cast more slowly",
+	"Black": "Every player heals for a share of the damage they deal",
+	"Red": "Every player deals more damage",
+	"Green": "All mana income increases",
+}
 
 
 # ============================================================

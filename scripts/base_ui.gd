@@ -51,10 +51,7 @@ func refresh_ui() -> void:
 	var active_myrs = get_tree().get_nodes_in_group("myrs")
 	
 	build_btn.text = "Build Myr (Cost: %d Any Mana) - Built: %d" % [GameSettings.myr_mana_cost, active_myrs.size()]
-	var total = 0
-	for c in main_controller.mana_pool.values():
-		total += c
-	build_btn.disabled = total < GameSettings.myr_mana_cost
+	build_btn.disabled = RunState.total_mana() < GameSettings.myr_mana_cost
 		
 	# Create entries for each Myr
 	for i in range(active_myrs.size()):
@@ -123,12 +120,8 @@ func _open_skill_tree() -> void:
 		st.update_ui()
 
 func _on_build_pressed() -> void:
-	if main_controller and main_controller.spend_any_mana(GameSettings.myr_mana_cost):
-		var myr_scene = preload("res://scenes/misc/myr.tscn")
-		var myr = myr_scene.instantiate()
-		myr.position = main_controller.crystal_anchor.global_position + Vector3(0, 0.5, 0)
-		myr.set_meta("target_crystal", main_controller.crystal_anchor)
-		main_controller.add_child(myr)
+	if RunState.spend({"Colorless": GameSettings.myr_mana_cost}):
+		main_controller.spawn_myr()
 		refresh_ui()
 
 func _assign(myr: Node3D, lane: int) -> void:

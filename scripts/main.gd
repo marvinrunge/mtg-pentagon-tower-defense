@@ -19,22 +19,13 @@ var enemy_spawners: Array[Node3D] = []
 var crystal_health: float = GameSettings.crystal_max_hp
 var max_crystal_health: float = GameSettings.crystal_max_hp
 
-var mana_pool: Dictionary = {
-	"White": 0,
-	"Blue": 0,
-	"Black": 0,
-	"Red": 0,
-	"Green": 0
-}
-
 const LANE_NAMES = ["White", "Blue", "Black", "Red", "Green"]
 var base_ui_instance: Control
 
 func _ready() -> void:
 	SignalBus.crystal_damaged.connect(damage_crystal)
-	SignalBus.mana_deposited.connect(add_mana)
+	SignalBus.mana_deposited.connect(_on_mana_deposited)
 	SignalBus.damage_number_requested.connect(_on_damage_number_requested)
-	SignalBus.wave_reward_selected.connect(_on_wave_reward_selected)
 
 	GraphicsSettings.apply_scene_dependent()
 
@@ -54,6 +45,14 @@ func _ready() -> void:
 		var st = skill_tree_scene.instantiate()
 		st.name = "SkillTree"
 		add_child(st)
+
+	# The build phase between waves. Built in code rather than as a scene because it is
+	# all data-driven from RunState and has no authored layout worth keeping in a .tscn.
+	var upkeep := UpkeepPanel.new()
+	upkeep.name = "UpkeepPanel"
+	add_child(upkeep)
+
+	RunState.reset()
 	
 	# Populate mana sources and spawners from the static lanes
 	for lane_name in LANE_NAMES:
@@ -80,13 +79,7 @@ func bake_map_navigation() -> void:
 	spawn_entities()
 
 func spawn_entities() -> void:
-	# Spawn Player at center base
-	if player_scene:
-		var player = player_scene.instantiate()
-		player.position = Vector3(0, 1.0, 0)
-		player.name = "Player"
-		add_child(player)
-		print("Spawned Player at center.")
+	spawn_players(GameSettings.player_count)
 	
 	# Myrs are now spawned by the player via base UI, not here
 		
@@ -107,99 +100,50 @@ func damage_crystal(amount: float) -> void:
 	if crystal_health <= 0.0:
 		game_over()
 
-func _on_wave_reward_selected(reward_id: String) -> void:
-	if reward_id == "crystal_repair":
-		var missing_integrity: float = max_crystal_health - crystal_health
-		var repair_amount: float = minf(GameSettings.reward_crystal_repair_amount, missing_integrity)
-		if repair_amount > 0.0:
-			damage_crystal(-repair_amount)
-
 func _on_damage_number_requested(pos: Vector3, amount: float, color: Color) -> void:
 	if not GameSettings.show_damage_numbers:
 		return
 	var dn: DamageNumber = DamageNumberPool.get_damage_number()
 	dn.activate(pos, amount, color)
 
-func add_mana(color: String, amount: int) -> void:
-	if color == "":
-		color = "Colorless"
-	
-	if mana_pool.has(color):
-		mana_pool[color] += amount
-	else:
-		push_warning("add_mana: unknown color '%s', falling back to White" % color)
-		mana_pool["White"] += amount # Fallback
-		
-	SignalBus.mana_changed.emit(mana_pool)
+## Spawns `count` players around the crystal, the first of them local.
+##
+## Takes a count rather than hardcoding one so the same path serves single-player and a
+## five-player lobby; with a count of 1 the behaviour is exactly what it always was.
+## Ringing them around the crystal rather than stacking them on the same point is what
+## stops five bodies resolving their collisions by exploding outward on frame one.
+func spawn_players(count: int) -> void:
+	if player_scene == null:
+		return
+	var total: int = maxi(count, 1)
+	for i in total:
+		var player: Node3D = player_scene.instantiate()
+		var angle: float = TAU * float(i) / float(total)
+		var offset: Vector3 = Vector3(sin(angle), 0.0, cos(angle)) * (0.0 if total == 1 else 2.5)
+		player.position = Vector3(0, 1.0, 0) + offset
+		player.name = "Player" if i == 0 else "Player%d" % (i + 1)
+		# Player 0 is whoever is sitting here. The rest are placeholders until Phase 1
+		# gives them a peer to be driven by.
+		player.set_meta("is_local", i == 0)
+		add_child(player)
 
-func spend_any_mana(amount: int) -> bool:
-	var total = 0
-	for color in mana_pool.keys():
-		total += mana_pool[color]
-		
-	if total < amount:
-		return false
-		
-	var remaining_to_spend = amount
-	for color in mana_pool.keys():
-		if mana_pool[color] >= remaining_to_spend:
-			mana_pool[color] -= remaining_to_spend
-			remaining_to_spend = 0
-			break
-		else:
-			remaining_to_spend -= mana_pool[color]
-			mana_pool[color] = 0
-			
-	SignalBus.mana_changed.emit(mana_pool)
-	return true
 
-func can_afford(cost_dict: Dictionary) -> bool:
-	var temp_pool = mana_pool.duplicate()
-	
-	# Check specific colors first
-	for color in cost_dict.keys():
-		if color == "Colorless":
-			continue
-		if not temp_pool.has(color) or temp_pool[color] < cost_dict[color]:
-			return false
-		temp_pool[color] -= cost_dict[color]
-		
-	# Check colorless
-	if cost_dict.has("Colorless"):
-		var colorless_needed = cost_dict["Colorless"]
-		var total_remaining = 0
-		for color in temp_pool.keys():
-			total_remaining += temp_pool[color]
-		if total_remaining < colorless_needed:
-			return false
-			
-	return true
+## The one place that knows how to build a myr. Both the base UI and the Upkeep panel
+## call it, so the spawn position and crystal binding cannot drift between them.
+func spawn_myr() -> Node3D:
+	if myr_scene == null:
+		return null
+	var myr: Node3D = myr_scene.instantiate()
+	myr.position = crystal_anchor.global_position + Vector3(0, 0.5, 0)
+	myr.set_meta("target_crystal", crystal_anchor)
+	add_child(myr)
+	return myr
 
-func spend_mana_cost(cost_dict: Dictionary) -> bool:
-	if not can_afford(cost_dict):
-		return false
-		
-	# Spend specific colors first
-	for color in cost_dict.keys():
-		if color == "Colorless":
-			continue
-		mana_pool[color] -= cost_dict[color]
-		
-	# Spend colorless
-	if cost_dict.has("Colorless"):
-		var remaining_to_spend = cost_dict["Colorless"]
-		for color in mana_pool.keys():
-			if remaining_to_spend <= 0:
-				break
-			if mana_pool[color] >= remaining_to_spend:
-				mana_pool[color] -= remaining_to_spend
-				remaining_to_spend = 0
-			else:
-				remaining_to_spend -= mana_pool[color]
-				mana_pool[color] = 0
-				
-	SignalBus.mana_changed.emit(mana_pool)
-	return true
+
+## Myrs still deposit through the bus; everything else banks straight into RunState
+## when the enemy dies.
+func _on_mana_deposited(color: String, amount: int) -> void:
+	RunState.add_mana(color, amount)
 
 
 func game_over() -> void:

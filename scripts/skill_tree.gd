@@ -293,11 +293,11 @@ func _find_record(color: String, branch_index: int) -> Dictionary:
 	return {}
 
 func update_ui() -> void:
-	var player = get_tree().get_first_node_in_group("player")
+	var player = PlayerRegistry.get_local()
 	var main_controller = get_tree().current_scene
 	if not player or not main_controller:
 		return
-	var mana_pool: Dictionary = main_controller.mana_pool
+	var mana_pool: Dictionary = RunState.mana_pool
 
 	for record: Dictionary in _button_records:
 		var button: TextureButton = record["button"]
@@ -336,11 +336,11 @@ func update_ui() -> void:
 		_show_details(_hovered_record["color"], _hovered_record["branch_index"], _hovered_record["info"])
 
 func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
-	var player = get_tree().get_first_node_in_group("player")
+	var player = PlayerRegistry.get_local()
 	var main_controller = get_tree().current_scene
 	if not player or not main_controller:
 		return
-	var mana_pool: Dictionary = main_controller.mana_pool
+	var mana_pool: Dictionary = RunState.mana_pool
 	_hovered_record = {"color": color, "branch_index": branch_index, "info": info}
 	_detail_panel.show()
 
@@ -377,7 +377,7 @@ func _hide_details() -> void:
 		_detail_panel.hide()
 
 func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> void:
-	var player = get_tree().get_first_node_in_group("player")
+	var player = PlayerRegistry.get_local()
 	var main_controller = get_tree().current_scene
 	if not player or not main_controller or not main_controller.has_method("spend_mana_cost"):
 		return
@@ -386,7 +386,7 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 		if bool(player.melee_combo_extended):
 			return
 		# Colourless, so it draws from whichever pools happen to hold mana.
-		if _pay(main_controller, {"Colorless": int(info["cost"])}):
+		if _pay(player, GameSettings.skill_point_cost_melee_combo):
 			SignalBus.melee_combo_unlocked.emit()
 			update_ui()
 		return
@@ -394,7 +394,7 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 	var mana_key: String = COLOR_MANA[color]
 
 	if bool(info["is_affinity"]):
-		if _pay(main_controller, {mana_key: int(info["cost"])}):
+		if _pay(player, 1):
 			player.invest_affinity(color)
 			update_ui()
 		return
@@ -405,18 +405,24 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 		return
 	if not _gate_met(player, color, info):
 		return
-	if _pay(main_controller, {mana_key: int(info["cost"])}):
+	if _pay(player, 1):
 		SignalBus.spell_unlocked.emit(color, info["id"])
 		update_ui()
 
 
 ## Charges for a node, or waves it through when the free-skills debug switch is on.
-## Every purchase goes through here so the switch cannot be half-applied - a node
-## that skipped the rank gate but still charged mana would be worse than either.
-func _pay(main_controller: Node, cost: Dictionary) -> bool:
+## Every purchase goes through here so the switch cannot be half-applied - a node that
+## skipped the rank gate but still charged would be worse than either.
+##
+## Skill tree nodes cost SKILL POINTS, never mana. Points come from team levels and from
+## Upkeep purchases; mana is the team's and is spent only at Upkeep. Keeping them apart
+## is what stops a player having to choose between their own build and the team's.
+func _pay(player: Node, points: int) -> bool:
 	if GameSettings.debug_free_skills:
 		return true
-	return bool(main_controller.spend_mana_cost(cost))
+	if player == null or not player.has_method("spend_skill_points"):
+		return false
+	return bool(player.spend_skill_points(points))
 
 
 func _gate_met(player: Node, color: String, info: Dictionary) -> bool:
@@ -424,8 +430,14 @@ func _gate_met(player: Node, color: String, info: Dictionary) -> bool:
 		return true
 	return player.get_affinity_rank(color) >= int(info["rank_requirement"])
 
-func _affordable(available: int, cost: int) -> bool:
-	return GameSettings.debug_free_skills or available >= cost
+## Affordability is measured in the player's own skill points now, not in mana.
+func _affordable(_available: int, cost: int) -> bool:
+	if GameSettings.debug_free_skills:
+		return true
+	var player: Node = PlayerRegistry.get_local()
+	if player == null or not ("skill_points" in player):
+		return false
+	return int(player.skill_points) >= cost
 
 
 func _total_mana(mana_pool: Dictionary) -> int:

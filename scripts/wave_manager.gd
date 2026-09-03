@@ -14,7 +14,9 @@ var is_spawning: bool = false
 var enemies_to_spawn: Array = []
 var next_spawn_index: int = 0
 var active_enemies: int = 0
-var waiting_for_reward: bool = false
+## True from the moment a wave ends until Upkeep closes. Nothing may start the next
+## wave while it is set - the Upkeep panel owns that transition.
+var in_upkeep: bool = false
 
 # The configuration for waves. Each wave is an array of dictionaries.
 # Each round now spawns enemies on ALL colors.
@@ -48,7 +50,7 @@ var main_controller: Node3D
 
 func _ready() -> void:
 	SignalBus.enemy_died.connect(_on_enemy_died)
-	SignalBus.wave_reward_selected.connect(_on_wave_reward_selected)
+	SignalBus.upkeep_finished.connect(_on_upkeep_finished)
 
 func start_waves(controller: Node3D) -> void:
 	main_controller = controller
@@ -180,21 +182,23 @@ func register_enemy() -> void:
 	_emit_wave_state()
 
 func _trigger_next_wave() -> void:
-	if waiting_for_reward:
+	if in_upkeep:
 		return
 	print("Wave ", current_wave + 1, " Completed!")
 	wave_completed.emit(current_wave + 1)
 	SignalBus.wave_completed.emit(current_wave + 1)
 	current_wave += 1
-	waiting_for_reward = true
-	SignalBus.wave_reward_offered.emit(_get_reward_options())
+	# Upkeep, not a boon screen: the team spends its mana together and decides when to
+	# move on. The next wave starts when the panel says so, never on a timer here.
+	in_upkeep = true
+	SignalBus.upkeep_started.emit(GameSettings.upkeep_duration)
 
-func _on_wave_reward_selected(_reward_id: String) -> void:
-	if not waiting_for_reward:
+
+func _on_upkeep_finished() -> void:
+	if not in_upkeep:
 		return
-	waiting_for_reward = false
-	var rest_timer: SceneTreeTimer = get_tree().create_timer(GameSettings.wave_rest_period)
-	rest_timer.timeout.connect(start_next_wave)
+	in_upkeep = false
+	start_next_wave()
 
 func _assign_elites() -> void:
 	if current_wave + 1 < GameSettings.wave_elite_start_wave:
@@ -235,25 +239,6 @@ func _get_lane_color(lane_name: String) -> Color:
 func _emit_wave_state() -> void:
 	var pending_enemies: int = maxi(0, enemies_to_spawn.size() - next_spawn_index)
 	SignalBus.wave_state_changed.emit(current_wave + 1, active_enemies + pending_enemies)
-
-func _get_reward_options() -> Array:
-	return [
-		{
-			"id": "power_surge",
-			"title": "Power Surge",
-			"description": "+15% player damage for this run"
-		},
-		{
-			"id": "arcane_tempo",
-			"title": "Arcane Tempo",
-			"description": "+12% cooldown recovery for this run"
-		},
-		{
-			"id": "crystal_repair",
-			"title": "Crystal Repair",
-			"description": "Restore 150 crystal integrity"
-		}
-	]
 
 func _generate_dynamic_wave(wave_idx: int) -> Array:
 	var wave_config = []

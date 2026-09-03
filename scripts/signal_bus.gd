@@ -25,8 +25,16 @@ signal wave_started(wave_number: int)
 signal wave_completed(wave_number: int)
 signal wave_state_changed(wave_number: int, enemies_remaining: int)
 signal lane_warning_requested(lane_name: String, message: String, color: Color)
-signal wave_reward_offered(options: Array)
-signal wave_reward_selected(reward_id: String)
+## The build phase between waves. `upkeep_finished` is what actually starts the next
+## wave, so nothing else may emit it.
+signal upkeep_started(duration: float)
+signal upkeep_finished()
+## Team level went up, granting `levels_gained` skill points to every player.
+signal team_level_changed(level: int, levels_gained: int)
+signal skill_points_changed(player: Node, points: int)
+signal enchantment_changed(color: String, stacks: int)
+## A player joined or left the run.
+signal players_changed(count: int)
 
 signal interact_prompt_changed(text: String, visible: bool)
 signal damage_number_requested(pos: Vector3, amount: float, color: Color)

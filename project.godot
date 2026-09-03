@@ -23,6 +23,9 @@ SignalBus="*res://scripts/signal_bus.gd"
 ProjectilePool="*res://scripts/projectile_pool.gd"
 DamageNumberPool="*res://scripts/damage_number_pool.gd"
 SoundBank="*res://scripts/sound_bank.gd"
+RunState="*res://scripts/run_state.gd"
+PlayerRegistry="*res://scripts/player_registry.gd"
+PlayerRegistry="*res://scripts/player_registry.gd"
 
 [editor_plugins]
 

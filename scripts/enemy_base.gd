@@ -603,7 +603,9 @@ func perform_attack() -> void:
 		evaluate_target()
 		return
 		
-	attack_cooldown = enemy_data.attack_speed
+	# Propaganda, the blue enchantment: every enemy attacks and casts more slowly. A
+	# multiplier above 1 lengthens the gap between swings.
+	attack_cooldown = enemy_data.attack_speed * RunState.enemy_attack_speed_multiplier()
 
 	# Apply frost slow if active
 	if frost_slow_timer > 0:
@@ -666,7 +668,7 @@ func _resolve_attack_impact() -> void:
 	# weapon landing on it still sounds like a weapon landing.
 	if current_target == target_crystal:
 		SoundBank.play_at(&"blunt_hit", current_target.global_position)
-		SignalBus.crystal_damaged.emit(actual_damage)
+		SignalBus.crystal_damaged.emit(actual_damage * _crystal_ward_multiplier())
 		return
 
 	if current_target.has_method("take_damage"):
@@ -674,6 +676,19 @@ func _resolve_attack_impact() -> void:
 		current_target.take_damage(actual_damage, self, true)
 		if enemy_data.enemy_class == "Boss" and current_target.is_in_group("player"):
 			_request_camera_shake(false)
+
+
+## Sphere of Safety, the white enchantment: an enemy standing inside the ward hurts
+## the crystal less. Radius grows per stack, so late stacks also protect the approach
+## rather than only the last step of it.
+func _crystal_ward_multiplier() -> float:
+	var reduction: float = RunState.crystal_damage_reduction()
+	if reduction <= 0.0 or not is_instance_valid(target_crystal):
+		return 1.0
+	var ward: float = GameSettings.player_base_proximity + RunState.crystal_ward_radius()
+	if global_position.distance_to(target_crystal.global_position) > ward:
+		return 1.0
+	return 1.0 - reduction
 
 
 func fire_projectile() -> void:
@@ -858,6 +873,10 @@ func _react_to_hit(damage_dealt: float) -> void:
 func die() -> void:
 	if enemy_data:
 		SignalBus.enemy_died.emit()
+		# The team is paid twice for one kill: XP towards a level everybody shares, and
+		# mana in this enemy's own colour. Banked here rather than dropped, because the
+		# pool is shared and there is nobody for a pickup to belong to.
+		RunState.on_enemy_killed(enemy_data, elite_modifier != "")
 
 	# Dying mid-windup drops the telegraph without dealing its damage - and the same
 	# goes for an ordinary swing whose impact frame has not arrived yet.

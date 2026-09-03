@@ -26,8 +26,6 @@ var _shake_phase: float = 0.0
 var hp: float = GameSettings.player_max_hp
 var max_hp: float = GameSettings.player_max_hp
 
-var carried_color: String = ""
-var harvest_timer: float = 0.0
 var is_at_base: bool = false
 
 # --- MTG 5-Color State ---
@@ -67,8 +65,11 @@ var giant_timer: float = 0.0
 var base_scale: Vector3 = Vector3.ONE
 
 var slow_timer: float = 0.0
-var run_damage_multiplier: float = 1.0
-var run_cooldown_recovery_multiplier: float = 1.0
+## Points earned from team levels and from Upkeep purchases, and how many are already
+## committed in the tree. Personal: the team levels together, but nobody spends your
+## points for you.
+var skill_points: int = 0
+var spent_skill_points: int = 0
 
 # --- Spell Cooldowns ---
 var spell_cooldown_timers: Dictionary = {}
@@ -165,17 +166,29 @@ var is_blocking: bool = false
 var _stagger_timer: float = 0.0
 var _hit_react_cooldown: float = 0.0
 
+## True for the player this machine drives. Only the local player reads the keyboard,
+## owns the camera and captures the mouse - every other player on screen is a puppet
+## moved by replication (see docs/MULTIPLAYER_PLAN.md, Phase 0).
+##
+## Set before the node enters the tree by whoever spawns it; a player spawned with no
+## opinion assumes it is local, so single-player and tools keep working unchanged.
+var is_local: bool = true
+
+
 func _ready() -> void:
 	add_to_group("player")
 	animator = $Animator
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if has_meta("is_local"):
+		is_local = bool(get_meta("is_local"))
+	PlayerRegistry.register(self, is_local)
+	if is_local:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	
 	setup_camera()
 	
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
 	SignalBus.spell_unlocked.connect(_on_spell_unlocked)
 	SignalBus.melee_combo_unlocked.connect(_on_melee_combo_unlocked)
-	SignalBus.wave_reward_selected.connect(_on_wave_reward_selected)
 	
 	# Delay emitting the initial active spell until the HUD is ready
 	call_deferred("_emit_initial_spell")
@@ -216,7 +229,11 @@ func setup_camera() -> void:
 	camera.name = "Camera3D"
 	camera.position = Vector3(0, 0, 0)
 	shake_pivot.add_child(camera)
-	camera.make_current()
+	# Exactly one camera may be current. Every player still builds its own rig - the
+	# shake, the spring arm and the aim ray all read from it - but only the local one
+	# is what the screen looks through.
+	if is_local:
+		camera.make_current()
 
 	SignalBus.camera_shake_requested.connect(_on_camera_shake_requested)
 
@@ -264,7 +281,14 @@ func _apply_look_delta(yaw: float, pitch: float) -> void:
 	camera_pivot.rotate_x(pitch)
 	camera_pivot.rotation.x = clamp(camera_pivot.rotation.x, -deg_to_rad(70.0), deg_to_rad(30.0))
 
+func _exit_tree() -> void:
+	PlayerRegistry.unregister(self)
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	# A remote player's node exists on this machine but is not driven by this keyboard.
+	if not is_local:
+		return
 	# Ignore small joypad motion (idle stick drift/noise) so this doesn't flicker
 	# true just from a controller sitting connected but unused.
 	if event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.3):
@@ -437,7 +461,9 @@ func get_spell_rank_requirement(slot_idx: int) -> int:
 	return GameSettings.affinity_spell_rank_requirements[slot_idx]
 
 func on_damage_dealt(amount: float) -> void:
-	var lifesteal: float = get_affinity_bonus("black")
+	# Personal affinity plus the team's Exquisite Blood stacks - the enchantment
+	# deliberately echoes the colour's own affinity rather than inventing a new axis.
+	var lifesteal: float = get_affinity_bonus("black") + RunState.lifesteal_bonus()
 	if lifesteal > 0.0 and amount > 0.0:
 		heal(amount * lifesteal)
 
@@ -696,17 +722,30 @@ func _sync_capstone_aura() -> void:
 func get_spell_damage_multiplier() -> float:
 	var affinity_multiplier: float = 1.0 + get_affinity_bonus("red")
 	if unlocked_capstone_aura == "aura_glorious_anthem":
-		return GameSettings.aura_glorious_anthem_damage_mult * run_damage_multiplier * affinity_multiplier
+		return GameSettings.aura_glorious_anthem_damage_mult * RunState.damage_multiplier() * affinity_multiplier
+	# Furnace of Rath is the team's, so it multiplies whatever this player already has.
+	var team_multiplier: float = RunState.damage_multiplier()
 	if unlocked_capstone_aura == "aura_phyrexian_arena":
-		return GameSettings.aura_phyrexian_arena_damage_mult * run_damage_multiplier * affinity_multiplier
-	return run_damage_multiplier * affinity_multiplier
+		return GameSettings.aura_phyrexian_arena_damage_mult * team_multiplier * affinity_multiplier
+	return team_multiplier * affinity_multiplier
 
-func _on_wave_reward_selected(reward_id: String) -> void:
-	match reward_id:
-		"power_surge":
-			run_damage_multiplier *= GameSettings.reward_power_surge_damage_mult
-		"arcane_tempo":
-			run_cooldown_recovery_multiplier *= GameSettings.reward_arcane_tempo_recovery_mult
+## Levels grant these to every player at once; Upkeep can buy more, also for everyone.
+## What each player spends them on is their own business.
+func grant_skill_points(amount: int) -> void:
+	if amount <= 0:
+		return
+	skill_points += amount
+	SignalBus.skill_points_changed.emit(self, skill_points)
+
+
+func spend_skill_points(amount: int) -> bool:
+	if amount <= 0 or skill_points < amount:
+		return false
+	skill_points -= amount
+	spent_skill_points += amount
+	SignalBus.skill_points_changed.emit(self, skill_points)
+	return true
+
 
 func apply_slow(duration: float) -> void:
 	slow_timer = maxf(slow_timer, duration)
@@ -842,6 +881,10 @@ func cast_red_rain_ember() -> void:
 # tools/player_character_builder.gd) and those are queued as _pending_hits.
 
 ## The whole melee input path. Called once per physics frame from _physics_process.
+##
+## Everything below the timers is INPUT, so a remote player runs the timers - its
+## pending hits and cooldowns still tick - and reads no keys. What it should do instead
+## is replicated; see docs/MULTIPLAYER_PLAN.md.
 func _update_actions(delta: float) -> void:
 	if _hit_react_cooldown > 0.0:
 		_hit_react_cooldown -= delta
@@ -882,6 +925,8 @@ func _update_actions(delta: float) -> void:
 		if _buffered_swing_timer <= 0.0:
 			_buffered_swing = ""
 
+	if not is_local:
+		return
 	if is_downed or _stagger_timer > 0.0 or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		_clear_pending_swing()
 		return
@@ -1113,6 +1158,8 @@ func _advance_light_chain() -> void:
 ## whatever they are holding, and a chain that started standing would lock itself into
 ## standing until it lapsed.
 func _wants_to_move() -> bool:
+	if not is_local:
+		return false
 	return Input.get_vector("move_left", "move_right", "move_forward", "move_back").length_squared() > 0.01
 
 
@@ -1263,7 +1310,8 @@ func _apply_basic_attack_knockback(enemy: Node3D, strength: float = -1.0) -> voi
 ## _can_start_attack() and the animator both keep their own timers.
 func _update_block() -> void:
 	var wants_to_block: bool = (
-		Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		is_local
+		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 		and Input.is_action_pressed("block")
 		and is_on_floor()
 		and not is_downed
@@ -1320,7 +1368,7 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 
-	if Input.is_action_just_pressed("jump") and is_on_floor():
+	if is_local and Input.is_action_just_pressed("jump") and is_on_floor():
 		velocity.y = jump_velocity
 
 	# Titanic Leap is in the air: gravity and the launch impulse own the player, so
@@ -1369,69 +1417,41 @@ func _physics_process(delta: float) -> void:
 					_notification_timer = 1.5
 				break
 
-	# Mana Harvesting & Base
+	# Base proximity. Mana is banked automatically when an enemy dies now - there is no
+	# harvest, no carrying and no deposit trip, because the pool is the team's and there
+	# is nobody for a pickup to belong to. What is left here is only "am I at the base",
+	# which is what opens the base UI and what the HUD prompt reads.
 	var main_node = get_tree().current_scene
-	if main_node and main_node.has_method("add_mana"):
-		var at_mana_source = false
-		var source_color = ""
-		for i in range(main_node.mana_sources.size()):
-			var ms = main_node.mana_sources[i]
-			if global_position.distance_to(ms.global_position) < GameSettings.player_mana_harvest_distance:
-				at_mana_source = true
-				source_color = main_node.LANE_NAMES[i]
-				break
-				
+	if main_node and main_node.has_method("spawn_myr"):
 		var near_base = global_position.distance_to(main_node.crystal_anchor.global_position) < GameSettings.player_base_proximity
 		if near_base != is_at_base:
 			is_at_base = near_base
 			SignalBus.at_base_changed.emit(is_at_base)
-			
-		if is_at_base:
-			if carried_color != "":
-				SignalBus.mana_deposited.emit(carried_color, 1)
-				_notification_text = "Deposited %s Mana!" % carried_color
-				_notification_timer = 1.5
-				carried_color = ""
-				
-			if Input.is_action_just_pressed("interact"):
-				if main_node.base_ui_instance and not main_node.base_ui_instance.visible:
-					main_node.base_ui_instance.open(main_node)
 
-		if not revived_teammate:
+		if is_at_base and is_local and Input.is_action_just_pressed("interact"):
+			if main_node.base_ui_instance and not main_node.base_ui_instance.visible:
+				main_node.base_ui_instance.open(main_node)
+
+		if is_local and not revived_teammate:
 			if main_node.base_ui_instance and main_node.base_ui_instance.visible:
 				SignalBus.interact_prompt_changed.emit("", false)
 			elif _notification_timer > 0.0:
 				_notification_timer -= delta
 				SignalBus.interact_prompt_changed.emit(_notification_text, true)
-			elif at_mana_source and carried_color == "":
-				if Input.is_action_pressed("interact"):
-					harvest_timer += delta
-					var progress = int((harvest_timer / GameSettings.player_mana_harvest_time) * 100)
-					SignalBus.interact_prompt_changed.emit("Harvesting %s Mana... %d%%" % [source_color, progress], true)
-					
-					if harvest_timer >= GameSettings.player_mana_harvest_time:
-						carried_color = source_color
-						harvest_timer = 0.0
-						_notification_text = "Collected %s Mana!" % source_color
-						_notification_timer = 1.5
-				else:
-					harvest_timer = 0.0
-					SignalBus.interact_prompt_changed.emit("Hold %s to Harvest %s Mana" % [_interact_key_label(), source_color], true)
 			elif is_at_base:
 				SignalBus.interact_prompt_changed.emit("Press %s to Manage Base" % _interact_key_label(), true)
 			else:
-				harvest_timer = 0.0
 				SignalBus.interact_prompt_changed.emit("", false)
 
 	# Gamepad right-stick look (mouse look is event-driven in _unhandled_input;
 	# a held stick deflection needs continuous per-frame polling instead).
-	var look_input := Input.get_vector("look_left", "look_right", "look_up", "look_down", 0.2)
+	var look_input := Input.get_vector("look_left", "look_right", "look_up", "look_down", 0.2) if is_local else Vector2.ZERO
 	if look_input != Vector2.ZERO:
 		_apply_look_delta(-look_input.x * GameSettings.player_gamepad_look_sensitivity * delta,
 			-look_input.y * GameSettings.player_gamepad_look_sensitivity * delta)
 
 	# Movement
-	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if is_local else Vector2.ZERO
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	
 	var current_speed = speed
@@ -1447,13 +1467,11 @@ func _physics_process(delta: float) -> void:
 	# A wind-up roots as hard as the swing it becomes: it is a full-body clip, and the
 	# player chooses when it ends by letting go.
 	var rooted: bool = (_action_timer > 0.0 and _action_roots_player) or _stagger_timer > 0.0 or _heavy_charge_timer >= 0.0
-	var sprinting: bool = Input.is_action_pressed("sprint") and not is_blocking and not rooted
+	var sprinting: bool = is_local and Input.is_action_pressed("sprint") and not is_blocking and not rooted
 	if sprinting:
 		current_speed *= GameSettings.player_sprint_speed_mult
 	if slow_timer > 0:
 		current_speed *= GameSettings.enemy_blue_mage_slow_mult
-	if carried_color != "":
-		current_speed *= GameSettings.player_carry_speed_penalty
 	if is_blocking:
 		current_speed *= GameSettings.player_block_speed_mult
 	elif _action_timer > 0.0:
@@ -1495,6 +1513,6 @@ func _physics_process(delta: float) -> void:
 		if unlocked_capstone_aura == "aura_rhystic_study":
 			cdr = GameSettings.aura_rhystic_study_cdr_mult
 		var affinity_recovery: float = 1.0 + get_affinity_bonus("blue")
-		spell_cooldown_timers[key] -= delta * run_cooldown_recovery_multiplier * affinity_recovery / cdr
+		spell_cooldown_timers[key] -= delta * affinity_recovery / cdr
 		if spell_cooldown_timers[key] <= 0.0:
 			spell_cooldown_timers.erase(key)
