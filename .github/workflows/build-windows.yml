@@ -1,0 +1,123 @@
+name: Build Windows executable
+
+# Produces a single self-contained .exe (the pack is embedded, so there is no loose
+# .pck to lose) and uploads it as a downloadable artifact. Pushing a tag also attaches
+# it to a GitHub Release.
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  # Bump this and the workflow follows. It must match the editor version the project is
+  # authored in - docs/AI_WORKSPACE.md pins that to 4.7, and export templates are not
+  # interchangeable across versions.
+  GODOT_VERSION: "4.7"
+  EXPORT_PRESET: "Windows Desktop"
+  EXPORT_NAME: "MTG-Pentagon-Tower-Defense"
+
+jobs:
+  build:
+    name: Export
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # Godot exports Windows binaries perfectly well from Linux - the template IS the
+      # Windows executable, and the editor only stamps the project data onto it. Using
+      # the Linux runner keeps the job fast and cheap.
+      - name: Install Godot and export templates
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          wget -q "${BASE}/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          wget -q "${BASE}/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+
+          unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+
+          # Godot looks for templates under a version-stamped directory and will refuse
+          # to export if the name does not match exactly.
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$TEMPLATE_DIR"
+          unzip -q "Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mv templates/* "$TEMPLATE_DIR/"
+
+          godot --version
+
+      # A fresh checkout has no .godot/ cache, so every asset has to be imported before
+      # anything can reference it. Godot exits non-zero on the first pass while it is
+      # still resolving dependencies between imported resources, which is expected -
+      # the second pass is the one that has to succeed.
+      - name: Import resources
+        run: |
+          godot --headless --path . --import || true
+          godot --headless --path . --import
+
+      - name: Export
+        run: |
+          set -euo pipefail
+          mkdir -p build/windows
+          godot --headless --path . --export-release "${EXPORT_PRESET}" \
+            "build/windows/${EXPORT_NAME}.exe"
+
+      # An export that silently produced nothing is the failure mode worth catching:
+      # Godot can report success while writing no file if a template is missing.
+      - name: Verify the executable exists
+        run: |
+          set -euo pipefail
+          EXE="build/windows/${EXPORT_NAME}.exe"
+          test -f "$EXE" || { echo "::error::Export produced no executable"; exit 1; }
+          SIZE=$(stat -c%s "$EXE")
+          echo "Built $EXE ($((SIZE / 1024 / 1024)) MB)"
+          # A stub with no project data embedded is a few MB; this project's assets are
+          # far larger, so anything small means the pack did not get embedded.
+          test "$SIZE" -gt 20000000 || { echo "::error::Executable is suspiciously small - pack may not be embedded"; exit 1; }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.EXPORT_NAME }}-windows
+          path: build/windows/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/windows/*.exe
+          generate_release_notes: true
+
+  smoke-test:
+    name: Does it start
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Download the build
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.EXPORT_NAME }}-windows
+
+      # Proves the artifact is a working game rather than only a file of the right size:
+      # the exported binary boots the main scene, runs 120 frames and exits. Anything
+      # broken enough to matter - a missing autoload, an unresolvable resource - fails
+      # here rather than on a player's machine.
+      - name: Boot the exported game
+        shell: pwsh
+        run: |
+          $exe = "${{ env.EXPORT_NAME }}.exe"
+          & ".\$exe" --headless --quit-after 120
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::The exported game exited with $LASTEXITCODE"
+            exit 1
+          }
+          Write-Output "The exported game booted and exited cleanly."

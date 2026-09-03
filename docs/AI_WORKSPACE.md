@@ -81,6 +81,8 @@ After generation:
 - `scripts/net.gd`: hosting, joining and the peer list; inert until someone hosts
 - `scripts/lobby.gd`: the F9 host/join panel
 - `tools/mcp.ps1`: shell client for the Godot MCP server, for when the editor holds the project lock
+- `.github/workflows/build-windows.yml`: exports a single self-contained .exe on every push to master, smoke-tests that it boots, and attaches it to a Release on a `v*` tag
+- `export_presets.cfg`: the Windows Desktop export preset the workflow drives
 - `scripts/ember_fx.gd`: every fire effect (fireball trail/burst, Rain of Ember, flickering fire light) - see `docs/VFX_TEXTURES.md`
 - `tools/build_vfx_textures.gd`: regenerates the placeholder VFX textures in `assets/vfx/`
 - `tools/animation_impact.gd`: measures the frame an attack clip connects on; used by the enemy and boss builders
