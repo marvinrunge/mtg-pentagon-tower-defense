@@ -231,14 +231,7 @@ extends Node
 @export var spell_melee_cone: float = 0.5
 @export var spell_melee_damage: float = 20.0
 @export var spell_melee_knockback: float = 6.0
-@export var spell_cooldown_melee: float = 0.5
-@export var spell_giant_duration: float = 5.0
-@export var spell_giant_scale: float = 1.5
-@export var spell_giant_damage: float = 40.0
 @export var skill_unlock_cost: int = 1
-@export var spell_heal_amount: float = 50.0
-@export var spell_stab_range: float = 10.0
-@export var spell_stab_execute_threshold: float = 50.0
 @export var spell_stab_debuff_damage: float = 5.0
 @export var spell_stab_debuff_duration: float = 8.0
 @export var spell_unsummon_teleport_distance: float = 15.0
@@ -250,6 +243,12 @@ extends Node
 @export var affinity_rank_bonus_mid: float = 0.01
 @export var affinity_rank_bonus_late: float = 0.005
 @export var affinity_spell_rank_requirements: Array[int] = [1, 5, 10, 15, 25]
+## How deep into a colour the capstone fork sits, and what taking it costs. One purchase,
+## expensive, permanent for the run - and only ONE across all five colours, because the
+## player holds a single capstone. It is the last thing a build decides and the thing a
+## build gets named after, so it is deliberately out of reach of a casual splash.
+@export var capstone_rank_requirement: int = 20
+@export var capstone_skill_point_cost: int = 3
 
 # Per-spell cooldowns moved to scripts/spell_database.gd, which owns one row per
 # spell. Tier costs stay here: they are shared tuning, not per-spell data.
@@ -264,51 +263,24 @@ func get_tier_cost(tier_index: int) -> int:
 
 # --- RED SKILLS ---
 @export var spell_red_shock_damage: float = 70.0
-@export var spell_red_shock_chain_damage_mult: float = 0.6
-@export var spell_red_fireball_max_charge: float = 2.0
 @export var spell_red_fireball_base_radius: float = 3.0
 @export var spell_red_fireball_base_damage: float = 60.0
 @export var spell_red_rain_ember_duration: float = 5.0
 @export var spell_red_rain_ember_radius: float = 6.0
 @export var spell_red_rain_ember_dps: float = 25.0
-@export var spell_red_act_of_treason_damage: float = 70.0
-@export var spell_red_act_of_treason_knockback: float = 12.0
-@export var spell_red_act_of_treason_stun: float = 2.0
-@export var spell_red_chandras_ignition_radius: float = 8.0
-@export var spell_red_chandras_ignition_damage: float = 120.0
-@export var spell_red_chandras_ignition_push: float = 15.0
 @export var aura_fervor_speed_boost: float = 1.15
 
 # --- BLUE SKILLS ---
 @export var spell_blue_unsummon_knockback: float = 14.0
 @export var spell_blue_unsummon_damage: float = 35.0
 @export var spell_blue_unsummon_impact_damage: float = 80.0
-@export var spell_blue_aetherize_max_charge: float = 2.0
-@export var spell_blue_aetherize_cone_angle: float = 60.0
-@export var spell_blue_aetherize_push_force: float = 18.0
-@export var spell_blue_psionic_blast_damage: float = 100.0
-@export var spell_blue_psionic_blast_self_damage: float = 10.0
-@export var spell_blue_freeze_breath_chill_duration: float = 5.0
 @export var spell_blue_freeze_breath_shatter_damage: float = 90.0
 @export var spell_blue_freeze_breath_shatter_radius: float = 4.0
-@export var spell_blue_counterspell_duration: float = 1.5
 @export var aura_rhystic_study_cdr_mult: float = 0.7
 @export var aura_rhystic_study_shield_amount: float = 15.0
 @export var aura_rhystic_study_shield_max: float = 45.0
 
 # --- GREEN SKILLS ---
-@export var spell_green_titanic_growth_hp_scaling: float = 0.35
-@export var spell_green_titanic_growth_cone: float = 4.0
-@export var spell_green_hurricane_max_charge: float = 2.0
-@export var spell_green_hurricane_radius: float = 7.0
-@export var spell_green_hurricane_root_duration: float = 3.0
-@export var spell_green_hurricane_poison_dps: float = 20.0
-@export var spell_green_overrun_dash_speed: float = 20.0
-@export var spell_green_overrun_dash_duration: float = 0.6
-@export var spell_green_overrun_damage_mult: float = 3.0
-@export var spell_green_rabid_bite_damage: float = 75.0
-@export var spell_green_rabid_bite_lifesteal: float = 0.5
-@export var spell_green_briar_patch_reflect: float = 0.3
 @export var aura_sylvan_library_hp_mult: float = 1.35
 @export var aura_sylvan_library_regen: float = 3.0
 
@@ -316,34 +288,173 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_white_swords_exile_pct: float = 0.5
 @export var spell_white_swords_damage_cap: float = 120.0
 @export var spell_white_swords_ally_heal: float = 60.0
-@export var spell_white_path_to_exile_max_charge: float = 2.0
 @export var spell_white_path_to_exile_exec_mult: float = 0.5
-@export var spell_white_wrath_max_charge: float = 2.0
-@export var spell_white_wrath_radius: float = 10.0
-@export var spell_white_wrath_damage_pct: float = 0.25
-@export var spell_white_wrath_heal: float = 75.0
-@export var spell_white_pacifism_duration: float = 6.0
 @export var spell_white_pacifism_debuff_mult: float = 0.5
-@export var spell_white_gideons_reproach_reflect_pct: float = 0.4
 @export var aura_glorious_anthem_shield: float = 35.0
 @export var aura_glorious_anthem_damage_mult: float = 1.15
 
 # --- BLACK SKILLS ---
 @export var spell_black_drain_life_damage: float = 70.0
 @export var spell_black_drain_life_lifesteal: float = 0.65
-@export var spell_black_toxic_deluge_max_charge: float = 2.0
-@export var spell_black_toxic_deluge_radius: float = 7.0
-@export var spell_black_toxic_deluge_hp_cost_pct: float = 0.2
-@export var spell_black_toxic_deluge_dps: float = 30.0
-@export var spell_black_toxic_deluge_duration: float = 5.0
-@export var spell_black_doom_blade_damage: float = 80.0
-@export var spell_black_doom_blade_curse_mult: float = 1.3
-@export var spell_black_doom_blade_curse_duration: float = 6.0
-@export var spell_black_tendrils_damage: float = 45.0
-@export var spell_black_sign_in_blood_hp_cost_pct: float = 0.15
 @export var aura_phyrexian_arena_hp_drain_pct: float = 0.015
 @export var aura_phyrexian_arena_damage_mult: float = 1.25
 @export var aura_phyrexian_arena_speed_mult: float = 1.15
+
+# ============================================================
+# SKILL ROSTER - docs/SKILL_DESIGN.md
+# ============================================================
+# Five rankable skills per colour plus a capstone fork, exactly as the colour tables
+# specify. What each skill DOES lives in Player; only its numbers live here, and only
+# the ones a designer would want to reach for. Cooldowns are the one exception: they
+# belong to the spell row in scripts/spell_database.gd, alongside the animation timing
+# they have to agree with.
+
+# --- WHITE: protection and restoration ---
+## Exalted Strike (white_1). Charges are consumed by melee hits, not by time, so the
+## buff cannot be wasted by walking around with it.
+@export var spell_white_exalted_damage_mult: float = 2.4
+@export var spell_white_exalted_reach_bonus: float = 2.0
+@export var spell_white_exalted_charges: int = 1
+## Circle of Protection (white_2). One POOL divided between everyone in range - which is
+## what makes it stronger in a crowd and identical to a personal shield when alone.
+@export var spell_white_circle_shield_total: float = 220.0
+@export var spell_white_circle_radius: float = 12.0
+## Reprisal Ward (white_3)
+@export var spell_white_reprisal_reflect: float = 0.45
+@export var spell_white_reprisal_block_chance: float = 0.3
+@export var spell_white_reprisal_duration: float = 8.0
+## Wrath of God (white_4). White's one panic button, so it hits hard and rarely.
+@export var spell_white_wrath_radius: float = 10.0
+@export var spell_white_wrath_damage: float = 170.0
+## Rally the Fallen (white_5)
+@export var spell_white_rally_radius: float = 15.0
+@export var spell_white_rally_heal: float = 250.0
+
+# --- BLUE: control ---
+## Unsummon (blue_1). Cone in front, not a circle: blue decides where the fight happens,
+## and a shove that also cleared what is behind you would need no aiming at all.
+@export var spell_blue_unsummon_range: float = 12.0
+@export var spell_blue_unsummon_cone_dot: float = 0.2
+@export var spell_blue_unsummon_stun: float = 1.5
+## Frostwave (blue_2). Bosses are SLOWED, never frozen - see the colour table.
+@export var spell_blue_frostwave_radius: float = 8.5
+@export var spell_blue_frostwave_damage: float = 65.0
+@export var spell_blue_frostwave_freeze: float = 3.0
+@export var spell_blue_frostwave_boss_slow: float = 4.0
+## Frost Globe (blue_3)
+@export var spell_blue_frost_globe_radius: float = 2.4
+@export var spell_blue_frost_globe_duration: float = 12.0
+## Suction (blue_4). Pull SPEED is deliberately not a tuning dial per rank - a pull that
+## yanks everything in instantly removes the counterplay of walking out of it.
+@export var spell_blue_suction_radius: float = 12.0
+@export var spell_blue_suction_pull_speed: float = 16.0
+## Phantasmal Decoy (blue_5)
+@export var spell_blue_decoy_hp: float = 260.0
+@export var spell_blue_decoy_duration: float = 12.0
+
+# --- BLACK: parasitic drain ---
+## Doom Blade (black_1). Passes THROUGH - only what the line actually touches is hit,
+## which is what makes it a skill shot rather than a cone.
+@export var spell_black_doom_blade_damage: float = 115.0
+@export var spell_black_doom_blade_length: float = 18.0
+@export var spell_black_doom_blade_width: float = 1.6
+## Fear (black_2)
+@export var spell_black_fear_radius: float = 9.0
+@export var spell_black_fear_duration: float = 4.0
+## Kill (black_3). The boss clause is what stops an instant delete trivialising the wave
+## bosses; the cooldown (spell_database.gd) is the harshest in the game for the same
+## reason.
+@export var spell_black_kill_range: float = 22.0
+@export var spell_black_kill_boss_threshold: float = 0.33
+## Wall of Souls (black_4)
+@export var spell_black_wall_length: float = 14.0
+@export var spell_black_wall_duration: float = 12.0
+@export var spell_black_wall_mark_duration: float = 8.0
+@export var spell_black_wall_mark_mult: float = 2.0
+## Zombify (black_5). Raises corpses that are already lying on the field - a system that
+## until now was pure decoration.
+@export var spell_black_zombify_count: int = 3
+@export var spell_black_zombify_hp: float = 200.0
+@export var spell_black_zombify_damage: float = 24.0
+@export var spell_black_zombify_duration: float = 20.0
+
+# --- RED: aggression ---
+## Fire Dash (red_2). Escape and damage in one, which is why the trail is worth as much
+## as the distance.
+@export var spell_red_dash_speed: float = 26.0
+@export var spell_red_dash_duration: float = 0.38
+@export var spell_red_dash_trail_dps: float = 45.0
+@export var spell_red_dash_trail_duration: float = 4.0
+@export var spell_red_dash_trail_radius: float = 2.2
+## Fire Cone (red_4). The only skill in the game whose value depends on choosing to
+## stand still in a tower defence, so its damage per second is the highest there is.
+@export var spell_red_fire_cone_dps: float = 145.0
+@export var spell_red_fire_cone_length: float = 9.0
+@export var spell_red_fire_cone_dot: float = 0.55
+@export var spell_red_fire_cone_max_duration: float = 4.0
+## Lightning Bolt (red_5). Precision against one big target: the smallest area in the
+## game and the largest single number.
+@export var spell_red_bolt_damage: float = 230.0
+@export var spell_red_bolt_radius: float = 2.8
+@export var spell_red_bolt_delay: float = 0.55
+@export var spell_red_bolt_range: float = 30.0
+
+# --- GREEN: primal vitality ---
+## Giant Growth (green_2)
+@export var spell_green_giant_scale: float = 1.5
+@export var spell_green_giant_bonus_hp: float = 160.0
+@export var spell_green_giant_duration: float = 12.0
+## Fog (green_3). Defensive GROUND rather than an offensive zone - the crystal-defence
+## half of green, with Roar.
+@export var spell_green_fog_radius: float = 7.0
+@export var spell_green_fog_duration: float = 8.0
+## Roar (green_4)
+@export var spell_green_roar_radius: float = 14.0
+@export var spell_green_roar_duration: float = 6.0
+## Ironbark (green_5). The only CC immunity in all thirty skills - without it, being
+## stunned or frozen has no counter at all.
+@export var spell_green_ironbark_reduction: float = 0.6
+@export var spell_green_ironbark_duration: float = 6.0
+
+# --- CAPSTONE MANIFESTATIONS ---
+# The second half of every colour's capstone fork. The Attunements (Fervor, Rhystic
+# Study and the rest, above) are flat multipliers; these are presence - something
+# visibly fighting alongside the player. All three orbs are ONE implementation.
+@export var aura_orb_radius: float = 2.2
+@export var aura_orb_height: float = 1.9
+@export var aura_orb_speed: float = 2.0
+## Orb of Frost - blue's Manifestation
+@export var aura_orb_of_frost_damage: float = 34.0
+@export var aura_orb_of_frost_interval: float = 1.4
+@export var aura_orb_of_frost_range: float = 14.0
+@export var aura_orb_of_frost_slow: float = 2.5
+## Orb of Fire - red's Manifestation
+@export var aura_orb_of_fire_damage: float = 42.0
+@export var aura_orb_of_fire_interval: float = 1.6
+@export var aura_orb_of_fire_range: float = 14.0
+@export var aura_orb_of_fire_burn_dps: float = 18.0
+@export var aura_orb_of_fire_burn_duration: float = 4.0
+## Healing Orb - white's Manifestation. Always picks the LOWEST-health ally in range,
+## which is what makes it feel like a healer rather than a regeneration stat.
+@export var aura_healing_orb_amount: float = 26.0
+@export var aura_healing_orb_interval: float = 2.0
+@export var aura_healing_orb_radius: float = 14.0
+## Trample - green's Manifestation. Gated on MOVING, so it rewards the colour that
+## fights by being physically present.
+@export var aura_trample_dps: float = 40.0
+@export var aura_trample_radius: float = 3.2
+## Grave Pact - black's Manifestation. A stacking bonus that DECAYS is the point: it
+## pays a player who keeps killing, and lapses the moment they stop.
+@export var aura_grave_pact_radius: float = 12.0
+@export var aura_grave_pact_heal: float = 14.0
+@export var aura_grave_pact_damage_per_stack: float = 0.04
+@export var aura_grave_pact_max_stacks: int = 8
+@export var aura_grave_pact_stack_duration: float = 6.0
+
+## How fast a feared enemy runs compared with how fast it advances. Slightly quicker,
+## so Fear visibly creates space rather than only stopping the attacks.
+@export var enemy_flee_speed_mult: float = 1.15
+
 
 # ============================================================
 # WAVES

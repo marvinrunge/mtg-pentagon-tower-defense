@@ -1,7 +1,14 @@
 extends Area3D
 class_name DoTZone
 
-var zone_type: String = "fire_rain" # fire_rain, toxic_deluge, holy_trail
+## fire_rain, toxic_deluge, holy_trail, fog.
+##
+## `fog` is the odd one and the reason this comment exists: it is the only zone that does
+## not deal or restore anything. Green's green_3 puts down ground where enemies deal NO
+## damage, which is a zone in every other respect - a placed radius with a duration that
+## ticks over whoever is standing in it - so it belongs here rather than in a class of
+## its own that would duplicate the disc, the timer and the tick loop to change one line.
+var zone_type: String = "fire_rain"
 var dps: float = 25.0
 var radius: float = 5.0
 var duration: float = 5.0
@@ -30,7 +37,7 @@ func _ready() -> void:
 	if zone_type == "holy_trail":
 		collision_mask = 2 # Player & allies
 	else:
-		collision_mask = 4 # Enemies
+		collision_mask = 4 # Enemies (fog included - it acts ON them, it just acts gently)
 		
 	var col = CollisionShape3D.new()
 	var shape = CylinderShape3D.new()
@@ -56,11 +63,16 @@ func _ready() -> void:
 	elif zone_type == "holy_trail":
 		mat.albedo_color = Color(1.0, 1.0, 0.8, 0.4)
 		mat.emission = Color(1.0, 0.9, 0.5)
+	elif zone_type == "fog":
+		mat.albedo_color = Color(0.72, 0.82, 0.78, 0.35)
+		mat.emission = Color(0.45, 0.6, 0.5)
 		
 	visual.material = mat
 	add_child(visual)
 	if zone_type == "fire_rain":
 		_build_firestorm()
+	elif zone_type == "fog":
+		_build_fog()
 	_life_timer = duration
 
 
@@ -114,6 +126,31 @@ func _build_firestorm() -> void:
 	var tween := create_tween()
 	tween.tween_property(self, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
+## The cloud itself. Low, wide and slow - it has to read as SAFE ground at a glance,
+## which is the opposite of everything else this class builds, so it borrows nothing from
+## the firestorm but the sizing-from-radius trick.
+func _build_fog() -> void:
+	var bank := GPUParticles3D.new()
+	bank.amount = 48
+	bank.lifetime = 4.0
+	bank.local_coords = false
+	bank.draw_pass_1 = EmberFx.particle_mesh(radius * 0.75, null, false)
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process.emission_sphere_radius = radius * 0.8
+	process.direction = Vector3.UP
+	process.spread = 180.0
+	process.initial_velocity_min = 0.1
+	process.initial_velocity_max = 0.4
+	process.gravity = Vector3.ZERO
+	process.scale_min = 0.8
+	process.scale_max = 1.5
+	process.color = Color(0.78, 0.85, 0.82, 0.25)
+	bank.process_material = process
+	bank.position = Vector3(0.0, 1.0, 0.0)
+	add_child(bank)
+
+
 func _process(delta: float) -> void:
 	_life_timer -= delta
 	if _life_timer <= 0.0:
@@ -141,7 +178,15 @@ func _apply_ticks() -> void:
 	for b in bodies:
 		if not is_instance_valid(b):
 			continue
-			
+
+		if zone_type == "fog":
+			# Refreshed every tick rather than applied on entry, so walking OUT of the
+			# fog restores the enemy within one tick instead of it carrying a duration
+			# away with it.
+			if b.is_in_group("enemies") and b.has_method("suppress_damage"):
+				b.suppress_damage(tick_interval * 2.0)
+			continue
+
 		if zone_type == "holy_trail":
 			if b.is_in_group("player") and b.has_method("heal"):
 				b.heal(damage)

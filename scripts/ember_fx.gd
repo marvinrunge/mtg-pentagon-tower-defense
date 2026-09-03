@@ -238,10 +238,16 @@ static func build_burst(radius: float) -> Node3D:
 
 	# Both halves are driven from one tween so the light dies with the embers rather
 	# than snapping off while they are still visible.
-	var tween := root.create_tween()
-	tween.tween_property(flash, "light_energy", 0.0, 0.45)
-	tween.tween_interval(0.5)
-	tween.tween_callback(root.queue_free)
+	#
+	# Deferred to tree_entered rather than created here: every caller builds the burst
+	# and THEN adds it to the scene, and `Node.create_tween()` outside the tree fails
+	# with an error and returns nothing - which left the burst with no fade and, worse,
+	# nothing to free it. They accumulated for the life of the run.
+	root.tree_entered.connect(func() -> void:
+		var tween: Tween = root.create_tween()
+		tween.tween_property(flash, "light_energy", 0.0, 0.45)
+		tween.tween_interval(0.5)
+		tween.tween_callback(root.queue_free), CONNECT_ONE_SHOT)
 	return root
 
 

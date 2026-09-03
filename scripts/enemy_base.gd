@@ -41,6 +41,9 @@ const REACTION_CLIP_CANDIDATES := ["knockback", "hit"]
 # Some source death clips run very long (the zombie boss's is 11.6s) - cap how
 # long a body is still visibly settling.
 const DEATH_MAX_SECONDS := 4.0
+## How often a burn pays out. Half a second is frequent enough to read as burning and
+## rare enough that fifty burning enemies are fifty ticks a second, not fifty a frame.
+const BURN_TICK_INTERVAL := 0.5
 
 var enemy_data: EnemyData
 var health: float = 100.0
@@ -85,6 +88,27 @@ var blind_timer: float = 0.0
 var curse_timer: float = 0.0
 var curse_mult: float = 1.0
 var pacified_timer: float = 0.0
+## Fear (black_2): runs AWAY from whatever frightened it instead of fighting.
+var flee_timer: float = 0.0
+var flee_from: Vector3 = Vector3.ZERO
+## Roar (green_4): forced onto one target regardless of what is closer. The taunt
+## outranks the ordinary evaluation, which is the entire point of pulling enemies off
+## the crystal and the myrs.
+var taunt_timer: float = 0.0
+var taunt_source: Node3D = null
+## Fog (green_3): inside the cloud this enemy deals nothing at all. A separate timer
+## from `damage_penalty` because that one is a flat SUBTRACTION and a big enough enemy
+## would still push damage through it.
+var damage_suppress_timer: float = 0.0
+## Burn (Orb of Fire, Fire Dash's trail is a zone instead): damage over time carried by
+## the enemy rather than by a zone, so it follows whoever is running away with it.
+var burn_timer: float = 0.0
+var burn_dps: float = 0.0
+var burn_tick: float = 0.0
+var burn_source: Node3D = null
+## Exalted Strike marked this enemy: the killing blow exiles it instead of leaving a
+## corpse. Set by take_damage, read by die().
+var _exile_on_death: bool = false
 var knockback_velocity: Vector3 = Vector3.ZERO
 
 @onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
@@ -307,6 +331,26 @@ func _physics_process(delta: float) -> void:
 		pacified_timer -= delta
 		if pacified_timer <= 0:
 			damage_penalty = 0.0
+	if damage_suppress_timer > 0.0:
+		damage_suppress_timer -= delta
+	if taunt_timer > 0.0:
+		taunt_timer -= delta
+		if taunt_timer <= 0.0:
+			taunt_source = null
+			evaluate_target()
+	if flee_timer > 0.0:
+		flee_timer -= delta
+		if flee_timer <= 0.0:
+			update_path(true)
+	if burn_timer > 0.0:
+		burn_timer -= delta
+		burn_tick -= delta
+		if burn_tick <= 0.0:
+			burn_tick = BURN_TICK_INTERVAL
+			take_damage(burn_dps * BURN_TICK_INTERVAL, burn_source)
+		if burn_timer <= 0.0:
+			burn_dps = 0.0
+			burn_source = null
 
 	# Boss special attack. Runs before the normal movement/attack block because a
 	# committed special overrides both - the boss is rooted for its whole duration.
@@ -336,6 +380,14 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		move_and_slide()
+		_update_visual_animation()
+		return
+
+	# Feared: no target, no attack, just distance. Handled before the ordinary block
+	# rather than inside it because a fleeing enemy has nothing to say about range -
+	# it is running, and running is all it does until the timer ends.
+	if flee_timer > 0.0:
+		_flee(delta)
 		_update_visual_animation()
 		return
 
@@ -691,6 +743,9 @@ func _resolve_attack_impact() -> void:
 		# nothing arrives after it.
 		return
 
+	if damage_suppress_timer > 0.0:
+		# Standing in Fog. The swing plays out and connects with nothing.
+		return
 	var actual_damage: float = max(0.0, enemy_data.attack_damage - damage_penalty)
 	if current_target == target_crystal:
 		actual_damage *= elite_crystal_damage_multiplier
@@ -724,6 +779,8 @@ func _crystal_ward_multiplier() -> float:
 
 
 func fire_projectile() -> void:
+	if damage_suppress_timer > 0.0:
+		return  # Fog: the bow is drawn and nothing leaves it.
 	var proj = ProjectilePool.get_projectile()
 	if proj:
 		# Add a little height so it shoots from chest/head level
@@ -744,6 +801,8 @@ func fire_projectile() -> void:
 		proj.activate(start_pos, dir, 3, true, 1.0, actual_damage, 0.0, self)
 
 func perform_mage_spell() -> void:
+	if damage_suppress_timer > 0.0:
+		return  # Fog silences the casters too, not only the ones that swing.
 	match enemy_data.color_identity:
 		"White":
 			# AoE Heal - a physics broadphase query instead of scanning every
@@ -829,7 +888,20 @@ func _get_detection_range() -> float:
 		return GameSettings.enemy_ranged_detection_range
 	return GameSettings.enemy_melee_detection_range
 
+## Who this enemy is trying to reach. Priority, highest first:
+##   1. a TAUNT - Roar drags it onto the player no matter what else is nearby
+##   2. pacified - back to the crystal, ignoring everyone
+##   3. the nearest valid aggro target, decoys included
+##
+## Decoys are in `decoys` rather than `player`, so they are chosen the same way a myr
+## is but nothing else in the game mistakes one for a real player.
 func evaluate_target() -> void:
+	if taunt_timer > 0.0 and is_instance_valid(taunt_source):
+		if current_target != taunt_source:
+			current_target = taunt_source
+			update_path(true)
+		return
+
 	if pacified_timer > 0.0:
 		if current_target != target_crystal:
 			current_target = target_crystal
@@ -844,7 +916,7 @@ func evaluate_target() -> void:
 	for candidate in aggro_area.get_overlapping_bodies():
 		if not candidate is Node3D or not is_instance_valid(candidate) or candidate.is_queued_for_deletion():
 			continue
-		if not candidate.is_in_group("player") and not candidate.is_in_group("myrs"):
+		if not candidate.is_in_group("player") and not candidate.is_in_group("myrs") and not candidate.is_in_group("decoys"):
 			continue
 		if candidate.is_in_group("player") and "is_downed" in candidate and candidate.is_downed:
 			continue
@@ -874,15 +946,21 @@ func _on_aggro_body_exited(body: Node3D) -> void:
 ## server can resolve the avatar itself. Attribution matters because lifesteal and the
 ## melee-into-spell cooldown refund both pay the player who landed the blow.
 @rpc("any_peer", "call_local", "reliable")
-func request_damage(amount: float, attacker_peer: int, is_melee: bool) -> void:
+func request_damage(amount: float, attacker_peer: int, is_melee: bool, exile_on_kill: bool = false) -> void:
 	if not Net.is_server() or is_dying:
 		return
-	take_damage(amount, PlayerRegistry.by_peer(attacker_peer), is_melee)
+	take_damage(amount, PlayerRegistry.by_peer(attacker_peer), is_melee, exile_on_kill)
 
 
-func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false) -> void:
+## `exile_on_kill` is Exalted Strike (white_1) and nothing else: if THIS hit is what
+## kills the enemy, it leaves no corpse. It rides on the damage rather than being a
+## separate call because the kill and the exile have to be the same decision - checking
+## health first and exiling second would race a simultaneous hit from another player.
+func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false, exile_on_kill: bool = false) -> void:
 	if is_dying:
 		return
+	if exile_on_kill:
+		_exile_on_death = true
 	if curse_timer > 0:
 		amount *= curse_mult
 	var damage_dealt: float = minf(maxf(amount, 0.0), maxf(health, 0.0))
@@ -919,8 +997,13 @@ func _react_to_hit(damage_dealt: float) -> void:
 		_impact_timer = -1.0
 
 func die() -> void:
+	# Exiled rather than killed: same rewards, no body left behind. See exile().
+	if _exile_on_death:
+		exile()
+		return
 	if enemy_data:
 		SignalBus.enemy_died.emit()
+		SignalBus.enemy_died_at.emit(global_position)
 		# The team is paid twice for one kill: XP towards a level everybody shares, and
 		# mana in this enemy's own colour. Banked here rather than dropped, because the
 		# pool is shared and there is nobody for a pickup to belong to.
@@ -1025,3 +1108,115 @@ func apply_stab_debuff() -> void:
 
 func apply_frost_slow(duration: float) -> void:
 	frost_slow_timer = duration
+
+
+# --- Skill-tree status effects -------------------------------------------------
+#
+# One entry point per effect, all server-side: every one of them is reached from a
+# player spell, and player spells only run their effect on the server (see
+# Player.execute_spell). Clients see the consequence through the enemy's replicated
+# transform and health.
+
+## Fear (black_2). The enemy turns and runs from `origin` for `duration`, attacking
+## nothing on the way. This is the colour's answer to being surrounded, so it has to
+## actually create distance rather than only stopping the attacks - which is why it
+## moves the body instead of setting `pacified_timer`.
+func apply_fear(duration: float, origin: Vector3) -> void:
+	if is_immune_to_control():
+		return
+	flee_timer = maxf(flee_timer, duration)
+	flee_from = origin
+	current_target = null
+
+
+## Runs directly away from whatever caused the fear. Deliberately NOT navigated: the
+## navigation agent can only path TOWARD a target, and asking it to reach a point behind
+## the enemy would route it back through the player it is running from. Straight-line
+## movement with the ordinary collision slide is what "flee" means here.
+func _flee(delta: float) -> void:
+	var away: Vector3 = global_position - flee_from
+	away.y = 0.0
+	if away.length_squared() < 0.01:
+		away = -transform.basis.z
+	away = away.normalized()
+	var speed_mult: float = GameSettings.enemy_frost_slow_mult if frost_slow_timer > 0.0 else 1.0
+	velocity.x = away.x * enemy_data.speed * GameSettings.enemy_flee_speed_mult * speed_mult
+	velocity.z = away.z * enemy_data.speed * GameSettings.enemy_flee_speed_mult * speed_mult
+	rotation.y = lerp_angle(rotation.y, atan2(away.x, away.z), GameSettings.enemy_turn_speed * delta)
+	move_and_slide()
+
+
+## Roar (green_4). Forces this enemy onto `source` - the point being to peel it off the
+## crystal or a myr, which the ordinary nearest-target rule would never do while the
+## crystal is closer.
+func apply_taunt(source: Node3D, duration: float) -> void:
+	if not is_instance_valid(source) or is_immune_to_control():
+		return
+	taunt_timer = maxf(taunt_timer, duration)
+	taunt_source = source
+	flee_timer = 0.0
+	pacified_timer = 0.0
+	evaluate_target()
+
+
+## Fog (green_3). Refreshed every tick while the enemy stands in the cloud, so walking
+## out of it restores the enemy's damage within one tick rather than at the end of a
+## duration it carried away with it.
+func suppress_damage(duration: float) -> void:
+	damage_suppress_timer = maxf(damage_suppress_timer, duration)
+
+
+## Burn. Refreshing re-arms the duration and takes the HIGHER damage of the two, so a
+## weak burn can never overwrite a strong one - stacking them instead would make the
+## Orb of Fire's own repeat fire scale quadratically with its fire rate.
+func apply_burn(duration: float, dps: float, source: Node3D = null) -> void:
+	burn_timer = maxf(burn_timer, duration)
+	burn_dps = maxf(burn_dps, dps)
+	burn_source = source
+	if burn_tick <= 0.0:
+		burn_tick = BURN_TICK_INTERVAL
+
+
+## Kill (black_3) and Exalted Strike (white_1). Removes the enemy WITHOUT leaving a
+## corpse - which is a real mechanical difference and not only flavour: corpses are kept
+## in the scene up to a cap and are what black's Zombify raises. Exiling denies that.
+func exile() -> void:
+	if is_dying:
+		return
+	if enemy_data:
+		SignalBus.enemy_died.emit()
+		SignalBus.enemy_died_at.emit(global_position)
+		RunState.on_enemy_killed(enemy_data, elite_modifier != "")
+	_cancel_special()
+	queue_free()
+
+
+## True for a wave boss. Several skills treat bosses as a special case - Frostwave slows
+## rather than freezes them, Kill only executes them below a threshold - and every one of
+## those clauses is what stops the skill trivialising the boss fights.
+func is_boss() -> bool:
+	return enemy_data != null and enemy_data.enemy_class == "Boss"
+
+
+## Bosses shrug off the effects that would otherwise remove them from their own fight.
+## Hard control on a boss is either irrelevant or the whole encounter.
+func is_immune_to_control() -> bool:
+	return is_boss()
+
+
+## The corpses currently lying on the field, oldest first. Zombify's raw material - the
+## registry already existed purely to cap how many stay in the scene.
+static func corpses() -> Array[EnemyBase]:
+	var alive: Array[EnemyBase] = []
+	for corpse: EnemyBase in _corpses:
+		if is_instance_valid(corpse) and not corpse.is_queued_for_deletion():
+			alive.append(corpse)
+	return alive
+
+
+## Consumes a corpse - Zombify raises it, so it stops being scenery and must not be
+## raised twice.
+static func consume_corpse(corpse: EnemyBase) -> void:
+	_corpses.erase(corpse)
+	if is_instance_valid(corpse):
+		corpse.queue_free()

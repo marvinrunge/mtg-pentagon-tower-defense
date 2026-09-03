@@ -65,6 +65,37 @@ var giant_timer: float = 0.0
 var base_scale: Vector3 = Vector3.ONE
 
 var slow_timer: float = 0.0
+
+# --- Skill roster state (docs/SKILL_DESIGN.md) ---
+## Exalted Strike (white_1). Spent by melee HITS rather than by time, so the buff cannot
+## be wasted by walking around with it.
+var exalted_charges: int = 0
+## Circle of Protection (white_2). A third shield pool beside the two capstone ones, kept
+## separate so a capstone re-sync cannot wipe a shield the player just cast.
+var protection_shield: float = 0.0
+## Reprisal Ward (white_3)
+var _reprisal_timer: float = 0.0
+## Ironbark (green_5). The only CC immunity in the game.
+var _ironbark_timer: float = 0.0
+## Giant Growth (green_2). `is_giant` / `giant_timer` / `base_scale` are declared above -
+## they were stubbed long before the skill existed. This is the health half.
+var _giant_bonus_hp: float = 0.0
+var _applied_giant_bonus: float = -1.0
+## Fire Dash (red_2). Seconds of dash left; drives movement the way _leap_timer does.
+var _dash_timer: float = 0.0
+var _dash_trail_timer: float = 0.0
+## Fire Cone (red_4). The only HELD spell: it runs while the button is down.
+var _channel_id: String = ""
+var _channel_timer: float = 0.0
+## Whether the button that started the channel is one this can watch for a release.
+var _channel_held: bool = false
+var _channel_fx: Node3D = null
+## Grave Pact (black capstone). Stacks decay if the player stops killing, which is the
+## whole design - it pays aggression rather than existence.
+var _grave_stacks: int = 0
+var _grave_stack_timer: float = 0.0
+## The orbiting orb, for whichever of the three Manifestations owns one.
+var _capstone_orb: Node3D = null
 ## Points earned from team levels and from Upkeep purchases, and how many are already
 ## committed in the tree. Personal: the team levels together, but nobody spends your
 ## points for you.
@@ -423,15 +454,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				elif is_charging and charging_spell_id == _get_spell_id_for_slot(target_idx):
 					release_charged_spell()
 
-func _get_aura_name_for_color(color: String) -> String:
-	match color:
-		"red": return "fervor"
-		"blue": return "rhystic_study"
-		"green": return "sylvan_library"
-		"white": return "glorious_anthem"
-		"black": return "phyrexian_arena"
-		_: return ""
-
 func cycle_spell(dir: int) -> void:
 	var original_index = active_spell_index
 	var max_spells = 5
@@ -594,9 +616,11 @@ func _begin_cast(spell_id: String, charge_pct: float) -> void:
 	_pending_cast_time = animator.release_time(clip, duration, bool(row.get("release_on_last", false)))
 	# A spell whose animation MOVES the caster has to start moving now, not on the
 	# release frame - the release is the payload landing, and by then the leap has to
-	# already have carried them there.
-	if spell_id == "green_1":
-		cast_green_titanic_leap()
+	# already have carried them there. Fire Dash is the same shape: the release frame
+	# lights the trail the dash has by then already drawn.
+	match spell_id:
+		"green_1": cast_green_titanic_leap()
+		"red_2": cast_red_fire_dash()
 	_pending_hits.clear()
 	# The two halves separately, rather than through _begin_action: a cast may be
 	# committed for less time than its animation runs, and a recovery that is still
@@ -649,11 +673,40 @@ func _run_spell_effect(spell_id: String, charge_pct: float) -> void:
 		)
 		
 	match spell_id:
+		# --- WHITE ---
+		"white_1": cast_white_exalted_strike()
+		"white_2": cast_white_circle_of_protection()
+		"white_3": cast_white_reprisal_ward()
+		"white_4": cast_white_wrath_of_god()
+		"white_5": cast_white_rally_the_fallen()
+		# --- BLUE ---
+		"blue_1": cast_blue_unsummon()
+		"blue_2": cast_blue_frostwave()
+		"blue_3": cast_blue_frost_globe()
+		"blue_4": cast_blue_suction()
+		"blue_5": cast_blue_phantasmal_decoy()
+		# --- BLACK ---
+		"black_1": cast_black_doom_blade()
+		"black_2": cast_black_fear()
+		"black_3": cast_black_kill()
+		"black_4": cast_black_wall_of_souls()
+		"black_5": cast_black_zombify()
+		# --- RED ---
 		"red_1": cast_red_fireball(charge_pct)
-		"red_2": cast_red_rain_ember()
+		# The TRAIL, not the launch: the dash itself was already fired when the cast
+		# began, exactly like Titanic Leap below.
+		"red_2": _lay_fire_trail()
+		"red_3": cast_red_rain_ember()
+		"red_4": cast_red_fire_cone()
+		"red_5": cast_red_lightning_bolt()
+		# --- GREEN ---
 		# The LANDING, not the launch: the leap itself was already fired when the cast
 		# began, and this is the clip's final impact frame arriving.
 		"green_1": _slam_ground()
+		"green_2": cast_green_giant_growth()
+		"green_3": cast_green_fog()
+		"green_4": cast_green_roar()
+		"green_5": cast_green_ironbark()
 
 	last_spell_cast_time = Time.get_ticks_msec() / 1000.0
 
@@ -690,12 +743,35 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -
 		if remaining_damage <= 0.0:
 			return
 
+	# Reprisal Ward's passive block: a flat chance to turn the hit aside entirely. Rolled
+	# BEFORE the reflect, because an attack that never landed cannot be reflected.
+	if can_use_defenses and _reprisal_timer > 0.0:
+		if randf() < GameSettings.spell_white_reprisal_block_chance:
+			animator.play_reaction("block_react", GameSettings.player_block_react_duration)
+			_spawn_cast_flash(Color(1.0, 0.95, 0.7), 1.6)
+			return
+		# ...and its active half: the attacker takes a share of what it dealt. Measured
+		# on the incoming damage rather than on what survives the shields, so stacking
+		# shields with the ward does not quietly turn the reflect off.
+		if is_instance_valid(source) and source.has_method("take_damage") and source.is_in_group("enemies"):
+			source.take_damage(remaining_damage * GameSettings.spell_white_reprisal_reflect, self)
+
+	# Ironbark: the only damage REDUCTION the player has. Applied before the shields so
+	# it makes them last longer rather than being wasted on damage they already ate.
+	if can_use_defenses and _ironbark_timer > 0.0:
+		remaining_damage *= 1.0 - GameSettings.spell_green_ironbark_reduction
+
 	if can_use_defenses:
 		var absorbed: float = minf(glorious_anthem_shield, remaining_damage)
 		glorious_anthem_shield -= absorbed
 		remaining_damage -= absorbed
 		absorbed = minf(rhystic_shield, remaining_damage)
 		rhystic_shield -= absorbed
+		remaining_damage -= absorbed
+		# Circle of Protection is spent LAST of the three, because it is the only one a
+		# player chose to cast - a capstone shield regenerates on its own and this does not.
+		absorbed = minf(protection_shield, remaining_damage)
+		protection_shield -= absorbed
 		remaining_damage -= absorbed
 
 	if remaining_damage <= 0.0:
@@ -716,7 +792,9 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -
 ## from a swarm would otherwise leave the character permanently flinching and unable
 ## to swing back. The cooldown stops a burst of big hits chaining into a lockout.
 func _try_hit_reaction(damage: float, source: Node3D) -> void:
-	if _hit_react_cooldown > 0.0 or is_downed:
+	# Ironbark: nothing staggers you. This is the half of the skill players actually
+	# feel - a swing that finishes instead of being interrupted.
+	if _hit_react_cooldown > 0.0 or is_downed or is_control_immune():
 		return
 	if damage < max_hp * GameSettings.player_hit_react_damage_pct:
 		return
@@ -740,6 +818,7 @@ func _cancel_action() -> void:
 	# A cast interrupted before its release frame simply never happens - and since
 	# the cooldown is only stamped in execute_spell(), it costs the player nothing.
 	_pending_cast_id = ""
+	_end_channel()
 	if is_charging:
 		is_charging = false
 		charge_timer = 0.0
@@ -749,9 +828,17 @@ func _cancel_action() -> void:
 	_cancel_heavy_charge()
 	_clear_pending_swing()
 
+## Recomputes maximum health and the capstone's permanent effects from scratch whenever
+## one of their inputs moves. Giant Growth is one of those inputs now: it adds flat health
+## for a duration, and rebuilding the total rather than adding and subtracting is what
+## stops the bonus drifting when the aura changes while the buff is up.
 func _sync_capstone_aura() -> void:
 	var green_affinity_rank: int = get_affinity_rank("green")
-	if _applied_capstone_aura == unlocked_capstone_aura and _applied_green_affinity_rank == green_affinity_rank:
+	if (
+		_applied_capstone_aura == unlocked_capstone_aura
+		and _applied_green_affinity_rank == green_affinity_rank
+		and is_equal_approx(_applied_giant_bonus, _giant_bonus_hp)
+	):
 		return
 
 	var health_ratio: float = hp / max_hp if max_hp > 0.0 else 1.0
@@ -763,14 +850,81 @@ func _sync_capstone_aura() -> void:
 		max_hp *= GameSettings.aura_sylvan_library_hp_mult
 	elif unlocked_capstone_aura == "aura_glorious_anthem":
 		glorious_anthem_shield = GameSettings.aura_glorious_anthem_shield
-	hp = clampf(max_hp * health_ratio, 0.0, max_hp)
+	max_hp += _giant_bonus_hp
+	hp = clampf(max_hp * health_ratio, 1.0, max_hp)
+	if _applied_capstone_aura != unlocked_capstone_aura:
+		_rebuild_capstone_orb()
 	_applied_capstone_aura = unlocked_capstone_aura
 	_applied_green_affinity_rank = green_affinity_rank
+	_applied_giant_bonus = _giant_bonus_hp
 	SignalBus.player_health_changed.emit(hp, max_hp)
 	SignalBus.player_capstone_aura_changed.emit()
 
+
+## Three of the five Manifestations are an orb, and the orb is a real node rather than a
+## per-frame effect - so it is created and destroyed here, where the capstone changes,
+## and nowhere else.
+func _rebuild_capstone_orb() -> void:
+	if is_instance_valid(_capstone_orb):
+		# remove_child BEFORE queue_free: freeing is deferred to the end of the frame, so
+		# the old orb would otherwise still be a child when the new one is added - two
+		# orbs at once, and the newcomer silently renamed to "CapstoneOrb2".
+		remove_child(_capstone_orb)
+		_capstone_orb.queue_free()
+		_capstone_orb = null
+	var mode: int = -1
+	match unlocked_capstone_aura:
+		"aura_orb_of_frost": mode = OrbitingOrb.Mode.FROST
+		"aura_orb_of_fire": mode = OrbitingOrb.Mode.FIRE
+		"aura_healing_orb": mode = OrbitingOrb.Mode.HEAL
+	if mode < 0:
+		return
+	_capstone_orb = OrbitingOrb.create(mode, self)
+	add_child(_capstone_orb)
+
+
+## The one way a capstone is ever taken. Exclusive by construction: the field holds a
+## single string, so buying either half of a colour's fork replaces whatever was there -
+## which is what makes the choice permanent for the run rather than a shopping list.
+func unlock_capstone(capstone_id: String) -> void:
+	if capstone_id == "" or unlocked_capstone_aura == capstone_id:
+		return
+	# ONE capstone per run. Refused here rather than only in the skill tree, because
+	# "permanent for the run" is a property of the player and not of the UI that happens
+	# to sell it - the debug reset clears the field directly, which is the only way back.
+	if unlocked_capstone_aura != "":
+		return
+	unlocked_capstone_aura = capstone_id
+	var color: String = SpellDatabase.get_capstone_color(capstone_id)
+	if color != "":
+		select_color_path(color)
+	# Grave Pact is the one capstone that has to be listening rather than ticking, so it
+	# subscribes here instead of in _ready - a player without it should not be walking a
+	# signal handler on every enemy death in the wave.
+	if capstone_id == "aura_grave_pact":
+		if not SignalBus.enemy_died_at.is_connected(_on_enemy_died_near):
+			SignalBus.enemy_died_at.connect(_on_enemy_died_near)
+	elif SignalBus.enemy_died_at.is_connected(_on_enemy_died_near):
+		SignalBus.enemy_died_at.disconnect(_on_enemy_died_near)
+	_sync_capstone_aura()
+
+
+## Grave Pact: a kill near the player leaves a soul - a small heal, and one stack of a
+## damage bonus whose timer restarts with every kill. Stop killing and the whole thing
+## lapses at once rather than decaying one stack at a time, because a bonus that drains
+## away slowly is one the player never notices losing.
+func _on_enemy_died_near(position: Vector3) -> void:
+	if is_downed or global_position.distance_to(position) > GameSettings.aura_grave_pact_radius:
+		return
+	heal(GameSettings.aura_grave_pact_heal)
+	_grave_stacks = mini(_grave_stacks + 1, GameSettings.aura_grave_pact_max_stacks)
+	_grave_stack_timer = GameSettings.aura_grave_pact_stack_duration
+
 func get_spell_damage_multiplier() -> float:
 	var affinity_multiplier: float = 1.0 + get_affinity_bonus("red")
+	# Grave Pact's stacks multiply into the same term the affinity does, so they scale
+	# everything the player does rather than only their melee.
+	affinity_multiplier *= 1.0 + float(_grave_stacks) * GameSettings.aura_grave_pact_damage_per_stack
 	if unlocked_capstone_aura == "aura_glorious_anthem":
 		return GameSettings.aura_glorious_anthem_damage_mult * RunState.damage_multiplier() * affinity_multiplier
 	# Furnace of Rath is the team's, so it multiplies whatever this player already has.
@@ -798,6 +952,8 @@ func spend_skill_points(amount: int) -> bool:
 
 
 func apply_slow(duration: float) -> void:
+	if is_control_immune():
+		return
 	slow_timer = maxf(slow_timer, duration)
 
 func heal(amount: float, show_damage_number: bool = true) -> void:
@@ -914,6 +1070,679 @@ func cast_red_rain_ember() -> void:
 	zone.setup("fire_rain", GameSettings.spell_red_rain_ember_radius, GameSettings.spell_red_rain_ember_dps * get_spell_damage_multiplier(), GameSettings.spell_red_rain_ember_duration, self)
 	get_tree().current_scene.add_child(zone)
 	zone.global_position = target_pos
+
+# --- Shared aiming and area helpers -------------------------------------------
+#
+# Written once because eleven of the twenty-five skills need one of them, and eleven
+# hand-rolled copies of "everything within N units" is eleven places for the y-axis to be
+# forgotten in.
+
+## Where the player is pointing on the ground, at most `max_distance` away. Falls back to
+## a point straight ahead when the ray hits nothing, so a spell aimed at the sky still
+## lands somewhere sensible instead of at the origin.
+func _aim_point(max_distance: float, mask: int = 1) -> Vector3:
+	var space_state := get_world_3d().direct_space_state
+	var start: Vector3 = camera.global_position
+	var end: Vector3 = start - camera.global_basis.z * max_distance
+	var query := PhysicsRayQueryParameters3D.create(start, end, mask)
+	query.exclude = [get_rid()]
+	var result: Dictionary = space_state.intersect_ray(query)
+	if result:
+		return result.position
+	return global_position - transform.basis.z * minf(max_distance, 10.0)
+
+
+## Every living enemy within `radius` of `center`, nearest first. Sorted because several
+## skills take the closest N rather than all of them, and an unsorted "first three" is
+## whichever three the scene tree happened to list.
+func _enemies_in_radius(center: Vector3, radius: float) -> Array[Node3D]:
+	var found: Array[Node3D] = []
+	for enemy: Node3D in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy) or enemy.is_queued_for_deletion():
+			continue
+		if center.distance_to(enemy.global_position) <= radius:
+			found.append(enemy)
+	found.sort_custom(func(a: Node3D, b: Node3D) -> bool:
+		return center.distance_squared_to(a.global_position) < center.distance_squared_to(b.global_position))
+	return found
+
+
+## Enemies inside a cone ahead of the player. `min_dot` is the cosine of the half-angle:
+## 1.0 is a line, 0.0 is everything in front, negative widens past the shoulders.
+func _enemies_in_cone(range_units: float, min_dot: float) -> Array[Node3D]:
+	var forward: Vector3 = -transform.basis.z
+	forward.y = 0.0
+	forward = forward.normalized()
+	var found: Array[Node3D] = []
+	for enemy: Node3D in _enemies_in_radius(global_position, range_units):
+		var to_enemy: Vector3 = enemy.global_position - global_position
+		to_enemy.y = 0.0
+		if to_enemy.length_squared() < 0.01 or forward.dot(to_enemy.normalized()) >= min_dot:
+			found.append(enemy)
+	return found
+
+
+## Players, myrs and summons within `radius`. What the three white support skills operate
+## on - white is the only colour whose power goes UP with more allies alive, so it is the
+## only one that needs to enumerate them.
+func _allies_in_radius(radius: float, include_self: bool = true) -> Array[Node3D]:
+	var found: Array[Node3D] = []
+	for group: String in ["player", "myrs", "allies"]:
+		for ally: Node in get_tree().get_nodes_in_group(group):
+			if not is_instance_valid(ally) or not ally is Node3D:
+				continue
+			if ally == self:
+				if include_self:
+					found.append(self)
+				continue
+			if global_position.distance_to((ally as Node3D).global_position) <= radius:
+				found.append(ally as Node3D)
+	return found
+
+
+## Adds a node to the running scene at a world position. Every placed skill does exactly
+## this, and doing it in the wrong order - position before parent - silently puts the
+## thing at the origin, because global_position means nothing outside the tree.
+func _place_in_world(node: Node3D, world_position: Vector3) -> void:
+	get_tree().current_scene.add_child(node)
+	node.global_position = world_position
+
+
+# --- WHITE: protection and restoration ----------------------------------------
+
+## white_1. Charges the NEXT melee hit rather than dealing damage itself - see
+## _apply_melee_damage, which spends the charge and exiles anything the hit kills.
+func cast_white_exalted_strike() -> void:
+	exalted_charges = GameSettings.spell_white_exalted_charges
+	SoundBank.play_at(&"blade_heavy_swing", global_position)
+	_spawn_cast_flash(Color(1.0, 0.95, 0.7), 2.4)
+
+
+## white_2. One pool of shield DIVIDED between everyone in range. Alone that is the whole
+## pool on the caster, which is what makes the skill honest in single-player without
+## being a strictly better personal shield in a group.
+func cast_white_circle_of_protection() -> void:
+	var allies: Array[Node3D] = _allies_in_radius(GameSettings.spell_white_circle_radius)
+	if allies.is_empty():
+		return
+	var each: float = GameSettings.spell_white_circle_shield_total / float(allies.size())
+	for ally: Node3D in allies:
+		if "protection_shield" in ally:
+			ally.protection_shield += each
+		elif ally.has_method("heal"):
+			# A myr has no shield to give, so its share arrives as health. The pool is
+			# still divided the same way - what changes is the form it takes.
+			ally.heal(each)
+		_spawn_ring(ally.global_position, Color(1.0, 0.95, 0.65), 1.6)
+	SoundBank.play_at(&"blade_swing", global_position)
+
+
+## white_3. Reflect and block, for a duration. Both halves are applied in take_damage.
+func cast_white_reprisal_ward() -> void:
+	_reprisal_timer = GameSettings.spell_white_reprisal_duration
+	_spawn_cast_flash(Color(1.0, 0.9, 0.55), 2.6)
+
+
+## white_4. White's one panic button: heavy damage, wide, around the caster.
+func cast_white_wrath_of_god() -> void:
+	var damage: float = GameSettings.spell_white_wrath_damage * get_spell_damage_multiplier()
+	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_white_wrath_radius):
+		_deal_damage(enemy, damage, false)
+	SoundBank.play_at(&"heavy_landing", global_position)
+	SignalBus.camera_shake_requested.emit(0.6, 0.4)
+	_spawn_ring(global_position, Color(1.0, 0.97, 0.8), GameSettings.spell_white_wrath_radius)
+
+
+## white_5. The only skill in all thirty that UNDOES a loss rather than preventing one,
+## which is about as white as a mechanic gets - and the only one that touches the co-op
+## revive system.
+func cast_white_rally_the_fallen() -> void:
+	for ally: Node3D in _allies_in_radius(GameSettings.spell_white_rally_radius):
+		if ally == self:
+			continue
+		if "is_downed" in ally and ally.is_downed and ally.has_method("revive"):
+			ally.revive()
+			_spawn_ring(ally.global_position, Color(1.0, 1.0, 0.85), 2.2)
+			continue
+		if ally.has_method("heal"):
+			ally.heal(GameSettings.spell_white_rally_heal)
+	# The caster is healed too, but never revived by their own cast - a downed player
+	# cannot cast anything, so that branch could only ever be dead code.
+	heal(GameSettings.spell_white_rally_heal)
+	SoundBank.play_at(&"blade_heavy_swing", global_position)
+
+
+# --- BLUE: control -------------------------------------------------------------
+
+## blue_1. Shoves the cone ahead far back and stuns whatever lands. The impact damage for
+## anything thrown into a wall is EnemyBase's, on the knockback path.
+func cast_blue_unsummon() -> void:
+	var pushed: int = 0
+	for enemy: Node3D in _enemies_in_cone(GameSettings.spell_blue_unsummon_range, GameSettings.spell_blue_unsummon_cone_dot):
+		var away: Vector3 = enemy.global_position - global_position
+		away.y = 0.0
+		if away.length_squared() < 0.01:
+			away = -transform.basis.z
+		if enemy.has_method("apply_knockback"):
+			enemy.apply_knockback(away.normalized() * GameSettings.spell_blue_unsummon_knockback)
+		if enemy.has_method("apply_stun") and not (enemy.has_method("is_immune_to_control") and enemy.is_immune_to_control()):
+			enemy.apply_stun(GameSettings.spell_blue_unsummon_stun)
+		pushed += 1
+	if pushed > 0:
+		SoundBank.play_at(&"blade_heavy_hit", global_position)
+	SignalBus.camera_shake_requested.emit(0.3, 0.25)
+
+
+## blue_2. Freezes everything around the caster. BOSSES ARE SLOWED, NEVER FROZEN - that
+## clause is what stops one blue skill deleting a boss fight.
+func cast_blue_frostwave() -> void:
+	var damage: float = GameSettings.spell_blue_frostwave_damage * get_spell_damage_multiplier()
+	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_blue_frostwave_radius):
+		_deal_damage(enemy, damage, false)
+		var is_boss: bool = enemy.has_method("is_boss") and enemy.is_boss()
+		if is_boss:
+			if enemy.has_method("apply_frost_slow"):
+				enemy.apply_frost_slow(GameSettings.spell_blue_frostwave_boss_slow)
+		elif "freeze_timer" in enemy:
+			enemy.freeze_timer = maxf(enemy.freeze_timer, GameSettings.spell_blue_frostwave_freeze)
+	_spawn_ring(global_position, Color(0.55, 0.85, 1.0), GameSettings.spell_blue_frostwave_radius)
+	SignalBus.camera_shake_requested.emit(0.35, 0.3)
+
+
+## blue_3. Cover. See FrostGlobe for why one collision layer is the whole skill.
+func cast_blue_frost_globe() -> void:
+	var target: Vector3 = _aim_point(18.0)
+	var globe := FrostGlobe.create(
+		GameSettings.spell_blue_frost_globe_radius,
+		GameSettings.spell_blue_frost_globe_duration
+	)
+	_place_in_world(globe, target + Vector3(0.0, GameSettings.spell_blue_frost_globe_radius * 0.8, 0.0))
+
+
+## blue_4. Packs enemies together for an area follow-up. The pull is a knockback aimed
+## INWARD - one impulse toward the centre rather than a sustained drag, so an enemy can
+## still walk out of it. Strength is fixed on purpose: see GameSettings.
+func cast_blue_suction() -> void:
+	var center: Vector3 = _aim_point(GameSettings.spell_blue_suction_radius)
+	for enemy: Node3D in _enemies_in_radius(center, GameSettings.spell_blue_suction_radius):
+		if not enemy.has_method("apply_knockback"):
+			continue
+		var inward: Vector3 = center - enemy.global_position
+		inward.y = 0.0
+		if inward.length_squared() < 0.04:
+			continue
+		enemy.apply_knockback(inward.normalized() * GameSettings.spell_blue_suction_pull_speed)
+	_spawn_ring(center, Color(0.35, 0.6, 1.0), GameSettings.spell_blue_suction_radius * 0.6)
+
+
+## blue_5. An illusion enemies attack instead of the player. See TemporaryAlly.
+func cast_blue_phantasmal_decoy() -> void:
+	var decoy := TemporaryAlly.new()
+	decoy.configure(
+		"decoy",
+		GameSettings.spell_blue_decoy_hp,
+		GameSettings.spell_blue_decoy_duration,
+		0.0,
+		self
+	)
+	_place_in_world(decoy, global_position - transform.basis.z * 2.5)
+	# Enemies do not re-evaluate every frame, so without this the decoy stands unnoticed
+	# until each enemy's own evaluation timer happens to come round.
+	for enemy: Node3D in _enemies_in_radius(global_position, 20.0):
+		if enemy.has_method("evaluate_target"):
+			enemy.evaluate_target()
+
+
+# --- BLACK: parasitic drain ----------------------------------------------------
+
+## black_1. A line, not a cone: the blade passes THROUGH everything it touches and misses
+## everything it does not, which is what makes it a skill shot.
+func cast_black_doom_blade() -> void:
+	var forward: Vector3 = -transform.basis.z
+	forward.y = 0.0
+	forward = forward.normalized()
+	var length: float = GameSettings.spell_black_doom_blade_length
+	var half_width: float = GameSettings.spell_black_doom_blade_width * 0.5
+	var damage: float = GameSettings.spell_black_doom_blade_damage * get_spell_damage_multiplier()
+
+	for enemy: Node3D in _enemies_in_radius(global_position, length):
+		var offset: Vector3 = enemy.global_position - global_position
+		offset.y = 0.0
+		var along: float = offset.dot(forward)
+		if along < 0.0 or along > length:
+			continue
+		# Distance from the line itself, which is what "only what the blade touches" means.
+		if (offset - forward * along).length() > half_width:
+			continue
+		_deal_damage(enemy, damage, false)
+
+	_spawn_beam(global_position + Vector3(0.0, 1.1, 0.0), forward, length, Color(0.6, 0.15, 0.75))
+	SoundBank.play_at(&"blade_heavy_swing", global_position)
+
+
+## black_2. The colour's answer to being surrounded: they leave rather than stop. See
+## EnemyBase.apply_fear, which moves the body rather than only suppressing the attack.
+func cast_black_fear() -> void:
+	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_black_fear_radius):
+		if enemy.has_method("apply_fear"):
+			enemy.apply_fear(GameSettings.spell_black_fear_duration, global_position)
+	_spawn_ring(global_position, Color(0.45, 0.15, 0.6), GameSettings.spell_black_fear_radius)
+
+
+## black_3. The only outright delete in the game. Bosses are executed ONLY below the
+## threshold - without that clause this one skill would end every wave boss on sight.
+func cast_black_kill() -> void:
+	var target: Node3D = null
+	var forward: Vector3 = -camera.global_basis.z
+	forward.y = 0.0
+	forward = forward.normalized()
+	var best_dot: float = 0.55
+	# Whatever the player is most directly looking at, rather than whatever is nearest:
+	# a single-target execute that picked its own victim would be a different skill.
+	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_black_kill_range):
+		var to_enemy: Vector3 = enemy.global_position - global_position
+		to_enemy.y = 0.0
+		if to_enemy.length_squared() < 0.01:
+			continue
+		var alignment: float = forward.dot(to_enemy.normalized())
+		if alignment > best_dot:
+			best_dot = alignment
+			target = enemy
+
+	if target == null:
+		return
+	if target.has_method("is_boss") and target.is_boss():
+		var ratio: float = HealthReader.ratio(target)
+		if ratio < 0.0 or ratio > GameSettings.spell_black_kill_boss_threshold:
+			# Too healthy to execute. The cooldown is still spent - the risk of calling it
+			# early is what makes the threshold a decision rather than a formality.
+			_notify("Not weak enough to kill")
+			return
+	_spawn_ring(target.global_position, Color(0.35, 0.05, 0.45), 2.4)
+	SoundBank.play_at(&"blade_heavy_hit", target.global_position)
+	SignalBus.camera_shake_requested.emit(0.5, 0.3)
+	if target.has_method("exile"):
+		target.exile()
+	elif target.has_method("die"):
+		target.die()
+
+
+## black_4. Laid across the player's line of sight rather than along it - see SoulWall,
+## where the placement rule is explained.
+func cast_black_wall_of_souls() -> void:
+	var center: Vector3 = _aim_point(20.0)
+	var wall := SoulWall.create(
+		GameSettings.spell_black_wall_length,
+		GameSettings.spell_black_wall_duration,
+		GameSettings.spell_black_wall_mark_duration,
+		GameSettings.spell_black_wall_mark_mult,
+		self
+	)
+	_place_in_world(wall, center)
+	var facing: Vector3 = -camera.global_basis.z
+	facing.y = 0.0
+	if facing.length_squared() > 0.01:
+		# Perpendicular: the wall lies ACROSS the approach the player is looking down.
+		wall.rotation.y = atan2(facing.x, facing.z) + PI * 0.5
+
+
+## black_5. Turns the corpse registry - which until now existed only to cap how many dead
+## bodies stayed in the scene - into a resource.
+func cast_black_zombify() -> void:
+	var corpses: Array[EnemyBase] = EnemyBase.corpses()
+	if corpses.is_empty():
+		_notify("No corpses to raise")
+		return
+	# Nearest first, so the spell raises what the player is standing over rather than
+	# something that died in another lane five waves ago.
+	corpses.sort_custom(func(a: EnemyBase, b: EnemyBase) -> bool:
+		return global_position.distance_squared_to(a.global_position) < global_position.distance_squared_to(b.global_position))
+
+	var raised: int = 0
+	for corpse: EnemyBase in corpses:
+		if raised >= GameSettings.spell_black_zombify_count:
+			break
+		var where: Vector3 = corpse.global_position
+		var source: EnemyData = corpse.enemy_data
+		EnemyBase.consume_corpse(corpse)
+		var undead := TemporaryAlly.new()
+		undead.configure(
+			"undead",
+			GameSettings.spell_black_zombify_hp,
+			GameSettings.spell_black_zombify_duration,
+			GameSettings.spell_black_zombify_damage * get_spell_damage_multiplier(),
+			self,
+			source
+		)
+		_place_in_world(undead, where + Vector3(0.0, 0.5, 0.0))
+		_spawn_ring(where, Color(0.35, 0.8, 0.4), 1.8)
+		raised += 1
+	SoundBank.play_at(&"heavy_landing", global_position)
+
+
+# --- RED: aggression -----------------------------------------------------------
+
+## red_2, first half. Fired when the cast STARTS, like Titanic Leap: the dash has to be
+## under way by the time the release frame lights the trail behind it.
+func cast_red_fire_dash() -> void:
+	var forward: Vector3 = -transform.basis.z
+	forward.y = 0.0
+	velocity = forward.normalized() * GameSettings.spell_red_dash_speed
+	velocity.y = 0.0
+	_dash_timer = GameSettings.spell_red_dash_duration
+	_dash_trail_timer = 0.0
+	SoundBank.play_at(&"blade_heavy_swing", global_position)
+
+
+## red_2, second half. Everything the dash passed over is already burning by now - the
+## trail is dropped along the way in _physics_process; this is the last segment plus the
+## noise that sells it.
+func _lay_fire_trail() -> void:
+	_drop_trail_segment()
+	SignalBus.camera_shake_requested.emit(0.25, 0.2)
+
+
+## One burning patch of the dash's wake. Small and short-lived individually - it is the
+## line of them that does the damage.
+func _drop_trail_segment() -> void:
+	var zone := DoTZone.new()
+	zone.setup(
+		"fire_rain",
+		GameSettings.spell_red_dash_trail_radius,
+		GameSettings.spell_red_dash_trail_dps * get_spell_damage_multiplier(),
+		GameSettings.spell_red_dash_trail_duration,
+		self
+	)
+	_place_in_world(zone, global_position)
+
+
+## red_4. Starts the channel; the damage is paid out per frame in _update_channel while
+## the button stays down. Held spells are the only ones whose effect is not a single
+## moment, which is why this one function does almost nothing.
+func cast_red_fire_cone() -> void:
+	_channel_id = "red_4"
+	_channel_timer = GameSettings.spell_red_fire_cone_max_duration
+	# Whether the player is HOLDING the cast button decides how it ends. Started from the
+	# number-key hotbar instead, there is no hold to watch, so it simply runs its length.
+	_channel_held = Input.is_action_pressed("cast_spell")
+	_channel_fx = EmberFx.build_flame(GameSettings.spell_red_fire_cone_length * 0.25, 60)
+	_channel_fx.position = Vector3(0.0, 1.2, -1.2)
+	var process: ParticleProcessMaterial = _channel_fx.process_material
+	process.direction = Vector3(0.0, 0.0, -1.0)
+	process.spread = 22.0
+	process.gravity = Vector3.ZERO
+	process.initial_velocity_min = GameSettings.spell_red_fire_cone_length * 0.5
+	process.initial_velocity_max = GameSettings.spell_red_fire_cone_length
+	add_child(_channel_fx)
+
+
+## red_5. The smallest area in the game and the biggest single number, telegraphed so the
+## precision is the player's rather than the spell's.
+func cast_red_lightning_bolt() -> void:
+	var target: Vector3 = _aim_point(GameSettings.spell_red_bolt_range, 5)
+	# AttackIndicator parents itself to whatever it is told to mark - the enemies pass
+	# themselves, so the telegraph tracks them. A ground strike has nothing to track, so
+	# it gets an anchor of its own to sit on.
+	var anchor := Node3D.new()
+	anchor.name = "BoltTelegraph"
+	_place_in_world(anchor, target)
+	var indicator: AttackIndicator = AttackIndicator.spawn(
+		anchor,
+		AttackIndicator.Shape.CIRCLE,
+		GameSettings.spell_red_bolt_radius,
+		0.0,
+		GameSettings.spell_red_bolt_delay,
+		Color(0.7, 0.85, 1.0)
+	)
+
+	# The strike lands AFTER the telegraph, not with it - a warning that resolves on the
+	# frame it appears is not a warning. Which also means the player can be dead, or the
+	# whole scene gone, by the time it arrives.
+	var timer: SceneTreeTimer = get_tree().create_timer(GameSettings.spell_red_bolt_delay)
+	timer.timeout.connect(func() -> void:
+		if is_instance_valid(indicator):
+			indicator.resolve()
+		if is_instance_valid(anchor):
+			# Outlives the indicator's own fade, which is parented to it.
+			anchor.get_tree().create_timer(0.5).timeout.connect(anchor.queue_free)
+		if not is_instance_valid(self) or not is_inside_tree():
+			return
+		var damage: float = GameSettings.spell_red_bolt_damage * get_spell_damage_multiplier()
+		for enemy: Node3D in _enemies_in_radius(target, GameSettings.spell_red_bolt_radius):
+			_deal_damage(enemy, damage, false)
+		_spawn_beam(target + Vector3(0.0, 18.0, 0.0), Vector3.DOWN, 18.0, Color(0.75, 0.9, 1.0))
+		_spawn_ring(target, Color(0.8, 0.9, 1.0), GameSettings.spell_red_bolt_radius)
+		SoundBank.play_at(&"heavy_landing", target)
+		SignalBus.camera_shake_requested.emit(0.55, 0.35))
+
+
+# --- GREEN: primal vitality ----------------------------------------------------
+
+## green_2. Bigger AND tougher: the size is what the player sees, the health is what the
+## skill actually does. `_sync_capstone_aura` owns the health half so it cannot drift.
+func cast_green_giant_growth() -> void:
+	is_giant = true
+	giant_timer = GameSettings.spell_green_giant_duration
+	_giant_bonus_hp = GameSettings.spell_green_giant_bonus_hp
+	# Grown into rather than snapped to: an instant scale change reads as a glitch, and
+	# the character's feet visibly leave the floor for a frame.
+	var tween: Tween = create_tween()
+	tween.tween_property(self, "scale", base_scale * GameSettings.spell_green_giant_scale, 0.25) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_sync_capstone_aura()
+	# Gaining maximum health should ARRIVE as health, or the buff reads as a downgrade
+	# for the first few seconds while the bar sits at a lower fraction than before.
+	heal(GameSettings.spell_green_giant_bonus_hp, false)
+	SoundBank.play_at(&"blade_heavy_swing", global_position)
+
+
+## green_3. Ground where enemies deal nothing. Half of green's crystal-defence pair.
+func cast_green_fog() -> void:
+	var target: Vector3 = _aim_point(20.0)
+	var zone := DoTZone.new()
+	zone.setup("fog", GameSettings.spell_green_fog_radius, 0.0, GameSettings.spell_green_fog_duration, self)
+	_place_in_world(zone, target)
+
+
+## green_4. The other half: pulls enemies off the crystal and the myrs and onto the
+## player, which is the only skill in the game that moves aggro deliberately.
+func cast_green_roar() -> void:
+	var taunted: int = 0
+	for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.spell_green_roar_radius):
+		if enemy.has_method("apply_taunt"):
+			enemy.apply_taunt(self, GameSettings.spell_green_roar_duration)
+			taunted += 1
+	_spawn_ring(global_position, Color(0.35, 0.85, 0.3), GameSettings.spell_green_roar_radius)
+	SignalBus.camera_shake_requested.emit(0.3, 0.3)
+	if taunted > 0:
+		_notify("%d enemies turned on you" % taunted)
+
+
+## green_5. Damage reduction AND immunity to knockback, stun and freeze - the only answer
+## in the game to being controlled. Both halves are read where they apply: take_damage
+## for the reduction, _try_hit_reaction and apply_slow for the immunity.
+func cast_green_ironbark() -> void:
+	_ironbark_timer = GameSettings.spell_green_ironbark_duration
+	_stagger_timer = 0.0
+	_spawn_cast_flash(Color(0.45, 0.32, 0.16), 2.2)
+	SoundBank.play_at(&"blunt_hit", global_position)
+
+
+## True while Ironbark holds. Everything that would interrupt or move the player checks
+## this - one predicate rather than five copies of the timer test.
+func is_control_immune() -> bool:
+	return _ironbark_timer > 0.0
+
+
+## How far apart the dash drops its burning patches. Close enough that the trail reads as
+## continuous, far enough that a dash does not spawn thirty zones.
+const DASH_TRAIL_SPACING := 0.07
+
+
+## Everything the skill roster put on a clock, in one place. Called once per frame before
+## anything reads any of it, so a buff can never be half-expired within a frame.
+func _update_skill_timers(delta: float) -> void:
+	if _reprisal_timer > 0.0:
+		_reprisal_timer -= delta
+	if _ironbark_timer > 0.0:
+		_ironbark_timer -= delta
+
+	if _grave_stack_timer > 0.0:
+		_grave_stack_timer -= delta
+		if _grave_stack_timer <= 0.0:
+			# The whole stack lapses at once rather than draining away one at a time: a
+			# bonus that decays gradually is one the player never notices losing.
+			_grave_stacks = 0
+
+	if giant_timer > 0.0:
+		giant_timer -= delta
+		if giant_timer <= 0.0:
+			_end_giant_growth()
+
+
+## Giant Growth wearing off. The health has to come back through _sync_capstone_aura
+## rather than being subtracted here, or repeated casts would drift the maximum.
+func _end_giant_growth() -> void:
+	is_giant = false
+	giant_timer = 0.0
+	_giant_bonus_hp = 0.0
+	var tween: Tween = create_tween()
+	tween.tween_property(self, "scale", base_scale, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	_sync_capstone_aura()
+
+
+## Fire Cone, running. The only per-frame spell in the game: it pays out damage every
+## frame it is up, holds the player still, and ends on the button coming up or on its own
+## limit - whichever is first.
+func _update_channel(delta: float) -> void:
+	_channel_timer -= delta
+
+	var still_held: bool = true
+	if _channel_held:
+		still_held = Input.is_action_pressed("cast_spell")
+	if _channel_timer <= 0.0 or not still_held or is_downed or _stagger_timer > 0.0:
+		_end_channel()
+		return
+
+	# Rooted, but still turning: aiming a flamethrower is the whole interaction, and a
+	# cone the player cannot sweep would be a worse Rain of Ember.
+	velocity.x = 0.0
+	velocity.z = 0.0
+	if not is_on_floor():
+		velocity.y -= gravity * delta
+	else:
+		velocity.y = 0.0
+	move_and_slide()
+
+	var damage: float = GameSettings.spell_red_fire_cone_dps * get_spell_damage_multiplier() * delta
+	for enemy: Node3D in _enemies_in_cone(GameSettings.spell_red_fire_cone_length, GameSettings.spell_red_fire_cone_dot):
+		_deal_damage(enemy, damage, false)
+	animator.update_locomotion(delta, Vector3.ZERO, false, is_on_floor(), false)
+
+
+## Ends the channel and takes its flames with it. Called from _update_channel when it
+## runs out, and from _cancel_action when something interrupts the player - a channel
+## that survived a stagger would keep burning while the character was knocked over.
+func _end_channel() -> void:
+	if _channel_id == "":
+		return
+	_channel_id = ""
+	_channel_timer = 0.0
+	_channel_held = false
+	if is_instance_valid(_channel_fx):
+		# Emission off rather than freed, so the flames already in the air burn out
+		# instead of blinking away mid-frame.
+		_channel_fx.emitting = false
+		var doomed: Node3D = _channel_fx
+		get_tree().create_timer(1.2).timeout.connect(func() -> void:
+			if is_instance_valid(doomed):
+				doomed.queue_free())
+	_channel_fx = null
+
+
+# --- Shared spell visuals ------------------------------------------------------
+#
+# Deliberately small and generic. Every skill gets SOMETHING the player can see, because
+# a spell with no feedback is indistinguishable from a spell that did not fire - which is
+# exactly how the skill tree bug that hid all of this went unnoticed for a release.
+
+## An expanding ring on the ground. The area a skill just affected, drawn at the size it
+## actually used, so the player can learn the radius by watching rather than by reading.
+func _spawn_ring(center: Vector3, tint: Color, radius: float) -> void:
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = radius * 0.88
+	torus.outer_radius = radius
+	ring.mesh = torus
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(tint.r, tint.g, tint.b, 0.75)
+	mat.emission_enabled = true
+	mat.emission = tint
+	mat.emission_energy_multiplier = 3.5
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	ring.material_override = mat
+	_place_in_world(ring, center + Vector3(0.0, 0.12, 0.0))
+	ring.scale = Vector3(0.35, 1.0, 0.35)
+	var tween: Tween = ring.create_tween()
+	tween.tween_property(ring, "scale", Vector3.ONE, 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(mat, "albedo_color:a", 0.0, 0.4)
+	tween.tween_callback(ring.queue_free)
+
+
+## A straight shaft of light. Doom Blade's line and Lightning Bolt's strike are the same
+## shape seen from two angles.
+func _spawn_beam(origin: Vector3, direction: Vector3, length: float, tint: Color) -> void:
+	var beam := MeshInstance3D.new()
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = 0.22
+	cylinder.bottom_radius = 0.22
+	cylinder.height = length
+	beam.mesh = cylinder
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(tint.r, tint.g, tint.b, 0.85)
+	mat.emission_enabled = true
+	mat.emission = tint
+	mat.emission_energy_multiplier = 6.0
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	beam.material_override = mat
+	_place_in_world(beam, origin + direction.normalized() * length * 0.5)
+	# A cylinder mesh stands on Y, so it has to be laid down along the direction asked for.
+	if absf(direction.normalized().dot(Vector3.UP)) < 0.99:
+		beam.look_at(origin + direction.normalized() * length, Vector3.UP)
+		beam.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+	var tween: Tween = beam.create_tween()
+	tween.tween_property(mat, "albedo_color:a", 0.0, 0.22)
+	tween.tween_callback(beam.queue_free)
+
+
+## A pulse of light on the caster. What a self-buff looks like, since it has nowhere else
+## to happen.
+func _spawn_cast_flash(tint: Color, radius: float) -> void:
+	var light := OmniLight3D.new()
+	light.light_color = tint
+	light.light_energy = 4.0
+	light.omni_range = radius * 2.0
+	light.position = Vector3(0.0, 1.2, 0.0)
+	add_child(light)
+	var tween: Tween = light.create_tween()
+	tween.tween_property(light, "light_energy", 0.0, 0.5)
+	tween.tween_callback(light.queue_free)
+
+
+## The on-screen line every skill uses to explain itself when it did nothing visible -
+## Zombify with no corpses, Kill on a healthy boss. Silence there is indistinguishable
+## from a bug.
+func _notify(text: String) -> void:
+	if not is_local:
+		return
+	_notification_text = text
+	_notification_timer = 1.8
+	SignalBus.interact_prompt_changed.emit(text, true)
+
 
 # --- MELEE ---
 #
@@ -1318,15 +2147,15 @@ func _begin_melee_action(clip: String, duration: float, damage_mult: float, uppe
 ## Solo and on the host this is a direct call, exactly as it always was. On a client it
 ## becomes a request the server applies - the client keeps its instant feedback and
 ## gives up only the authority to decide the number.
-func _deal_damage(target: Node, amount: float, is_melee: bool) -> void:
+func _deal_damage(target: Node, amount: float, is_melee: bool, exile_on_kill: bool = false) -> void:
 	if not is_instance_valid(target):
 		return
 	if Net.is_server():
 		if target.has_method("take_damage"):
-			target.take_damage(amount, self, is_melee)
+			target.take_damage(amount, self, is_melee, exile_on_kill)
 		return
 	if target.has_method("request_damage"):
-		target.request_damage.rpc_id(1, amount, Net.local_id(), is_melee)
+		target.request_damage.rpc_id(1, amount, Net.local_id(), is_melee, exile_on_kill)
 
 
 ## One impact frame's worth of melee damage. A negative `damage_mult` means "this is
@@ -1341,6 +2170,15 @@ func _apply_melee_damage(damage_mult: float) -> int:
 	var dmg: float = GameSettings.spell_melee_kick_damage if is_kick else GameSettings.spell_melee_damage * damage_mult
 	dmg *= get_spell_damage_multiplier()
 
+	# Exalted Strike (white_1). A kick is not a strike, so it never spends the charge -
+	# otherwise the buff could be thrown away by a button the player pressed for spacing.
+	var exalted: bool = exalted_charges > 0 and not is_kick
+	if exalted:
+		exalted_charges -= 1
+		dmg *= GameSettings.spell_white_exalted_damage_mult
+		reach += GameSettings.spell_white_exalted_reach_bonus
+		_spawn_cast_flash(Color(1.0, 0.97, 0.75), 2.0)
+
 	var space_state = get_world_3d().direct_space_state
 	var start = camera.global_position
 	var end = start - camera.global_basis.z * reach
@@ -1349,7 +2187,7 @@ func _apply_melee_damage(damage_mult: float) -> int:
 
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
-		_deal_damage(enemy, dmg, true)
+		_deal_damage(enemy, dmg, true, exalted)
 		_apply_basic_attack_knockback(enemy, knockback)
 		return 1
 
@@ -1359,8 +2197,7 @@ func _apply_melee_damage(damage_mult: float) -> int:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= reach:
 			var dir_to_e = (e.global_position - global_position).normalized()
 			if -transform.basis.z.dot(dir_to_e) > GameSettings.spell_melee_cone:
-				if e.has_method("take_damage"):
-					e.take_damage(dmg, self, true)
+				_deal_damage(e, dmg, true, exalted)
 				_apply_basic_attack_knockback(e, knockback)
 				connected += 1
 	return connected
@@ -1440,10 +2277,18 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	_update_skill_timers(delta)
+
 	# Melee fires on release: a tap advances the light chain by one stage, a hold
 	# commits to the heavy spin. See _update_actions().
 	_update_block()
 	_update_actions(delta)
+
+	# Fire Cone owns the player completely while it runs - no movement, no melee, no
+	# second cast - so it returns rather than falling through to the movement code.
+	if _channel_id != "":
+		_update_channel(delta)
+		return
 
 	if not is_on_floor():
 		velocity.y -= gravity * delta
@@ -1457,6 +2302,19 @@ func _physics_process(delta: float) -> void:
 	# scheduled off the clip's landing frame, not off this timer.
 	if _leap_timer > 0.0:
 		_leap_timer -= delta
+		move_and_slide()
+		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), true, is_on_floor(), false)
+		return
+
+	# Fire Dash, the same shape as the leap: the impulse owns the player for its length,
+	# and the ordinary movement code below would otherwise overwrite it on the very next
+	# line. Unlike the leap it stays on the ground, and it leaves something behind.
+	if _dash_timer > 0.0:
+		_dash_timer -= delta
+		_dash_trail_timer -= delta
+		if _dash_trail_timer <= 0.0:
+			_dash_trail_timer = DASH_TRAIL_SPACING
+			_drop_trail_segment()
 		move_and_slide()
 		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), true, is_on_floor(), false)
 		return
@@ -1479,6 +2337,14 @@ func _physics_process(delta: float) -> void:
 		var drain = max_hp * GameSettings.aura_phyrexian_arena_hp_drain_pct * delta
 		hp = max(1.0, hp - drain)
 		SignalBus.player_health_changed.emit(hp, max_hp)
+
+	# Trample, green's Manifestation. Gated on actually MOVING, which is the whole
+	# design: it rewards the colour that fights by being physically present, and it does
+	# nothing at all for a player standing still at the crystal.
+	if unlocked_capstone_aura == "aura_trample" and Vector3(velocity.x, 0.0, velocity.z).length() > 1.0:
+		var trample: float = GameSettings.aura_trample_dps * get_spell_damage_multiplier() * delta
+		for enemy: Node3D in _enemies_in_radius(global_position, GameSettings.aura_trample_radius):
+			_deal_damage(enemy, trample, true)
 
 	# Teammate revive check
 	var revived_teammate = false

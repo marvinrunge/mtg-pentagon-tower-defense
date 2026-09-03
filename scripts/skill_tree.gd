@@ -7,6 +7,12 @@ const COLOR_NAMES: Array[String] = ["white", "blue", "black", "red", "green"]
 ## lengthens the player's light attack chain by a stage.
 const CENTER_KEY: String = "center"
 const CENTER_BRANCH: int = -1
+## The two capstone nodes sit past the end of a colour's branch, splayed either side of
+## it - the fork in docs/SKILL_DESIGN.md drawn as a fork. 6 is the Attunement (the stat
+## line), 7 the Manifestation (the visible one).
+const CAPSTONE_BRANCHES: Array[int] = [6, 7]
+## One past the last real branch index, for the radial keyboard navigation's wrap.
+const BRANCH_COUNT: int = 8
 const CENTER_INFO: Dictionary = {
 	"id": "melee_combo",
 	"name": "Blade Dance",
@@ -93,10 +99,10 @@ func _input(event: InputEvent) -> void:
 		_select_node(wrapi(_selected_color_index + 1, 0, COLOR_NAMES.size()), _selected_branch_index)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_up"):
-		_select_node(_selected_color_index, wrapi(_selected_branch_index - 1, CENTER_BRANCH, 6))
+		_select_node(_selected_color_index, wrapi(_selected_branch_index - 1, CENTER_BRANCH, BRANCH_COUNT))
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_down"):
-		_select_node(_selected_color_index, wrapi(_selected_branch_index + 1, CENTER_BRANCH, 6))
+		_select_node(_selected_color_index, wrapi(_selected_branch_index + 1, CENTER_BRANCH, BRANCH_COUNT))
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_accept"):
 		var record: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
@@ -169,6 +175,17 @@ func _build_ui() -> void:
 			spell_info["rank_requirement"] = GameSettings.affinity_spell_rank_requirements[spell_index]
 			_create_icon_node(color, spell_index + 1, spell_info)
 
+		# The capstone fork. Both halves are built even though only one can ever be
+		# taken: seeing the road not travelled is what makes the choice a choice.
+		var capstones: Array[Dictionary] = SpellDatabase.get_capstones(color)
+		for half: int in range(capstones.size()):
+			var capstone_info: Dictionary = capstones[half].duplicate()
+			capstone_info["is_affinity"] = false
+			capstone_info["is_capstone"] = true
+			capstone_info["cost"] = GameSettings.capstone_skill_point_cost
+			capstone_info["rank_requirement"] = GameSettings.capstone_rank_requirement
+			_create_icon_node(color, CAPSTONE_BRANCHES[half], capstone_info)
+
 	_build_selection_ring()
 	_build_detail_panel()
 	_board.resized.connect(_layout_nodes)
@@ -240,9 +257,21 @@ func _layout_nodes() -> void:
 	if not is_instance_valid(_board) or _board.size.x <= 0.0 or _board.size.y <= 0.0:
 		return
 
-	var center := _board.size * 0.5
-	var outer_radius: float = minf(_board.size.x * 0.43, _board.size.y * 0.45)
-	var inner_radius: float = outer_radius * 0.18
+	# The pentagon is centred in the space ABOVE the detail panel, not in the whole board.
+	#
+	# It used to be centred in the board, which was survivable while every node sat on the
+	# pentagon itself. The capstone fork put two more nodes per colour OUTSIDE it, and the
+	# lowest of those landed under the panel - clickable, because the panel ignores the
+	# mouse, but invisible. Reserving the panel's band first is the fix that holds at any
+	# aspect ratio, because the panel is a FIXED 620x116 and therefore eats a far larger
+	# share of a 720p board than of a 1080p one. tools/tests/skill_purchase.gd asserts it
+	# at three shapes rather than trusting one.
+	var panel_reserve: float = _detail_panel.size.y + 36.0
+	var usable_height: float = maxf(_board.size.y - panel_reserve, 120.0)
+	var center := Vector2(_board.size.x * 0.5, usable_height * 0.5)
+	var outer_radius: float = minf(_board.size.x * 0.43, usable_height * 0.46)
+	var branch_radius: float = outer_radius * 0.87
+	var inner_radius: float = branch_radius * 0.18
 	var outer_vertices := PackedVector2Array()
 
 	var center_record: Dictionary = _find_record(CENTER_KEY, CENTER_BRANCH)
@@ -259,7 +288,7 @@ func _layout_nodes() -> void:
 
 		for branch_index: int in range(6):
 			var progress: float = float(branch_index) / 5.0
-			var radius: float = lerpf(inner_radius, outer_radius, progress)
+			var radius: float = lerpf(inner_radius, branch_radius, progress)
 			var point: Vector2 = center + direction * radius
 			branch_points.append(point)
 			var record: Dictionary = _find_record(color, branch_index)
@@ -269,9 +298,22 @@ func _layout_nodes() -> void:
 				button.size = Vector2(diameter, diameter)
 				button.position = point - button.size * 0.5
 
+		# The fork: past the end of the branch and splayed to either side of it, so the
+		# two halves read as alternatives to each other rather than as two more steps.
+		var fork_radius: float = outer_radius
+		for half: int in range(CAPSTONE_BRANCHES.size()):
+			var fork_record: Dictionary = _find_record(color, CAPSTONE_BRANCHES[half])
+			if fork_record.is_empty():
+				continue
+			var splay: float = deg_to_rad(-13.0 if half == 0 else 13.0)
+			var fork_direction := Vector2(cos(angle + splay), sin(angle + splay))
+			var fork_button: TextureButton = fork_record["button"]
+			fork_button.size = Vector2(44.0, 44.0)
+			fork_button.position = center + fork_direction * fork_radius - fork_button.size * 0.5
+
 		var branch_line: Line2D = _branch_lines[color]
 		branch_line.points = branch_points
-		outer_vertices.append(center + direction * outer_radius)
+		outer_vertices.append(center + direction * branch_radius)
 
 	outer_vertices.append(outer_vertices[0])
 	_outer_line.points = outer_vertices
@@ -317,6 +359,23 @@ func update_ui() -> void:
 		var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
 		var state: String = "available"
 
+		if bool(info.get("is_capstone", false)):
+			# Four states, and the fourth is the point: a capstone the player can no
+			# longer take because they already took a different one. It stays on the
+			# board, dimmed, so the fork remains legible for the rest of the run.
+			var capstone_id: String = String(info["id"])
+			if player.unlocked_capstone_aura == capstone_id:
+				state = "unlocked"
+			elif player.unlocked_capstone_aura != "":
+				state = "locked"
+			elif not _gate_met(player, color, info) or not _affordable(available_mana, int(info["cost"])):
+				state = "locked"
+			button.texture_normal = _get_placeholder_texture(color, branch_index, state)
+			button.texture_hover = _get_placeholder_texture(color, branch_index, "hover")
+			var taken_elsewhere: bool = player.unlocked_capstone_aura != "" and player.unlocked_capstone_aura != capstone_id
+			button.modulate = Color(0.42, 0.42, 0.46) if taken_elsewhere else Color.WHITE
+			continue
+
 		if bool(info["is_affinity"]):
 			if not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
@@ -353,6 +412,21 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
 	_detail_title.text = "%s - %s" % [COLOR_DISPLAY[color], info["name"]]
 	_detail_title.add_theme_color_override("font_color", COLOR_HEX[color])
+
+	if bool(info.get("is_capstone", false)):
+		var capstone_id: String = String(info["id"])
+		var status: String = ""
+		if player.unlocked_capstone_aura == capstone_id:
+			status = "YOUR CAPSTONE"
+		elif player.unlocked_capstone_aura != "":
+			status = "Locked - you already chose %s" % SpellDatabase.get_capstone_name(player.unlocked_capstone_aura)
+		elif not _gate_met(player, color, info):
+			status = "Requires %d ranks in %s" % [int(info["rank_requirement"]), COLOR_DISPLAY[color]]
+		else:
+			status = "Costs %d skill points - PERMANENT for the run" % int(info["cost"])
+		_detail_status.text = "%s  %s  Points %d" % [COLOR_SYMBOL[color], status, _skill_points(player)]
+		_detail_body.text = info["desc"]
+		return
 
 	if bool(info["is_affinity"]):
 		var rank: int = player.get_affinity_rank(color)
@@ -392,7 +466,17 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 			update_ui()
 		return
 
-	var mana_key: String = COLOR_MANA[color]
+	# One capstone per run, and taking it is irreversible - so the check that another is
+	# not already owned happens here, before anything is charged.
+	if bool(info.get("is_capstone", false)):
+		if player.unlocked_capstone_aura != "":
+			return
+		if not _gate_met(player, color, info):
+			return
+		if _pay(player, int(info["cost"])):
+			player.unlock_capstone(String(info["id"]))
+			update_ui()
+		return
 
 	if bool(info["is_affinity"]):
 		if _pay(player, 1):
@@ -430,6 +514,14 @@ func _gate_met(player: Node, color: String, info: Dictionary) -> bool:
 	if GameSettings.debug_free_skills:
 		return true
 	return player.get_affinity_rank(color) >= int(info["rank_requirement"])
+
+## How many points the player has left, or 0 for anything that has none. Only used to
+## print the number, so an unreadable player is 0 rather than an error.
+func _skill_points(player: Node) -> int:
+	if player == null or not ("skill_points" in player):
+		return 0
+	return int(player.skill_points)
+
 
 ## Affordability is measured in the player's own skill points now, not in mana.
 func _affordable(_available: int, cost: int) -> bool:
@@ -509,5 +601,12 @@ func _is_placeholder_mark(offset: Vector2, branch_index: int) -> bool:
 			return absf(abs_x + abs_y - 20.0) < 3.0
 		5:
 			return absf(offset.length() - 18.0) < 3.0 or absf(offset.length() - 9.0) < 2.0
+		6:
+			# Attunement: a solid core. The stat line - dense, inert, all of it inside you.
+			return offset.length() < 13.0
+		7:
+			# Manifestation: a core with something in orbit around it. The visible half of
+			# the fork, drawn as the thing it actually is.
+			return offset.length() < 6.0 or (absf(offset.length() - 17.0) < 2.5 and offset.y < -2.0)
 		_:
 			return abs_x < 3.0 or abs_y < 3.0

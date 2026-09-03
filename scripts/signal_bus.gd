@@ -10,6 +10,10 @@ signal mana_changed(mana_pool: Dictionary)
 signal game_over()
 
 signal enemy_died()
+## Where it died. `enemy_died` carries nothing, which is enough for a counter and not
+## enough for anything that happens AT the corpse - black's Grave Pact pays out only for
+## kills near the player, so it needs the position that the plain signal throws away.
+signal enemy_died_at(position: Vector3)
 signal skill_unlocked(color: String)
 signal spell_unlocked(color: String, spell_id: String)
 ## The colourless skill-tree node at the centre of the pentagon: lengthens the

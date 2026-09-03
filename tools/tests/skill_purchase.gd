@@ -85,7 +85,52 @@ func _run() -> void:
 	if not player.melee_combo_extended:
 		failures.append("Blade Dance could not be bought")
 
+	# --- F: the capstone fork, through the BOARD rather than through the API ------
+	# The roster test proves unlock_capstone works; this proves the node on the tree is
+	# wired to it, which is a different failure and the one that actually bit before.
+	player.unlocked_capstone_aura = ""
+	var attunement: Dictionary = _record(st, "red", SkillTree.CAPSTONE_BRANCHES[0])
+	st._on_node_pressed("red", SkillTree.CAPSTONE_BRANCHES[0], attunement["info"])
+	print("TEST F capstone = %s" % player.unlocked_capstone_aura)
+	if player.unlocked_capstone_aura != "aura_fervor":
+		failures.append("the capstone node bought nothing")
+
+	# And that the other half of the fork is now refused, from the board as well.
+	var manifestation: Dictionary = _record(st, "red", SkillTree.CAPSTONE_BRANCHES[1])
+	st._on_node_pressed("red", SkillTree.CAPSTONE_BRANCHES[1], manifestation["info"])
+	if player.unlocked_capstone_aura != "aura_fervor":
+		failures.append("the fork let a second capstone be bought")
+
+	_check_layout(st, failures)
+
 	if failures.is_empty():
 		print("TEST RESULT: PASS")
 	else:
 		print("TEST RESULT: FAIL - " + ", ".join(failures))
+
+## The board has to FIT. Adding the capstone fork put two new nodes per colour outside the
+## pentagon, and at the original radius the two lowest of them landed underneath the
+## detail panel - clickable, because the panel ignores the mouse, but invisible.
+##
+## Checked by arithmetic rather than by looking at it, because "looks fine on my monitor"
+## is how a layout regression reaches a player with a different aspect ratio.
+func _check_layout(st: Node, failures: Array[String]) -> void:
+	var board: Control = st._board
+	for size: Vector2 in [Vector2(1920, 1080), Vector2(1280, 720), Vector2(2560, 1080)]:
+		board.size = size
+		st._layout_nodes()
+		var panel: Rect2 = Rect2(st._detail_panel.position, st._detail_panel.size)
+		var off_board: int = 0
+		var behind_panel: int = 0
+		for record: Dictionary in st._button_records:
+			var button: TextureButton = record["button"]
+			var rect: Rect2 = Rect2(button.position, button.size)
+			if rect.position.x < 0.0 or rect.position.y < 0.0 					or rect.end.x > size.x or rect.end.y > size.y:
+				off_board += 1
+			if rect.intersects(panel):
+				behind_panel += 1
+		print("TEST G %dx%d off-board=%d behind-panel=%d" % [size.x, size.y, off_board, behind_panel])
+		if off_board > 0:
+			failures.append("%d nodes fall outside a %dx%d board" % [off_board, size.x, size.y])
+		if behind_panel > 0:
+			failures.append("%d nodes sit under the detail panel at %dx%d" % [behind_panel, size.x, size.y])

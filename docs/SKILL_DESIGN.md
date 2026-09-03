@@ -1,7 +1,8 @@
 # Skill Design
 
-The full skill roster, organised per colour. **Design only** — three of these thirty
-exist in code today (marked ✅). Nothing here is implemented by writing it down.
+The full skill roster, organised per colour. **All thirty are implemented and playable**
+— twenty-five spells, five per colour, plus a capstone fork of two per colour (see
+*Implementation status* below for what was built and what was deliberately left).
 
 ## The shape
 
@@ -37,7 +38,7 @@ real commitment against spreading out.
 
 | Mark | Meaning |
 |---|---|
-| ✅ | Implemented and playable |
+| ✅ | Implemented and playable - all thirty are |
 | 🆕 | Invented to fill the colour out — not from the original list |
 | ✏️ | From the list, but I named it (it had none) |
 
@@ -51,12 +52,12 @@ threat off the board.
 
 | Skill | Kind | Effect | Scales with rank | Uses |
 |---|---|---|---|---|
-| **Frost Globe** | Placed | Spawns an ice sphere that **blocks enemy projectiles**. Ranged and mage enemies lose line of fire through it; melee walk around it. | Radius, duration | New static body on the projectile collision layer |
-| **Unsummon** | Burst | Shoves every enemy in front far back and **stuns** them on landing. | Push distance, stun duration | `apply_knockback()`, `stun_timer` |
-| **Suction** | Burst | **Pulls** nearby enemies into the centre, packing them for an area follow-up. | Radius (pull strength stays fixed — see note) | Inverse `apply_knockback()` |
-| **Frostwave** | 360° burst | Freezes every enemy around the caster and deals moderate damage. **Bosses are slowed, never frozen.** | Radius, damage, freeze duration | `freeze_timer`, `frost_slow_timer` |
-| **Phantasmal Decoy** 🆕 | Summon | Drops an illusion enemies retarget onto until it is destroyed or expires. | Decoy HP, duration | Enemy `evaluate_target()` — needs a targetable group |
-| **Aura: Orb of Frost** | Aura | An orb orbits the caster, firing ice at nearby enemies for damage and **slow**. | Fire rate, damage, slow strength | `ProjectilePool`, `frost_slow_timer` |
+| **Frost Globe** ✅ | Placed | Spawns an ice sphere that **blocks enemy projectiles**. Ranged and mage enemies lose line of fire through it; melee walk around it. | Radius, duration | New static body on the projectile collision layer |
+| **Unsummon** ✅ | Burst | Shoves every enemy in front far back and **stuns** them on landing. | Push distance, stun duration | `apply_knockback()`, `stun_timer` |
+| **Suction** ✅ | Burst | **Pulls** nearby enemies into the centre, packing them for an area follow-up. | Radius (pull strength stays fixed — see note) | Inverse `apply_knockback()` |
+| **Frostwave** ✅ | 360° burst | Freezes every enemy around the caster and deals moderate damage. **Bosses are slowed, never frozen.** | Radius, damage, freeze duration | `freeze_timer`, `frost_slow_timer` |
+| **Phantasmal Decoy** 🆕✅ | Summon | Drops an illusion enemies retarget onto until it is destroyed or expires. | Decoy HP, duration | Enemy `evaluate_target()` — needs a targetable group |
+| **Aura: Orb of Frost** ✅ | Aura | An orb orbits the caster, firing ice at nearby enemies for damage and **slow**. | Fire rate, damage, slow strength | `ProjectilePool`, `frost_slow_timer` |
 
 > **Suction note.** Pull *strength* should not scale — a rank-5 pull that yanks
 > everything instantly removes the counterplay of walking out of it. Scale the radius
@@ -66,17 +67,16 @@ threat off the board.
 
 ## Red — aggression
 
-Red is the damage colour and the only one with no defensive option at all. Two of the
-three implemented spells are red.
+Red is the damage colour and the only one with no defensive option at all.
 
 | Skill | Kind | Effect | Scales with rank | Uses |
 |---|---|---|---|---|
-| **Fireball** ✅ | Projectile | Chargeable explosive bolt; charge raises blast radius and damage. | Damage, blast radius | `red_1`, `EmberFx.build_burst` |
-| **Rain of Ember** ✅ | Placed zone | Ground-targeted firestorm burning everything beneath it. | Damage/sec, radius, duration | `red_2`, `DoTZone` |
-| **Fire Cone** | Channelled | **Held**, not cast. Burns everything in a cone ahead for as long as it runs. **No movement while channelling.** | Damage/sec, cone length | New channel state; reuse the leap's movement suspension |
-| **Lightning Bolt** | Targeted | Very high damage in a **small** area, called down from above. The precision option against a single big target. | Damage, radius (slightly) | `AttackIndicator` for the telegraph |
-| **Fire Dash** | Movement | Dashes forward, leaving a **burning trail** behind. Escape and damage in one. | Distance, trail damage, trail duration | `DoTZone` spawned along the path |
-| **Aura: Orb of Fire** | Aura | An orb orbits the caster, firing fireballs at nearby enemies for damage and **burn**. | Fire rate, damage, burn duration | `ProjectilePool`, `DoTZone` |
+| **Fireball**  ✅✅ | Projectile | Chargeable explosive bolt; charge raises blast radius and damage. | Damage, blast radius | `red_1`, `EmberFx.build_burst` |
+| **Rain of Ember**  ✅✅ | Placed zone | Ground-targeted firestorm burning everything beneath it. | Damage/sec, radius, duration | `red_2`, `DoTZone` |
+| **Fire Cone** ✅ | Channelled | **Held**, not cast. Burns everything in a cone ahead for as long as it runs. **No movement while channelling.** | Damage/sec, cone length | New channel state; reuse the leap's movement suspension |
+| **Lightning Bolt** ✅ | Targeted | Very high damage in a **small** area, called down from above. The precision option against a single big target. | Damage, radius (slightly) | `AttackIndicator` for the telegraph |
+| **Fire Dash** ✅ | Movement | Dashes forward, leaving a **burning trail** behind. Escape and damage in one. | Distance, trail damage, trail duration | `DoTZone` spawned along the path |
+| **Aura: Orb of Fire** ✅ | Aura | An orb orbits the caster, firing fireballs at nearby enemies for damage and **burn**. | Fire rate, damage, burn duration | `ProjectilePool`, `DoTZone` |
 
 > **Fire Cone is the interesting one.** It is the only skill in the game whose value
 > depends on the player choosing to stand still in a tower defence. Its damage should
@@ -91,12 +91,12 @@ stand next to.
 
 | Skill | Kind | Effect | Scales with rank | Uses |
 |---|---|---|---|---|
-| **Leap Slam** ✅ | Movement + burst | Leaps forward and slams down for heavy area damage and knockback. | **Damage, radius** | `green_1`, `EmberFx`, `heavy_landing` |
-| **Fog** | Placed zone | An area where **enemies deal no damage**. Defensive ground rather than offensive. | Radius, duration | `damage_penalty` or a zone flag |
-| **Roar** | Taunt | Nearby enemies **retarget onto you**, pulling them off the crystal and the myrs. | Radius, taunt duration | Enemy `evaluate_target()` override |
-| **Giant Growth** | Self-buff | The player grows physically larger and gains maximum HP for a duration. | Size, bonus HP, duration | `is_giant` / `giant_timer` (already stubbed in `Player`) |
-| **Ironbark** 🆕 | Self-buff | A short window of heavy damage reduction **and immunity to knockback, stun and freeze**. | Damage reduction, duration | `_stagger_timer`, knockback rejection |
-| **Aura: Trample** | Aura | Enemies near the player take small continuous damage **while the player is moving**. | Damage/sec, radius | Per-frame proximity sweep gated on velocity |
+| **Leap Slam**  ✅✅ | Movement + burst | Leaps forward and slams down for heavy area damage and knockback. | **Damage, radius** ✅ | `green_1`, `EmberFx`, `heavy_landing` |
+| **Fog** ✅ | Placed zone | An area where **enemies deal no damage**. Defensive ground rather than offensive. | Radius, duration | `damage_penalty` or a zone flag |
+| **Roar** ✅ | Taunt | Nearby enemies **retarget onto you**, pulling them off the crystal and the myrs. | Radius, taunt duration | Enemy `evaluate_target()` override |
+| **Giant Growth** ✅ | Self-buff | The player grows physically larger and gains maximum HP for a duration. | Size, bonus HP, duration | `is_giant` / `giant_timer` (already stubbed in `Player`) |
+| **Ironbark** 🆕✅ | Self-buff | A short window of heavy damage reduction **and immunity to knockback, stun and freeze**. | Damage reduction, duration | `_stagger_timer`, knockback rejection |
+| **Aura: Trample** ✅ | Aura | Enemies near the player take small continuous damage **while the player is moving**. | Damage/sec, radius | Per-frame proximity sweep gated on velocity |
 
 > **Roar and Fog are the crystal-defence pair** — the only two skills in the game that
 > protect the objective rather than kill things. Worth keeping both cheap at rank 1.
@@ -115,12 +115,12 @@ target outright.
 
 | Skill | Kind | Effect | Scales with rank | Uses |
 |---|---|---|---|---|
-| **Doom Blade** | Line | A black blade travels straight ahead, passing **through** enemies. High damage, but only what the blade actually touches is hit. | Damage, blade length, width (barely) | Thin `Area3D` sweep along a ray |
-| **Fear** | Burst | Nearby enemies **flee** for a duration instead of fighting — the colour's answer to being surrounded. | Radius, flee duration | `pacified_timer` + an inverted nav target |
-| **Kill** | Targeted | **Instantly kills** one non-boss enemy. Bosses are executed only **below 33% health**. | Cooldown, boss execute threshold | Direct `die()`; boss HP check |
-| **Wall of Souls** | Placed | Enemies that pass through take **double damage from every source** while marked. | Wall length, mark duration, damage multiplier | `curse_timer` / `curse_mult` — already exists |
-| **Zombify** 🆕 | Summon | Raises the corpses already lying on the field as temporary undead allies that fight for you. | Corpses raised, undead HP, duration | `EnemyBase._register_corpse` corpse registry |
-| **Aura: Grave Pact** 🆕 | Aura | Every enemy that dies near the player leaves a soul wisp: a small heal, plus a **stacking damage bonus that decays** if you stop killing. | Heal per soul, bonus per stack, decay time | `SignalBus.enemy_died`, `heal()` |
+| **Doom Blade** ✅ | Line | A black blade travels straight ahead, passing **through** enemies. High damage, but only what the blade actually touches is hit. | Damage, blade length, width (barely) | Thin `Area3D` sweep along a ray |
+| **Fear** ✅ | Burst | Nearby enemies **flee** for a duration instead of fighting — the colour's answer to being surrounded. | Radius, flee duration | `pacified_timer` + an inverted nav target |
+| **Kill** ✅ | Targeted | **Instantly kills** one non-boss enemy. Bosses are executed only **below 33% health**. | Cooldown, boss execute threshold | Direct `die()`; boss HP check |
+| **Wall of Souls** ✅ | Placed | Enemies that pass through take **double damage from every source** while marked. | Wall length, mark duration, damage multiplier | `curse_timer` / `curse_mult` — already exists |
+| **Zombify** 🆕✅ | Summon | Raises the corpses already lying on the field as temporary undead allies that fight for you. | Corpses raised, undead HP, duration | `EnemyBase._register_corpse` corpse registry |
+| **Aura: Grave Pact** 🆕✅ | Aura | Every enemy that dies near the player leaves a soul wisp: a small heal, plus a **stacking damage bonus that decays** if you stop killing. | Heal per soul, bonus per stack, decay time | `SignalBus.enemy_died`, `heal()` |
 
 > **Zombify replaced an earlier "Vampiric Drain"** (a held HP-draining beam), which
 > overlapped the Grave Pact aura's healing-on-kill and gave black a second channelled
@@ -141,12 +141,12 @@ and the only one whose power goes **up** with more allies alive.
 
 | Skill | Kind | Effect | Scales with rank | Uses |
 |---|---|---|---|---|
-| **Circle of Protection** | Support | A pool of shield is **divided between nearby allies**. With nobody in range the caster takes all of it. | Total shield, radius | Existing shield fields (`glorious_anthem_shield` pattern) |
-| **Reprisal Ward** ✏️ | Self-buff | Reflects a **percentage of damage taken** back at the attacker, and grants a **passive chance to block** outright. | Reflect %, block chance | The old briar-patch reflect path |
-| **Exalted Strike** | Buff | The **next attack** gets bonus damage and extra reach. Anything killed by it leaves **no corpse** and is exiled. | Bonus damage, reach, charges | `Player._apply_melee_damage`, corpse registry |
-| **Wrath of God** 🆕 | 360° burst | Heavy damage to every enemy in a large radius around the caster. White's one panic button. | Damage, radius | Straight proximity sweep |
-| **Rally the Fallen** 🆕 | Support | Instantly **revives every downed teammate** in range and heals surviving allies — myrs included — back to full. | Radius, heal amount, revive count | `Player.revive()`, `is_downed`, `heal()`, myr group |
-| **Aura: Healing Orb** | Aura | An orb heals the caster and allies every 2s, always picking the **lowest-health** target in range. | Heal amount, radius, tick rate | `heal()`, myr/player group scan |
+| **Circle of Protection** ✅ | Support | A pool of shield is **divided between nearby allies**. With nobody in range the caster takes all of it. | Total shield, radius | Existing shield fields (`glorious_anthem_shield` pattern) |
+| **Reprisal Ward** ✏️✅ | Self-buff | Reflects a **percentage of damage taken** back at the attacker, and grants a **passive chance to block** outright. | Reflect %, block chance | The old briar-patch reflect path |
+| **Exalted Strike** ✅ | Buff | The **next attack** gets bonus damage and extra reach. Anything killed by it leaves **no corpse** and is exiled. | Bonus damage, reach, charges | `Player._apply_melee_damage`, corpse registry |
+| **Wrath of God** 🆕✅ | 360° burst | Heavy damage to every enemy in a large radius around the caster. White's one panic button. | Damage, radius | Straight proximity sweep |
+| **Rally the Fallen** 🆕✅ | Support | Instantly **revives every downed teammate** in range and heals surviving allies — myrs included — back to full. | Radius, heal amount, revive count | `Player.revive()`, `is_downed`, `heal()`, myr group |
+| **Aura: Healing Orb** ✅ | Aura | An orb heals the caster and allies every 2s, always picking the **lowest-health** target in range. | Heal amount, radius, tick rate | `heal()`, myr/player group scan |
 
 > **Exalted Strike's exile clause matters mechanically**, not just for flavour: corpses
 > are kept in the scene up to a cap (`EnemyBase._register_corpse`), so exiling is a
@@ -192,10 +192,12 @@ spell needs 25 ranks in it.
 
 ### Capstone auras — one per colour ✅
 
-`Player.unlocked_capstone_aura` holds exactly one, chosen by colour path. These are the
-auras that **exist**; the "Aura:" rows in the roster above are the *planned* replacements.
+`Player.unlocked_capstone_aura` holds exactly one — which is what makes the fork in
+*Resolutions §2* cost almost nothing to build. These five are the **Attunements**, the
+stat-line half; the "Aura:" rows in the roster above are the **Manifestations**, the other
+half. Nothing was replaced: both are on the board, and picking one is the choice.
 
-| Colour | Current aura | What it does |
+| Colour | Attunement | What it does |
 |---|---|---|
 | White | **Glorious Anthem** | 35 permanent shield, ×1.15 damage |
 | Blue | **Rhystic Study** | ×0.7 cooldowns, and every cast grants 15 shield up to 45 |
@@ -203,11 +205,9 @@ auras that **exist**; the "Aura:" rows in the roster above are the *planned* rep
 | Red | **Fervor** | ×1.15 attack and movement speed |
 | Green | **Sylvan Library** | ×1.35 maximum HP, +3 HP/sec regeneration |
 
-> **The planned auras are a different design.** The current five are flat stat
-> multipliers; the roster's are active effects (orbiting orbs, trample damage, souls on
-> kill). Worth deciding whether they **replace** these or sit alongside them as a sixth
-> purchase — Phyrexian Arena's HP-drain-for-power in particular is a real design that
-> nothing in the new roster reproduces.
+> Taking one is **irreversible for the run**, and that is enforced on the player rather
+> than in the tree: `Player.unlock_capstone` refuses a second, so no other caller can
+> route around it. Only the debug reset (F2) clears the field.
 
 ### Colourless — Blade Dance ✅
 
@@ -353,6 +353,64 @@ Each colour becomes **five rankable skills plus one capstone chosen from two**. 
 "Aura:" rows in the tables above are the Manifestation column here, not a sixth
 rankable skill — which also resolves the orbiting-orb duplication, since all three orbs
 are now one shared implementation used by exactly one capstone each.
+
+---
+
+## Implementation status
+
+Every skill in the five colour tables above is in the game, together with both halves of
+every capstone fork. What that means concretely:
+
+| Piece | Where |
+|---|---|
+| 25 spells — names, costs, cooldowns, cast clips | `SpellDatabase.SPELLS` |
+| What each one does | `Player.cast_<colour>_<name>()`, dispatched from `_run_spell_effect` |
+| Every tuning number | `GameSettings`, under *SKILL ROSTER* |
+| 10 capstones, two per colour | `SpellDatabase.CAPSTONES`, taken via `Player.unlock_capstone` |
+| The fork on the board | `SkillTree`, branch indices 6 and 7 |
+
+Five pieces of shared machinery were built because more than one skill needed them, and
+each is worth knowing about before adding the twenty-sixth:
+
+- **`TemporaryAlly`** — one class for Zombify's undead and Phantasmal Decoy's illusion.
+  Anything in the `decoys` group is targetable by enemies exactly as a myr is.
+- **`OrbitingOrb`** — one orbit and three payloads, for Orb of Frost, Orb of Fire and
+  Healing Orb. There is no second implementation of an orbit anywhere.
+- **`FrostGlobe`** — cover. The whole skill is one collision-layer choice, explained in
+  the file.
+- **`SoulWall`** — the marking wall, laid perpendicular to where the player is looking.
+- **`HealthReader`** — players call it `hp`/`max_hp`, myrs and summons `health`/
+  `max_health`. White's support skills are the first things that treat all three as one
+  list, and this is the only place that knows about the difference.
+
+`EnemyBase` gained the status effects the roster asked for: `apply_fear` (which moves the
+body rather than only suppressing the attack), `apply_taunt`, `apply_burn`,
+`suppress_damage` for Fog, and `exile()` — death without a corpse, which Kill and
+Exalted Strike both need and which matters because corpses are what Zombify raises.
+
+### Slot order
+
+Slots follow the **ring order** from *Skill tree — choice at every step*: slots 1 and 2
+are a colour's Core ring, slots 3–5 its Specialist ring. So `red_2` is Fire Dash and
+`red_3` is Rain of Ember, not the other way round — the gates are on slot index, and
+putting the Core skills first is what makes a colour playable the moment it is invested in.
+
+### Not built — deliberately
+
+Three things described elsewhere in this document are **design, not code**, and nothing
+above depends on them:
+
+1. **Ranks 1–5 per skill.** Each skill is currently bought once. The rank curve in
+   *Ranks* and the *Scales with rank* column are a future change to how the tree charges,
+   not to what any skill does.
+2. **Affinity as a derived number** (*Resolutions §1*). Affinity ranks are still bought
+   at a colour's centre node and still gate its spells at `[1, 5, 10, 15, 25]`.
+3. **Guild nodes and guild camps.** No node sits between two branches yet, and the back
+   corners of the lanes are still empty.
+
+The capstone gate is `GameSettings.capstone_rank_requirement` (20 ranks in that colour)
+rather than the 12 the ring table suggests, because that table assumes the derived-affinity
+model from §1 where every purchase grants a rank.
 
 ## Guild camps — the unused back corners
 
