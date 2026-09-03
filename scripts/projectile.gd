@@ -186,6 +186,13 @@ func _physics_process(delta: float) -> void:
 func _on_body_entered(body: Node3D) -> void:
 	if not active:
 		return
+	# Only the server's projectiles deal damage. A client's own bolt is spawned locally
+	# for the shooter's benefit; the authoritative one was fired by the server when the
+	# cast was requested (see Player.execute_spell).
+	if not Net.is_server():
+		_play_impact_sound()
+		deactivate()
+		return
 		
 	if is_enemy:
 		# Enemy projectile hits player, myrs, crystal

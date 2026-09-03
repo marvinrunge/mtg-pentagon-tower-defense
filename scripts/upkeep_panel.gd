@@ -18,6 +18,10 @@ class_name UpkeepPanel
 ##
 ## Single-player skips the voting entirely: with one player there is no majority to
 ## reach, so the panel is simply a shop.
+##
+## Over the network the SERVER holds every proposal, every tally and every mana
+## reservation; clients send requests and render what they are told. Anything else lets
+## two peers pass contradictory votes with the same mana.
 
 const COLORS: Array[String] = ["White", "Blue", "Black", "Red", "Green"]
 const COLOR_HEX: Dictionary = {
@@ -48,6 +52,10 @@ var _blocked: Dictionary = {}
 var _reserved: Dictionary = {}
 var _log_lines: Array[String] = []
 var _local_ready: bool = false
+## peer id -> ready. Server-owned; clients receive it.
+var _ready_peers: Dictionary = {}
+## peer ids that have already voted on a colour, so nobody votes twice.
+var _voters: Dictionary = {}
 
 
 func _ready() -> void:
@@ -65,7 +73,9 @@ func _process(delta: float) -> void:
 		return
 	_time_left -= delta
 	_timer_label.text = "%0.0f s" % maxf(_time_left, 0.0)
-	if _time_left <= 0.0:
+	# The clock runs everywhere so the countdown reads correctly, but only the server
+	# may act on it - two peers ending Upkeep would start the wave twice.
+	if _time_left <= 0.0 and Net.is_server():
 		_finish()
 
 
@@ -79,6 +89,8 @@ func _on_upkeep_started(duration: float) -> void:
 	_reserved.clear()
 	_log_lines.clear()
 	_local_ready = false
+	_ready_peers.clear()
+	_voters.clear()
 	show()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_refresh()
@@ -93,6 +105,7 @@ func _finish() -> void:
 	_active = false
 	_proposals.clear()
 	_reserved.clear()
+	_voters.clear()
 	hide()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	SignalBus.upkeep_finished.emit()
@@ -100,16 +113,43 @@ func _finish() -> void:
 
 func _on_ready_pressed() -> void:
 	_local_ready = not _local_ready
-	# One player means one ready check, so this closes Upkeep immediately.
-	if _all_ready():
-		_finish()
+	if not Net.is_active():
+		if _local_ready:
+			_finish()
 		return
+	_set_ready.rpc_id(1, _local_ready)
 	_refresh()
 
 
+@rpc("any_peer", "call_local", "reliable")
+func _set_ready(ready: bool) -> void:
+	if not Net.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender == 0:
+		sender = Net.local_id()
+	_ready_peers[sender] = ready
+	if _all_ready():
+		_finish()
+	else:
+		_broadcast_ready.rpc(_ready_peers)
+		_refresh()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _broadcast_ready(state: Dictionary) -> void:
+	_ready_peers = state
+	_refresh()
+
+
+## Counts only CONNECTED peers, so one drop-out cannot hold the phase open forever.
 func _all_ready() -> bool:
-	# Counts only connected players, so a drop-out cannot deadlock the phase.
-	return _local_ready
+	if not Net.is_active():
+		return _local_ready
+	for id in Net.ordered_ids():
+		if not bool(_ready_peers.get(int(id), false)):
+			return false
+	return not Net.peers.is_empty()
 
 
 # --- purchases ----------------------------------------------------------------
@@ -119,72 +159,168 @@ func _local_player() -> Node:
 
 
 func _buy_myr() -> void:
-	var cost: Dictionary = {"Colorless": GameSettings.myr_mana_cost}
-	if not RunState.spend(cost):
+	if Net.is_active() and not Net.is_server():
+		_request_myr.rpc_id(1)
+		return
+	_request_myr()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_myr() -> void:
+	if not Net.is_server():
+		return
+	if not RunState.spend({"Colorless": GameSettings.myr_mana_cost}):
 		return
 	var main_controller: Node = get_tree().current_scene
 	if main_controller != null and main_controller.has_method("spawn_myr"):
 		main_controller.spawn_myr()
-	_log("Built a myr for %d" % GameSettings.myr_mana_cost)
-	_refresh()
+	_announce("Built a myr for %d" % GameSettings.myr_mana_cost)
 
 
 func _buy_skill_point() -> void:
-	var cost: Dictionary = {"Colorless": GameSettings.upkeep_skill_point_cost}
-	if not RunState.spend(cost):
+	if Net.is_active() and not Net.is_server():
+		_request_skill_point.rpc_id(1)
+		return
+	_request_skill_point()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_skill_point() -> void:
+	if not Net.is_server():
+		return
+	if not RunState.spend({"Colorless": GameSettings.upkeep_skill_point_cost}):
 		return
 	# Every player, not only whoever clicked - that is what makes it uncontroversial.
+	if Net.is_active():
+		_grant_point_to_all.rpc()
+	_grant_point_to_all()
+	_announce("Bought a skill point for everyone (%d)" % GameSettings.upkeep_skill_point_cost)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _grant_point_to_all() -> void:
 	for player: Node in get_tree().get_nodes_in_group("player"):
 		if player.has_method("grant_skill_points"):
 			player.grant_skill_points(1)
-	_log("Bought a skill point for everyone (%d)" % GameSettings.upkeep_skill_point_cost)
-	_refresh()
 
 
 ## Proposing reserves the mana rather than spending it, so a second proposal cannot be
 ## made with money the first one is already counting on.
 func _propose(color: String) -> void:
+	if Net.is_active() and not Net.is_server():
+		_request_propose.rpc_id(1, color)
+		return
+	_request_propose(color)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_propose(color: String) -> void:
+	if not Net.is_server():
+		return
 	if _proposals.has(color) or _blocked.has(color):
 		return
 	var cost: Dictionary = RunState.enchantment_cost(color)
 	if not RunState.can_afford(_with_reservations(cost)):
 		return
 	_reserved[color] = cost
-	_proposals[color] = {"yes": 1, "no": 0, "voted": {}}
+	var proposer: int = multiplayer.get_remote_sender_id() if Net.is_active() else 1
+	if proposer == 0:
+		proposer = Net.local_id()
+	_proposals[color] = {"yes": 1, "no": 0}
+	_voters[color] = {proposer: true}
 	if _vote_threshold() <= 1:
 		_resolve(color, true)
 		return
-	_refresh()
+	_broadcast_proposals()
 
 
 func _vote(color: String, approve: bool) -> void:
-	if not _proposals.has(color):
+	if Net.is_active() and not Net.is_server():
+		_request_vote.rpc_id(1, color, approve)
 		return
+	_request_vote(color, approve)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_vote(color: String, approve: bool) -> void:
+	if not Net.is_server() or not _proposals.has(color):
+		return
+	var voter: int = multiplayer.get_remote_sender_id() if Net.is_active() else 1
+	if voter == 0:
+		voter = Net.local_id()
+	# One vote each. Without this a single client could carry any motion alone.
+	var cast: Dictionary = _voters.get(color, {})
+	if cast.has(voter):
+		return
+	cast[voter] = true
+	_voters[color] = cast
+
 	var proposal: Dictionary = _proposals[color]
-	proposal["yes" if approve else "no"] = int(proposal["yes" if approve else "no"]) + 1
+	var key: String = "yes" if approve else "no"
+	proposal[key] = int(proposal[key]) + 1
 	# Resolves the instant a majority is reached rather than waiting out the timer.
 	if int(proposal["yes"]) >= _vote_threshold():
 		_resolve(color, true)
 	elif int(proposal["no"]) >= _vote_threshold():
 		_resolve(color, false)
 	else:
-		_refresh()
+		_broadcast_proposals()
 
 
 func _resolve(color: String, passed: bool) -> void:
 	_proposals.erase(color)
 	_reserved.erase(color)
+	_voters.erase(color)
 	if passed and RunState.buy_enchantment(color):
-		_log("%s passed - now %d stacks" % [RunState.enchantment_name(color), RunState.enchantment_stacks(color)])
+		_announce("%s passed - now %d stacks" % [RunState.enchantment_name(color), RunState.enchantment_stacks(color)])
 	else:
 		_blocked[color] = true
-		_log("%s was rejected" % RunState.enchantment_name(color))
-	_refresh()
+		_announce("%s was rejected" % RunState.enchantment_name(color))
+	_broadcast_proposals()
 
 
 func _withdraw(color: String) -> void:
+	if Net.is_active() and not Net.is_server():
+		_request_withdraw.rpc_id(1, color)
+		return
+	_request_withdraw(color)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_withdraw(color: String) -> void:
+	if not Net.is_server():
+		return
 	_proposals.erase(color)
 	_reserved.erase(color)
+	_voters.erase(color)
+	_broadcast_proposals()
+
+
+## Proposals and their tallies are the server's; this is how clients learn them.
+func _broadcast_proposals() -> void:
+	if Net.is_active():
+		_apply_proposals.rpc(_proposals, _blocked)
+	_refresh()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _apply_proposals(proposals: Dictionary, blocked: Dictionary) -> void:
+	_proposals = proposals
+	_blocked = blocked
+	_refresh()
+
+
+## Purchases are announced rather than logged locally, so every player sees the same
+## history of what the team's mana went on.
+func _announce(line: String) -> void:
+	if Net.is_active():
+		_apply_log.rpc(line)
+	_apply_log(line)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _apply_log(line: String) -> void:
+	_log(line)
 	_refresh()
 
 

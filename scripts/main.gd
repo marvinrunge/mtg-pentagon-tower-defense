@@ -90,6 +90,8 @@ func spawn_entities() -> void:
 	# replicate - the client would rebuild the node from the scene file alone and fall
 	# back to defaults, giving every avatar authority 1 and is_local true.
 	$PlayerSpawner.spawn_function = _spawn_avatar
+	$EnemyNetSpawner.spawn_function = _spawn_enemy
+	$MyrNetSpawner.spawn_function = _spawn_myr
 	if Net.is_active():
 		spawn_networked_players()
 	else:
@@ -103,7 +105,24 @@ func spawn_entities() -> void:
 	add_child(wave_manager)
 	wave_manager.start_waves(self)
 
+## Crystal health is the server's. Clients ask, the server decides, and the resulting
+## value is broadcast - otherwise five peers each subtract their own damage and the
+## crystal dies five times faster on some screens than others.
 func damage_crystal(amount: float) -> void:
+	if not Net.is_server():
+		return
+	_apply_crystal_damage(amount)
+	if Net.is_active():
+		_sync_crystal_health.rpc(crystal_health)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _sync_crystal_health(value: float) -> void:
+	crystal_health = value
+	SignalBus.health_changed.emit(crystal_health, max_crystal_health)
+
+
+func _apply_crystal_damage(amount: float) -> void:
 	crystal_health = clamp(crystal_health - amount, 0.0, max_crystal_health)
 	SignalBus.health_changed.emit(crystal_health, max_crystal_health)
 	if amount != 0:
@@ -174,15 +193,46 @@ func _player_seat(index: int, total: int) -> Vector3:
 	return Vector3(0, 1.0, 0) + Vector3(sin(angle), 0.0, cos(angle)) * 2.5
 
 
-## The one place that knows how to build a myr. Both the base UI and the Upkeep panel
-## call it, so the spawn position and crystal binding cannot drift between them.
+## The one place that knows how to build an enemy, and the one place that knows how to
+## build a myr. Both go through a MultiplayerSpawner so a client rebuilds them from the
+## same arguments the server used - metadata set on the server's instance would not
+## survive the trip (see MainController._spawn_avatar).
+##
+## `request_*` is the server-side entry point; `_spawn_*` is what actually runs, on
+## every peer. In single-player the spawner has no peers and simply calls it locally.
+func request_enemy(info: Dictionary) -> Node3D:
+	if not Net.is_server():
+		return null
+	return $EnemyNetSpawner.spawn(info) as Node3D
+
+
+func _spawn_enemy(data: Variant) -> Node:
+	var info: Dictionary = data
+	var enemy: Node3D = enemy_scene.instantiate()
+	enemy.position = info["position"]
+	enemy.set_meta("target_crystal", crystal_anchor)
+	if String(info.get("elite", "")) != "":
+		enemy.set_meta("elite_modifier", String(info["elite"]))
+	# setup() has to wait for _ready, and the client reaches this the same way, so the
+	# colour/class pair travels in the spawn argument rather than as a pre-applied
+	# resource that could not replicate.
+	enemy.set_meta("enemy_color", String(info["color"]))
+	enemy.set_meta("enemy_type", String(info["type"]))
+	return enemy
+
+
 func spawn_myr() -> Node3D:
+	if not Net.is_server():
+		return null
+	return $MyrNetSpawner.spawn({}) as Node3D
+
+
+func _spawn_myr(_data: Variant) -> Node:
 	if myr_scene == null:
 		return null
 	var myr: Node3D = myr_scene.instantiate()
 	myr.position = crystal_anchor.global_position + Vector3(0, 0.5, 0)
 	myr.set_meta("target_crystal", crystal_anchor)
-	add_child(myr)
 	return myr
 
 

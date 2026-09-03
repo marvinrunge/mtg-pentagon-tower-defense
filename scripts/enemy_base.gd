@@ -102,6 +102,12 @@ var elite_crystal_damage_multiplier: float = 1.0
 var has_green_mage_buff: bool = false
 
 func _ready() -> void:
+	# Spawned through MultiplayerSpawner, so the colour/class pair arrives as metadata
+	# that _spawn_enemy set identically on every peer - setup() then rebuilds the same
+	# EnemyData locally rather than trying to replicate a Resource.
+	if has_meta("enemy_color") and has_meta("enemy_type"):
+		setup(EnemyDatabase.get_enemy_data(String(get_meta("enemy_color")), String(get_meta("enemy_type"))))
+	_build_synchronizer()
 	add_to_group("enemies")
 	collision_layer = 4
 	collision_mask = 31
@@ -197,10 +203,33 @@ func update_path(force_update: bool = false) -> void:
 		nav_agent.target_position = target_pos
 		last_target_position = target_pos
 
+## Position, rotation and health, authored by the server. An enemy's AI is expensive
+## and must reach the same answer everywhere, so only the server runs it; clients render
+## what they are told and keep their own animator fed from the replicated transform.
+func _build_synchronizer() -> void:
+	if not Net.is_active():
+		return
+	var config := SceneReplicationConfig.new()
+	for property: String in [":position", ":rotation", ":health"]:
+		config.add_property(NodePath(property))
+		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+	var sync := MultiplayerSynchronizer.new()
+	sync.name = "Sync"
+	sync.replication_config = config
+	sync.set_multiplayer_authority(1)
+	add_child(sync)
+
+
 func _physics_process(delta: float) -> void:
 	if not enemy_data:
 		return # Not initialized yet
 	if is_dying:
+		return
+	if not Net.is_server():
+		# A client's enemy is a puppet: its transform arrives over the wire and its AI
+		# would only fight that. It still animates, from the same walk/attack state the
+		# replicated motion implies.
+		_update_visual_animation()
 		return
 
 	if elite_regeneration_per_second > 0.0 and health < enemy_data.health:
@@ -832,6 +861,22 @@ func _on_aggro_body_exited(body: Node3D) -> void:
 	evaluate_target()
 
 # --- Spell Interactions ---
+## How every client asks for damage to be dealt.
+##
+## The client has already played its own hit sound, particles and screen shake - those
+## are local and instant, which is what makes combat feel right. Only the CONSEQUENCE
+## travels, and only the server applies it, so health can never disagree between peers.
+##
+## `attacker_peer` rather than a node path: paths are fragile across peers, and the
+## server can resolve the avatar itself. Attribution matters because lifesteal and the
+## melee-into-spell cooldown refund both pay the player who landed the blow.
+@rpc("any_peer", "call_local", "reliable")
+func request_damage(amount: float, attacker_peer: int, is_melee: bool) -> void:
+	if not Net.is_server() or is_dying:
+		return
+	take_damage(amount, PlayerRegistry.by_peer(attacker_peer), is_melee)
+
+
 func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false) -> void:
 	if is_dying:
 		return

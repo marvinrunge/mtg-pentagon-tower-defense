@@ -56,6 +56,16 @@ func get_local() -> Node3D:
 	return null
 
 
+## The avatar owned by `peer_id`. The server uses it to attribute damage that arrived
+## as an RPC back to the player who dealt it, so lifesteal and cooldown refunds land on
+## the right person.
+func by_peer(peer_id: int) -> Node3D:
+	for player: Node3D in players:
+		if is_instance_valid(player) and player.get_multiplayer_authority() == peer_id:
+			return player
+	return null
+
+
 func count() -> int:
 	var alive: int = 0
 	for player: Node3D in players:

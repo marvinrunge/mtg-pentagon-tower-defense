@@ -16,8 +16,12 @@ extends Node
 ## own build and the team's.
 ##
 ## An autoload rather than state on MainController because it is the run, not the map -
-## and because a singleton is far easier to make server-authoritative later than scene
-## state reached through `get_tree().current_scene` (see docs/MULTIPLAYER_PLAN.md).
+## and because a singleton is far easier to make server-authoritative than scene state
+## reached through `get_tree().current_scene`. That is now cashed in: every autoload has
+## the same node path on every peer, so these RPCs route with nothing to look up.
+##
+## THE SERVER OWNS ALL OF IT. Clients never add XP or mana themselves; they are told.
+## Otherwise five peers each bank their own kills and the pool disagrees with itself.
 
 const COLORS: Array[String] = ["White", "Blue", "Black", "Red", "Green"]
 
@@ -40,6 +44,36 @@ var _mana_fraction: Dictionary = {"White": 0.0, "Blue": 0.0, "Black": 0.0, "Red"
 var enchantments: Dictionary = {"White": 0, "Blue": 0, "Black": 0, "Red": 0, "Green": 0}
 
 
+## Set whenever the server changes anything, cleared when the change goes out. Kills
+## arrive far faster than a UI can read, so the pool is flushed at a fixed rate instead
+## of once per enemy - five players clearing a wave would otherwise send hundreds of
+## identical dictionaries a second.
+var _dirty: bool = false
+var _flush_timer: float = 0.0
+
+
+func _process(delta: float) -> void:
+	if not Net.is_active() or not Net.is_server() or not _dirty:
+		return
+	_flush_timer -= delta
+	if _flush_timer > 0.0:
+		return
+	_flush_timer = GameSettings.run_state_sync_interval
+	_dirty = false
+	_apply_state.rpc(team_xp, team_level, mana_pool, enchantments)
+
+
+## The whole economy in one message. Small enough that sending it entire is cheaper than
+## working out which field moved, and it cannot drift the way incremental updates can.
+@rpc("authority", "call_remote", "reliable")
+func _apply_state(xp: float, level: int, pool: Dictionary, ench: Dictionary) -> void:
+	team_xp = xp
+	team_level = level
+	mana_pool = pool
+	enchantments = ench
+	SignalBus.mana_changed.emit(mana_pool)
+
+
 func reset() -> void:
 	team_xp = 0.0
 	team_level = 1
@@ -58,7 +92,7 @@ func reset() -> void:
 ## what it can afford, which is what keeps the pentagon meaningful now that personal
 ## builds are bought with points instead.
 func on_enemy_killed(data: EnemyData, is_elite: bool) -> void:
-	if data == null:
+	if data == null or not Net.is_server():
 		return
 	var xp: float = GameSettings.xp_per_basic
 	var mana: int = GameSettings.mana_per_basic
@@ -73,19 +107,32 @@ func on_enemy_killed(data: EnemyData, is_elite: bool) -> void:
 
 
 func add_xp(amount: float) -> void:
-	if amount <= 0.0:
+	if amount <= 0.0 or not Net.is_server():
 		return
 	team_xp += amount
 	var levels_gained: int = 0
 	while team_xp >= xp_for_level(team_level + 1):
 		team_level += 1
 		levels_gained += 1
+	_dirty = true
 	if levels_gained > 0:
-		# Every player gains the point, not just whoever landed the blow.
-		for player: Node in get_tree().get_nodes_in_group("player"):
-			if player.has_method("grant_skill_points"):
-				player.grant_skill_points(levels_gained)
-		SignalBus.team_level_changed.emit(team_level, levels_gained)
+		# Rare and important, so it goes out immediately rather than waiting for the
+		# next flush - a level is the one economy event a player actually watches for.
+		if Net.is_active():
+			_apply_level.rpc(team_xp, team_level, levels_gained)
+		_apply_level(team_xp, team_level, levels_gained)
+
+
+## Levels land on every peer at the same moment, which is the whole point of sharing XP:
+## nobody is ever behind, and a player who died repeatedly still keeps up.
+@rpc("authority", "call_remote", "reliable")
+func _apply_level(xp: float, level: int, levels_gained: int) -> void:
+	team_xp = xp
+	team_level = level
+	for player: Node in get_tree().get_nodes_in_group("player"):
+		if player.has_method("grant_skill_points"):
+			player.grant_skill_points(levels_gained)
+	SignalBus.team_level_changed.emit(team_level, levels_gained)
 
 
 ## Total XP required to have reached `level`. Superlinear, so early levels arrive every
@@ -108,7 +155,7 @@ func xp_progress() -> Vector2:
 ## Banks mana of `color`, scaled by however many Overgrowth stacks the team has bought.
 ## Green's enchantment compounds precisely because it is applied here.
 func add_mana(color: String, amount: int) -> void:
-	if amount <= 0:
+	if amount <= 0 or not Net.is_server():
 		return
 	var color_key: String = color
 	if not mana_pool.has(color_key):
@@ -120,6 +167,7 @@ func add_mana(color: String, amount: int) -> void:
 	var whole: int = int(floor(earned))
 	_mana_fraction[color_key] = earned - float(whole)
 	mana_pool[color_key] += whole
+	_dirty = true
 	SignalBus.mana_changed.emit(mana_pool)
 
 
@@ -150,8 +198,10 @@ func can_afford(cost: Dictionary) -> bool:
 	return true
 
 
+## Only ever called on the server - every purchase route goes through the Upkeep panel,
+## which asks the server to buy on the team's behalf.
 func spend(cost: Dictionary) -> bool:
-	if not can_afford(cost):
+	if not Net.is_server() or not can_afford(cost):
 		return false
 	for color: String in cost.keys():
 		if color == "Colorless":
@@ -165,6 +215,7 @@ func spend(cost: Dictionary) -> bool:
 			var taken: int = mini(int(mana_pool[color]), owed)
 			mana_pool[color] = int(mana_pool[color]) - taken
 			owed -= taken
+	_dirty = true
 	SignalBus.mana_changed.emit(mana_pool)
 	return true
 
@@ -211,6 +262,7 @@ func buy_enchantment(color: String) -> bool:
 	if not spend(enchantment_cost(color)):
 		return false
 	enchantments[color] = enchantment_stacks(color) + 1
+	_dirty = true
 	SignalBus.enchantment_changed.emit(color, enchantments[color])
 	return true
 

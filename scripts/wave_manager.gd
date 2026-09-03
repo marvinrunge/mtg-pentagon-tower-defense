@@ -97,6 +97,9 @@ func start_next_wave() -> void:
 	_emit_wave_state()
 
 func _process(delta: float) -> void:
+	# Waves are the server's. A client that also spawned would double every wave.
+	if not Net.is_server():
+		return
 	if not is_spawning:
 		return
 		
@@ -117,7 +120,6 @@ func spawn_next_enemy() -> void:
 	
 	if main_controller and main_controller.enemy_spawners.size() > lane_idx:
 		var spawner = main_controller.enemy_spawners[lane_idx]
-		var enemy = enemy_scene.instantiate()
 		
 		# V-shape formation logic
 		var idx = info["index"]
@@ -137,15 +139,14 @@ func spawn_next_enemy() -> void:
 			navigation_map,
 			desired_spawn_position
 		)
-		enemy.position = main_controller.to_local(navigable_spawn_position + Vector3(0, 0.5, 0))
-		enemy.set_meta("target_crystal", main_controller.crystal_anchor)
-		if info["elite"] != "":
-			enemy.set_meta("elite_modifier", info["elite"])
-		main_controller.add_child(enemy)
-		
-		# Apply data
-		var data = EnemyDatabase.get_enemy_data(info["color"], info["type"])
-		enemy.setup(data)
+		# Everything the enemy needs travels in the spawn argument, because a client
+		# rebuilds the node from it and cannot see anything set on the server's copy.
+		main_controller.request_enemy({
+			"position": main_controller.to_local(navigable_spawn_position + Vector3(0, 0.5, 0)),
+			"color": info["color"],
+			"type": info["type"],
+			"elite": info["elite"],
+		})
 		
 		active_enemies += 1
 		
@@ -191,14 +192,34 @@ func _trigger_next_wave() -> void:
 	# Upkeep, not a boon screen: the team spends its mana together and decides when to
 	# move on. The next wave starts when the panel says so, never on a timer here.
 	in_upkeep = true
+	if Net.is_active():
+		_net_upkeep_started.rpc(GameSettings.upkeep_duration)
 	SignalBus.upkeep_started.emit(GameSettings.upkeep_duration)
 
 
+@rpc("authority", "call_remote", "reliable")
+func _net_upkeep_started(duration: float) -> void:
+	in_upkeep = true
+	SignalBus.upkeep_started.emit(duration)
+
+
+## Only the server may actually start the next wave. A client reaching this just drops
+## its own Upkeep flag - the wave arrives when the server's enemies do.
 func _on_upkeep_finished() -> void:
 	if not in_upkeep:
 		return
 	in_upkeep = false
+	if not Net.is_server():
+		return
+	if Net.is_active():
+		_net_upkeep_finished.rpc()
 	start_next_wave()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _net_upkeep_finished() -> void:
+	in_upkeep = false
+	SignalBus.upkeep_finished.emit()
 
 func _assign_elites() -> void:
 	if current_wave + 1 < GameSettings.wave_elite_start_wave:
@@ -245,8 +266,10 @@ func _generate_dynamic_wave(wave_idx: int) -> Array:
 	var colors = ["White", "Blue", "Black", "Red", "Green"]
 	var types = ["Melee", "Ranged", "Mage"]
 	
-	# Base difficulty
+	# Base difficulty, scaled by how many players are actually here. Without this a
+	# five-player team meets a solo-sized wave and never has to defend anything.
 	var difficulty = GameSettings.wave_dynamic_base_difficulty + wave_idx * GameSettings.wave_dynamic_difficulty_per_wave
+	difficulty = int(round(float(difficulty) * GameSettings.get_wave_size_factor(PlayerRegistry.count())))
 	
 	# Add a boss every 5 waves
 	if (wave_idx + 1) % GameSettings.wave_boss_interval == 0:

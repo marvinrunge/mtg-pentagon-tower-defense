@@ -355,6 +355,11 @@ func get_tier_cost(tier_index: int) -> int:
 @export var wave_spawn_delay_base: float = 1.0
 @export var wave_spawn_delay_scaling: float = 0.05
 @export var wave_spawn_delay_min: float = 0.1
+## How much bigger a wave gets per player beyond the first. Enemy DAMAGE already scales
+## with head count (get_player_scaling_factor), but wave SIZE never did - five players
+## against a solo-sized wave shred it without the crystal ever being threatened, and earn
+## solo-sized income while doing it. At 0.45 a five-player wave is 2.8x a solo one.
+@export var wave_size_per_extra_player: float = 0.45
 @export var wave_dynamic_base_difficulty: int = 5
 @export var wave_dynamic_difficulty_per_wave: int = 2
 @export var wave_boss_interval: int = 5
@@ -498,6 +503,9 @@ func get_tier_cost(tier_index: int) -> int:
 ## The build phase between waves: the only time mana can be spent, and the one moment
 ## each wave the whole team is in the same place. Replaces a 3-second rest that was long
 ## enough for nothing.
+## How often the server pushes the economy to clients. Kills arrive far faster than a
+## HUD can read, so the pool is flushed at a fixed rate rather than once per enemy.
+@export var run_state_sync_interval: float = 0.25
 @export var upkeep_duration: float = 30.0
 ## What the team pays for one skill point FOR EVERY PLAYER, in any colour.
 @export var upkeep_skill_point_cost: int = 10
@@ -584,6 +592,13 @@ const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
 # ============================================================
 @export var scale_by_players: bool = true
 @export var min_damage_scale: float = 0.2 # 20% damage at 1 player, scaling up to 100% at 5 players
+
+## Multiplier on a wave's enemy budget for the number of players present. Counts the
+## registry rather than the group, so an avatar mid-spawn cannot briefly inflate a wave.
+func get_wave_size_factor(player_count: int) -> float:
+	var players: int = clampi(player_count, 1, 5)
+	return 1.0 + float(players - 1) * wave_size_per_extra_player
+
 
 func get_player_scaling_factor(tree: SceneTree) -> float:
 	if not scale_by_players:

@@ -82,7 +82,7 @@ test.
 positions, exactly one current camera, remotes with `is_local = false`, difficulty
 scaling at 0.60, and a clean output panel.
 
-## Phase 1 — Connection and avatars
+## Phase 1 — Connection and avatars ✅ DONE
 
 Playable co-op with a shared world that only the host really simulates.
 
@@ -100,7 +100,7 @@ Playable co-op with a shared world that only the host really simulates.
 **Ends at:** two to five players run around the same map and see each other move
 correctly.
 
-## Phase 2 — The world replicates
+## Phase 2 — The world replicates ✅ DONE
 
 1. Enemies through `MultiplayerSpawner`; health, status and target via synchroniser.
 2. `WaveManager` server-only, wave state broadcast for the HUD.
@@ -117,7 +117,7 @@ correctly.
 
 **Ends at:** a full wave, boss included, plays identically for every client.
 
-## Phase 3 — RunState becomes server-authoritative
+## Phase 3 — RunState becomes server-authoritative ✅ DONE
 
 The economy was rebuilt since this plan was written, so this phase replaces the old
 "mana drops and per-player pools" one entirely. There are no drops to claim and no
@@ -136,7 +136,7 @@ pools to divide — but there is now a singleton holding the whole run.
 
 **Ends at:** the team levels together and shares one mana pool across the network.
 
-## Phase 4 — Upkeep over the network
+## Phase 4 — Upkeep over the network ✅ DONE
 
 Entirely new work — the old plan had no vote to network.
 
@@ -154,11 +154,15 @@ Entirely new work — the old plan had no vote to network.
 
 **Ends at:** five players argue about Furnace of Rath and the majority wins.
 
-## Phase 5 — Actually a five-player game
+## Phase 5 — Actually a five-player game — PARTLY DONE
 
-1. **Rebalance.** `get_player_scaling_factor()` has never run above one player in
-   anger. Five players against current wave sizes will trivialise everything, and the
-   Upkeep income curve in `docs/ECONOMY.md` was written for one.
+1. ✅ **Wave size now scales with head count.** Enemy *damage* already did
+   (`get_player_scaling_factor`), but wave *size* never had - five players met a
+   solo-sized wave, shredded it without the crystal ever being threatened, and earned
+   solo-sized income doing it. `get_wave_size_factor()` multiplies the wave's enemy
+   budget: 1.45x at two players, 2.8x at five.
+   **Still open:** the income curve in `docs/ECONOMY.md` was written for one player and
+   needs a real playtest at five.
 2. Downed and revive already exist — surface them: teammate markers, a downed HUD, a
    respawn timer.
 3. Reconnect, and graceful "host left" handling.

@@ -617,8 +617,27 @@ func release_charged_spell() -> void:
 		return
 	_begin_cast(spell_id, pct)
 
+## The moment a spell's effect actually happens, on the frame its clip releases.
+##
+## The cooldown and the animation are local and already ran; only the EFFECT needs an
+## authority, because a projectile spawned on a client is invisible to everyone else and
+## its damage would never reach the server's enemies.
 func execute_spell(spell_id: String, charge_pct: float = 1.0) -> void:
 	spell_cooldown_timers[spell_id] = _get_spell_cooldown(spell_id)
+	if Net.is_active() and not Net.is_server():
+		_request_spell.rpc_id(1, spell_id, charge_pct)
+		return
+	_run_spell_effect(spell_id, charge_pct)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _request_spell(spell_id: String, charge_pct: float) -> void:
+	if not Net.is_server():
+		return
+	_run_spell_effect(spell_id, charge_pct)
+
+
+func _run_spell_effect(spell_id: String, charge_pct: float) -> void:
 	
 	# Rhystic Study Shield trigger on cast
 	if unlocked_capstone_aura == "aura_rhystic_study":
@@ -873,8 +892,7 @@ func _slam_ground() -> void:
 		var offset: Vector3 = enemy.global_position - global_position
 		if offset.length() > GameSettings.spell_green_leap_radius:
 			continue
-		if enemy.has_method("take_damage"):
-			enemy.take_damage(damage, self, true)
+		_deal_damage(enemy, damage, true)
 		if enemy.has_method("apply_knockback"):
 			offset.y = 0.0
 			if offset.length_squared() < 0.01:
@@ -1249,6 +1267,16 @@ func _attack_speed_mult() -> float:
 func _begin_action(clip: String, duration: float, upper_body: bool, roots: bool, is_melee: bool, window: Vector2 = PlayerAnimator.FULL_WINDOW) -> void:
 	_commit_action(duration, roots, is_melee)
 	animator.play_action(clip, _action_duration, upper_body, window)
+	# Tell the other peers WHAT started, not what it looks like. Each of them runs the
+	# same PlayerAnimator over the same clip metadata and arrives at the same pose, so a
+	# swing costs five floats on the wire instead of a skeleton.
+	if Net.is_active() and is_local:
+		_net_play_action.rpc(clip, _action_duration, upper_body, window)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _net_play_action(clip: String, duration: float, upper_body: bool, window: Vector2) -> void:
+	animator.play_action(clip, duration, upper_body, window)
 
 
 ## The gameplay half of starting a committed move: how long it owns the player, and
@@ -1283,6 +1311,22 @@ func _begin_melee_action(clip: String, duration: float, damage_mult: float, uppe
 		_pending_hits = [_action_duration * 0.5]
 
 
+## Deals `amount` to `target`, wherever authority for that actually lives.
+##
+## Solo and on the host this is a direct call, exactly as it always was. On a client it
+## becomes a request the server applies - the client keeps its instant feedback and
+## gives up only the authority to decide the number.
+func _deal_damage(target: Node, amount: float, is_melee: bool) -> void:
+	if not is_instance_valid(target):
+		return
+	if Net.is_server():
+		if target.has_method("take_damage"):
+			target.take_damage(amount, self, is_melee)
+		return
+	if target.has_method("request_damage"):
+		target.request_damage.rpc_id(1, amount, Net.local_id(), is_melee)
+
+
 ## One impact frame's worth of melee damage. A negative `damage_mult` means "this is
 ## the kick", which has its own damage and knockback rather than scaling the sword.
 ##
@@ -1303,8 +1347,7 @@ func _apply_melee_damage(damage_mult: float) -> int:
 
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
-		if enemy.has_method("take_damage"):
-			enemy.take_damage(dmg, self, true)
+		_deal_damage(enemy, dmg, true)
 		_apply_basic_attack_knockback(enemy, knockback)
 		return 1
 
