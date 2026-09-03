@@ -53,7 +53,10 @@ function Invoke-GodotCheck {
     foreach ($diagnosticPattern in $knownExitDiagnostics) {
         $actionableOutput = $actionableOutput -replace $diagnosticPattern, ""
     }
-    $errorPattern = '(?im)^\s*(ERROR|SCRIPT ERROR|Parse Error|Failed loading resource|CrashHandlerException):'
+    # USER ERROR is what push_error() prints. Without it a deliberate, loud failure
+    # written by the project itself - "no player was spawned" - passes validation
+    # silently, which is exactly the class of bug push_error exists to catch.
+    $errorPattern = '(?im)^\s*(USER ERROR|USER SCRIPT ERROR|ERROR|SCRIPT ERROR|Parse Error|Failed loading resource|CrashHandlerException):'
     if ($actionableOutput -match $errorPattern) {
         [Console]::WriteLine($combinedOutput)
         throw "Godot $Name check reported an error."

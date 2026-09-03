@@ -35,11 +35,20 @@ func _ready() -> void:
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
 
-## True once a peer exists. Every single-player code path checks this and takes the
-## old branch when it is false.
+## True once a REAL peer exists. Every single-player code path checks this and takes
+## the old branch when it is false.
+##
+## The OfflineMultiplayerPeer check is the whole point. Godot hands every SceneTree one
+## by default, so `multiplayer_peer` is never null and reports CONNECTION_CONNECTED even
+## with no networking whatsoever - a plain null check therefore answers TRUE in
+## single-player, which sent MainController down the networked spawn path with an empty
+## peer list and spawned no player at all. No player means no current camera, which is a
+## grey screen with the HUD still drawn on top of it.
 func is_active() -> bool:
-	return multiplayer.multiplayer_peer != null \
-		and multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_DISCONNECTED
+	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer:
+		return false
+	return peer.get_connection_status() != MultiplayerPeer.CONNECTION_DISCONNECTED
 
 
 func is_server() -> bool:

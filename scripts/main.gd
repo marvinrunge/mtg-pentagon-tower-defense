@@ -96,6 +96,11 @@ func spawn_entities() -> void:
 		spawn_networked_players()
 	else:
 		spawn_players(GameSettings.player_count)
+	# A run with no avatar has no current camera, which renders as a grey screen with the
+	# HUD floating on it and no error anywhere. Worth saying out loud, because it is
+	# otherwise silent and looks like a rendering fault rather than a spawn one.
+	if PlayerRegistry.count() == 0:
+		push_error("No player was spawned - the map will render as an empty grey screen")
 	
 	# Myrs are now spawned by the player via base UI, not here
 		
