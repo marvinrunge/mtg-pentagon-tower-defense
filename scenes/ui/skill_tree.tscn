@@ -50,12 +50,6 @@ theme_override_font_sizes/font_size = 24
 text = "SKILL TREE"
 horizontal_alignment = 1
 
-[node name="PointsLabel" type="Label" parent="Control/Panel/VBoxContainer" unique_id=1332509379]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.8, 0.8, 0.2, 1)
-text = "Available Skill Points: 0"
-horizontal_alignment = 1
-
 [node name="PentagonLayout" type="Control" parent="Control/Panel" unique_id=75432051]
 layout_mode = 1
 anchors_preset = 8

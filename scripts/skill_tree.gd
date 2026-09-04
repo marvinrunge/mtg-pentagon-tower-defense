@@ -83,6 +83,10 @@ var _detail_title: Label
 var _detail_status: Label
 var _detail_body: Label
 var _hovered_record: Dictionary = {}
+## Prominent, always-visible counter of the player's spendable skill points. Sits above
+## the pentagon rather than buried in a corner, because it is the one number every
+## purchase in this screen revolves around.
+var _skill_points_label: Label
 
 # --- Gamepad/keyboard radial navigation (mouse hover still works independently) ---
 var _selection_ring: Control
@@ -98,6 +102,7 @@ func _ready() -> void:
 	SignalBus.spell_rank_changed.connect(func(_spell_id: String, _rank: int): update_ui())
 	SignalBus.passive_rank_changed.connect(func(_passive_id: String, _rank: int): update_ui())
 	SignalBus.quick_slots_changed.connect(update_ui)
+	SignalBus.skill_points_changed.connect(func(_player: Node, _points: int): update_ui())
 	_build_ui()
 	update_ui()
 
@@ -179,6 +184,18 @@ func _build_ui() -> void:
 	_board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_board.clip_contents = true
 	control_root.add_child(_board)
+
+	_skill_points_label = Label.new()
+	_skill_points_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_skill_points_label.offset_top = 18.0
+	_skill_points_label.offset_bottom = 18.0 + 40.0
+	_skill_points_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_skill_points_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_skill_points_label.add_theme_font_size_override("font_size", 32)
+	_skill_points_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_skill_points_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_skill_points_label.add_theme_constant_override("outline_size", 6)
+	control_root.add_child(_skill_points_label)
 
 	_outer_line = Line2D.new()
 	_outer_line.width = 2.0
@@ -453,6 +470,8 @@ func update_ui() -> void:
 	var player = PlayerRegistry.get_local()
 	if player == null:
 		return
+	if is_instance_valid(_skill_points_label):
+		_skill_points_label.text = "Skill Points: %d" % _skill_points(player)
 	var mana_pool: Dictionary = RunState.mana_pool
 
 	for record: Dictionary in _button_records:
