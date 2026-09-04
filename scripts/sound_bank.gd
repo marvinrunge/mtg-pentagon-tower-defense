@@ -137,6 +137,24 @@ const EVENT_FILES := {
 ## sample seamlessly instead of restarting it on a `finished` signal. Note the
 ## importer's enum is offset from the runtime one: 0 there means "detect from the
 ## WAV file", 1 disabled, 2 forward.
+## Events the whole map hears, rather than only whoever is standing near them.
+##
+## The rule is PHYSICAL SCALE, not gameplay importance: thunder carries across a valley
+## and a colossus arriving shakes the ground, so both carry here. It is deliberately a
+## short list - if everything is global then nothing stands out, and the point of these is
+## that they make players look up.
+##
+## `heavy_landing` is the interesting omission. It is enormous, but it is shared between
+## the boss special's impact and the player's own Titanic Leap, which comes off an eight
+## second cooldown - making it global would turn the most frequent green skill into the
+## loudest thing on the map.
+const GLOBAL_EVENTS: Array[StringName] = [
+	&"boss_spawn_white", &"boss_spawn_blue", &"boss_spawn_black",
+	&"boss_spawn_red", &"boss_spawn_green",
+	&"spell_lightning_bolt",
+	&"spell_wrath_of_god",
+]
+
 const LOOPING_EVENTS: Array[StringName] = [
 	&"crystal_ambience",
 	## Rain of Ember burns for as long as its zone stands and Fire Cone for as long as
@@ -157,8 +175,13 @@ var _last_played: Dictionary = {}
 
 var _positional: Array[AudioStreamPlayer3D] = []
 var _flat: Array[AudioStreamPlayer] = []
+## Kept apart from `_positional` rather than being the same voices with different
+## settings: the whole reason these exist is that the ordinary pool recycles too fast to
+## let a four-second arrival finish.
+var _global: Array[AudioStreamPlayer3D] = []
 var _next_positional: int = 0
 var _next_flat: int = 0
+var _next_global: int = 0
 
 
 func _ready() -> void:
@@ -195,6 +218,13 @@ func _build_pools() -> void:
 		player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 		add_child(player)
 		_positional.append(player)
+	for i in GameSettings.sfx_global_voices:
+		var player := AudioStreamPlayer3D.new()
+		player.max_distance = GameSettings.sfx_global_max_distance
+		player.unit_size = GameSettings.sfx_global_unit_size
+		player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		add_child(player)
+		_global.append(player)
 	for i in GameSettings.sfx_flat_voices:
 		var player := AudioStreamPlayer.new()
 		add_child(player)
@@ -206,12 +236,20 @@ func _build_pools() -> void:
 ## error on every hit.
 func play_at(event: StringName, position: Vector3) -> void:
 	var stream: AudioStream = _pick(event)
-	if stream == null or _positional.is_empty():
+	if stream == null:
 		return
+
 	# Round-robin rather than "first free": the oldest voice is the one whose tail
 	# is least missed, and it needs no scan.
-	var player: AudioStreamPlayer3D = _positional[_next_positional]
-	_next_positional = (_next_positional + 1) % _positional.size()
+	var player: AudioStreamPlayer3D
+	if GLOBAL_EVENTS.has(event) and not _global.is_empty():
+		player = _global[_next_global]
+		_next_global = (_next_global + 1) % _global.size()
+	elif not _positional.is_empty():
+		player = _positional[_next_positional]
+		_next_positional = (_next_positional + 1) % _positional.size()
+	else:
+		return
 	player.stream = stream
 	player.global_position = position
 	player.volume_db = GameSettings.sfx_volume_db

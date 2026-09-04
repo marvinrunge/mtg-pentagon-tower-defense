@@ -591,7 +591,31 @@ func _check_sounds() -> void:
 	_check("every boss has its own arrival sound", voiceless.is_empty(),
 		"silent: %s" % ", ".join(voiceless))
 
-	print("  (%d events, %d recordings)" % [SoundBank.EVENT_FILES.size(), _recording_count()])
+	# The global tier has to actually REACH. Measured against the map rather than against
+	# a number in the settings file: the spawners are where bosses arrive, and if the
+	# falloff does not cover the distance between the two furthest of them then "global"
+	# is a comment rather than a fact. At the default 45 units it was silent.
+	var spawners: Array = _scene.enemy_spawners
+	var furthest: float = 0.0
+	for a: Node3D in spawners:
+		for b: Node3D in spawners:
+			furthest = maxf(furthest, a.global_position.distance_to(b.global_position))
+	_check("global sounds reach across the whole map",
+		GameSettings.sfx_global_max_distance >= furthest,
+		"map is %.0f units wide, falloff reaches %.0f" % [furthest, GameSettings.sfx_global_max_distance])
+
+	# ...and they need voices of their own, or a wave of impacts recycles the pool out
+	# from under a four-second boss arrival before it finishes.
+	var missing_global: Array[String] = []
+	for event: StringName in SoundBank.GLOBAL_EVENTS:
+		if not SoundBank.EVENT_FILES.has(event):
+			missing_global.append(String(event))
+	_check("every global event has a recording", missing_global.is_empty(), ", ".join(missing_global))
+	_check("global sounds have their own voices", GameSettings.sfx_global_voices > 0,
+		"%d reserved" % GameSettings.sfx_global_voices)
+
+	print("  (%d events, %d recordings, %d global, map %.0f units)" % [
+		SoundBank.EVENT_FILES.size(), _recording_count(), SoundBank.GLOBAL_EVENTS.size(), furthest])
 	_done_with("sounds")
 
 

@@ -172,6 +172,25 @@ extends Node
 @export var sfx_ambience_volume_db: float = -14.0
 @export var sfx_ambience_max_distance: float = 70.0
 
+# --- Sounds the whole map hears ---
+#
+# The lane spawners sit at radius 179 from the crystal, so two opposite ones are ~341
+# units apart. At the ordinary sfx_max_distance of 45 a boss arriving in the red lane is
+# not quiet from the crystal, it is SILENT - which is what these numbers fix.
+#
+# Still positional, deliberately: it matters WHICH lane the boss came from, and a flat 2D
+# sound throws that away. What changes is only how far the falloff reaches.
+@export var sfx_global_max_distance: float = 420.0
+## unit_size is the distance at which attenuation starts biting. INVERSE_DISTANCE
+## attenuates roughly by unit_size/distance, so 110 over the 341-unit worst case leaves
+## about -10 dB - clearly audible, still obviously far away.
+@export var sfx_global_unit_size: float = 110.0
+## Voices held back for these events. A boss arrival is 4.5 seconds long and the ordinary
+## pool is round-robin: during a wave, sixteen impacts recycle every voice in well under
+## that, and the arrival gets cut off mid-roar. A sound nobody hears the end of is not
+## much better than one nobody hears at all.
+@export var sfx_global_voices: int = 3
+
 ## The kick a fireball detonation gives the camera. Still under the leap's slam - a
 ## fireball usually goes off across the map rather than under the player's feet - but
 ## well above a melee hit, because it is a detonation and should read as one.
