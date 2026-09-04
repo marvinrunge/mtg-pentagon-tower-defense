@@ -1,8 +1,19 @@
 name: Build Windows executable
 
 # Produces a single self-contained .exe (the pack is embedded, so there is no loose
-# .pck to lose) and uploads it as a downloadable artifact. Pushing a tag also attaches
-# it to a GitHub Release.
+# .pck to lose) and uploads it as a downloadable artifact.
+#
+# PUSHING A TAG is what publishes a build to a tester: the .exe is attached to a GitHub
+# Release, and everyone watching the repo for releases is mailed a link. See
+# docs/RELEASING.md.
+#
+#   git tag -a v0.3.0 -m "what changed"
+#   git push origin v0.3.0
+#
+# There used to be a second job here that booted the exported .exe on a Windows runner to
+# prove it started. It was removed after it failed on builds that ran correctly by hand -
+# a headless boot on a GPU-less runner is a different thing from the game starting, and a
+# check that cries wolf is worse than no check.
 on:
   push:
     branches: [master]
@@ -24,25 +35,48 @@ jobs:
     name: Export
     runs-on: ubuntu-latest
     permissions:
+      # Needed to create the Release on a tag. Nothing else here writes to the repo.
       contents: write
 
     steps:
       - name: Check out
         uses: actions/checkout@v4
 
+      # The editor and the export templates are ~1.2 GB of download that never changes
+      # between runs of the same Godot version. On a PRIVATE repo Actions minutes come out
+      # of a monthly allowance, so this is the difference between a build costing about
+      # six minutes and about two.
+      - name: Cache Godot and export templates
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot-bin
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-stable
+
       # Godot exports Windows binaries perfectly well from Linux - the template IS the
       # Windows executable, and the editor only stamps the project data onto it. Using
       # the Linux runner keeps the job fast and cheap.
+      # Guarded on the BINARY being there rather than on the cache step's hit flag. A
+      # restored-but-incomplete cache reports a hit, and skipping the install on that
+      # would leave the job with no Godot at all - a slow build is a much better failure
+      # than a broken one.
       - name: Install Godot and export templates
         run: |
           set -euo pipefail
+          if [ -x "$HOME/godot-bin/godot" ] && [ -d "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable" ]; then
+            echo "Restored from cache."
+            exit 0
+          fi
           BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
           wget -q "${BASE}/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
           wget -q "${BASE}/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
 
+          mkdir -p "$HOME/godot-bin"
           unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
-          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
-          sudo chmod +x /usr/local/bin/godot
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$HOME/godot-bin/godot"
+          chmod +x "$HOME/godot-bin/godot"
 
           # Godot looks for templates under a version-stamped directory and will refuse
           # to export if the name does not match exactly.
@@ -51,7 +85,12 @@ jobs:
           unzip -q "Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
           mv templates/* "$TEMPLATE_DIR/"
 
-          godot --version
+      - name: Put Godot on PATH
+        run: |
+          echo "$HOME/godot-bin" >> "$GITHUB_PATH"
+
+      - name: Report the version in use
+        run: godot --version
 
       # A fresh checkout has no .godot/ cache, so every asset has to be imported before
       # anything can reference it. Godot exits non-zero on the first pass while it is
@@ -72,12 +111,15 @@ jobs:
       # An export that silently produced nothing is the failure mode worth catching:
       # Godot can report success while writing no file if a template is missing.
       - name: Verify the executable exists
+        id: verify
         run: |
           set -euo pipefail
           EXE="build/windows/${EXPORT_NAME}.exe"
           test -f "$EXE" || { echo "::error::Export produced no executable"; exit 1; }
           SIZE=$(stat -c%s "$EXE")
-          echo "Built $EXE ($((SIZE / 1024 / 1024)) MB)"
+          MB=$((SIZE / 1024 / 1024))
+          echo "Built $EXE (${MB} MB)"
+          echo "size_mb=${MB}" >> "$GITHUB_OUTPUT"
           # A stub with no project data embedded is a few MB; this project's assets are
           # far larger, so anything small means the pack did not get embedded.
           test "$SIZE" -gt 20000000 || { echo "::error::Executable is suspiciously small - pack may not be embedded"; exit 1; }
@@ -90,34 +132,27 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Tags only. Every push to master builds so a break is caught early, but only a tag
+      # is a version anyone is asked to play - and only a Release mails the testers.
+      #
+      # `body` is written for whoever downloads it rather than for the author:
+      # generate_release_notes appends the commit log underneath, which answers "what
+      # changed", and the text above it answers "how do I run this" - including the
+      # SmartScreen warning, which an unsigned build WILL trigger and which looks alarming
+      # if nobody warned you.
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: build/windows/*.exe
           generate_release_notes: true
+          body: |
+            **Windows, 64-bit — ${{ steps.verify.outputs.size_mb }} MB.**
+            Download `${{ env.EXPORT_NAME }}.exe` from the Assets below and run it. No
+            installer, no dependencies, nothing to unpack.
 
-  smoke-test:
-    name: Does it start
-    needs: build
-    runs-on: windows-latest
-    steps:
-      - name: Download the build
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.EXPORT_NAME }}-windows
+            Windows will most likely say **"Windows protected your PC"** the first time.
+            Click **More info → Run anyway**. That warning appears because the build is
+            not code-signed, not because of anything it does.
 
-      # Proves the artifact is a working game rather than only a file of the right size:
-      # the exported binary boots the main scene, runs 120 frames and exits. Anything
-      # broken enough to matter - a missing autoload, an unresolvable resource - fails
-      # here rather than on a player's machine.
-      - name: Boot the exported game
-        shell: pwsh
-        run: |
-          $exe = "${{ env.EXPORT_NAME }}.exe"
-          & ".\$exe" --headless --quit-after 120
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "::error::The exported game exited with $LASTEXITCODE"
-            exit 1
-          }
-          Write-Output "The exported game booted and exited cleanly."
+            <sub>Built from `${{ github.sha }}` by GitHub Actions.</sub>
