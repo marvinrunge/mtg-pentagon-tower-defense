@@ -80,43 +80,54 @@ const EVENT_FILES := {
 	# swapping a take is never a hand edit. Do not reformat between the markers.
 	# BEGIN GENERATED PICKS
 	## white_1 Exalted Strike
-	&"spell_exalted_strike": ["generated/spell_exalted_strike/spell_exalted_strike_1.mp3"],
+	&"spell_exalted_strike": ["generated/spell_exalted_strike/spell_exalted_strike_3.mp3"],
 	## white_2 Circle of Protection
 	&"spell_circle_protection": ["generated/spell_circle_protection/spell_circle_protection_3.mp3"],
 	## white_3 Reprisal Ward
 	&"spell_reprisal_ward": ["generated/spell_reprisal_ward/spell_reprisal_ward_3.mp3"],
 	## white_4 Wrath of God
-	&"spell_wrath_of_god": ["generated/spell_wrath_of_god/spell_wrath_of_god_3.mp3"],
+	&"spell_wrath_of_god": ["generated/spell_wrath_of_god/spell_wrath_of_god_2.mp3"],
 	## white_5 Rally the Fallen
-	&"spell_rally_fallen": ["generated/spell_rally_fallen/spell_rally_fallen_2.mp3"],
+	&"spell_rally_fallen": ["generated/spell_rally_fallen/spell_rally_fallen_3.mp3"],
 	## blue_5 Phantasmal Decoy
-	&"spell_decoy": ["generated/spell_decoy/spell_decoy_3.mp3"],
+	&"spell_decoy": ["generated/spell_decoy/spell_decoy_1.mp3"],
 	## black_1 Doom Blade
-	&"spell_doom_blade": ["generated/spell_doom_blade/spell_doom_blade_1.mp3"],
+	&"spell_doom_blade": ["generated/spell_doom_blade/spell_doom_blade_2.mp3"],
 	## black_4 Wall of Souls
 	&"spell_wall_of_souls": ["generated/spell_wall_of_souls/spell_wall_of_souls_3.mp3"],
 	## red_1 Fireball, the burst
-	&"spell_fireball_impact": ["generated/spell_fireball_impact/spell_fireball_impact_2.mp3"],
+	&"spell_fireball_impact": ["generated/spell_fireball_impact/spell_fireball_impact_3.mp3"],
 	## red_2 Fire Dash
 	&"spell_fire_dash": ["generated/spell_fire_dash/spell_fire_dash_3.mp3"],
 	## green_2 Giant Growth
-	&"spell_giant_growth": ["generated/spell_giant_growth/spell_giant_growth_2.mp3"],
+	&"spell_giant_growth": ["generated/spell_giant_growth/spell_giant_growth_3.mp3"],
 	## green_3 Fog
-	&"spell_fog": ["generated/spell_fog/spell_fog_2.mp3"],
+	&"spell_fog": ["generated/spell_fog/spell_fog_1.mp3"],
 	## green_4 Roar
 	&"spell_roar": ["generated/spell_roar/spell_roar_1.mp3"],
 	## green_5 Ironbark
-	&"spell_ironbark": ["generated/spell_ironbark/spell_ironbark_3.mp3"],
+	&"spell_ironbark": ["generated/spell_ironbark/spell_ironbark_1.mp3"],
 	## Capstone: Orb of Frost
-	&"aura_orb_frost": ["generated/aura_orb_frost/aura_orb_frost_1.mp3"],
+	&"aura_orb_frost": ["generated/aura_orb_frost/aura_orb_frost_2.mp3"],
 	## Capstone: Orb of Fire
-	&"aura_orb_fire": ["generated/aura_orb_fire/aura_orb_fire_3.mp3"],
+	&"aura_orb_fire": ["generated/aura_orb_fire/aura_orb_fire_2.mp3"],
 	## Capstone: Healing Orb
-	&"aura_orb_heal": ["generated/aura_orb_heal/aura_orb_heal_2.mp3"],
+	&"aura_orb_heal": ["generated/aura_orb_heal/aura_orb_heal_3.mp3"],
 	## Capstone: Grave Pact
-	&"aura_grave_pact": ["generated/aura_grave_pact/aura_grave_pact_1.mp3"],
-	## A wave boss arriving
-	&"boss_spawn": ["generated/boss_spawn/boss_spawn_2.mp3"],
+	&"aura_grave_pact": ["generated/aura_grave_pact/aura_grave_pact_2.mp3"],
+	## One arrival per boss. They are five different creatures wearing five different
+	## models (BossDatabase.VISUAL_SCENES), so one shared horn blast for all of them was
+	## exactly why none of them sounded like itself.
+	## Red boss: Fire Giant
+	&"boss_spawn_red": ["generated/boss_spawn_red/boss_spawn_red_2.mp3"],
+	## Blue boss: Frost Giant
+	&"boss_spawn_blue": ["generated/boss_spawn_blue/boss_spawn_blue_1.mp3"],
+	## Green boss: Treant
+	&"boss_spawn_green": ["generated/boss_spawn_green/boss_spawn_green_1.mp3"],
+	## White boss: Paladin
+	&"boss_spawn_white": ["generated/boss_spawn_white/boss_spawn_white_2.mp3"],
+	## Black boss: Zombie Lord
+	&"boss_spawn_black": ["generated/boss_spawn_black/boss_spawn_black_2.mp3"],
 	# END GENERATED PICKS
 }
 

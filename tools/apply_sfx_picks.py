@@ -6,8 +6,14 @@ SoundBank.EVENT_FILES, and this script is what writes that line - so switching a
 never a hand edit, and the file can never drift from what is on disk.
 
     python tools/apply_sfx_picks.py --random
-        Picks one take per event at random. What runs first, so the game is playable and
-        audible before anyone has listened to anything.
+        Picks one take per event at random - EVERY event, including ones already chosen
+        deliberately. What runs once at the start, so the game is audible before anyone
+        has listened to anything.
+
+    python tools/apply_sfx_picks.py --random boss_spawn_red boss_spawn_blue
+        Randomises only those. This is what you want after adding events to an already
+        curated set: the bare flag above will happily overwrite hand-picked takes, which
+        it has now done once.
 
     python tools/apply_sfx_picks.py spell_fog=2 boss_spawn=3
         Applies specific choices, leaving every other event alone.
@@ -52,11 +58,18 @@ def main():
 
     picks = {}
     randomise = False
+    randomise_only = []
     index = 0
     while index < len(args):
         arg = args[index]
         if arg == "--random":
             randomise = True
+            # Any bare names following --random are its SCOPE. Without this the flag is
+            # all-or-nothing, and "add five events, randomise those" silently rerolls
+            # every deliberate choice already made.
+            while index + 1 < len(args) and not args[index + 1].startswith("--") and "=" not in args[index + 1]:
+                index += 1
+                randomise_only.append(args[index])
         elif arg == "--picks":
             index += 1
             with io.open(args[index], encoding="utf-8") as handle:
@@ -100,7 +113,7 @@ def main():
             if wanted not in takes:
                 print("  !! %s take %d does not exist (have %s) - unchanged" % (event, wanted, takes))
                 continue
-        elif randomise:
+        elif randomise and (not randomise_only or event in randomise_only):
             wanted = random.choice(takes)
         else:
             continue

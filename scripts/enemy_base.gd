@@ -220,9 +220,10 @@ func setup(data: EnemyData) -> void:
 	health_bar.set_health(health, data.health)
 
 	if data.enemy_class == "Boss":
-		# Announced out loud. A boss that walks in with the same footsteps as a goblin is
-		# a boss the player does not look up for.
-		SoundBank.play_at(&"boss_spawn", global_position)
+		# Announced out loud, in its own voice. A boss that walks in with the same
+		# footsteps as a goblin is a boss the player does not look up for - and a treant
+		# that arrives sounding like a fire giant is barely better.
+		SoundBank.play_at(StringName("boss_spawn_" + data.color_identity.to_lower()), global_position)
 		_anim_speed_scale = GameSettings.get_boss_anim_speed(data.model_scale)
 		# A boss that animates slower should also swing less often - otherwise
 		# perform_attack() just compresses the swing back to normal speed to fit

@@ -580,8 +580,16 @@ func _check_sounds() -> void:
 			not_looping.append(String(event))
 	_check("sustained sounds actually loop", not_looping.is_empty(), ", ".join(not_looping))
 
-	# A boss has to announce itself.
-	_check("bosses have an arrival sound", SoundBank.EVENT_FILES.has(&"boss_spawn"), "no boss_spawn event")
+	# Every boss has to announce itself, in its own voice - the colours here are the
+	# same five BossDatabase ships a model for, so a new boss colour fails this until it
+	# is given a sound rather than silently arriving mute.
+	var voiceless: Array[String] = []
+	for color: String in BossDatabase.VISUAL_SCENES:
+		var event: StringName = StringName("boss_spawn_" + color.to_lower())
+		if not SoundBank.EVENT_FILES.has(event):
+			voiceless.append(color)
+	_check("every boss has its own arrival sound", voiceless.is_empty(),
+		"silent: %s" % ", ".join(voiceless))
 
 	print("  (%d events, %d recordings)" % [SoundBank.EVENT_FILES.size(), _recording_count()])
 	_done_with("sounds")

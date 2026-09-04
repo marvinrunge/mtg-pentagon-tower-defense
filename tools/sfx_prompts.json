@@ -115,10 +115,30 @@
       "duration_seconds": 1.0,
       "prompt": "A soul wisp being pulled in and absorbed: a short ghostly inhale with a faint whispered sigh and a dark warm pulse underneath, necrotic but satisfying, very short, no music"
     },
-    "boss_spawn": {
-      "skill": "A wave boss arriving",
+    "boss_spawn_red": {
+      "skill": "Red boss: Fire Giant",
       "duration_seconds": 4.5,
-      "prompt": "A colossal creature arriving on a battlefield: a deep war horn blast over a ground-shaking rumble, a monstrous distant roar answering it, then heavy debris settling, ominous and huge, cinematic, no music"
+      "prompt": "A colossal giant of molten rock striding onto a battlefield: one immense stone footfall shaking the ground, roaring flame venting from cracks in its body, glowing rock splitting and grinding, ending on a deep furnace-like bellow, no music"
+    },
+    "boss_spawn_blue": {
+      "skill": "Blue boss: Frost Giant",
+      "duration_seconds": 4.5,
+      "prompt": "A colossal giant of ice arriving: a glacier cracking and shearing apart, one heavy frozen footfall, a freezing wind rushing outward, ending on a deep cold roar with brittle ice shards settling, no music"
+    },
+    "boss_spawn_green": {
+      "skill": "Green boss: Treant",
+      "duration_seconds": 5.0,
+      "prompt": "An enormous ancient tree tearing itself out of the earth and standing up: huge roots ripping through soil and stone, vast trunk groaning and splintering under its own weight, branches creaking, ending on a low bellowing wooden groan, slow and immense, no music"
+    },
+    "boss_spawn_white": {
+      "skill": "White boss: Paladin",
+      "duration_seconds": 3.5,
+      "prompt": "An armoured holy champion arriving: a bright sanctified horn call, heavy plate armour and a greatshield settling into place, a commanding human battle shout, disciplined and righteous rather than monstrous, crisp and martial, no music"
+    },
+    "boss_spawn_black": {
+      "skill": "Black boss: Zombie Lord",
+      "duration_seconds": 4.5,
+      "prompt": "An undead lord rising onto a battlefield: wet tearing flesh and dry bone grinding, grave dirt falling away, a rattling inhuman moan swelling under a chorus of distant whispers, dreadful and rotten, no music"
     }
   }
 }
