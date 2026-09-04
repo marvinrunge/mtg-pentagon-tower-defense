@@ -22,6 +22,13 @@ var max_crystal_health: float = GameSettings.crystal_max_hp
 const LANE_NAMES = ["White", "Blue", "Black", "Red", "Green"]
 var base_ui_instance: Control
 
+## Harvest slots per mana well. A well has room for a handful of Myrs standing AROUND
+## it, Warcraft-mine style - and a sixth heading for the same well is what wedged them
+## against the model and against each other, so the cap is enforced where the slots
+## are handed out. `_well_slot_holders` is keyed by lane index, each entry the Myrs
+## currently holding that lane's slots, in slot order.
+var _well_slot_holders: Dictionary = {}
+
 func _ready() -> void:
 	SignalBus.crystal_damaged.connect(damage_crystal)
 	SignalBus.mana_deposited.connect(_on_mana_deposited)
@@ -248,6 +255,65 @@ func spawn_myr() -> Node3D:
 	if not Net.is_server():
 		return null
 	return $MyrNetSpawner.spawn({}) as Node3D
+
+
+## Claims a harvest slot at `lane_index`'s well for `myr`, and hands the Myr the
+## offset to stand at. Slots fan out around the well's centre rather than stacking on
+## it, which is both the Warcraft-mine look and the fix for Myrs piling onto one
+## navigation point. Returns false - and the assignment should be refused - when the
+## well is already full.
+func claim_well_slot(myr: Node3D, lane_index: int) -> bool:
+	if lane_index < 0 or lane_index >= mana_sources.size():
+		return false
+	var holders: Array = _well_slot_holders.get(lane_index, [])
+	# A dead Myr never got to return its slot, so reclaim stale claims before counting.
+	holders = holders.filter(func(h: Node3D) -> bool: return is_instance_valid(h))
+	if holders.has(myr):
+		return true
+	if holders.size() >= GameSettings.myr_well_max_slots:
+		return false
+	# Reserve the new well only after its capacity check succeeds. This preserves the
+	# old assignment when the target well is full, while reassignment cannot leave the
+	# Myr registered in two wells.
+	release_well_slot(myr)
+	holders.append(myr)
+	_well_slot_holders[lane_index] = holders
+	if myr.has_method("set_well_slot_offset"):
+		myr.set_well_slot_offset(_well_slot_offset(lane_index, holders.size() - 1))
+	return true
+
+
+## Returns whatever slot `myr` was holding, on death or reassignment. Sweeping every
+## lane rather than tracking the Myr's own keeps a stale claim from outliving the
+## reassignment that abandoned it.
+func release_well_slot(myr: Node3D) -> void:
+	for lane_index: int in _well_slot_holders.keys():
+		var holders: Array = _well_slot_holders[lane_index]
+		if holders.has(myr):
+			holders.erase(myr)
+			_well_slot_holders[lane_index] = holders
+
+
+## How many Myrs are currently harvesting `lane_index`'s well - what the base UI shows
+## next to the lane buttons so "the well is full" is visible before the click.
+func well_slot_count(lane_index: int) -> int:
+	var holders: Array = _well_slot_holders.get(lane_index, [])
+	holders = holders.filter(func(h: Node3D) -> bool: return is_instance_valid(h))
+	_well_slot_holders[lane_index] = holders
+	return holders.size()
+
+
+## Where slot `slot_index` of `lane_index`'s well stands, in world space relative to
+## the well: an even ring around the centre, one slot straight ahead of it first.
+func _well_slot_offset(lane_index: int, slot_index: int) -> Vector3:
+	var angle: float = TAU * float(slot_index) / float(GameSettings.myr_well_max_slots)
+	var offset := Vector3(sin(angle), 0.0, cos(angle)) * GameSettings.myr_well_slot_radius
+	if lane_index >= 0 and lane_index < mana_sources.size() and is_instance_valid(mana_sources[lane_index]):
+		# The ring is built in the lane's frame, so slot 0 faces down-lane rather than
+		# world-forward - five wells rotated around the pentagon then read the same.
+		offset = mana_sources[lane_index].global_transform.basis * offset
+		offset.y = 0.0
+	return offset
 
 
 func _spawn_myr(_data: Variant) -> Node:

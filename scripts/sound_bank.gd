@@ -46,6 +46,78 @@ const EVENT_FILES := {
 	## Not an impact at all: the note the crystal holds while it levitates. Started
 	## once by MainController and left running for the whole match.
 	&"crystal_ambience": ["cristal.wav"],
+
+	# --- Spells -----------------------------------------------------------------
+	#
+	# Named for the SKILL rather than for the noise, which is the opposite of the rule
+	# above and deliberately so: a swing is a swing whoever makes it, but nothing else
+	# in the game sounds like Zombify. Sharing these would be a lie about what the
+	# player just did.
+	&"spell_cast": ["magic/magic-missle-cast.wav"],
+	&"spell_missile_impact": ["magic/magic-missle-impact1.wav", "magic/magic-missle-impact2.wav"],
+	&"spell_unsummon": ["magic/unsummon.wav"],
+	&"spell_frostwave": ["magic/frostwave1.wav", "magic/frostwave2.wav"],
+	&"spell_frost_globe": ["magic/frost-globe.wav"],
+	&"spell_suction": ["magic/suction.wav"],
+	## GUESSED MAPPING: the recording is a violent howling gale and Fear is the closest
+	## thing in the roster to terror sweeping outward. Unsummon already has a file of its
+	## own, which is why the gale did not go there. One line to move if it belongs
+	## somewhere else - the file keeps its neutral name for exactly that reason.
+	&"spell_fear": ["magic/howling-gale.wav"],
+	&"spell_kill": ["magic/kill.wav"],
+	&"spell_zombify": ["magic/zombify.wav"],
+	&"spell_lightning_bolt": ["lightning-bolt.wav"],
+	## The two sustained spells. Both are held for as long as their effect lasts, so
+	## both are attached rather than fired - see LOOPING_EVENTS.
+	&"spell_rain_ember": ["magic/rain-of-ember-repeatable.wav"],
+	&"spell_fire_cone": ["magic/fire-cone-repeatable.wav"],
+
+	# --- Generated takes --------------------------------------------------------
+	#
+	# Written by tools/generate_sfx.py from the prompts in tools/sfx_prompts.json.
+	# Several takes exist per event; the path below is the CHOSEN one, and
+	# tools/apply_sfx_picks.py rewrites these lines from the audition page's output so
+	# swapping a take is never a hand edit. Do not reformat between the markers.
+	# BEGIN GENERATED PICKS
+	## white_1 Exalted Strike
+	&"spell_exalted_strike": ["generated/spell_exalted_strike/spell_exalted_strike_1.mp3"],
+	## white_2 Circle of Protection
+	&"spell_circle_protection": ["generated/spell_circle_protection/spell_circle_protection_3.mp3"],
+	## white_3 Reprisal Ward
+	&"spell_reprisal_ward": ["generated/spell_reprisal_ward/spell_reprisal_ward_3.mp3"],
+	## white_4 Wrath of God
+	&"spell_wrath_of_god": ["generated/spell_wrath_of_god/spell_wrath_of_god_3.mp3"],
+	## white_5 Rally the Fallen
+	&"spell_rally_fallen": ["generated/spell_rally_fallen/spell_rally_fallen_2.mp3"],
+	## blue_5 Phantasmal Decoy
+	&"spell_decoy": ["generated/spell_decoy/spell_decoy_3.mp3"],
+	## black_1 Doom Blade
+	&"spell_doom_blade": ["generated/spell_doom_blade/spell_doom_blade_1.mp3"],
+	## black_4 Wall of Souls
+	&"spell_wall_of_souls": ["generated/spell_wall_of_souls/spell_wall_of_souls_3.mp3"],
+	## red_1 Fireball, the burst
+	&"spell_fireball_impact": ["generated/spell_fireball_impact/spell_fireball_impact_2.mp3"],
+	## red_2 Fire Dash
+	&"spell_fire_dash": ["generated/spell_fire_dash/spell_fire_dash_3.mp3"],
+	## green_2 Giant Growth
+	&"spell_giant_growth": ["generated/spell_giant_growth/spell_giant_growth_2.mp3"],
+	## green_3 Fog
+	&"spell_fog": ["generated/spell_fog/spell_fog_2.mp3"],
+	## green_4 Roar
+	&"spell_roar": ["generated/spell_roar/spell_roar_1.mp3"],
+	## green_5 Ironbark
+	&"spell_ironbark": ["generated/spell_ironbark/spell_ironbark_3.mp3"],
+	## Capstone: Orb of Frost
+	&"aura_orb_frost": ["generated/aura_orb_frost/aura_orb_frost_1.mp3"],
+	## Capstone: Orb of Fire
+	&"aura_orb_fire": ["generated/aura_orb_fire/aura_orb_fire_3.mp3"],
+	## Capstone: Healing Orb
+	&"aura_orb_heal": ["generated/aura_orb_heal/aura_orb_heal_2.mp3"],
+	## Capstone: Grave Pact
+	&"aura_grave_pact": ["generated/aura_grave_pact/aura_grave_pact_1.mp3"],
+	## A wave boss arriving
+	&"boss_spawn": ["generated/boss_spawn/boss_spawn_2.mp3"],
+	# END GENERATED PICKS
 }
 
 ## Events that sustain instead of firing once, and are therefore the only ones
@@ -54,7 +126,14 @@ const EVENT_FILES := {
 ## sample seamlessly instead of restarting it on a `finished` signal. Note the
 ## importer's enum is offset from the runtime one: 0 there means "detect from the
 ## WAV file", 1 disabled, 2 forward.
-const LOOPING_EVENTS: Array[StringName] = [&"crystal_ambience"]
+const LOOPING_EVENTS: Array[StringName] = [
+	&"crystal_ambience",
+	## Rain of Ember burns for as long as its zone stands and Fire Cone for as long as
+	## the button is held. Both recordings are short and seamless, so they hold the
+	## moment by looping rather than by being long enough to cover the worst case.
+	&"spell_rain_ember",
+	&"spell_fire_cone",
+]
 
 ## event -> the streams behind it, resolved once at startup.
 var _streams: Dictionary = {}
@@ -175,15 +254,20 @@ func _jittered_pitch() -> float:
 ## recycled by the next impact, which is exactly wrong for something meant to hold.
 ##
 ## Returns the player, so a caller that needs to stop or retune it can.
-func attach_loop(event: StringName, emitter: Node3D) -> AudioStreamPlayer3D:
+## `ambience` picks which of the two voicings this loop wants. The crystal's note is
+## meant to sit under everything and carry across the map; a spell that is burning right
+## where the player is standing is a foreground sound at ordinary effect range. Passing
+## the crystal's settings to a firestorm made it both too quiet and audible from the far
+## side of the pentagon.
+func attach_loop(event: StringName, emitter: Node3D, ambience: bool = true) -> AudioStreamPlayer3D:
 	var streams: Array = _streams.get(event, [])
 	if streams.is_empty() or not is_instance_valid(emitter):
 		return null
 	var player := AudioStreamPlayer3D.new()
-	player.name = "Ambience_" + String(event)
+	player.name = "Loop_" + String(event)
 	player.stream = streams[0]
-	player.volume_db = GameSettings.sfx_ambience_volume_db
-	player.max_distance = GameSettings.sfx_ambience_max_distance
+	player.volume_db = GameSettings.sfx_ambience_volume_db if ambience else GameSettings.sfx_volume_db
+	player.max_distance = GameSettings.sfx_ambience_max_distance if ambience else GameSettings.sfx_max_distance
 	player.unit_size = GameSettings.sfx_unit_size
 	player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 	emitter.add_child(player)

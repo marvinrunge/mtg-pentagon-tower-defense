@@ -220,10 +220,10 @@ const SPELLS: Dictionary = {
 		"desc": "Leap forward and slam the ground, hurting everything around the landing.",
 		"cooldown": 8.0, "chargeable": false,
 		# 2.6s is the whole clip - leap, slam and the stand-up afterwards - at the pace
-		# it was authored at. `commit` is what keeps that from being a two-and-a-half
-		# second lockout: control comes back just after the slam lands at ~0.86s, and
-		# the recovery plays itself out unless the player interrupts it.
-		"cast_clip": "jump_attack", "cast_duration": 2.6, "commit": 1.2, "roots": false,
+		# it was authored at. The leap is a real commitment, though: nothing else may
+		# start until the slam has landed, so `commit` covers launch AND landing rather
+		# than ending early the way a move with a free recovery does.
+		"cast_clip": "jump_attack", "cast_duration": 2.6, "commit": 2.6, "roots": false,
 		"upper_body": false,
 		"release_on_last": true,
 	},

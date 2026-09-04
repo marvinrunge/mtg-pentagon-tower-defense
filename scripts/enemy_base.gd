@@ -110,6 +110,12 @@ var burn_source: Node3D = null
 ## corpse. Set by take_damage, read by die().
 var _exile_on_death: bool = false
 var knockback_velocity: Vector3 = Vector3.ZERO
+## Suction (blue_4). The zone re-applies every frame while the enemy is inside, so the
+## timer only has to outlive one frame gap. Kept apart from knockback_velocity: the
+## flinch reaction keys off knockback, and a held pull would read as one long flinch.
+var _suction_timer: float = 0.0
+var _suction_center: Vector3 = Vector3.ZERO
+var _suction_strength: float = 0.0
 
 @onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
 @onready var aggro_area: Area3D = $AggroArea
@@ -155,6 +161,15 @@ func setup(data: EnemyData) -> void:
 	# EnemyDatabase hands out a fresh EnemyData per enemy, so scaling it here is safe and
 	# keeps max health, the health bar and the flinch threshold all reading one number.
 	enemy_data.health *= GameSettings.get_enemy_health_factor(PlayerRegistry.count())
+	# Waves are their own difficulty axis on top of head count: a wave-20 enemy fights
+	# at x2.2 the wave-1 health, linearly, so the curve never runs away.
+	var wave: int = 0
+	var scene: Node = get_tree().current_scene
+	if scene != null:
+		var wave_manager: Node = scene.get_node_or_null("WaveManager")
+		if wave_manager != null and "current_wave" in wave_manager:
+			wave = int(wave_manager.current_wave)
+	enemy_data.health *= GameSettings.get_wave_health_factor(wave)
 	health = enemy_data.health
 	
 	# Adjust Aggro Area based on range
@@ -205,6 +220,9 @@ func setup(data: EnemyData) -> void:
 	health_bar.set_health(health, data.health)
 
 	if data.enemy_class == "Boss":
+		# Announced out loud. A boss that walks in with the same footsteps as a goblin is
+		# a boss the player does not look up for.
+		SoundBank.play_at(&"boss_spawn", global_position)
 		_anim_speed_scale = GameSettings.get_boss_anim_speed(data.model_scale)
 		# A boss that animates slower should also swing less often - otherwise
 		# perform_attack() just compresses the swing back to normal speed to fit
@@ -320,7 +338,17 @@ func _physics_process(delta: float) -> void:
 				knockback_velocity = Vector3.ZERO
 		else:
 			knockback_velocity = knockback_velocity.move_toward(Vector3.ZERO, 30.0 * delta)
-			
+
+	# Suction (blue_4): a steady drag toward the zone's centre, refreshed per frame by
+	# the zone itself. move_and_collide rather than velocity, so it works on enemies
+	# that are attacking, rooted or mid-swing exactly the way knockback does.
+	if _suction_timer > 0.0:
+		_suction_timer -= delta
+		var inward: Vector3 = _suction_center - global_position
+		inward.y = 0.0
+		if inward.length() > 0.6:
+			move_and_collide(inward.normalized() * _suction_strength * delta)
+
 	# Process Timers
 	if freeze_timer > 0: freeze_timer -= delta
 	if root_timer > 0: root_timer -= delta
@@ -1066,6 +1094,14 @@ func unsummon(force_vec: Vector3 = Vector3.ZERO) -> void:
 
 func apply_knockback(force_vec: Vector3) -> void:
 	knockback_velocity = force_vec
+
+
+## Suction's pull, refreshed by the zone every frame the enemy is inside it. Strength
+## is low on purpose - walking out of the zone is the counterplay.
+func apply_suction(center: Vector3, strength: float) -> void:
+	_suction_center = center
+	_suction_strength = strength
+	_suction_timer = 0.2
 
 func apply_chill() -> void:
 	chill_stacks += 1

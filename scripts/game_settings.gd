@@ -28,6 +28,18 @@ extends Node
 ## round trip used to cost the player ~40 seconds for a single mana.
 @export var player_mana_harvest_distance: float = 6.0
 @export var player_mana_harvest_time: float = 3.0
+
+# --- DOWNED / REVIVE ---
+## Multiplayer: how long a downed player can be picked up before they respawn at the
+## base. The clock keeps running while a teammate channels - help that arrives too
+## late arrives too late.
+@export var player_downed_duration: float = 20.0
+## Solo there is nobody to channel, so the downed state is only a short death penalty.
+@export var player_downed_solo_duration: float = 5.0
+## The helper's channel. Broken by the HELPER moving, attacking or casting - not by
+## taking damage, so rescues under fire stay possible.
+@export var player_revive_channel_time: float = 3.0
+@export var player_revive_range: float = 3.0
 @export var player_base_proximity: float = 5.0
 ## Myrs only, for the same reason - the player never carries anything now.
 @export var player_carry_speed_penalty: float = 0.5
@@ -315,9 +327,11 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_white_exalted_damage_mult: float = 2.4
 @export var spell_white_exalted_reach_bonus: float = 2.0
 @export var spell_white_exalted_charges: int = 1
-## Circle of Protection (white_2). One POOL divided between everyone in range - which is
-## what makes it stronger in a crowd and identical to a personal shield when alone.
-@export var spell_white_circle_shield_total: float = 220.0
+## Circle of Protection (white_2). A BASE shield per ally, grown a little for every
+## ally beyond the first - white's power goes UP with more allies alive, and dividing
+## one pool said the opposite. Bound to player_max_hp like every white/green HP number.
+@export var spell_white_circle_shield_hp_mult: float = 2.2
+@export var spell_white_circle_ally_bonus: float = 0.10
 @export var spell_white_circle_radius: float = 12.0
 ## Reprisal Ward (white_3)
 @export var spell_white_reprisal_reflect: float = 0.45
@@ -326,9 +340,13 @@ func get_tier_cost(tier_index: int) -> int:
 ## Wrath of God (white_4). White's one panic button, so it hits hard and rarely.
 @export var spell_white_wrath_radius: float = 10.0
 @export var spell_white_wrath_damage: float = 170.0
-## Rally the Fallen (white_5)
+## Rally the Fallen (white_5). The heal is bound to player_max_hp. The ward is the
+## solo floor: with nobody to revive, the cast instead guarantees the caster survives
+## the next would-be death inside its window, at this fraction of max HP.
 @export var spell_white_rally_radius: float = 15.0
-@export var spell_white_rally_heal: float = 250.0
+@export var spell_white_rally_heal_hp_mult: float = 2.5
+@export var spell_white_rally_ward_duration: float = 10.0
+@export var spell_white_rally_ward_hp_fraction: float = 0.4
 
 # --- BLUE: control ---
 ## Unsummon (blue_1). Cone in front, not a circle: blue decides where the fight happens,
@@ -344,10 +362,12 @@ func get_tier_cost(tier_index: int) -> int:
 ## Frost Globe (blue_3)
 @export var spell_blue_frost_globe_radius: float = 2.4
 @export var spell_blue_frost_globe_duration: float = 12.0
-## Suction (blue_4). Pull SPEED is deliberately not a tuning dial per rank - a pull that
-## yanks everything in instantly removes the counterplay of walking out of it.
+## Suction (blue_4). A zone that keeps dragging enemies inward for its whole duration
+## rather than pulling once. The pull is slow on purpose: walking out of it is the
+## counterplay, and a yank that nothing can escape removes it.
 @export var spell_blue_suction_radius: float = 12.0
-@export var spell_blue_suction_pull_speed: float = 16.0
+@export var spell_blue_suction_pull_speed: float = 4.0
+@export var spell_blue_suction_duration: float = 2.5
 ## Phantasmal Decoy (blue_5)
 @export var spell_blue_decoy_hp: float = 260.0
 @export var spell_blue_decoy_duration: float = 12.0
@@ -400,9 +420,10 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_red_bolt_range: float = 30.0
 
 # --- GREEN: primal vitality ---
-## Giant Growth (green_2)
+## Giant Growth (green_2). The bonus HP is a multiple of player_max_hp, so green's own
+## affinity and every other max-HP effect scale it.
 @export var spell_green_giant_scale: float = 1.5
-@export var spell_green_giant_bonus_hp: float = 160.0
+@export var spell_green_giant_bonus_hp_mult: float = 1.6
 @export var spell_green_giant_duration: float = 12.0
 ## Fog (green_3). Defensive GROUND rather than an offensive zone - the crystal-defence
 ## half of green, with Roar.
@@ -435,8 +456,9 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_orb_of_fire_burn_dps: float = 18.0
 @export var aura_orb_of_fire_burn_duration: float = 4.0
 ## Healing Orb - white's Manifestation. Always picks the LOWEST-health ally in range,
-## which is what makes it feel like a healer rather than a regeneration stat.
-@export var aura_healing_orb_amount: float = 26.0
+## which is what makes it feel like a healer rather than a regeneration stat. The amount
+## is a multiple of player_max_hp, like every white/green HP number.
+@export var aura_healing_orb_hp_mult: float = 0.26
 @export var aura_healing_orb_interval: float = 2.0
 @export var aura_healing_orb_radius: float = 14.0
 ## Trample - green's Manifestation. Gated on MOVING, so it rewards the colour that
@@ -475,6 +497,32 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_green_ironbark_reduction_max: float = 0.8
 ## Giant Growth: how much bigger, which is the half of the skill the player sees.
 @export var spell_green_giant_scale_max: float = 1.9
+## The size also slows the swing - the trade that makes the growth read as weight. Capped
+## so a rank-5 giant attacks at most this many times slower; without a ceiling the slow
+## would outgrow the damage it is paying for.
+@export var spell_green_giant_attack_slow_cap: float = 1.75
+
+# --- NEUTRAL PASSIVES (the guild nodes between the colours) ---
+# Five ranks each, one skill point per rank, gated on affinity rank 1 in BOTH adjacent
+# colours. Values are the rank-1 minimum and the rank-5 ceiling, walked by rank_fraction.
+## Vigilance (Selesnya, green/white): spells with a duration last this much longer.
+@export var passive_vigilance_duration_min: float = 0.10
+@export var passive_vigilance_duration_max: float = 1.0
+## Double Strike (Dimir, blue/black): crit chance for ALL player damage, melee and spells.
+@export var passive_crit_chance_min: float = 0.01
+@export var passive_crit_chance_max: float = 0.10
+@export var passive_crit_damage_mult: float = 2.0
+## Trample (Gruul, red/green): melee hits add this fraction of the player's max HP.
+@export var passive_trample_hp_fraction_min: float = 0.005
+@export var passive_trample_hp_fraction_max: float = 0.05
+## Haste (Rakdos, black/red): movement speed bonus.
+@export var passive_haste_speed_min: float = 0.02
+@export var passive_haste_speed_max: float = 0.25
+## Flying (Azorius, white/blue): jump height bonus; holding jump while falling glides
+## at this fraction of normal gravity.
+@export var passive_flight_jump_min: float = 0.5
+@export var passive_flight_jump_max: float = 2.5
+@export var passive_flight_glide_gravity_mult: float = 0.25
 ## Doom Blade: "width (barely)" in the design doc, so barely.
 @export var spell_black_doom_blade_width_max: float = 1.9
 
@@ -567,6 +615,9 @@ func rank_level_requirement(rank: int) -> int:
 @export var wave_size_per_extra_player: float = 0.45
 ## Extra enemy health per player beyond the first. 0.15 gives 1.6x at five players.
 @export var enemy_health_per_extra_player: float = 0.15
+## Extra enemy health per WAVE, linear: wave 20 fights x2.14 the wave-1 health. Linear
+## rather than compounding, so late waves get beefier without the curve running away.
+@export var enemy_health_per_wave: float = 0.06
 @export var wave_dynamic_base_difficulty: int = 5
 @export var wave_dynamic_difficulty_per_wave: int = 2
 @export var wave_boss_interval: int = 5
@@ -765,9 +816,15 @@ const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
 # ============================================================
 @export var myr_max_hp: float = 75.0
 @export var myr_speed: float = 2.0
-@export var myr_harvest_time: float = 3.0
+@export var myr_harvest_time: float = 10.0
 @export var myr_deposit_time: float = 1.0
 @export var myr_mana_cost: int = 2
+## A well has room for this many Myrs standing around it, Warcraft-mine style. More
+## than that is what wedged them against the model, so the base UI refuses the sixth.
+@export var myr_well_max_slots: int = 5
+## How far from the well's centre the harvest slots sit. Far enough that five bodies
+## never overlap each other or the well's own collision.
+@export var myr_well_slot_radius: float = 2.3
 
 # ============================================================
 # PROJECTILES
@@ -844,6 +901,12 @@ func get_enemy_health_factor(player_count: int) -> float:
 		return 1.0
 	var players: int = clampi(player_count, 1, 5)
 	return 1.0 + float(players - 1) * enemy_health_per_extra_player
+
+
+## Wave scaling, separate from count scaling: the run getting longer is its own
+## difficulty axis. Wave 1 (index 0) is exactly base health.
+func get_wave_health_factor(wave: int) -> float:
+	return 1.0 + float(maxi(wave, 0)) * enemy_health_per_wave
 
 
 func get_player_scaling_factor(tree: SceneTree) -> float:

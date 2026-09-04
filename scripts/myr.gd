@@ -43,8 +43,13 @@ var _pending_mana_source: Node3D
 var visual_anim_player: AnimationPlayer
 var _current_color: String = ""
 
+# The slot at the well this Myr stands in while harvesting, so five Myrs fan out
+# around one well the way workers fan around a mine rather than stacking on its
+# centre - which is also what kept them wedged against the well's collision.
+var _well_slot_offset: Vector3 = Vector3.ZERO
+
 # Timer properties
-var harvest_time: float = 3.0
+var harvest_time: float = GameSettings.myr_harvest_time
 var deposit_time: float = 1.0
 var state_timer: float = 0.0
 
@@ -104,6 +109,27 @@ func assign_lane(index: int, source: Node3D) -> void:
 		_pending_lane_index = index
 		_pending_mana_source = source
 
+
+## Claims one of the well's harvest slots, if there is a free one. MainController owns
+## the per-well registry, because a Myr only knows its own lane, not its colleagues'.
+func claim_well_slot() -> bool:
+	var main_node = get_tree().current_scene
+	if main_node and main_node.has_method("claim_well_slot"):
+		return main_node.claim_well_slot(self, lane_index)
+	return true
+
+
+func release_well_slot() -> void:
+	var main_node = get_tree().current_scene
+	if main_node and main_node.has_method("release_well_slot"):
+		main_node.release_well_slot(self)
+
+
+func set_well_slot_offset(offset: Vector3) -> void:
+	_well_slot_offset = offset
+	if current_state == State.WALKING_TO_MANA:
+		update_navigation_target()
+
 func _commit_lane(index: int, source: Node3D) -> void:
 	lane_index = index
 	target_mana_source = source
@@ -142,6 +168,7 @@ func die() -> void:
 		return
 	is_dying = true
 	remove_from_group("myrs")
+	release_well_slot()
 	collision_layer = 0
 	collision_mask = 0
 
@@ -217,7 +244,9 @@ func update_navigation_target() -> void:
 	match current_state:
 		State.WALKING_TO_MANA:
 			if target_mana_source:
-				nav_agent.target_position = target_mana_source.global_position
+				# The slot, not the centre: five Myrs heading for the same point on the
+				# well is what jammed them against it and against each other.
+				nav_agent.target_position = target_mana_source.global_position + _well_slot_offset
 		State.WALKING_TO_CRYSTAL:
 			if target_crystal:
 				nav_agent.target_position = target_crystal.global_position

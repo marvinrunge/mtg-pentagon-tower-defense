@@ -122,6 +122,7 @@ func _fire_frost() -> void:
 	if target == null:
 		return
 	_shoot_bolt(target, COLORS[Mode.FROST])
+	SoundBank.play_at(&"aura_orb_frost", global_position)
 	var damage: float = GameSettings.aura_orb_of_frost_damage * _damage_multiplier()
 	if target.has_method("take_damage"):
 		target.take_damage(damage, _owner)
@@ -134,6 +135,7 @@ func _fire_flame() -> void:
 	if target == null:
 		return
 	_shoot_bolt(target, COLORS[Mode.FIRE])
+	SoundBank.play_at(&"aura_orb_fire", global_position)
 	var damage: float = GameSettings.aura_orb_of_fire_damage * _damage_multiplier()
 	if target.has_method("take_damage"):
 		target.take_damage(damage, _owner)
@@ -166,7 +168,10 @@ func _heal_lowest() -> void:
 	if best == null:
 		return
 	_shoot_bolt(best, COLORS[Mode.HEAL])
-	best.heal(GameSettings.aura_healing_orb_amount)
+	SoundBank.play_at(&"aura_orb_heal", global_position)
+	# Bound to the player's max HP like every white/green HP number, so the orb scales
+	# with green affinity and Giant Growth instead of falling behind them.
+	best.heal(GameSettings.player_max_hp * GameSettings.aura_healing_orb_hp_mult)
 
 
 ## A short-lived streak from the orb to whatever it just acted on. Without it the orb is

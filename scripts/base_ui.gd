@@ -49,51 +49,57 @@ func refresh_ui() -> void:
 		child.queue_free()
 		
 	var active_myrs = get_tree().get_nodes_in_group("myrs")
-	
+
 	build_btn.text = "Build Myr (Cost: %d Any Mana) - Built: %d" % [GameSettings.myr_mana_cost, active_myrs.size()]
 	build_btn.disabled = RunState.total_mana() < GameSettings.myr_mana_cost
+
+	# How full each well already is, shown on the lane buttons so "the well is full"
+	# is visible before the click that would be refused.
+	var slot_suffixes: Array[String] = []
+	for lane: int in range(5):
+		slot_suffixes.append(" %d/%d" % [main_controller.well_slot_count(lane), GameSettings.myr_well_max_slots])
 		
 	# Create entries for each Myr
 	for i in range(active_myrs.size()):
 		var myr = active_myrs[i]
 		var hbox = HBoxContainer.new()
-		
+
 		var lbl = Label.new()
 		lbl.text = "Myr " + str(i + 1) + "  "
 		hbox.add_child(lbl)
-		
+
 		var current_lane = myr.lane_index
-		
+
 		var w_btn = Button.new()
-		w_btn.text = "W"
+		w_btn.text = "W" + slot_suffixes[0]
 		w_btn.add_theme_color_override("font_color", Color.WHITE)
 		if current_lane == 0: w_btn.disabled = true
 		w_btn.pressed.connect(func(): _assign(myr, 0))
 		hbox.add_child(w_btn)
-		
+
 		var u_btn = Button.new()
-		u_btn.text = "U"
+		u_btn.text = "U" + slot_suffixes[1]
 		u_btn.add_theme_color_override("font_color", Color(0.3,0.5,1))
 		if current_lane == 1: u_btn.disabled = true
 		u_btn.pressed.connect(func(): _assign(myr, 1))
 		hbox.add_child(u_btn)
-		
+
 		var b_btn = Button.new()
-		b_btn.text = "B"
+		b_btn.text = "B" + slot_suffixes[2]
 		b_btn.add_theme_color_override("font_color", Color.GRAY)
 		if current_lane == 2: b_btn.disabled = true
 		b_btn.pressed.connect(func(): _assign(myr, 2))
 		hbox.add_child(b_btn)
 		
 		var r_btn = Button.new()
-		r_btn.text = "R"
+		r_btn.text = "R" + slot_suffixes[3]
 		r_btn.add_theme_color_override("font_color", Color.RED)
 		if current_lane == 3: r_btn.disabled = true
 		r_btn.pressed.connect(func(): _assign(myr, 3))
 		hbox.add_child(r_btn)
 		
 		var g_btn = Button.new()
-		g_btn.text = "G"
+		g_btn.text = "G" + slot_suffixes[4]
 		g_btn.add_theme_color_override("font_color", Color.GREEN)
 		if current_lane == 4: g_btn.disabled = true
 		g_btn.pressed.connect(func(): _assign(myr, 4))
@@ -126,6 +132,14 @@ func _on_build_pressed() -> void:
 
 func _assign(myr: Node3D, lane: int) -> void:
 	if main_controller:
+		# The well caps how many Myrs can work it at once; sending a sixth is what wedged
+		# them against the model, so the assignment is refused before it starts.
+		if myr.lane_index != lane and main_controller.well_slot_count(lane) >= GameSettings.myr_well_max_slots:
+			return
+		# A fresh Myr has lane_index == -1, so pass the requested lane explicitly. The
+		# previous call tried to claim lane -1 and rejected every first assignment.
+		if not main_controller.claim_well_slot(myr, lane):
+			return
 		var source = main_controller.mana_sources[lane]
 		if myr.has_method("assign_lane"):
 			myr.assign_lane(lane, source)

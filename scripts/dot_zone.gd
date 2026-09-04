@@ -111,6 +111,10 @@ func _build_firestorm() -> void:
 	rim.position = Vector3(0.0, 0.08, 0.0)
 	add_child(rim)
 
+	# One looping voice per firestorm, hung on the zone so it stops when the zone does.
+	# A one-shot at the cast site would end long before the fire did.
+	SoundBank.attach_loop(&"spell_rain_ember", self, false)
+
 	_rain = EmberFx.build_rain(radius)
 	add_child(_rain)
 	_ground_fire = EmberFx.build_ground_fire(radius)

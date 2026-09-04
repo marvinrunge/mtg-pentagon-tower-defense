@@ -23,6 +23,8 @@ signal color_path_chosen(color: String)
 ## A spell gained a rank, or was bound to a different quick slot. Both redraw the same
 ## things - the hotbar and the tree - so both ride one signal.
 signal spell_rank_changed(spell_id: String, rank: int)
+## A neutral passive (the guild nodes between the colours) gained a rank.
+signal passive_rank_changed(passive_id: String, rank: int)
 signal quick_slots_changed()
 signal spell_charge_changed(current_charge: float, max_charge: float, is_charging: bool)
 signal status_effect_applied(target: Node3D, effect_type: String, duration: float)

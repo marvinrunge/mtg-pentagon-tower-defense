@@ -1,0 +1,124 @@
+{
+  "_comment": [
+    "Sound-effect prompts, one per SoundBank event that had no recording.",
+    "",
+    "Fed to ElevenLabs' /v1/sound-generation by tools/generate_sfx.py. Kept as data rather",
+    "than baked into the script so a prompt can be reworded and that ONE event regenerated,",
+    "without touching the others or paying for them again.",
+    "",
+    "What the wording is doing, so edits keep working:",
+    "  - MATERIAL and ACTION first ('bark hardening over skin', not 'defensive buff sound').",
+    "    The model renders physics far better than it renders game-design intent.",
+    "  - 'no music' in every prompt. Without it roughly a third of the takes come back with",
+    "    a musical sting underneath, which fights the game's own audio.",
+    "  - 'dry' / 'close recording' where the sound belongs to the player. The engine adds",
+    "    distance and stereo placement itself (AudioStreamPlayer3D), so a wet, reverberant",
+    "    take gets reverb applied twice and smears.",
+    "  - duration_seconds matched to how long the moment actually lasts on screen. A 4s",
+    "    tail on a 0.5s cast is what makes a spell feel laggy.",
+    "",
+    "prompt_influence: 0.0 is 'be creative', 1.0 is 'obey literally'. 0.6-0.75 keeps the",
+    "physical description while leaving enough variation that three takes differ usefully."
+  ],
+  "defaults": {
+    "variants": 3,
+    "prompt_influence": 0.65
+  },
+  "events": {
+    "spell_exalted_strike": {
+      "skill": "white_1 Exalted Strike",
+      "duration_seconds": 1.2,
+      "prompt": "A single bright holy chime as a blade is blessed: a clean metallic ring rising into a warm radiant swell, gold and sacred, short with a soft shimmering tail, dry close recording, no music"
+    },
+    "spell_circle_protection": {
+      "skill": "white_2 Circle of Protection",
+      "duration_seconds": 2.0,
+      "prompt": "A protective shield bubble snapping into existence around several people: a low warm hum swelling upward, then a crystalline dome sealing shut with a soft glassy click, reassuring and holy, gentle shimmer tail, no music"
+    },
+    "spell_reprisal_ward": {
+      "skill": "white_3 Reprisal Ward",
+      "duration_seconds": 1.5,
+      "prompt": "A defensive ward locking into place: a sharp metallic clang like a heavy shield being planted, followed by a tight bright ringing resonance that hangs and slowly decays, righteous and martial, dry, no music"
+    },
+    "spell_wrath_of_god": {
+      "skill": "white_4 Wrath of God",
+      "duration_seconds": 3.5,
+      "prompt": "An enormous holy detonation: a deep sub-bass impact with a searing white-light crack on top, wide reverberant blast rolling outward, sacred and final, heavy and cinematic, no music"
+    },
+    "spell_rally_fallen": {
+      "skill": "white_5 Rally the Fallen",
+      "duration_seconds": 3.0,
+      "prompt": "A resurrection: a rising warm chord of light with a single soft heartbeat thump at its peak and a sharp drawn breath, hopeful and uplifting, shimmering tail fading out, no music"
+    },
+    "spell_decoy": {
+      "skill": "blue_5 Phantasmal Decoy",
+      "duration_seconds": 1.5,
+      "prompt": "An illusion splitting off from a body: a glassy phasing whoosh with a doubled shimmering echo slightly out of tune with itself, arcane and unreal, brief pitch warble, no music"
+    },
+    "spell_doom_blade": {
+      "skill": "black_1 Doom Blade",
+      "duration_seconds": 1.5,
+      "prompt": "A blade of black magic shearing through the air: a fast low whoosh with a sharp metallic edge and a wet necrotic rasp underneath, cruel and violent, short and dry, no music"
+    },
+    "spell_wall_of_souls": {
+      "skill": "black_4 Wall of Souls",
+      "duration_seconds": 3.5,
+      "prompt": "A wall of tormented souls rising out of the ground: layered distant human wails and moans swelling upward over a low grinding earth rumble, ghostly and dreadful, no music"
+    },
+    "spell_fireball_impact": {
+      "skill": "red_1 Fireball, the explosion",
+      "duration_seconds": 2.0,
+      "prompt": "A fireball exploding against the ground: a punchy low detonation with a bright fiery crack on top and a rushing flame whoosh tail, small debris scattering, dry and impactful, no music"
+    },
+    "spell_fire_dash": {
+      "skill": "red_2 Fire Dash",
+      "duration_seconds": 1.5,
+      "prompt": "A body dashing forward and bursting into flame: a fast cloth-and-air whoosh igniting instantly into a roaring fire trail that crackles as it is left behind, quick and aggressive, no music"
+    },
+    "spell_giant_growth": {
+      "skill": "green_2 Giant Growth",
+      "duration_seconds": 2.5,
+      "prompt": "A creature swelling to enormous size: deep organic stretching of sinew and hide with cracking bone, a rising low groan, ending on a heavy settling thud, primal and powerful, no music"
+    },
+    "spell_fog": {
+      "skill": "green_3 Fog",
+      "duration_seconds": 3.0,
+      "prompt": "A dense bank of fog rolling in and settling: a soft low airy whoosh easing into a hushed muffled hiss, damp and enveloping, calm and slightly eerie, no music"
+    },
+    "spell_roar": {
+      "skill": "green_4 Roar",
+      "duration_seconds": 2.5,
+      "prompt": "A monstrous beast roar, deep and guttural, chest-rattling, with a raw ragged growl tail, aggressive and commanding, dry close recording, no music"
+    },
+    "spell_ironbark": {
+      "skill": "green_5 Ironbark",
+      "duration_seconds": 2.0,
+      "prompt": "Bark hardening over skin: dense wood rapidly creaking and knotting, dry splintering crackle like a trunk forming around a body, ending on one solid heavy thud, no music"
+    },
+    "aura_orb_frost": {
+      "skill": "Capstone: Orb of Frost, one shot",
+      "duration_seconds": 1.0,
+      "prompt": "A small icy dart firing from a floating orb: a short crystalline zip with a delicate frost crackle tail, cold and precise, very short, dry, no music"
+    },
+    "aura_orb_fire": {
+      "skill": "Capstone: Orb of Fire, one shot",
+      "duration_seconds": 1.0,
+      "prompt": "A small fire bolt spitting from a floating orb: a short punchy flame burst with an ember crackle tail, hot and quick, very short, dry, no music"
+    },
+    "aura_orb_heal": {
+      "skill": "Capstone: Healing Orb, one tick",
+      "duration_seconds": 1.2,
+      "prompt": "A gentle healing pulse from a floating orb: a soft warm bell chime with a brief shimmering rise, comforting and clean, very short, no music"
+    },
+    "aura_grave_pact": {
+      "skill": "Capstone: Grave Pact, a soul absorbed",
+      "duration_seconds": 1.0,
+      "prompt": "A soul wisp being pulled in and absorbed: a short ghostly inhale with a faint whispered sigh and a dark warm pulse underneath, necrotic but satisfying, very short, no music"
+    },
+    "boss_spawn": {
+      "skill": "A wave boss arriving",
+      "duration_seconds": 4.5,
+      "prompt": "A colossal creature arriving on a battlefield: a deep war horn blast over a ground-shaking rumble, a monstrous distant roar answering it, then heavy debris settling, ominous and huge, cinematic, no music"
+    }
+  }
+}

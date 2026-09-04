@@ -23,7 +23,38 @@ var _scene: Node = null
 ## of false green this whole file exists to prevent.
 var _completed: Array[String] = []
 
-const SECTIONS: Array[String] = ["white", "blue", "black", "red", "green", "capstones", "ranks", "multicolour"]
+const SECTIONS: Array[String] = ["white", "blue", "black", "red", "green", "capstones", "ranks", "multicolour", "sounds"]
+
+## Every skill that should be audible, and the event it plays. Hand-written on purpose:
+## deriving it from SoundBank would only prove SoundBank agrees with itself, and the
+## thing worth catching is a spell whose trigger was never wired at all.
+const EXPECTED_SPELL_SOUNDS: Dictionary = {
+	"white_1": &"spell_exalted_strike",
+	"white_2": &"spell_circle_protection",
+	"white_3": &"spell_reprisal_ward",
+	"white_4": &"spell_wrath_of_god",
+	"white_5": &"spell_rally_fallen",
+	"blue_1": &"spell_unsummon",
+	"blue_2": &"spell_frostwave",
+	"blue_3": &"spell_frost_globe",
+	"blue_4": &"spell_suction",
+	"blue_5": &"spell_decoy",
+	"black_1": &"spell_doom_blade",
+	"black_2": &"spell_fear",
+	"black_3": &"spell_kill",
+	"black_4": &"spell_wall_of_souls",
+	"black_5": &"spell_zombify",
+	"red_1": &"spell_cast",
+	"red_2": &"spell_fire_dash",
+	"red_3": &"spell_rain_ember",
+	"red_4": &"spell_fire_cone",
+	"red_5": &"spell_lightning_bolt",
+	"green_1": &"heavy_landing",
+	"green_2": &"spell_giant_growth",
+	"green_3": &"spell_fog",
+	"green_4": &"spell_roar",
+	"green_5": &"spell_ironbark",
+}
 
 
 func _process(_delta: float) -> void:
@@ -68,7 +99,7 @@ func _nodes_of(type: String) -> Array[Node]:
 
 
 func _clear_spawned() -> void:
-	for type: String in ["FrostGlobe", "SoulWall", "DoTZone", "TemporaryAlly"]:
+	for type: String in ["FrostGlobe", "SoulWall", "DoTZone", "TemporaryAlly", "SuctionZone"]:
 		for node: Node in _nodes_of(type):
 			node.free()
 
@@ -105,6 +136,7 @@ func _run() -> void:
 	_check_capstones()
 	_check_ranks()
 	_check_multicolour()
+	_check_sounds()
 
 	for section: String in SECTIONS:
 		if not _completed.has(section):
@@ -167,10 +199,16 @@ func _check_blue() -> void:
 	_check("blue_3 Frost Globe", not _nodes_of("FrostGlobe").is_empty(), "no globe placed")
 	_clear_spawned()
 
-	var pulled: EnemyBase = _spawn_enemy(Vector3(4.0, 0.0, 0.0))
-	pulled.knockback_velocity = Vector3.ZERO
+	# Suction is a lingering zone now, not a single shove: the check is the zone being
+	# placed and an enemy inside it being marked for the drag. In front of the camera,
+	# because that is where the zone lands.
+	var pull_dir: Vector3 = -_player.camera.global_basis.z
+	pull_dir.y = 0.0
+	var pulled: EnemyBase = _spawn_enemy(pull_dir.normalized() * 6.0)
+	pulled._suction_timer = 0.0
 	_cast("blue_4")
-	_check("blue_4 Suction", pulled.knockback_velocity.length() > 0.1, "not pulled")
+	_check("blue_4 Suction", not _nodes_of("SuctionZone").is_empty() and pulled._suction_timer > 0.0, "no zone or no pull")
+	_clear_spawned()
 	_clear_enemies()
 
 	_cast("blue_5")
@@ -203,7 +241,9 @@ func _check_black() -> void:
 	aim.y = 0.0
 	var doomed: EnemyBase = _spawn_enemy(aim.normalized() * 8.0)
 	_cast("black_3")
-	_check("black_3 Kill", doomed.is_queued_for_deletion() or not is_instance_valid(doomed), "survived")
+	# An ordinary death rather than an exile: the corpse stays on the field and feeds
+	# Zombify, so the check is the death animation running, not the node being gone.
+	_check("black_3 Kill", not is_instance_valid(doomed) or doomed.is_queued_for_deletion() or doomed.is_dying, "survived")
 	_clear_enemies()
 
 	_clear_spawned()
@@ -490,3 +530,65 @@ func _check_multicolour() -> void:
 		not _player.assign_quick_slot(4, "black_5") and _player.quick_slots[4] == "",
 		str(_player.quick_slots))
 	_done_with("multicolour")
+
+# --- sound ---------------------------------------------------------------------
+
+## Does every event SoundBank advertises actually have a recording behind it, and does
+## every skill have an event?
+##
+## SoundBank answers a missing file with push_warning and then silence, so a typo in a
+## path costs nothing at startup and everything in play - the spell simply makes no
+## noise, which is indistinguishable from a spell that did not fire. Neither the parse
+## check nor the smoke test can see it, so it is checked here.
+func _check_sounds() -> void:
+	print("SOUNDS")
+
+	var silent: Array[String] = []
+	for event: StringName in SoundBank.EVENT_FILES:
+		var streams: Array = SoundBank._streams.get(event, [])
+		if streams.is_empty():
+			silent.append(String(event))
+	_check("every sound event has a recording", silent.is_empty(),
+		"silent: %s" % ", ".join(silent))
+
+	# ...and that the files listed are the files on disk, which is the same question
+	# asked from the other end - a path can resolve and still be the wrong one.
+	var missing: Array[String] = []
+	for event: StringName in SoundBank.EVENT_FILES:
+		for relative: String in SoundBank.EVENT_FILES[event]:
+			if not ResourceLoader.exists(SoundBank.SFX_ROOT + relative):
+				missing.append(relative)
+	_check("every listed file exists", missing.is_empty(), "missing: %s" % ", ".join(missing))
+
+	var unvoiced: Array[String] = []
+	for spell_id: String in EXPECTED_SPELL_SOUNDS:
+		var event: StringName = EXPECTED_SPELL_SOUNDS[spell_id]
+		if not SoundBank.EVENT_FILES.has(event):
+			unvoiced.append("%s (%s)" % [spell_id, event])
+	_check("all 25 skills map to a real event", unvoiced.is_empty(), ", ".join(unvoiced))
+
+	# The two sustained spells have to be told to loop on the IMPORT, not at runtime.
+	# A firestorm that plays its clip once and stops is the failure this catches.
+	var not_looping: Array[String] = []
+	for event: StringName in [&"spell_rain_ember", &"spell_fire_cone", &"crystal_ambience"]:
+		var streams: Array = SoundBank._streams.get(event, [])
+		if streams.is_empty():
+			not_looping.append("%s (no stream)" % event)
+			continue
+		var stream: AudioStream = streams[0]
+		if stream is AudioStreamWAV and (stream as AudioStreamWAV).loop_mode == AudioStreamWAV.LOOP_DISABLED:
+			not_looping.append(String(event))
+	_check("sustained sounds actually loop", not_looping.is_empty(), ", ".join(not_looping))
+
+	# A boss has to announce itself.
+	_check("bosses have an arrival sound", SoundBank.EVENT_FILES.has(&"boss_spawn"), "no boss_spawn event")
+
+	print("  (%d events, %d recordings)" % [SoundBank.EVENT_FILES.size(), _recording_count()])
+	_done_with("sounds")
+
+
+func _recording_count() -> int:
+	var total: int = 0
+	for event: StringName in SoundBank.EVENT_FILES:
+		total += (SoundBank.EVENT_FILES[event] as Array).size()
+	return total

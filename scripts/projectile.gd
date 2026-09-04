@@ -262,7 +262,9 @@ func _trigger_fireball_aoe() -> void:
 	var burst: Node3D = EmberFx.build_burst(radius)
 	get_tree().current_scene.add_child(burst)
 	burst.global_position = global_position
-	SoundBank.play_at(&"heavy_landing", global_position)
+	# Its own burst rather than the giant's landing thud, which is what it used to
+	# borrow: a fireball detonating and a body hitting the ground are not the same event.
+	SoundBank.play_at(&"spell_fireball_impact", global_position)
 	SignalBus.camera_shake_requested.emit(
 		GameSettings.spell_red_fireball_shake_strength,
 		GameSettings.spell_red_fireball_shake_duration
