@@ -123,11 +123,11 @@ const EVENT_FILES := {
 	## Blue boss: Frost Giant
 	&"boss_spawn_blue": ["generated/boss_spawn_blue/boss_spawn_blue_1.mp3"],
 	## Green boss: Treant
-	&"boss_spawn_green": ["generated/boss_spawn_green/boss_spawn_green_1.mp3"],
+	&"boss_spawn_green": ["generated/boss_spawn_green/boss_spawn_green_3.mp3"],
 	## White boss: Paladin
-	&"boss_spawn_white": ["generated/boss_spawn_white/boss_spawn_white_2.mp3"],
+	&"boss_spawn_white": ["generated/boss_spawn_white/boss_spawn_white_1.mp3"],
 	## Black boss: Zombie Lord
-	&"boss_spawn_black": ["generated/boss_spawn_black/boss_spawn_black_2.mp3"],
+	&"boss_spawn_black": ["generated/boss_spawn_black/boss_spawn_black_1.mp3"],
 	# END GENERATED PICKS
 }
 
