@@ -17,7 +17,11 @@ name: Build Windows executable
 on:
   push:
     branches: [master]
-    tags: ["v*"]
+    # Both shapes, because demanding one of them is a silent trap: `0.0.1-preview` was
+    # tagged and pushed, matched nothing, and produced a Release with no build attached -
+    # GitHub adds "Source code (zip)" to every release by itself, so it looked like it had
+    # worked. A tag that starts with a digit or a `v` is a version either way.
+    tags: ["v*", "[0-9]*"]
   pull_request:
     branches: [master]
   workflow_dispatch:
@@ -141,7 +145,9 @@ jobs:
       # SmartScreen warning, which an unsigned build WILL trigger and which looks alarming
       # if nobody warned you.
       - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
+        # Any tag that got this far already matched the trigger above. Repeating the
+        # pattern here is how the two drifted apart before.
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: build/windows/*.exe
@@ -156,3 +162,27 @@ jobs:
             not code-signed, not because of anything it does.
 
             <sub>Built from `${{ github.sha }}` by GitHub Actions.</sub>
+
+      # The question this answers is "is the .exe REALLY on the release" - asked of the
+      # API, not of the upload step, which reports success for its own request rather than
+      # for the state of the release afterwards. A missing binary is now a red run instead
+      # of something to notice by eye days later.
+      #
+      # "Source code (zip)" is NOT an asset in the API's sense - those come from
+      # zipball_url - so a release with only the source archives reads here as zero
+      # assets, which is exactly the case that has to fail.
+      - name: Verify the release actually carries the .exe
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          ASSETS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          echo "Assets attached to ${TAG}:"
+          echo "${ASSETS:-  (none)}"
+          if ! echo "$ASSETS" | grep -qx "${EXPORT_NAME}.exe"; then
+            echo "::error::${EXPORT_NAME}.exe is not attached to release ${TAG} - the download would be source only."
+            exit 1
+          fi
+          echo "OK - ${EXPORT_NAME}.exe is on the release."

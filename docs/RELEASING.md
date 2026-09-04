@@ -48,11 +48,35 @@ If it did not arrive, the fallback needs no rebuild: the Release page has a perm
 link, so sending it manually works, and a Discord webhook step can be added to the
 workflow later.
 
+## Is the .exe really on the release?
+
+The workflow asks the API after uploading and **fails the run** if the binary is not
+attached, so a release with nothing to download can no longer pass quietly. Look for:
+
+```
+OK - MTG-Pentagon-Tower-Defense.exe is on the release.
+```
+
+Beware of one thing when checking by eye: **every** GitHub release shows *Source code
+(zip)* and *Source code (tar.gz)*. GitHub adds those itself, from the tag, whether or not
+a build ever ran. A release showing only those two is a release with **no build on it** —
+that is exactly what `0.0.1-preview` was.
+
 ## Version numbers
 
-`vMAJOR.MINOR.PATCH`, and the `v` prefix is required — the workflow triggers on `v*` and
-attaches to a release only for `refs/tags/v*`. A tag without it builds nothing and
-publishes nothing.
+`v0.3.0` or `0.3.0` — both trigger the build (`tags: ["v*", "[0-9]*"]`). Anything else
+does not, and this is worth respecting: `0.0.1-preview` was tagged when the filter was
+`v*` only, matched nothing, and produced a Release carrying nothing but the source
+archives.
 
 Re-tagging the same version does not update an existing release cleanly. Bump the number
 instead; they are free.
+
+If you do need to attach a build to a release that already exists, moving its tag works —
+the upload updates the existing release rather than making a second one:
+
+```bash
+git tag -d 0.0.1-preview
+git push origin :refs/tags/0.0.1-preview
+git tag -a 0.0.1-preview -m "..." && git push origin 0.0.1-preview
+```
