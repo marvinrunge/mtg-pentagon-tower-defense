@@ -15,8 +15,9 @@ extends Node3D
 ##
 ##   loco_<clip> ─┐
 ##   loco_<clip> ─┼─ loco (Transition) ── loco_speed (TimeScale) ──┐
-##   loco_<clip> ─┘                                                ├─ shot (OneShot) ── out
-##   action (Animation) ── action_speed (TimeScale) ───────────────┘
+##   loco_<clip> ─┘                                                ├─ block (Blend2) ──┐
+##   block_clip (Animation) ─────────────────────────────────────  ┘                   ├─ shot (OneShot) ── out
+##   action (Animation) ── action_speed (TimeScale) ─────────────────────────────────── ┘
 ##
 ## `shot` carries a bone filter covering everything from the spine up. With the
 ## filter on, the fired clip drives only those bones and the legs keep whatever
@@ -24,6 +25,11 @@ extends Node3D
 ## is exactly the difference between a light attack (swing while walking) and a
 ## heavy attack or kick (a committed move that also roots the player - see
 ## Player._begin_action).
+##
+## `block` uses the same filter for the held guard: while the player blocks AND
+## moves, the legs run the ordinary walk cycle on the locomotion layer and only the
+## spine up is taken over by the guard pose. Standing still, the guard is played
+## whole on the locomotion layer instead, so its own stance reaches the legs too.
 ##
 ## Clip metadata comes from tools/player_character_builder.gd:
 ##   travel_speed  how fast a locomotion clip's own root motion moved the character
@@ -82,12 +88,15 @@ const LOWER_BODY_BONES := [
 
 const LOCO_NODE := "loco"
 const LOCO_SPEED_NODE := "loco_speed"
+const BLOCK_NODE := "block"
+const BLOCK_CLIP_NODE := "block_clip"
 const ACTION_NODE := "action"
 const ACTION_SPEED_NODE := "action_speed"
 const SHOT_NODE := "shot"
 
 const PARAM_LOCO_REQUEST := "parameters/%s/transition_request" % LOCO_NODE
 const PARAM_LOCO_SPEED := "parameters/%s/scale" % LOCO_SPEED_NODE
+const PARAM_BLOCK_AMOUNT := "parameters/%s/blend_amount" % BLOCK_NODE
 const PARAM_ACTION_SPEED := "parameters/%s/scale" % ACTION_SPEED_NODE
 const PARAM_SHOT_REQUEST := "parameters/%s/request" % SHOT_NODE
 
@@ -111,6 +120,10 @@ var _next_idle_variation: float = 0.0
 var _idle_variation_timer: float = 0.0
 
 var _current_loco: String = ""
+## How much of the guard pose the upper body is currently taking, 0..1. Eased rather
+## than switched so raising or dropping the guard while walking does not pop.
+var _block_blend: float = 0.0
+var _has_block_layer: bool = false
 var _cached_jump_scale: float = -1.0
 ## clip+stage-count -> the stage windows it splits into. Purely derived from the
 ## clip's impact metadata, so it is worked out once and kept.
@@ -166,10 +179,28 @@ func _build_tree() -> void:
 	graph.add_node(LOCO_SPEED_NODE, loco_speed, Vector2(480.0, 0.0))
 	graph.connect_node(LOCO_SPEED_NODE, 0, LOCO_NODE)
 
+	# The guard the player holds down, kept on its own permanently-available layer
+	# rather than fired as a one-shot: a one-shot ends with its clip, and a block
+	# lasts exactly as long as the button does.
+	var shot_base: String = LOCO_SPEED_NODE
+	if library.has_animation(BLOCK_CLIP):
+		var block_clip := AnimationNodeAnimation.new()
+		block_clip.animation = BLOCK_CLIP
+		graph.add_node(BLOCK_CLIP_NODE, block_clip, Vector2(280.0, 160.0))
+		var block := AnimationNodeBlend2.new()
+		for bone_name in _upper_body_bones():
+			block.set_filter_path(NodePath("%s:%s" % [_visual.get_path_to(_skeleton), bone_name]), true)
+		block.filter_enabled = true
+		graph.add_node(BLOCK_NODE, block, Vector2(600.0, 80.0))
+		graph.connect_node(BLOCK_NODE, 0, LOCO_SPEED_NODE)
+		graph.connect_node(BLOCK_NODE, 1, BLOCK_CLIP_NODE)
+		shot_base = BLOCK_NODE
+		_has_block_layer = true
+
 	_action_anim = AnimationNodeAnimation.new()
-	graph.add_node(ACTION_NODE, _action_anim, Vector2(280.0, 240.0))
+	graph.add_node(ACTION_NODE, _action_anim, Vector2(280.0, 320.0))
 	var action_speed := AnimationNodeTimeScale.new()
-	graph.add_node(ACTION_SPEED_NODE, action_speed, Vector2(480.0, 240.0))
+	graph.add_node(ACTION_SPEED_NODE, action_speed, Vector2(480.0, 320.0))
 	graph.connect_node(ACTION_SPEED_NODE, 0, ACTION_NODE)
 
 	_shot = AnimationNodeOneShot.new()
@@ -179,8 +210,8 @@ func _build_tree() -> void:
 	_shot.autorestart = false
 	for bone_name in _upper_body_bones():
 		_shot.set_filter_path(NodePath("%s:%s" % [_visual.get_path_to(_skeleton), bone_name]), true)
-	graph.add_node(SHOT_NODE, _shot, Vector2(700.0, 0.0))
-	graph.connect_node(SHOT_NODE, 0, LOCO_SPEED_NODE)
+	graph.add_node(SHOT_NODE, _shot, Vector2(800.0, 0.0))
+	graph.connect_node(SHOT_NODE, 0, shot_base)
 	graph.connect_node(SHOT_NODE, 1, ACTION_SPEED_NODE)
 	graph.connect_node("output", 0, SHOT_NODE)
 
@@ -458,6 +489,7 @@ func play_death() -> void:
 	_cancel_idle_variation()
 	_tree.set(PARAM_SHOT_REQUEST, AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
 	_tree.set(PARAM_LOCO_SPEED, 1.0)
+	_clear_block_blend()
 	# Death rides the locomotion layer rather than the one-shot: a one-shot fades
 	# back out at the end, and a corpse has to hold its final pose.
 	_request_loco(DEATH_CLIP)
@@ -468,6 +500,7 @@ func revive() -> void:
 		return
 	_is_dead = false
 	_tree.set(PARAM_SHOT_REQUEST, AnimationNodeOneShot.ONE_SHOT_REQUEST_ABORT)
+	_clear_block_blend()
 	_request_loco(IDLE_CLIP)
 
 
@@ -489,9 +522,19 @@ func update_locomotion(delta: float, planar_velocity: Vector3, sprinting: bool, 
 		_action_timer -= delta
 
 	var speed := planar_velocity.length()
+	var guarding_on_the_move: bool = blocking and speed > MOVING_SPEED_EPSILON and _has_block_layer
+	# Only the walking guard needs the split layer. Standing still the guard clip is
+	# played whole on the locomotion layer, so its stance reaches the legs as well.
+	_update_block_blend(delta, guarding_on_the_move)
 
 	if blocking:
 		_cancel_idle_variation()
+		if guarding_on_the_move:
+			# Legs keep the ordinary walk cycle; the block layer above owns the torso.
+			var guard_clip := _pick_locomotion_clip(planar_velocity, false)
+			_request_loco(guard_clip)
+			_tree.set(PARAM_LOCO_SPEED, _speed_scale_for(guard_clip, speed))
+			return
 		_request_loco(BLOCK_CLIP)
 		_tree.set(PARAM_LOCO_SPEED, 1.0)
 		return
@@ -543,6 +586,28 @@ func _update_idle(delta: float) -> void:
 		return
 
 	_request_loco(IDLE_CLIP)
+
+
+## Eases the guard layer towards on or off and pushes it to the tree. Eased rather
+## than switched so raising the guard mid-stride, or breaking into a walk while
+## already guarding, does not snap the torso into place.
+func _update_block_blend(delta: float, guarding: bool) -> void:
+	if not _has_block_layer:
+		return
+	var target: float = 1.0 if guarding else 0.0
+	var step: float = delta / maxf(GameSettings.player_anim_blend_action, 0.01)
+	_block_blend = move_toward(_block_blend, target, step)
+	_tree.set(PARAM_BLOCK_AMOUNT, _block_blend)
+
+
+## Drops the guard layer immediately, for the states that stop calling
+## update_locomotion - death holds a full-body pose and must not keep a guarded
+## torso over it.
+func _clear_block_blend() -> void:
+	if not _has_block_layer:
+		return
+	_block_blend = 0.0
+	_tree.set(PARAM_BLOCK_AMOUNT, 0.0)
 
 
 func _cancel_idle_variation() -> void:
