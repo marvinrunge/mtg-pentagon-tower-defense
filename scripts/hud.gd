@@ -50,6 +50,7 @@ var _applying_preset: bool = false
 var _hotbar_slots: Array[PanelContainer] = []
 var _player: Node3D = null
 var _active_spell_idx: int = 0
+var _wave_panel: PanelContainer
 var _wave_label: Label
 var _enemy_count_label: Label
 var _warning_panel: PanelContainer
@@ -58,6 +59,16 @@ var _warning_tween: Tween
 var _fps_update_timer: float = 0.0
 
 const ACTIVE_SLOT_COLOR: Color = Color(0.95, 0.72, 0.22)
+
+## Hotbar slots are square, so a square spell icon fills one instead of sitting
+## letterboxed in an upright rectangle. 60 was already the minimum WIDTH, but the VBox
+## stacked an icon, a key number and a name row, and that pushed the height past it.
+const HOTBAR_SLOT_SIZE := 60.0
+## Only a floor. The icon takes whatever height the key number leaves it, rather than a
+## fixed size - the PanelContainer's stylebox margins and the number's font metrics both
+## feed the total, and hand-tuning a constant against them landed the slot two pixels
+## over square.
+const HOTBAR_ICON_MIN := 24.0
 
 func _ready() -> void:
 	settings_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -109,6 +120,7 @@ func _ready() -> void:
 		if child is PanelContainer:
 			_hotbar_slots.append(child as PanelContainer)
 	_ensure_hotbar_icons()
+	_lay_out_hotbar_slots()
 	_setup_mana_icons()
 	SignalBus.active_spell_changed.connect(_on_active_spell_changed)
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
@@ -231,16 +243,18 @@ func update_player_health(current: float, max_health: float) -> void:
 		status_label.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
 
 func update_mana(mana_pool: Dictionary) -> void:
+	# Just the count. The colour is already carried by the icon _setup_mana_icons puts
+	# in front of each label, so a "W:" prefix said the same thing twice.
 	if mana_label_w:
-		mana_label_w.text = "W: %d" % mana_pool.get("White", 0)
+		mana_label_w.text = "%d" % mana_pool.get("White", 0)
 	if mana_label_u:
-		mana_label_u.text = "U: %d" % mana_pool.get("Blue", 0)
+		mana_label_u.text = "%d" % mana_pool.get("Blue", 0)
 	if mana_label_b:
-		mana_label_b.text = "B: %d" % mana_pool.get("Black", 0)
+		mana_label_b.text = "%d" % mana_pool.get("Black", 0)
 	if mana_label_r:
-		mana_label_r.text = "R: %d" % mana_pool.get("Red", 0)
+		mana_label_r.text = "%d" % mana_pool.get("Red", 0)
 	if mana_label_g:
-		mana_label_g.text = "G: %d" % mana_pool.get("Green", 0)
+		mana_label_g.text = "%d" % mana_pool.get("Green", 0)
 
 func update_spell(spell_name: String) -> void:
 	pass
@@ -249,6 +263,14 @@ func _input(event: InputEvent) -> void:
 	if game_over_panel and game_over_panel.visible:
 		return
 	if _upkeep_open:
+		return
+	# Tab pulls the wave readout up and puts it away again. Skipped while the settings
+	# panel is open, because Tab is also the UI focus key and stealing it there would
+	# break keyboard navigation through the options.
+	if event.is_action_pressed("wave_info") and not (settings_panel and settings_panel.visible):
+		if _wave_panel:
+			_wave_panel.visible = not _wave_panel.visible
+			get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("ui_cancel"):
 		settings_panel.visible = !settings_panel.visible
@@ -449,7 +471,7 @@ func _update_hotbar_display(active_idx: int) -> void:
 			continue
 			
 		var num_label: Label = slot.get_node_or_null("VBox/Num") as Label
-		var name_label: Label = slot.get_node_or_null("VBox/Name") as Label
+		var name_label: Label = slot.get_node_or_null("Rank") as Label
 		var icon: TextureRect = slot.get_node_or_null("VBox/Icon") as TextureRect
 		var spell_id: String = _player._get_spell_id_for_slot(i) if _player and _player.has_method("_get_spell_id_for_slot") else ""
 		if icon:
@@ -466,14 +488,18 @@ func _update_hotbar_display(active_idx: int) -> void:
 		if _player and _player.has_method("is_spell_unlocked"):
 			is_unlocked = _player.is_spell_unlocked(i)
 		if name_label:
-			# The rank rides on the name, because the rank IS how strong this key is and
-			# the bar is where the player looks when deciding which one to press.
-			var slot_text: String = "Empty"
+			# No spell names and no "Empty" placeholder: the icon identifies the spell and
+			# the number identifies the key, so the text row was only ever clutter across
+			# ten slots.
+			#
+			# The RANK stays. It is the one thing on a slot that the icon cannot show and
+			# that changes which key the player presses, and dropping it would take a
+			# working readout away rather than tidy one up.
+			var slot_text: String = ""
 			if _player and is_unlocked:
-				slot_text = _player.get_spell_name_for_slot(i)
 				var rank: int = int(_player.get_spell_rank(_player._get_spell_id_for_slot(i)))
 				if rank > 0:
-					slot_text += "  %d/%d" % [rank, GameSettings.spell_max_rank]
+					slot_text = "%d/%d" % [rank, GameSettings.spell_max_rank]
 			name_label.text = slot_text
 			
 		if i == active_idx:
@@ -519,12 +545,45 @@ func _ensure_hotbar_icons() -> void:
 			continue
 		var icon := TextureRect.new()
 		icon.name = "Icon"
-		icon.custom_minimum_size = Vector2(34.0, 34.0)
+		icon.custom_minimum_size = Vector2(HOTBAR_ICON_MIN, HOTBAR_ICON_MIN)
+		icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		icon.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		vbox.add_child(icon)
 		vbox.move_child(icon, 0)
+
+## Squares every slot and lifts the rank readout out of the layout flow.
+##
+## Runs after the slots are duplicated, so it covers the five authored in hud.tscn and
+## the five built at runtime alike.
+##
+## The rank label has to move rather than just be hidden. It used to be a VBox row, and
+## an empty Label still reserves a full line of height - that row is what made the slot
+## taller than it is wide. Reparenting it onto the slot makes it an overlay instead:
+## PanelContainer stretches a direct child to fill, so aligning the text bottom-right
+## parks it in the corner of the icon without occupying any layout space, and slots no
+## longer change height when a rank appears or disappears.
+func _lay_out_hotbar_slots() -> void:
+	for slot: PanelContainer in _hotbar_slots:
+		slot.custom_minimum_size = Vector2(HOTBAR_SLOT_SIZE, HOTBAR_SLOT_SIZE)
+		var vbox: VBoxContainer = slot.get_node_or_null("VBox") as VBoxContainer
+		if vbox == null:
+			continue
+		if slot.get_node_or_null("Rank") != null:
+			continue
+		var rank_label: Label = vbox.get_node_or_null("Name") as Label
+		if rank_label == null:
+			continue
+		vbox.remove_child(rank_label)
+		rank_label.name = "Rank"
+		rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		rank_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		rank_label.add_theme_font_size_override("font_size", 10)
+		rank_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(rank_label)
+
 
 func _setup_mana_icons() -> void:
 	var mana_labels: Array[Label] = [mana_label_w, mana_label_u, mana_label_b, mana_label_r, mana_label_g]
@@ -562,6 +621,7 @@ func _on_spell_charge_changed(current: float, max_c: float, is_charging: bool) -
 func _build_wave_ui() -> void:
 	var root: Control = $Control
 	var wave_panel: PanelContainer = PanelContainer.new()
+	_wave_panel = wave_panel
 	wave_panel.name = "WaveStatusPanel"
 	wave_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	wave_panel.position = Vector2(-300.0, 20.0)
@@ -586,6 +646,9 @@ func _build_wave_ui() -> void:
 	_enemy_count_label.text = "Enemies remaining: 0"
 	_enemy_count_label.add_theme_font_size_override("font_size", 14)
 	wave_rows.add_child(_enemy_count_label)
+	# Hidden until asked for. _on_wave_state_changed keeps writing to the labels either
+	# way, so the readout is already current the moment it is pulled up.
+	wave_panel.hide()
 
 	_warning_panel = PanelContainer.new()
 	_warning_panel.name = "LaneWarningPanel"

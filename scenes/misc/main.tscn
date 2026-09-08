@@ -2,14 +2,24 @@
 
 [ext_resource type="Script" uid="uid://cgbao1a6y4oy2" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" uid="uid://d3ieneccg261a" path="res://scenes/ui/hud.tscn" id="2_hud"]
+[ext_resource type="Shader" uid="uid://cvd0x7lon1ur6" path="res://addons/sky_3d/shaders/SkyMaterial.gdshader" id="2_tafxk"]
+[ext_resource type="Texture2D" uid="uid://cfqk60lpl5ljv" path="res://addons/sky_3d/assets/resources/SNoise.tres" id="3_i5wgy"]
 [ext_resource type="PackedScene" uid="uid://bujxuwn5eicwh" path="res://scenes/mana_wells/mana_well_white.tscn" id="3_well_white"]
 [ext_resource type="PackedScene" uid="uid://ckixg7hxy7mnh" path="res://scenes/mana_wells/mana_well_blue.tscn" id="4_well_blue"]
+[ext_resource type="Texture2D" uid="uid://cecwdqjol0ckd" path="res://addons/sky_3d/assets/textures/noiseClouds.png" id="4_xvpgp"]
+[ext_resource type="Texture2D" uid="uid://2r8ylu6rg5dp" path="res://addons/sky_3d/assets/thirdparty/textures/moon/MoonMap.png" id="5_4tvuo"]
 [ext_resource type="PackedScene" uid="uid://ovg6bup0stwp" path="res://scenes/mana_wells/mana_well_black.tscn" id="5_well_black"]
+[ext_resource type="Texture2D" uid="uid://djpfuyxkryegn" path="res://addons/sky_3d/assets/textures/noise.jpg" id="6_7j5ji"]
 [ext_resource type="PackedScene" uid="uid://dm18yoqik3i42" path="res://scenes/mana_wells/mana_well_red.tscn" id="6_well_red"]
+[ext_resource type="Texture2D" uid="uid://bm7dot7t7u1q4" path="res://addons/sky_3d/assets/thirdparty/textures/milkyway/StarField.jpg" id="7_k8tuh"]
 [ext_resource type="PackedScene" uid="uid://bpcfm7k0vv3bv" path="res://scenes/mana_wells/mana_well_green.tscn" id="7_well_green"]
 [ext_resource type="Texture2D" uid="uid://mosn2rro8ox0" path="res://assets/textures/base/textures/concrete_rock_path_diff_1k.jpg" id="8_base_diff"]
+[ext_resource type="Texture2D" uid="uid://c1vwcdcdvb74a" path="res://addons/sky_3d/assets/thirdparty/textures/milkyway/Milkyway.jpg" id="8_fwtpx"]
 [ext_resource type="Texture2D" uid="uid://psn3juf62kt2" path="res://assets/textures/base/textures/concrete_rock_path_nor_gl_1k.jpg" id="9_base_norm"]
+[ext_resource type="Script" uid="uid://deo0gxkmk2ahd" path="res://addons/sky_3d/src/Sky3D.gd" id="9_ppysr"]
+[ext_resource type="Script" uid="uid://b4tkplvh7fq40" path="res://addons/sky_3d/src/SkyDome.gd" id="10_of6xu"]
 [ext_resource type="Texture2D" uid="uid://bikbnkhat1f6m" path="res://assets/textures/plains2/textures/gravel_ground_01_diff_1k.jpg" id="10_white_diff"]
+[ext_resource type="Script" uid="uid://cjmkcj8hwm7ts" path="res://addons/sky_3d/src/TimeOfDay.gd" id="11_rywwc"]
 [ext_resource type="Texture2D" uid="uid://d1gry213g378" path="res://assets/textures/plains2/textures/gravel_ground_01_nor_gl_1k.jpg" id="11_white_norm"]
 [ext_resource type="Texture2D" uid="uid://m0rerhchm8br" path="res://assets/textures/island/textures/coast_sand_01_diff_1k.jpg" id="12_blue_diff"]
 [ext_resource type="Texture2D" uid="uid://cagpud3ith4oc" path="res://assets/textures/island/textures/coast_sand_01_nor_gl_1k.jpg" id="13_blue_norm"]
@@ -22,23 +32,96 @@
 [ext_resource type="PackedScene" uid="uid://diuwaujmte4h" path="res://assets/structures/base-cristal/Meshy_AI_Ein_riesiger_schweben_0523220202_texture.fbx" id="20_crystal"]
 [ext_resource type="Texture2D" uid="uid://dgfha2snve6n3" path="res://assets/textures/plains2/textures/gravel_ground_01_rough_1k.jpg" id="21_white_rough"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
-sky_top_color = Color(0.1, 0.15, 0.25, 1)
-sky_horizon_color = Color(0.2, 0.25, 0.35, 1)
-ground_bottom_color = Color(0.1, 0.1, 0.12, 1)
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_w4i7m"]
+shader = ExtResource("2_tafxk")
+shader_parameter/sky_visible = true
+shader_parameter/color_correction = Vector2(0, 0.84)
+shader_parameter/ground_color = Color(0.3, 0.3, 0.3, 1)
+shader_parameter/horizon_offset = 0.0
+shader_parameter/atm_darkness = 0.5
+shader_parameter/atm_sun_intensity = 18.0
+shader_parameter/atm_day_tint = Color(0.8491341, 0.9290065, 0.9999997, 1)
+shader_parameter/atm_horizon_light_tint = Color(0.980392, 0.635294, 0.462745, 1)
+shader_parameter/atm_night_tint = Color(0, 0, 0, 0)
+shader_parameter/atm_level_params = Vector3(1, 0, 0)
+shader_parameter/atm_thickness = 0.7
+shader_parameter/atm_beta_ray = Vector3(5.804544e-06, 1.3562913e-05, 3.311258e-05)
+shader_parameter/atm_beta_mie = Vector3(3.038e-08, 3.038e-08, 3.038e-08)
+shader_parameter/sun_light_color = Color(0.9963916, 0.9139393, 0.87262297, 1)
+shader_parameter/sun_disk_color = Color(0.996094, 0.541334, 0.140076, 1)
+shader_parameter/sun_disk_intensity = 30.0
+shader_parameter/sun_disk_size = 0.02
+shader_parameter/atm_sun_mie_tint = Color(1, 1, 1, 1)
+shader_parameter/atm_sun_mie_intensity = 1.0
+shader_parameter/atm_sun_partial_mie_phase = Vector3(0.36, 1.64, 1.6)
+shader_parameter/moon_color = Color(1, 1, 1, 1)
+shader_parameter/moon_texture = ExtResource("5_4tvuo")
+shader_parameter/moon_texture_alignment = Vector3(7, 1.4, 4.8)
+shader_parameter/moon_texture_flip_u = false
+shader_parameter/moon_texture_flip_v = false
+shader_parameter/moon_size = 0.07
+shader_parameter/atm_moon_mie_tint = Color(0.137255, 0.184314, 0.292196, 1)
+shader_parameter/atm_moon_mie_intensity = 0.0
+shader_parameter/atm_moon_partial_mie_phase = Vector3(0.36, 1.64, 1.6)
+shader_parameter/starmap_color = Color(0.709804, 0.709804, 0.709804, 0.854902)
+shader_parameter/starmap_texture = ExtResource("8_fwtpx")
+shader_parameter/starmap_flip_u = false
+shader_parameter/starmap_flip_v = false
+shader_parameter/starmap_alignment = Vector3(2.68288, -0.25891, 0.40101)
+shader_parameter/star_rotation_offset = 9.38899
+shader_parameter/star_rotation = -12.16017811450185
+shader_parameter/star_tilt = -1.2915436464758039
+shader_parameter/star_field_color = Color(1, 1, 1, 1)
+shader_parameter/star_field_texture = ExtResource("7_k8tuh")
+shader_parameter/star_scintillation = 0.75
+shader_parameter/star_scintillation_speed = 0.01
+shader_parameter/noise_tex = ExtResource("6_7j5ji")
+shader_parameter/clouds_night_color = Color(0.090196, 0.094118, 0.129412, 1)
+shader_parameter/cirrus_visible = true
+shader_parameter/cirrus_intensity = 2.0
+shader_parameter/cirrus_coverage = 0.5
+shader_parameter/cirrus_thickness = 1.7
+shader_parameter/cirrus_absorption = 2.0
+shader_parameter/cirrus_sky_tint_fade = 0.5
+shader_parameter/cirrus_size = 1.0
+shader_parameter/cirrus_uv = Vector2(0.16, 0.11)
+shader_parameter/cirrus_position1 = Vector2(0.27226573, 0.27226573)
+shader_parameter/cirrus_position2 = Vector2(0.27226573, 0.27226573)
+shader_parameter/cirrus_texture = ExtResource("3_i5wgy")
+shader_parameter/cumulus_visible = true
+shader_parameter/cumulus_intensity = 0.52
+shader_parameter/cumulus_coverage = 0.55
+shader_parameter/cumulus_thickness = 0.0243
+shader_parameter/cumulus_absorption = 2.0
+shader_parameter/cumulus_noise_freq = 2.7
+shader_parameter/cumulus_sky_tint_fade = 0.0
+shader_parameter/cumulus_size = 0.5
+shader_parameter/cumulus_position = Vector2(1.3612461, 1.3612461)
+shader_parameter/cumulus_texture = ExtResource("4_xvpgp")
+shader_parameter/cumulus_partial_mie_phase = Vector3(0.957564, 1.042436, 0.412)
+shader_parameter/cumulus_mie_intensity = 1.0
+shader_parameter/show_azimuthal_grid = false
+shader_parameter/azimuthal_grid_color = Color(0.87058824, 0.72156864, 0.5294118, 1)
+shader_parameter/azimuthal_grid_rotation_offset = 0.03
+shader_parameter/show_equatorial_grid = false
+shader_parameter/equatorial_grid_color = Color(0, 0.75, 1, 1)
+shader_parameter/equatorial_grid_rotation_offset = 0.03
+shader_parameter/moon_matrix = Basis(0.8442919, 0.51512414, 0.14770946, -0.2204642, 0.58511955, -0.7804041, -0.4884327, 0.62632424, 0.6075782)
 
-[sub_resource type="Sky" id="Sky_1"]
-sky_material = SubResource("ProceduralSkyMaterial_1")
+[sub_resource type="Sky" id="Sky_rg1j2"]
+sky_material = SubResource("ShaderMaterial_w4i7m")
 
-[sub_resource type="Environment" id="Environment_1"]
+[sub_resource type="Environment" id="Environment_7uu3w"]
 background_mode = 2
-sky = SubResource("Sky_1")
-ambient_light_energy = 0.55
-tonemap_mode = 2
-glow_enabled = true
-glow_intensity = 0.65
-glow_strength = 0.8
-glow_bloom = 0.15
+sky = SubResource("Sky_rg1j2")
+ambient_light_source = 3
+ambient_light_color = Color(0.8068676, 0.7400986, 0.706641, 1)
+ambient_light_energy = 1.105
+reflected_light_source = 2
+tonemap_mode = 3
+tonemap_white = 6.0
+
+[sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_sq54b"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_1"]
 agent_height = 2.0
@@ -50,16 +133,17 @@ roughness = 0.8
 normal_enabled = true
 normal_scale = 1.5
 normal_texture = ExtResource("9_base_norm")
-uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_scale = Vector3(0.08, 0.08, 0.08)
 uv1_triplanar = true
 uv1_world_triplanar = true
 
 [sub_resource type="StandardMaterial3D" id="Material_Crystal"]
 transparency = 1
 albedo_color = Color(0.7, 0.2, 0.8, 0)
+metallic_specular = 1.0
 emission_enabled = true
 emission = Color(0.5, 0.1, 0.6, 1)
-emission_energy_multiplier = 2.0
+emission_energy_multiplier = 5.7
 
 [sub_resource type="StandardMaterial3D" id="Material_White"]
 albedo_color = Color(0.78, 0.84, 0.68, 1)
@@ -69,7 +153,7 @@ roughness_texture = ExtResource("21_white_rough")
 normal_enabled = true
 normal_scale = 1.5
 normal_texture = ExtResource("11_white_norm")
-uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_scale = Vector3(0.08, 0.08, 0.08)
 uv1_triplanar = true
 uv1_world_triplanar = true
 
@@ -83,7 +167,7 @@ roughness = 0.9
 normal_enabled = true
 normal_scale = 1.5
 normal_texture = ExtResource("13_blue_norm")
-uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_scale = Vector3(0.08, 0.08, 0.08)
 uv1_triplanar = true
 uv1_world_triplanar = true
 
@@ -93,7 +177,7 @@ roughness = 0.9
 normal_enabled = true
 normal_scale = 1.5
 normal_texture = ExtResource("15_black_norm")
-uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_scale = Vector3(0.08, 0.08, 0.08)
 uv1_triplanar = true
 uv1_world_triplanar = true
 
@@ -103,7 +187,7 @@ roughness = 0.9
 normal_enabled = true
 normal_scale = 1.5
 normal_texture = ExtResource("17_red_norm")
-uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_scale = Vector3(0.08, 0.08, 0.08)
 uv1_triplanar = true
 uv1_world_triplanar = true
 
@@ -113,20 +197,56 @@ roughness = 0.9
 normal_enabled = true
 normal_scale = 1.5
 normal_texture = ExtResource("19_green_norm")
-uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_scale = Vector3(0.08, 0.08, 0.08)
 uv1_triplanar = true
 uv1_world_triplanar = true
 
 [node name="Main" type="Node3D" unique_id=1615303851]
 script = ExtResource("1_main")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=57108036]
-transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 20, 0)
-light_energy = 0.55
+[node name="Sky3D" type="WorldEnvironment" parent="." unique_id=432545813]
+environment = SubResource("Environment_7uu3w")
+camera_attributes = SubResource("CameraAttributesPractical_sq54b")
+script = ExtResource("9_ppysr")
+current_time = 15.4791008438258
+minutes_per_day = 60.0
+skydome_energy = 0.84
+cloud_intensity = 0.52
+ambient_energy = 1.105
+wind_direction = 2.35619451204804
+metadata/_custom_type_script = "uid://deo0gxkmk2ahd"
+
+[node name="SunLight" type="DirectionalLight3D" parent="Sky3D" unique_id=1301438558]
+transform = Transform3D(0.57333416, 0.3357495, -0.7473689, 0, 0.91218007, 0.40978962, 0.81932163, -0.23494639, 0.52298397, -0.7473689, 0.40978962, 0.52298397)
+light_color = Color(0.9963916, 0.9139393, 0.87262297, 1)
 shadow_enabled = true
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1470302853]
-environment = SubResource("Environment_1")
+[node name="MoonLight" type="DirectionalLight3D" parent="Sky3D" unique_id=380553891]
+transform = Transform3D(0, -0.8726016, -0.48843277, 0.69628376, -0.35058078, 0.62632436, -0.7177667, -0.3400878, 0.6075783, -0.48843274, 0.6263243, 0.6075782)
+light_color = Color(0.572549, 0.776471, 0.956863, 1)
+light_energy = 0.0
+
+[node name="SkyDome" type="Node" parent="Sky3D" unique_id=87682917]
+script = ExtResource("10_of6xu")
+exposure = 0.84
+sun_azimuth = -4.1018195
+sun_altitude = -1.1485729
+moon_azimuth = -3.8187077
+moon_altitude = -0.89396715
+atm_day_tint = Color(0.8491341, 0.9290065, 0.9999997, 1)
+fog_density = 0.017221568
+fog_start = 50.0
+fog_end = 100.0
+fog_sea_level = -1.0
+fog_rayleigh_depth = 0.009554245
+wind_direction = 2.35619451204804
+cumulus_intensity = 0.52
+
+[node name="TimeOfDay" type="Node" parent="Sky3D" unique_id=422699861]
+script = ExtResource("11_rywwc")
+dome_path = NodePath("../SkyDome")
+minutes_per_day = 60.0
+current_time = 15.4791008438258
 
 [node name="HUD" parent="." unique_id=1088357893 instance=ExtResource("2_hud")]
 

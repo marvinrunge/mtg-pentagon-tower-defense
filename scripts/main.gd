@@ -124,9 +124,13 @@ func _style_crystal_visual() -> void:
 			var crystal_material: StandardMaterial3D = (source_material as StandardMaterial3D).duplicate()
 			crystal_material.metallic = 0.72
 			crystal_material.roughness = 0.12
-			crystal_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			# Opaque. It used to run TRANSPARENCY_ALPHA at 0.99 alpha, which bought a
+			# barely-perceptible see-through and cost real problems: an alpha material
+			# writes no depth by default, so it lands in the sorted transparent queue
+			# and anything behind the crystal sorts against it badly.
+			crystal_material.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 			var albedo_color: Color = crystal_material.albedo_color
-			albedo_color.a = 0.99
+			albedo_color.a = 1.0
 			crystal_material.albedo_color = albedo_color
 			crystal_material.emission_enabled = false
 			crystal_material.emission_energy_multiplier = 0.0
