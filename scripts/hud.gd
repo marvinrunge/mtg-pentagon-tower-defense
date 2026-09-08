@@ -12,6 +12,8 @@ class_name HUD
 @onready var mana_label_g: Label = $Control/MarginContainer/VBoxContainer/ManaContainer/ManaLabelG
 @onready var status_label: Label = $Control/MarginContainer/VBoxContainer/StatusLabel
 @onready var interact_label: Label = $Control/InteractLabel
+@onready var xp_bar: ProgressBar = $Control/HotbarContainer/XPBar
+@onready var settings_backdrop: ColorRect = $Control/SettingsBackdrop
 
 @onready var settings_panel: PanelContainer = $Control/SettingsPanel
 @onready var minimap_container: MarginContainer = $Control/MinimapContainer
@@ -58,6 +60,7 @@ var _fps_update_timer: float = 0.0
 const ACTIVE_SLOT_COLOR: Color = Color(0.95, 0.72, 0.22)
 
 func _ready() -> void:
+	settings_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	SignalBus.health_changed.connect(update_health)
 	SignalBus.player_health_changed.connect(update_player_health)
 	SignalBus.mana_changed.connect(update_mana)
@@ -68,7 +71,7 @@ func _ready() -> void:
 	SignalBus.spell_unlocked.connect(func(_c, _s): _update_hotbar_display(_active_spell_idx))
 	SignalBus.color_path_chosen.connect(func(_c): _update_hotbar_display(_active_spell_idx))
 	# The bar is a LOADOUT now, so it has to follow the loadout: a rank bought or a slot
-	# rebound in the skill tree changes what these five keys say they do.
+	# rebound in the skill tree changes what these ten keys say they do.
 	SignalBus.spell_rank_changed.connect(func(_id, _rank): _update_hotbar_display(_active_spell_idx))
 	SignalBus.quick_slots_changed.connect(func(): _update_hotbar_display(_active_spell_idx))
 	SignalBus.wave_state_changed.connect(_on_wave_state_changed)
@@ -89,18 +92,24 @@ func _ready() -> void:
 		camera_shake_checkbox.toggled.connect(_on_camera_shake_toggled)
 	minimap_size_slider.value_changed.connect(_on_minimap_size_changed)
 	_setup_graphics_settings()
+	_build_settings_tabs()
 	restart_btn.pressed.connect(_on_restart_pressed)
 	settings_panel.hide()
 	game_over_panel.hide()
 	_build_wave_ui()
 	
-	_hotbar_slots = [
-		$Control/HotbarContainer/SpellHotbar/Slot1,
-		$Control/HotbarContainer/SpellHotbar/Slot2,
-		$Control/HotbarContainer/SpellHotbar/Slot3,
-		$Control/HotbarContainer/SpellHotbar/Slot4,
-		$Control/HotbarContainer/SpellHotbar/Slot5
-	]
+	var spell_hotbar: HBoxContainer = $Control/HotbarContainer/SpellHotbar
+	for slot_index: int in range(5, 10):
+		var slot: PanelContainer = spell_hotbar.get_child(0).duplicate() as PanelContainer
+		slot.name = "Slot%d" % (slot_index + 1)
+		var num_label: Label = slot.get_node("VBox/Num") as Label
+		num_label.text = "0" if slot_index == 9 else str(slot_index + 1)
+		spell_hotbar.add_child(slot)
+	for child: Node in spell_hotbar.get_children():
+		if child is PanelContainer:
+			_hotbar_slots.append(child as PanelContainer)
+	_ensure_hotbar_icons()
+	_setup_mana_icons()
 	SignalBus.active_spell_changed.connect(_on_active_spell_changed)
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
 	SignalBus.upkeep_started.connect(func(_d: float): _upkeep_open = true)
@@ -109,6 +118,7 @@ func _ready() -> void:
 	
 	_player = PlayerRegistry.get_local()
 	_update_hotbar_display(0)
+	_update_xp_bar()
 	
 	setup_styles()
 	update_health(GameSettings.crystal_max_hp, GameSettings.crystal_max_hp)
@@ -144,6 +154,13 @@ func _process(delta: float) -> void:
 						label.text = "%.1fs" % cd
 				else:
 					overlay.hide()
+		_update_xp_bar()
+
+func _update_xp_bar() -> void:
+	if not xp_bar:
+		return
+	var progress: Vector2 = RunState.xp_progress()
+	xp_bar.value = progress.x / progress.y
 
 
 func setup_styles() -> void:
@@ -174,6 +191,20 @@ func setup_styles() -> void:
 	sb_player_fg.bg_color = Color(0.2, 0.8, 0.3, 0.9) # Green
 	player_health_bar.add_theme_stylebox_override("background", sb_bg)
 	player_health_bar.add_theme_stylebox_override("fill", sb_player_fg)
+
+	var sb_xp_fg: StyleBoxFlat = sb_fg.duplicate() as StyleBoxFlat
+	sb_xp_fg.bg_color = Color(0.2, 0.55, 1.0, 0.95)
+	xp_bar.add_theme_stylebox_override("background", sb_bg)
+	xp_bar.add_theme_stylebox_override("fill", sb_xp_fg)
+
+	var settings_bg := StyleBoxFlat.new()
+	settings_bg.bg_color = Color(0.015, 0.02, 0.03, 1.0)
+	settings_bg.border_width_left = 2
+	settings_bg.border_width_top = 2
+	settings_bg.border_width_right = 2
+	settings_bg.border_width_bottom = 2
+	settings_bg.border_color = Color(0.35, 0.42, 0.55, 1.0)
+	settings_panel.add_theme_stylebox_override("panel", settings_bg)
 
 func update_health(current: float, max_health: float) -> void:
 	health_bar.max_value = max_health
@@ -221,11 +252,52 @@ func _input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("ui_cancel"):
 		settings_panel.visible = !settings_panel.visible
+		settings_backdrop.visible = settings_panel.visible
 		if settings_panel.visible:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			show_minimap_checkbox.grab_focus()
 		else:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _build_settings_tabs() -> void:
+	var margin: MarginContainer = settings_panel.get_node("MarginContainer") as MarginContainer
+	var scroll: ScrollContainer = margin.get_node("ScrollContainer") as ScrollContainer
+	var source: VBoxContainer = scroll.get_node("VBoxContainer") as VBoxContainer
+	var controls: Array[Node] = source.get_children()
+	var tabs := TabContainer.new()
+	tabs.name = "SettingsTabs"
+	tabs.layout_mode = 2
+	tabs.custom_minimum_size = Vector2(0.0, 500.0)
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.mouse_filter = Control.MOUSE_FILTER_STOP
+	var gameplay_scroll := ScrollContainer.new()
+	gameplay_scroll.name = "Gameplay"
+	gameplay_scroll.mouse_filter = Control.MOUSE_FILTER_PASS
+	gameplay_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var gameplay := VBoxContainer.new()
+	gameplay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gameplay.add_theme_constant_override("separation", 15)
+	gameplay_scroll.add_child(gameplay)
+	tabs.add_child(gameplay_scroll)
+	var graphics_scroll := ScrollContainer.new()
+	graphics_scroll.name = "Graphics"
+	graphics_scroll.mouse_filter = Control.MOUSE_FILTER_PASS
+	graphics_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var graphics := VBoxContainer.new()
+	graphics.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	graphics.add_theme_constant_override("separation", 15)
+	graphics_scroll.add_child(graphics)
+	tabs.add_child(graphics_scroll)
+	for child: Node in controls:
+		source.remove_child(child)
+		if child.name in ["GraphicsSeparator", "GraphicsHeaderLabel", "QualityPresetLabel", "QualityPresetOption", "RenderScaleLabel", "RenderScaleSlider", "ShadowsCheckbox", "AntiAliasingLabel", "AntiAliasingOption", "GlowCheckbox", "VSyncCheckbox", "ShowFpsCheckbox", "RendererLabel", "RendererOption", "RestartRequiredLabel", "ApplyRestartBtn"]:
+			graphics.add_child(child)
+		else:
+			gameplay.add_child(child)
+	margin.remove_child(scroll)
+	scroll.queue_free()
+	margin.add_child(tabs)
+	tabs.current_tab = 0
 
 func _on_restart_pressed() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -378,6 +450,11 @@ func _update_hotbar_display(active_idx: int) -> void:
 			
 		var num_label: Label = slot.get_node_or_null("VBox/Num") as Label
 		var name_label: Label = slot.get_node_or_null("VBox/Name") as Label
+		var icon: TextureRect = slot.get_node_or_null("VBox/Icon") as TextureRect
+		var spell_id: String = _player._get_spell_id_for_slot(i) if _player and _player.has_method("_get_spell_id_for_slot") else ""
+		if icon:
+			var icon_path: String = SpellDatabase.get_icon_path(spell_id)
+			icon.texture = load(icon_path) as Texture2D if icon_path != "" else null
 		
 		var sb = StyleBoxFlat.new()
 		sb.corner_radius_top_left = 6
@@ -434,6 +511,36 @@ func _update_hotbar_display(active_idx: int) -> void:
 				num_label.add_theme_color_override("font_color", Color(0.2, 0.2, 0.2))
 
 		slot.add_theme_stylebox_override("panel", sb)
+
+func _ensure_hotbar_icons() -> void:
+	for slot: PanelContainer in _hotbar_slots:
+		var vbox: VBoxContainer = slot.get_node("VBox") as VBoxContainer
+		if vbox.get_node_or_null("Icon") != null:
+			continue
+		var icon := TextureRect.new()
+		icon.name = "Icon"
+		icon.custom_minimum_size = Vector2(34.0, 34.0)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		vbox.add_child(icon)
+		vbox.move_child(icon, 0)
+
+func _setup_mana_icons() -> void:
+	var mana_labels: Array[Label] = [mana_label_w, mana_label_u, mana_label_b, mana_label_r, mana_label_g]
+	var colors: Array[String] = ["white", "blue", "black", "red", "green"]
+	for index: int in range(mana_labels.size()):
+		var label: Label = mana_labels[index]
+		var parent: HBoxContainer = label.get_parent() as HBoxContainer
+		var icon := TextureRect.new()
+		icon.name = "ManaIcon" + colors[index].capitalize()
+		icon.custom_minimum_size = Vector2(24.0, 24.0)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = load(SpellDatabase.get_icon_path(colors[index])) as Texture2D
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		parent.add_child(icon)
+		parent.move_child(icon, label.get_index())
 
 func _on_active_spell_changed(spell_name: String) -> void:
 	if _player and "active_spell_index" in _player:

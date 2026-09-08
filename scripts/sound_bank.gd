@@ -107,6 +107,12 @@ const EVENT_FILES := {
 	&"spell_roar": ["generated/spell_roar/spell_roar_1.mp3"],
 	## green_5 Ironbark
 	&"spell_ironbark": ["generated/spell_ironbark/spell_ironbark_1.mp3"],
+	## Shared team level-up chime.
+	&"level_up": ["generated/level_up/level_up_1.mp3"],
+	## Incoming hit absorbed by the player's guard, selected by enemy weapon class.
+	&"block_impact_blunt": ["generated/block_impact_blunt/block_impact_blunt_1.mp3"],
+	&"block_impact_arrow": ["generated/block_impact_arrow/block_impact_arrow_1.mp3"],
+	&"block_impact_magic": ["generated/block_impact_magic/block_impact_magic_1.mp3"],
 	## Capstone: Orb of Frost
 	&"aura_orb_frost": ["generated/aura_orb_frost/aura_orb_frost_2.mp3"],
 	## Capstone: Orb of Fire

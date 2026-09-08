@@ -49,8 +49,8 @@ const AFFINITY_DATA: Dictionary = {
 }
 ## The five neutral passives, one per adjacent colour pair - the pentagon's gaps are
 ## the guilds. PASSIVE_ORDER is in gap order: gap i lies between COLOR_NAMES[i] and the
-## next colour clockwise. Five ranks each, one skill point per rank, gated on affinity
-## rank 1 in BOTH colours - they are the reward for combining, not for specialising.
+## next colour clockwise. Five ranks each, one skill point per rank, gated only by the
+## shared team level.
 const PASSIVE_ORDER: Array[String] = ["flight", "double_strike", "haste", "trample_strike", "vigilance"]
 const PASSIVE_DATA: Dictionary = {
 	"flight": {"name": "Flying", "guild": "Azorius", "colors": ["white", "blue"],
@@ -58,13 +58,13 @@ const PASSIVE_DATA: Dictionary = {
 		"desc": "Jump higher, and hold jump while falling to glide. 50% higher per rank, up to 250%."},
 	"double_strike": {"name": "Double Strike", "guild": "Dimir", "colors": ["blue", "black"],
 		"unit": "crit chance",
-		"desc": "Everything you deal - melee and spells - can crit for double damage. 1% chance per rank, up to 10%."},
+		"desc": "Everything you deal - melee and spells - can crit for double damage. 10% chance at rank 1, up to 50%."},
 	"haste": {"name": "Haste", "guild": "Rakdos", "colors": ["black", "red"],
 		"unit": "move speed",
-		"desc": "Move faster. 2% per rank, up to 25%."},
+		"desc": "Move faster. 10% at rank 1, up to 50%."},
 	"trample_strike": {"name": "Trample", "guild": "Gruul", "colors": ["red", "green"],
 		"unit": "of max HP",
-		"desc": "Melee hits add bonus damage from your own max HP. 0.5% per rank, up to 5%."},
+		"desc": "Melee hits add bonus damage from your own max HP. 10% at rank 1, up to 50%."},
 	"vigilance": {"name": "Vigilance", "guild": "Selesnya", "colors": ["green", "white"],
 		"unit": "duration",
 		"desc": "Your spells with a duration last longer. 10% longer per rank, up to 100%."},
@@ -144,12 +144,13 @@ func _input(event: InputEvent) -> void:
 			_on_node_pressed(record["color"], record["branch_index"], record["info"])
 		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo \
-			and event.keycode >= KEY_1 and event.keycode <= KEY_5:
+			and ((event.keycode >= KEY_1 and event.keycode <= KEY_9) or event.keycode == KEY_0):
 		# Number keys bind whatever the pointer or the selection is on to that hotbar
 		# slot. This is the whole loadout UI: the alternative was a drag-and-drop bar,
 		# and the keys being bound ARE the keys you press to cast, which is easier to
 		# explain than any widget would be.
-		_bind_hovered_to_slot(event.keycode - KEY_1)
+		var slot_index: int = 9 if event.keycode == KEY_0 else event.keycode - KEY_1
+		_bind_hovered_to_slot(slot_index)
 		get_viewport().set_input_as_handled()
 
 func _select_node(color_index: int, branch_index: int) -> void:
@@ -186,10 +187,10 @@ func _build_ui() -> void:
 	control_root.add_child(_board)
 
 	_skill_points_label = Label.new()
-	_skill_points_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	_skill_points_label.offset_top = 18.0
-	_skill_points_label.offset_bottom = 18.0 + 40.0
-	_skill_points_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_skill_points_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_skill_points_label.position = Vector2(-320.0, 18.0)
+	_skill_points_label.size = Vector2(300.0, 40.0)
+	_skill_points_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_skill_points_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_skill_points_label.add_theme_font_size_override("font_size", 32)
 	_skill_points_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
@@ -248,6 +249,7 @@ func _build_ui() -> void:
 		var passive_info: Dictionary = PASSIVE_DATA[passive_id].duplicate()
 		passive_info["id"] = passive_id
 		passive_info["is_passive"] = true
+		passive_info["rank_requirement"] = GameSettings.rank_level_requirement(1)
 		_create_icon_node(COLOR_NAMES[gap], PASSIVE_BRANCH, passive_info)
 
 	_build_selection_ring()
@@ -485,9 +487,9 @@ func update_ui() -> void:
 				center_state = "unlocked"
 			elif not _affordable(_total_mana(mana_pool), int(info["cost"])):
 				center_state = "locked"
-			button.texture_normal = _get_placeholder_texture(color, branch_index, center_state)
-			button.texture_hover = _get_placeholder_texture(color, branch_index, "hover")
-			button.modulate = Color.WHITE
+			button.texture_normal = _get_icon_texture(info, color)
+			button.texture_hover = button.texture_normal
+			button.modulate = _icon_modulate(center_state)
 			continue
 
 		var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
@@ -504,10 +506,10 @@ func update_ui() -> void:
 				state = "locked"
 			elif not _gate_met(player, color, info) or not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
-			button.texture_normal = _get_placeholder_texture(color, branch_index, state)
-			button.texture_hover = _get_placeholder_texture(color, branch_index, "hover")
+			button.texture_normal = _get_icon_texture(info, color)
+			button.texture_hover = button.texture_normal
 			var taken_elsewhere: bool = player.unlocked_capstone_aura != "" and player.unlocked_capstone_aura != capstone_id
-			button.modulate = Color(0.42, 0.42, 0.46) if taken_elsewhere else Color.WHITE
+			button.modulate = Color(0.25, 0.27, 0.3) if taken_elsewhere else _icon_modulate(state)
 			continue
 
 		if bool(info.get("is_passive", false)):
@@ -515,20 +517,22 @@ func update_ui() -> void:
 			var passive_rank: int = player.get_passive_rank(passive_id)
 			if passive_rank > 0:
 				state = "unlocked"
-			elif not _passive_gate_met(player, info) or not _affordable(available_mana, GameSettings.spell_rank_point_cost):
+			elif not _passive_gate_met(player, passive_rank + 1) or not _affordable(available_mana, GameSettings.spell_rank_point_cost):
 				state = "locked"
 			if passive_rank > 0:
 				_set_badge(record, "%d/%d" % [passive_rank, GameSettings.spell_max_rank],
 					Color(1.0, 0.85, 0.35) if passive_rank >= GameSettings.spell_max_rank else Color(0.88, 0.92, 0.96))
 			else:
 				_set_badge(record, "", Color.WHITE)
-			button.texture_normal = _get_placeholder_texture(passive_id, branch_index, state)
-			button.texture_hover = _get_placeholder_texture(passive_id, branch_index, "hover")
-			button.modulate = Color.WHITE
+			button.texture_normal = _get_icon_texture(info, color)
+			button.texture_hover = button.texture_normal
+			button.modulate = _icon_modulate(state)
 			continue
 
 		if bool(info["is_affinity"]):
-			if not _affordable(available_mana, int(info["cost"])):
+			if player.get_affinity_rank(color) > 0:
+				state = "unlocked"
+			elif not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
 			_set_badge(record, "", Color.WHITE)
 		else:
@@ -539,9 +543,9 @@ func update_ui() -> void:
 				state = "locked"
 			_set_spell_badge(record, player, String(info["id"]), rank)
 
-		button.texture_normal = _get_placeholder_texture(color, branch_index, state)
-		button.texture_hover = _get_placeholder_texture(color, branch_index, "hover")
-		button.modulate = Color.WHITE if player.chosen_color_path == color else Color(0.78, 0.8, 0.82)
+		button.texture_normal = _get_icon_texture(info, color)
+		button.texture_hover = button.texture_normal
+		button.modulate = _icon_modulate(state)
 
 	if not _hovered_record.is_empty():
 		_show_details(_hovered_record["color"], _hovered_record["branch_index"], _hovered_record["info"])
@@ -612,17 +616,16 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 		var pair: Array = info["colors"]
 		_detail_title.text = "%s - %s" % [String(info["guild"]), info["name"]]
 		_detail_title.add_theme_color_override("font_color", (COLOR_HEX[pair[0]] + COLOR_HEX[pair[1]]) * 0.5)
-		var pair_names: String = "%s + %s" % [COLOR_DISPLAY[pair[0]], COLOR_DISPLAY[pair[1]]]
 		var passive_status: String
-		if not _passive_gate_met(player, info):
-			passive_status = "Requires affinity rank 1 in " + pair_names
+		if not _passive_gate_met(player, passive_rank + 1):
+			passive_status = "Requires team level %d" % GameSettings.rank_level_requirement(passive_rank + 1)
 		elif passive_rank >= GameSettings.spell_max_rank:
 			passive_status = "Rank %d/%d - MAX  |  " % [passive_rank, GameSettings.spell_max_rank] + _passive_value_text(player, passive_id, passive_rank)
 		elif passive_rank <= 0:
 			passive_status = "Unlock for %d point  |  " % GameSettings.spell_rank_point_cost + _passive_value_text(player, passive_id, 1)
 		else:
 			passive_status = "Rank %d/%d  |  " % [passive_rank, GameSettings.spell_max_rank] + _passive_value_text(player, passive_id, passive_rank) + " -> " + _passive_value_text(player, passive_id, passive_rank + 1)
-		_detail_status.text = "%s  |  Points %d" % [passive_status, _skill_points(player)]
+		_detail_status.text = "%s  |  Invested %d  |  Points %d" % [passive_status, passive_rank, _skill_points(player)]
 		_detail_body.text = String(info["desc"])
 		return
 
@@ -641,7 +644,7 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 			if _gate_met(player, color, info):
 				status = "Unlock for %d point" % GameSettings.spell_rank_point_cost
 			else:
-				status = "Requires affinity rank %d" % int(info["rank_requirement"])
+				status = "Requires team level %d" % int(info["rank_requirement"])
 		else:
 			# Owned: what matters is what the NEXT rank costs and what is stopping it.
 			var blocker: String = String(player.spell_rank_blocker(spell_id))
@@ -696,10 +699,11 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 
 	if bool(info.get("is_passive", false)):
 		var passive_id: String = String(info["id"])
-		if player.get_passive_rank(passive_id) >= GameSettings.spell_max_rank:
+		var passive_rank: int = player.get_passive_rank(passive_id)
+		if passive_rank >= GameSettings.spell_max_rank:
 			return
-		if not _passive_gate_met(player, info):
-			_flash_status("Requires affinity rank 1 in both neighbouring colours")
+		if not _passive_gate_met(player, passive_rank + 1):
+			_flash_status("Requires team level %d" % GameSettings.rank_level_requirement(passive_rank + 1))
 			return
 		if _pay(player, GameSettings.spell_rank_point_cost):
 			player.grant_passive_rank(passive_id)
@@ -773,18 +777,14 @@ func _pay(player: Node, points: int) -> bool:
 func _gate_met(player: Node, color: String, info: Dictionary) -> bool:
 	if GameSettings.debug_free_skills:
 		return true
-	return player.get_affinity_rank(color) >= int(info["rank_requirement"])
+	return RunState.team_level >= int(info["rank_requirement"])
 
 
-## The guild passives ask for a foot in BOTH adjacent colours - they are the reward
-## for combining, not for specialising.
-func _passive_gate_met(player: Node, info: Dictionary) -> bool:
+## Passive ranks use the same shared team-level clock as active skill ranks.
+func _passive_gate_met(player: Node, rank: int) -> bool:
 	if GameSettings.debug_free_skills:
 		return true
-	for pair_color: String in info["colors"]:
-		if player.get_affinity_rank(pair_color) < 1:
-			return false
-	return true
+	return RunState.team_level >= GameSettings.rank_level_requirement(rank)
 
 
 ## "25% move speed" style readout for the detail panel, computed from the same numbers
@@ -878,6 +878,23 @@ func _get_placeholder_texture(color: String, branch_index: int, state: String) -
 	var texture := ImageTexture.create_from_image(image)
 	_texture_cache[cache_key] = texture
 	return texture
+
+
+func _get_icon_texture(info: Dictionary, fallback_color: String) -> Texture2D:
+	var icon_path: String = SpellDatabase.get_icon_path(String(info.get("id", "")), fallback_color)
+	if icon_path != "":
+		return load(icon_path) as Texture2D
+	return _get_placeholder_texture(fallback_color, 0, "available")
+
+
+func _icon_modulate(state: String) -> Color:
+	if state == "locked":
+		return Color(0.42, 0.44, 0.48)
+	if state == "hover":
+		return Color(1.15, 1.15, 1.15)
+	if state == "unlocked":
+		return Color.WHITE
+	return Color(0.58, 0.6, 0.64)
 
 func _is_placeholder_mark(offset: Vector2, branch_index: int) -> bool:
 	var abs_x: float = absf(offset.x)

@@ -13,12 +13,12 @@ param(
     [string]$TexturePrompt = "",
 
     [Parameter(ParameterSetName = "Generate")]
-    [ValidateSet("standard", "lowpoly")]
-    [string]$ModelType = "lowpoly",
+    [ValidateSet("smart-topology", "standard", "lowpoly")]
+    [string]$ModelType = "smart-topology",
 
     [Parameter(ParameterSetName = "Generate")]
     [ValidateRange(100, 300000)]
-    [int]$TargetPolycount = 12000,
+    [int]$TargetPolycount = 4000,
 
     [Parameter(ParameterSetName = "Generate")]
     [ValidateSet("", "a-pose", "t-pose")]
@@ -162,7 +162,15 @@ $previewRequest = [ordered]@{
     auto_size = -not $NoAutoSize
     origin_at = "bottom"
 }
-if ($ModelType -eq "standard") {
+if ($ModelType -eq "smart-topology") {
+    # meshy-t2 builds directly at target_polycount (100-15000) instead of decimating,
+    # and only emits triangles - quad topology is rejected by the API.
+    if ($TargetPolycount -gt 15000) {
+        throw "smart-topology caps target_polycount at 15000. Use -ModelType standard for denser meshes."
+    }
+    $previewRequest.topology = "triangle"
+    $previewRequest.target_polycount = $TargetPolycount
+} elseif ($ModelType -eq "standard") {
     $previewRequest.ai_model = "latest"
     $previewRequest.should_remesh = $true
     $previewRequest.topology = "triangle"
@@ -190,7 +198,6 @@ if (-not $PreviewOnly) {
     $refineRequest = [ordered]@{
         mode = "refine"
         preview_task_id = $previewId
-        ai_model = "latest"
         enable_pbr = $true
         hd_texture = [bool]$HdTexture
         remove_lighting = $true
@@ -201,6 +208,9 @@ if (-not $PreviewOnly) {
     }
     if ($TexturePrompt) {
         $refineRequest.texture_prompt = $TexturePrompt
+    }
+    if ($ModelType -ne "smart-topology") {
+        $refineRequest.ai_model = "latest"
     }
     $requestMetadata.refine = $refineRequest
     Write-Output "Creating Meshy refine task with PBR textures..."

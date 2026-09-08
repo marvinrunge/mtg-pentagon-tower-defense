@@ -71,6 +71,7 @@ func _run() -> void:
 		failures.append("paid purchase did not spend a skill point")
 
 	# --- D: broke means no --------------------------------------------------------
+	player.skill_points = 0
 	var blue_aff: Dictionary = _record(st, "blue", 0)
 	st._on_node_pressed(blue_aff["color"], 0, blue_aff["info"])
 	print("TEST D blue rank with 0 points = %d" % player.get_affinity_rank("blue"))
@@ -101,6 +102,7 @@ func _run() -> void:
 	if player.unlocked_capstone_aura != "aura_fervor":
 		failures.append("the fork let a second capstone be bought")
 
+	_check_heavy_retrigger_guard(player, failures)
 	_check_ranks(st, player, failures)
 	_check_layout(st, failures)
 
@@ -108,6 +110,16 @@ func _run() -> void:
 		print("TEST RESULT: PASS")
 	else:
 		print("TEST RESULT: FAIL - " + ", ".join(failures))
+
+func _check_heavy_retrigger_guard(player: Node, failures: Array[String]) -> void:
+	player._action_timer = 0.1
+	player._action_duration = 1.0
+	player._action_elapsed = 0.9
+	player._action_is_melee = true
+	player._action_is_heavy = true
+	if player._can_start_attack():
+		failures.append("a heavy melee could retrigger before its first animation finished")
+	print("TEST K heavy retrigger guard = %s" % [not player._can_start_attack()])
 
 ## The board has to FIT. Adding the capstone fork put two new nodes per colour outside the
 ## pentagon, and at the original radius the two lowest of them landed underneath the

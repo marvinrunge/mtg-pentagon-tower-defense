@@ -95,6 +95,32 @@
       "duration_seconds": 2.0,
       "prompt": "Bark hardening over skin: dense wood rapidly creaking and knotting, dry splintering crackle like a trunk forming around a body, ending on one solid heavy thud, no music"
     },
+    "level_up": {
+      "skill": "Shared team level-up",
+      "duration_seconds": 2.8,
+      "prompt_influence": 0.72,
+      "prompt": "Gentle epic sacred level-up swell: very soft 0.35 second fade-in, warm rising orchestral strings, distant soft French horns, shimmering highs, soaring wordless mixed choir on open vowel ahs, radiant and triumphant without a harsh attack, spacious cathedral reverb, delayed echo on the final choir chord, long luminous decay, polished game sound effect, no lyrics"
+    },
+    "block_impact": {
+      "skill": "Player guard absorbs hit",
+      "duration_seconds": 0.65,
+      "prompt": "One clean close-up shield block impact: a heavy steel weapon hits a thick metal shield with a deep solid clang, followed by one short clear metallic ring, tight and readable, powerful defensive hit, no whoosh, no rumble, no voices, no music"
+    },
+    "block_impact_blunt": {
+      "skill": "Melee weapon blocked",
+      "duration_seconds": 0.65,
+      "prompt": "One clean close-up fantasy shield block: a heavy mace or club strikes a thick steel shield, deep solid low metallic clang, brief clear ring, weighty but controlled, no whoosh, no rumble, no voices, no music"
+    },
+    "block_impact_arrow": {
+      "skill": "Arrow blocked",
+      "duration_seconds": 0.55,
+      "prompt": "One close-up arrow hitting a steel shield: sharp wooden snap and bright tight metal ping, quick crisp defensive impact, clearly an arrow deflected by armor, no whoosh, no rumble, no voices, no music"
+    },
+    "block_impact_magic": {
+      "skill": "Magic attack blocked",
+      "duration_seconds": 0.8,
+      "prompt": "One close-up magical bolt absorbed by an enchanted steel shield: soft crystalline impact, bright shimmering deflection, controlled warm magical resonance, clear defensive hit, no explosion, no rumble, no voices, no music"
+    },
     "aura_orb_frost": {
       "skill": "Capstone: Orb of Frost, one shot",
       "duration_seconds": 1.0,

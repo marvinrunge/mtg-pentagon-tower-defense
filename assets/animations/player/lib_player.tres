@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" format=3]
+[gd_resource type="AnimationLibrary" format=3 uid="uid://db1to108s2rpi"]
 
 [sub_resource type="Animation" id="Animation_skbqa"]
 resource_name = "mixamo_com"
@@ -207,7 +207,7 @@ tracks/28/path = NodePath("Skeleton3D:mixamorig_RightHandIndex3")
 tracks/28/interp = 1
 tracks/28/loop_wrap = true
 tracks/28/keys = PackedFloat32Array(0, 1, 0.4970297, 0.10477414, 0.20290145, 0.8371469)
-metadata/travel_speed = 0.0005877625451169231
+metadata/travel_speed = 0.00058776254511692
 
 [sub_resource type="Animation" id="Animation_yed65"]
 resource_name = "mixamo_com"
@@ -2921,7 +2921,7 @@ tracks/28/path = NodePath("Skeleton3D:mixamorig_RightHandIndex3")
 tracks/28/interp = 1
 tracks/28/loop_wrap = true
 tracks/28/keys = PackedFloat32Array(0, 1, 0.4970297, 0.104774036, 0.20290121, 0.83714694)
-metadata/travel_speed = 0.0006158479531718926
+metadata/travel_speed = 0.00061584795317189
 
 [sub_resource type="Animation" id="Animation_um2il"]
 resource_name = "mixamo_com"
@@ -4171,7 +4171,7 @@ tracks/28/path = NodePath("Skeleton3D:mixamorig_RightHandIndex3")
 tracks/28/interp = 1
 tracks/28/loop_wrap = true
 tracks/28/keys = PackedFloat32Array(0, 1, 0.49702987, 0.10477423, 0.20290133, 0.83714676)
-metadata/travel_speed = 1.8936702609062195
+metadata/travel_speed = 1.8936702609062197
 
 [sub_resource type="Animation" id="Animation_6ywyl"]
 resource_name = "mixamo_com"
@@ -5219,7 +5219,7 @@ tracks/28/path = NodePath("Skeleton3D:mixamorig_RightHandIndex3")
 tracks/28/interp = 1
 tracks/28/loop_wrap = true
 tracks/28/keys = PackedFloat32Array(0, 1, 0.5075464, 0.12501709, 0.20554973, 0.8273552)
-metadata/travel_speed = 0.9219762464848961
+metadata/travel_speed = 0.921976246484896
 
 [sub_resource type="Animation" id="Animation_th28y"]
 resource_name = "mixamo_com"
@@ -5637,7 +5637,7 @@ tracks/28/path = NodePath("Skeleton3D:mixamorig_RightHandIndex3")
 tracks/28/interp = 1
 tracks/28/loop_wrap = true
 tracks/28/keys = PackedFloat32Array(0, 1, 0.49703044, 0.104773745, 0.2029015, 0.83714646)
-metadata/travel_speed = 0.9404071279474207
+metadata/travel_speed = 0.9404071279474208
 
 [sub_resource type="Animation" id="Animation_kit3x"]
 resource_name = "mixamo_com"

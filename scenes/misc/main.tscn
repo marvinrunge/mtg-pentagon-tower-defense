@@ -7,6 +7,20 @@
 [ext_resource type="PackedScene" uid="uid://ovg6bup0stwp" path="res://scenes/mana_wells/mana_well_black.tscn" id="5_well_black"]
 [ext_resource type="PackedScene" uid="uid://dm18yoqik3i42" path="res://scenes/mana_wells/mana_well_red.tscn" id="6_well_red"]
 [ext_resource type="PackedScene" uid="uid://bpcfm7k0vv3bv" path="res://scenes/mana_wells/mana_well_green.tscn" id="7_well_green"]
+[ext_resource type="Texture2D" uid="uid://mosn2rro8ox0" path="res://assets/textures/base/textures/concrete_rock_path_diff_1k.jpg" id="8_base_diff"]
+[ext_resource type="Texture2D" uid="uid://psn3juf62kt2" path="res://assets/textures/base/textures/concrete_rock_path_nor_gl_1k.jpg" id="9_base_norm"]
+[ext_resource type="Texture2D" uid="uid://bikbnkhat1f6m" path="res://assets/textures/plains2/textures/gravel_ground_01_diff_1k.jpg" id="10_white_diff"]
+[ext_resource type="Texture2D" uid="uid://d1gry213g378" path="res://assets/textures/plains2/textures/gravel_ground_01_nor_gl_1k.jpg" id="11_white_norm"]
+[ext_resource type="Texture2D" uid="uid://m0rerhchm8br" path="res://assets/textures/island/textures/coast_sand_01_diff_1k.jpg" id="12_blue_diff"]
+[ext_resource type="Texture2D" uid="uid://cagpud3ith4oc" path="res://assets/textures/island/textures/coast_sand_01_nor_gl_1k.jpg" id="13_blue_norm"]
+[ext_resource type="Texture2D" uid="uid://ce24rw6yay2wq" path="res://assets/textures/swamp/textures/brown_mud_03_diff_1k.jpg" id="14_black_diff"]
+[ext_resource type="Texture2D" uid="uid://dkd3a04pag0hn" path="res://assets/textures/swamp/textures/brown_mud_03_nor_gl_1k.jpg" id="15_black_norm"]
+[ext_resource type="Texture2D" uid="uid://c1lgdvbjxqti1" path="res://assets/textures/mountains/textures/cracked_red_ground_diff_1k.jpg" id="16_red_diff"]
+[ext_resource type="Texture2D" uid="uid://cxygmepbyhnn0" path="res://assets/textures/mountains/textures/cracked_red_ground_nor_gl_1k.jpg" id="17_red_norm"]
+[ext_resource type="Texture2D" uid="uid://cgx0r1710d5a" path="res://assets/textures/forest/textures/forrest_ground_01_diff_1k.jpg" id="18_green_diff"]
+[ext_resource type="Texture2D" uid="uid://b15nsy6gnphkq" path="res://assets/textures/forest/textures/forrest_ground_01_nor_gl_1k.jpg" id="19_green_norm"]
+[ext_resource type="PackedScene" uid="uid://diuwaujmte4h" path="res://assets/structures/base-cristal/Meshy_AI_Ein_riesiger_schweben_0523220202_texture.fbx" id="20_crystal"]
+[ext_resource type="Texture2D" uid="uid://dgfha2snve6n3" path="res://assets/textures/plains2/textures/gravel_ground_01_rough_1k.jpg" id="21_white_rough"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.1, 0.15, 0.25, 1)
@@ -19,55 +33,96 @@ sky_material = SubResource("ProceduralSkyMaterial_1")
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 2
 sky = SubResource("Sky_1")
+ambient_light_energy = 0.55
 tonemap_mode = 2
 glow_enabled = true
-glow_intensity = 1.0
-glow_strength = 1.2
-glow_bloom = 0.3
+glow_intensity = 0.65
+glow_strength = 0.8
+glow_bloom = 0.15
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_1"]
 agent_height = 2.0
 agent_max_climb = 0.5
 
 [sub_resource type="StandardMaterial3D" id="Material_Base"]
-albedo_color = Color(0.3, 0.3, 0.35, 1)
+albedo_texture = ExtResource("8_base_diff")
 roughness = 0.8
+normal_enabled = true
+normal_scale = 1.5
+normal_texture = ExtResource("9_base_norm")
+uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_triplanar = true
+uv1_world_triplanar = true
 
 [sub_resource type="StandardMaterial3D" id="Material_Crystal"]
-albedo_color = Color(0.7, 0.2, 0.8, 1)
+transparency = 1
+albedo_color = Color(0.7, 0.2, 0.8, 0)
 emission_enabled = true
 emission = Color(0.5, 0.1, 0.6, 1)
 emission_energy_multiplier = 2.0
 
 [sub_resource type="StandardMaterial3D" id="Material_White"]
-albedo_color = Color(0.95, 0.95, 0.85, 1)
+albedo_color = Color(0.78, 0.84, 0.68, 1)
+albedo_texture = ExtResource("10_white_diff")
 roughness = 0.9
+roughness_texture = ExtResource("21_white_rough")
+normal_enabled = true
+normal_scale = 1.5
+normal_texture = ExtResource("11_white_norm")
+uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_triplanar = true
+uv1_world_triplanar = true
 
 [sub_resource type="StandardMaterial3D" id="Material_Spawner"]
 albedo_color = Color(0.8, 0.1, 0.1, 1)
 roughness = 0.3
 
 [sub_resource type="StandardMaterial3D" id="Material_Blue"]
-albedo_color = Color(0.2, 0.4, 0.8, 1)
+albedo_texture = ExtResource("12_blue_diff")
 roughness = 0.9
+normal_enabled = true
+normal_scale = 1.5
+normal_texture = ExtResource("13_blue_norm")
+uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_triplanar = true
+uv1_world_triplanar = true
 
 [sub_resource type="StandardMaterial3D" id="Material_Black"]
-albedo_color = Color(0.15, 0.1, 0.2, 1)
+albedo_texture = ExtResource("14_black_diff")
 roughness = 0.9
+normal_enabled = true
+normal_scale = 1.5
+normal_texture = ExtResource("15_black_norm")
+uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_triplanar = true
+uv1_world_triplanar = true
 
 [sub_resource type="StandardMaterial3D" id="Material_Red"]
-albedo_color = Color(0.8, 0.2, 0.15, 1)
+albedo_texture = ExtResource("16_red_diff")
 roughness = 0.9
+normal_enabled = true
+normal_scale = 1.5
+normal_texture = ExtResource("17_red_norm")
+uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_triplanar = true
+uv1_world_triplanar = true
 
 [sub_resource type="StandardMaterial3D" id="Material_Green"]
-albedo_color = Color(0.2, 0.6, 0.2, 1)
+albedo_texture = ExtResource("18_green_diff")
 roughness = 0.9
+normal_enabled = true
+normal_scale = 1.5
+normal_texture = ExtResource("19_green_norm")
+uv1_scale = Vector3(0.25, 0.25, 0.25)
+uv1_triplanar = true
+uv1_world_triplanar = true
 
 [node name="Main" type="Node3D" unique_id=1615303851]
 script = ExtResource("1_main")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=57108036]
 transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 20, 0)
+light_energy = 0.55
 shadow_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1470302853]
@@ -93,6 +148,9 @@ use_collision = true
 collision_layer = 16
 size = Vector3(2.5, 5, 2.5)
 material = SubResource("Material_Crystal")
+
+[node name="CrystalVisual" parent="NavigationRegion3D/MainCrystal" unique_id=856730882 instance=ExtResource("20_crystal")]
+transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0)
 
 [node name="CrystalAnchor" type="Marker3D" parent="NavigationRegion3D" unique_id=1445797564 groups=["crystal"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)

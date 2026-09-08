@@ -26,6 +26,24 @@ const SPELLS_PER_COLOR: int = 5
 
 ## Fallback for an id that isn't in the table at all.
 const DEFAULT_COOLDOWN: float = 1.0
+const ICON_ROOT: String = "res://assets/icons/"
+const ICON_FILES: Dictionary = {
+	"white": "white.png", "blue": "blue.jpg", "black": "black.png", "red": "red.png", "green": "green.png",
+	"white_1": "exalted-strike.png", "white_2": "circle-of-protection.png", "white_3": "reprisal-ward.png",
+	"white_4": "wrath-of-god.png", "white_5": "rally-the-fallen.png", "blue_1": "unsummon.png",
+	"blue_2": "frostwave.png", "blue_3": "frost-globe.png", "blue_4": "suction.png", "blue_5": "phantasmal-decoy.png",
+	"black_1": "doom-blade.png", "black_2": "fear.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
+	"black_5": "zombify.png", "red_1": "fireball.png", "red_2": "fire-dash.png", "red_3": "rain-of-ember.png",
+	"red_4": "fire-cone.png", "red_5": "lightning-bolt.png", "green_1": "titanic-leap.png",
+	"green_2": "giant-growth.png", "green_3": "fog.png", "flight": "flying.png", "haste": "haste.png",
+	"double_strike": "doublestrike.png", "trample_strike": "trample.png", "vigilance": "vigilance.png",
+	"roar": "roar.png", "ironbark": "ironbark.png", "melee_combo": "blade-dance.png",
+	"aura_glorious_anthem": "glorious anthem.png", "aura_healing_orb": "healing-orb.png",
+	"aura_rhystic_study": "rhystic-study.png", "aura_orb_of_frost": "orb-of-frost.png",
+	"aura_phyrexian_arena": "phyrexian-arena.png", "aura_grave_pact": "grave-pact.png",
+	"aura_fervor": "fervor.png", "aura_orb_of_fire": "orb-of-fire.png",
+	"aura_sylvan_library": "sylvan-library.png", "aura_trample": "trample.png",
+}
 
 ## Per-spell definition.
 ##   cooldown       seconds before the spell can be cast again
@@ -357,6 +375,19 @@ static func get_color(spell_id: String) -> String:
 	if not SPELLS.has(spell_id):
 		return ""
 	return spell_id.get_slice("_", 0)
+
+
+static func get_icon_path(icon_id: String, fallback_color: String = "") -> String:
+	if ICON_FILES.has(icon_id):
+		var icon_path: String = ICON_ROOT + String(ICON_FILES[icon_id])
+		if ResourceLoader.exists(icon_path):
+			return icon_path
+	var color: String = fallback_color if fallback_color != "" else get_color(icon_id)
+	if ICON_FILES.has(color):
+		var fallback_path: String = ICON_ROOT + String(ICON_FILES[color])
+		if ResourceLoader.exists(fallback_path):
+			return fallback_path
+	return ""
 
 
 ## 1-based tier, or 0 for a non-spell id.

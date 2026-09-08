@@ -517,6 +517,17 @@ func update_locomotion(delta: float, planar_velocity: Vector3, sprinting: bool, 
 	_update_idle(delta)
 
 
+func start_jump(vertical_velocity: float) -> void:
+	if _tree == null or _is_dead or not has_clip(JUMP_CLIP):
+		return
+	_cancel_idle_variation()
+	_request_loco(JUMP_CLIP)
+	var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	var air_time: float = 2.0 * maxf(vertical_velocity, 0.01) / maxf(gravity, 0.01)
+	_cached_jump_scale = _clip_length(JUMP_CLIP) / maxf(air_time, 0.05)
+	_tree.set(PARAM_LOCO_SPEED, clampf(_cached_jump_scale, 0.5, 3.0))
+
+
 ## Standing still: the plain idle loop, with an occasional "looking around" clip so
 ## the character doesn't read as a statue between waves. Any movement, attack or hit
 ## cancels a variation back to the plain loop (see _cancel_idle_variation).

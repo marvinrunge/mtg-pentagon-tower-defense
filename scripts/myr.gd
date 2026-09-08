@@ -204,9 +204,34 @@ func _apply_color_visual(color: String) -> void:
 	# Scale correction: imported models are tiny (~0.016m). We scale them up 100x to match a 1-unit base.
 	visual_instance.scale = Vector3(100, 100, 100)
 	add_child(visual_instance)
+	_ground_visual(visual_instance)
 	visual_anim_player = visual_instance.find_child("AnimationPlayer", true, false)
 	_current_color = color
 	_rest_visual_animation()
+
+
+func _ground_visual(visual_instance: Node3D) -> void:
+	var skeleton: Skeleton3D = visual_instance.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton == null:
+		return
+	var mesh_instance: MeshInstance3D = null
+	for child: Node in skeleton.get_children():
+		if child is MeshInstance3D:
+			mesh_instance = child as MeshInstance3D
+			break
+	if mesh_instance == null:
+		return
+	var local_aabb: AABB = mesh_instance.get_aabb()
+	var min_y: float = INF
+	for corner_idx: int in range(8):
+		var corner: Vector3 = local_aabb.position + Vector3(
+			local_aabb.size.x * float(corner_idx & 1),
+			local_aabb.size.y * float((corner_idx >> 1) & 1),
+			local_aabb.size.z * float((corner_idx >> 2) & 1)
+		)
+		min_y = min(min_y, mesh_instance.global_transform * corner).y
+	if is_finite(min_y):
+		visual_instance.position.y -= min_y - global_position.y
 
 func _play_visual_animation(anim_name: String) -> void:
 	if visual_anim_player.current_animation != anim_name or not visual_anim_player.is_playing():

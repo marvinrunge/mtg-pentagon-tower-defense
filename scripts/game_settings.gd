@@ -124,7 +124,8 @@ extends Node
 ## exactly the old flat rate; higher snaps harder and holds longer. The raise still
 ## finishes exactly as the charge does, whatever this is set to.
 @export var player_heavy_charge_ease: float = 3.0
-@export var player_heavy_damage_mult: float = 1.6
+@export var player_heavy_damage_mult: float = 2.0
+@export var player_heavy_knockback: float = 12.0
 ## Damage multiplier on the THIRD stage of the light chain, which only exists once
 ## the chain extension has been bought in the skill tree.
 @export var player_combo_finisher_damage_mult: float = 1.5
@@ -522,21 +523,21 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_green_giant_attack_slow_cap: float = 1.75
 
 # --- NEUTRAL PASSIVES (the guild nodes between the colours) ---
-# Five ranks each, one skill point per rank, gated on affinity rank 1 in BOTH adjacent
-# colours. Values are the rank-1 minimum and the rank-5 ceiling, walked by rank_fraction.
+# Five ranks each, one skill point per rank, gated only by team level. Values are the
+# rank-1 minimum and the rank-5 ceiling, walked by rank_fraction.
 ## Vigilance (Selesnya, green/white): spells with a duration last this much longer.
 @export var passive_vigilance_duration_min: float = 0.10
 @export var passive_vigilance_duration_max: float = 1.0
 ## Double Strike (Dimir, blue/black): crit chance for ALL player damage, melee and spells.
-@export var passive_crit_chance_min: float = 0.01
-@export var passive_crit_chance_max: float = 0.10
+@export var passive_crit_chance_min: float = 0.10
+@export var passive_crit_chance_max: float = 0.50
 @export var passive_crit_damage_mult: float = 2.0
 ## Trample (Gruul, red/green): melee hits add this fraction of the player's max HP.
-@export var passive_trample_hp_fraction_min: float = 0.005
-@export var passive_trample_hp_fraction_max: float = 0.05
+@export var passive_trample_hp_fraction_min: float = 0.10
+@export var passive_trample_hp_fraction_max: float = 0.50
 ## Haste (Rakdos, black/red): movement speed bonus.
-@export var passive_haste_speed_min: float = 0.02
-@export var passive_haste_speed_max: float = 0.25
+@export var passive_haste_speed_min: float = 0.10
+@export var passive_haste_speed_max: float = 0.50
 ## Flying (Azorius, white/blue): jump height bonus; holding jump while falling glides
 ## at this fraction of normal gravity.
 @export var passive_flight_jump_min: float = 0.5
@@ -785,7 +786,7 @@ func rank_level_requirement(rank: int) -> int:
 @export var run_state_sync_interval: float = 0.25
 @export var upkeep_duration: float = 30.0
 ## What the team pays for one skill point FOR EVERY PLAYER, in any colour.
-@export var upkeep_skill_point_cost: int = 10
+@export var upkeep_skill_point_cost: int = 25
 ## Crystal repair. The only way to undo leakage, and deliberately a PURCHASE rather than
 ## an automatic scaling: the crystal is one shared objective whose maximum stays the same
 ## whether one player is defending it or five, so a team that leaks pays to fix it out of

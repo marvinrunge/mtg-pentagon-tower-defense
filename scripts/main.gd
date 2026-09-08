@@ -10,6 +10,10 @@ class_name MainController
 @onready var nav_region: NavigationRegion3D = $NavigationRegion3D
 @onready var lanes_parent: Node3D = $NavigationRegion3D/Lanes
 @onready var crystal_anchor: Marker3D = $NavigationRegion3D/CrystalAnchor
+@onready var crystal_visual: Node3D = $NavigationRegion3D/MainCrystal
+
+var _crystal_motion_time: float = 0.0
+var _crystal_base_position: Vector3
 
 # Lists of markers for spawners and mana sources (populated from static nodes)
 var mana_sources: Array[Node3D] = []
@@ -38,8 +42,10 @@ func _ready() -> void:
 
 	# The crystal hums for the whole match, from where it hangs rather than from the
 	# anchor on the floor beneath it - the sound is the levitation, not the base.
-	var crystal_visual: Node3D = nav_region.get_node_or_null("MainCrystal") as Node3D
 	if crystal_visual != null:
+		_crystal_base_position = crystal_visual.position
+		_style_crystal_visual()
+		_build_crystal_lights()
 		SoundBank.attach_loop(&"crystal_ambience", crystal_visual)
 
 	# Instantiate Base UI
@@ -76,9 +82,75 @@ func _ready() -> void:
 			var spawner = lane_node.get_node("EnemySpawner")
 			mana_sources.append(mana)
 			enemy_spawners.append(spawner)
-			
+			_add_lane_grass(lane_node, lane_name)
+
 	# Bake navigation mesh
 	call_deferred("bake_map_navigation")
+
+## Scatters the lane's biome grass across its wedge. The lane node is the parent, so
+## the scatter inherits that lane's rotation and can work in a single lane-local frame
+## regardless of which of the five directions it points.
+##
+## Seeded off the lane's index rather than left random, so a lane's grass is laid out
+## the same way every run - a lane that reshuffles itself between runs makes it much
+## harder to tell a real placement bug from noise.
+func _add_lane_grass(lane_node: Node3D, lane_name: String) -> void:
+	var grass := GrassScatter.new()
+	grass.name = "Grass"
+	grass.biome = lane_name.to_lower()
+	grass.random_seed = hash(lane_name)
+	lane_node.add_child(grass)
+
+
+func _process(delta: float) -> void:
+	if crystal_visual == null:
+		return
+	_crystal_motion_time += delta
+	crystal_visual.rotation.y = _crystal_motion_time * 0.22
+	crystal_visual.position = _crystal_base_position + Vector3(
+		0.0,
+		sin(_crystal_motion_time * 0.75) * 0.35,
+		0.0
+	)
+
+func _style_crystal_visual() -> void:
+	for mesh_instance: MeshInstance3D in crystal_visual.find_children("*", "MeshInstance3D", true, false):
+		if mesh_instance.mesh == null:
+			continue
+		for surface_index: int in range(mesh_instance.mesh.get_surface_count()):
+			var source_material: Material = mesh_instance.get_active_material(surface_index)
+			if not source_material is StandardMaterial3D:
+				continue
+			var crystal_material: StandardMaterial3D = (source_material as StandardMaterial3D).duplicate()
+			crystal_material.metallic = 0.72
+			crystal_material.roughness = 0.12
+			crystal_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			var albedo_color: Color = crystal_material.albedo_color
+			albedo_color.a = 0.99
+			crystal_material.albedo_color = albedo_color
+			crystal_material.emission_enabled = false
+			crystal_material.emission_energy_multiplier = 0.0
+			mesh_instance.set_surface_override_material(surface_index, crystal_material)
+
+func _build_crystal_lights() -> void:
+	var light_colors: Array[Color] = [
+		Color(1.0, 0.12, 0.08),
+		Color(0.18, 0.9, 0.3),
+		Color(0.12, 0.42, 1.0),
+		Color(0.62, 0.16, 0.95),
+		Color(1.0, 0.86, 0.62),
+	]
+	var light_radius: float = 2.8
+	for index: int in range(light_colors.size()):
+		var light := OmniLight3D.new()
+		var angle: float = TAU * float(index) / float(light_colors.size())
+		light.name = "CrystalLight%d" % index
+		light.light_color = light_colors[index]
+		light.light_energy = 0.7
+		light.omni_range = 5.0
+		light.shadow_enabled = false
+		light.position = Vector3(cos(angle) * light_radius, 2.6, sin(angle) * light_radius)
+		crystal_visual.add_child(light)
 
 func bake_map_navigation() -> void:
 	print("Baking Navigation Mesh...")

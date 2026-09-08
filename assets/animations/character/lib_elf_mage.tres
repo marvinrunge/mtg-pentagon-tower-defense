@@ -1,4 +1,4 @@
-[gd_resource type="AnimationLibrary" format=3]
+[gd_resource type="AnimationLibrary" format=3 uid="uid://bn8jjx1eqlcsv"]
 
 [sub_resource type="Animation" id="Animation_4cmuj"]
 resource_name = "mixamo_com"
@@ -336,7 +336,7 @@ metadata/hit_ratio = 0.42696628677711057
 
 [sub_resource type="Animation" id="Animation_rxv5w"]
 resource_name = "mixamo_com"
-length = 3.6333333333333333
+length = 3.6333333333333337
 tracks/0/type = "position_3d"
 tracks/0/imported = true
 tracks/0/enabled = true

@@ -49,9 +49,9 @@ Preview a request without consuming credits:
   -DryRun
 ```
 
-Remove `-DryRun` to submit preview and refine tasks. The default workflow requests a low-poly, auto-sized, bottom-origin GLB, then applies PBR textures with baked lighting removed. Output is stored under `assets/generated/<name>/` with a preview image and `.meshy.json` provenance manifest.
+Remove `-DryRun` to submit preview and refine tasks. The default workflow requests a smart-topology, auto-sized, bottom-origin GLB, then applies PBR textures with baked lighting removed. Output is stored under `assets/generated/<name>/` with a preview image and `.meshy.json` provenance manifest.
 
-Use `-PreviewOnly` to evaluate geometry before paying for refinement. Use `-ModelType standard -TargetPolycount 12000` only when low-poly generation cannot deliver the required silhouette. Use `-HdTexture` only for assets that visibly benefit from a 4K base-color map.
+Use `-PreviewOnly` to evaluate geometry before paying for refinement. The default `-ModelType smart-topology` runs Meshy's `meshy-t2` model, which builds directly at `-TargetPolycount` (100-15000, default 4000) with triangle output and natively separated parts - preferred for scattered props that feed a MultiMesh. Use `-ModelType standard -TargetPolycount 12000` only when a hero asset needs detail smart topology cannot deliver; `lowpoly` is deprecated upstream and ignores `target_polycount` entirely. Use `-HdTexture` only for assets that visibly benefit from a 4K base-color map.
 
 After generation:
 

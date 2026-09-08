@@ -9,7 +9,7 @@ playable — no phase leaves the game broken while the next one is built.
 nothing in `project.godot`. But the *gameplay* was already written for more than one
 player, which is a far better starting point than it sounds:
 
-| Already multi-player aware | Where |
+| Already multi-player aware | Where |6
 |---|---|
 | Enemy damage scales with player count | `GameSettings.get_player_scaling_factor()` |
 | Enemies pick targets from the whole player group | `EnemyBase.evaluate_target()` |

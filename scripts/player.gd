@@ -37,13 +37,13 @@ var unlocked_spells_in_path: Array[String] = []
 ## source of truth; `unlocked_spells_in_path` is kept beside it for the code that only
 ## asks "do I have this at all".
 var spell_ranks: Dictionary = {}
-## What each of the five hotbar keys casts, chosen by the PLAYER rather than derived from
+## What each of the ten hotbar keys casts, chosen by the PLAYER rather than derived from
 ## a colour. Empty means the slot is free.
 ##
 ## This is what makes multicolour builds real: a red main can carry Fireball, Fire Dash
 ## and Rain of Ember and still keep a slot for blue's Frostwave, because the slots are a
 ## loadout and not a view of one branch of the tree.
-var quick_slots: Array[String] = ["", "", "", "", ""]
+var quick_slots: Array[String] = ["", "", "", "", "", "", "", "", "", ""]
 ## The rank of the spell currently being cast. Set once where the cast starts and read by
 ## the cast functions, rather than threaded through twenty-five signatures - every one of
 ## them would have to pass it down to the same three helpers anyway.
@@ -147,7 +147,7 @@ var _capstone_orb: Node3D = null
 ## Points earned from team levels and from Upkeep purchases, and how many are already
 ## committed in the tree. Personal: the team levels together, but nobody spends your
 ## points for you.
-var skill_points: int = 0
+var skill_points: int = 2
 var spent_skill_points: int = 0
 
 # --- Spell Cooldowns ---
@@ -186,6 +186,10 @@ const LIGHT_CHAIN_STAGES_EXTENDED := 3
 ## The third stage and beyond, i.e. only ever the last stage of the extended chain.
 const LIGHT_CHAIN_HEAVY_STAGE := 2
 const HEAVY_CLIP := "spin_high"
+const HEAVY_LUNGE_DISTANCE: float = 0.65
+const HEAVY_LUNGE_EXTRA_DISTANCE: float = 0.35
+const HEAVY_LUNGE_EXTRA_START: float = 0.50
+const HEAVY_LUNGE_EXTRA_END: float = 0.70
 
 var animator: PlayerAnimator
 
@@ -218,6 +222,9 @@ var _action_roots_player: bool = false
 ## Only a melee action can be chained out of inside the combo window; a cast's tail
 ## must not become a free combo step.
 var _action_is_melee: bool = false
+## True while the current committed melee is the heavy spin. Heavy swings are a
+## single full-body commitment and must not be retriggered before the first one ends.
+var _action_is_heavy: bool = false
 ## Impact moments still to pay out for the swing in flight, earliest first.
 var _pending_hits: Array[float] = []
 var _attack_damage_mult: float = 1.0
@@ -228,6 +235,7 @@ var _attack_damage_mult: float = 1.0
 ## while dealing nothing like an enemy club's damage.
 var _attack_swing_sound: StringName = &"blade_swing"
 var _attack_impact_sound: StringName = &"blade_hit"
+var _attack_knockback_strength: float = GameSettings.spell_melee_knockback
 ## How hard a connecting impact kicks the camera. Chosen alongside the sounds, for
 ## the same reason: it is a property of the move, not of its damage number.
 var _attack_shake_strength: float = 0.0
@@ -279,6 +287,7 @@ func _ready() -> void:
 		SignalBus.skill_unlocked.connect(_on_skill_unlocked)
 		SignalBus.spell_unlocked.connect(_on_spell_unlocked)
 		SignalBus.melee_combo_unlocked.connect(_on_melee_combo_unlocked)
+	SignalBus.team_level_changed.connect(_on_team_level_changed)
 	
 	# Delay emitting the initial active spell until the HUD is ready
 	call_deferred("_emit_initial_spell")
@@ -492,15 +501,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.is_action_pressed("cycle_spell_next"):
 			cycle_spell(1)
 
-		# Number keys are a real hotbar: they select AND cast, which is what the five
+		# Number keys are a real hotbar: they select AND cast, which is what the ten
 		# slots the HUD already draws look like they do. They mirror "cast_spell"
 		# exactly, press and release, so a chargeable spell charges while the key is
 		# held and fires when it comes up - otherwise 1-5 could start a charge with
 		# no way to release it.
 		if event is InputEventKey and not event.echo:
 			var keycode: int = event.keycode
-			if keycode >= KEY_1 and keycode <= KEY_5:
-				var target_idx: int = keycode - KEY_1
+			var target_idx: int = -1
+			if keycode >= KEY_1 and keycode <= KEY_9:
+				target_idx = keycode - KEY_1
+			elif keycode == KEY_0:
+				target_idx = 9
+			if target_idx >= 0:
 				if event.pressed:
 					if is_spell_unlocked(target_idx):
 						if active_spell_index != target_idx:
@@ -567,7 +580,7 @@ func first_free_quick_slot() -> int:
 ## that declares the property.
 func reset_quick_slots() -> void:
 	quick_slots.clear()
-	for _i: int in range(5):
+	for _i: int in range(10):
 		quick_slots.append("")
 	SignalBus.quick_slots_changed.emit()
 
@@ -945,6 +958,7 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -
 	# The guard comes first: it should soak the hit before shields are spent on it.
 	var was_blocked: bool = can_use_defenses and _blocks_attack_from(source)
 	if was_blocked:
+		SoundBank.play_at(_block_sound_for(source), global_position)
 		remaining_damage *= 1.0 - GameSettings.player_block_damage_reduction
 		animator.play_reaction("block_react", GameSettings.player_block_react_duration)
 		if remaining_damage <= 0.0:
@@ -1615,8 +1629,12 @@ func cast_blue_phantasmal_decoy() -> void:
 ## black_1. A line, not a cone: the blade passes THROUGH everything it touches and misses
 ## everything it does not, which is what makes it a skill shot.
 func cast_black_doom_blade() -> void:
-	var forward: Vector3 = -transform.basis.z
+	var aim_target: Vector3 = _aim_point(GameSettings.spell_black_doom_blade_length, 5)
+	var forward: Vector3 = aim_target - global_position
 	forward.y = 0.0
+	if forward.length_squared() <= 0.001:
+		forward = -transform.basis.z
+		forward.y = 0.0
 	forward = forward.normalized()
 	var length: float = GameSettings.spell_black_doom_blade_length * _rank_area()
 	# "Width (barely)" in the design doc, so barely: a blade that widened with the rest
@@ -2107,6 +2125,34 @@ func _spawn_cast_flash(tint: Color, radius: float) -> void:
 	tween.tween_callback(light.queue_free)
 
 
+func _on_team_level_changed(_level: int, levels_gained: int) -> void:
+	if levels_gained <= 0:
+		return
+	hp = max_hp
+	SignalBus.player_health_changed.emit(hp, max_hp)
+	_spawn_level_up_glow()
+	SoundBank.play_at(&"level_up", global_position)
+
+
+func _spawn_level_up_glow() -> void:
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.91, 0.56)
+	light.light_energy = 0.0
+	light.omni_range = 3.5
+	light.shadow_enabled = false
+	light.position = Vector3(0.0, 4.0, 0.0)
+	add_child(light)
+	var tween: Tween = light.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(light, "light_energy", 8.0, 0.16)
+	tween.tween_property(light, "omni_range", 9.0, 0.35)
+	tween.chain()
+	tween.tween_property(light, "light_energy", 0.0, 0.75)
+	tween.tween_property(light, "omni_range", 3.0, 0.75)
+	tween.chain()
+	tween.tween_callback(light.queue_free)
+
+
 ## The on-screen line every skill uses to explain itself when it did nothing visible -
 ## Zombify with no corpses, Kill on a healthy boss. Silence there is indistinguishable
 ## from a bug.
@@ -2168,6 +2214,7 @@ func _update_actions(delta: float) -> void:
 			_action_duration = 0.0
 			_action_roots_player = false
 			_action_is_melee = false
+			_action_is_heavy = false
 			_pending_hits.clear()
 
 	if _attack_hold_timer >= 0.0:
@@ -2231,24 +2278,10 @@ func _update_heavy_charge(delta: float) -> void:
 	if _heavy_charge_timer < 0.0:
 		if _attack_hold_timer < GameSettings.player_heavy_hold_time or is_blocking:
 			return
-		# Anything else still committed owns the body; the wind-up waits its turn and
-		# starts on whichever later frame the chain window opens.
+		# Once the hold is clearly heavy, commit the full attack immediately. A short
+		# tap is still resolved on release as a normal fast attack.
 		if not _can_start_attack():
 			return
-		if not animator.play_windup(HEAVY_CLIP, GameSettings.player_heavy_charge_max):
-			return
-		_heavy_charge_timer = 0.0
-		animator.set_action_speed(_windup_speed())
-		return
-
-	_heavy_charge_timer += delta
-	if _heavy_charge_timer < GameSettings.player_heavy_charge_max:
-		# Re-timed every frame rather than set once: the raise is meant to slow down
-		# as it goes, and a one-shot cannot ease itself.
-		animator.set_action_speed(_windup_speed())
-		return
-	# Held to the end of the raise. It goes off by itself rather than leaving the
-	# character frozen at the top of a wind-up with the button still down.
 	_attack_hold_timer = -1.0
 	_clear_pending_swing()
 	_start_heavy()
@@ -2308,6 +2341,7 @@ func _start_heavy() -> void:
 	_combo_reset_timer = 0.0
 	_attack_swing_sound = &"blade_heavy_swing"
 	_attack_impact_sound = &"blade_heavy_hit"
+	_attack_knockback_strength = GameSettings.player_heavy_knockback
 	_attack_shake_strength = GameSettings.camera_shake_melee_heavy_strength
 
 	if _heavy_charge_timer >= 0.0:
@@ -2391,6 +2425,7 @@ func _advance_light_chain() -> void:
 	var damage_mult: float = 1.0
 	_attack_swing_sound = &"blade_swing"
 	_attack_impact_sound = &"blade_hit"
+	_attack_knockback_strength = GameSettings.spell_melee_knockback
 	_attack_shake_strength = GameSettings.camera_shake_melee_strength
 	if stage >= LIGHT_CHAIN_HEAVY_STAGE:
 		damage_mult = GameSettings.player_combo_finisher_damage_mult
@@ -2428,6 +2463,7 @@ func _try_kick() -> void:
 	# A boot, not a blade - the same blunt pair an enemy's club uses.
 	_attack_swing_sound = &"blunt_swing"
 	_attack_impact_sound = &"blunt_hit"
+	_attack_knockback_strength = GameSettings.spell_melee_kick_knockback
 	_attack_shake_strength = GameSettings.camera_shake_melee_strength
 	# Rooted despite being a single strike: it is a leg animation, and a walk cycle
 	# running underneath it would destroy it.
@@ -2441,6 +2477,10 @@ func _can_start_attack() -> bool:
 		return false
 	if _action_timer <= 0.0:
 		return true
+	if _action_is_heavy:
+		# A heavy spin is a full-body commitment. It must finish before the player can
+		# trigger another heavy or any follow-up swing from the same committed move.
+		return false
 	if not _action_is_melee:
 		# Mid-cast: the wind-up is a commitment, not a combo step to chain out of.
 		return false
@@ -2509,6 +2549,7 @@ func _commit_action(duration: float, roots: bool, is_melee: bool) -> void:
 	_action_elapsed = 0.0
 	_action_roots_player = roots
 	_action_is_melee = is_melee
+	_action_is_heavy = false
 
 
 ## A swing: commits the player and schedules the impact frames measured inside the
@@ -2516,6 +2557,7 @@ func _commit_action(duration: float, roots: bool, is_melee: bool) -> void:
 func _begin_melee_action(clip: String, duration: float, damage_mult: float, upper_body: bool, window: Vector2 = PlayerAnimator.FULL_WINDOW) -> void:
 	_attack_damage_mult = damage_mult
 	_pending_cast_id = ""
+	_action_is_heavy = clip == HEAVY_CLIP
 	# Heard now, whatever it goes on to hit. The impact is a separate sound scheduled
 	# with the damage below, so a swing through empty air still makes a noise.
 	SoundBank.play_at(_attack_swing_sound, global_position)
@@ -2523,6 +2565,8 @@ func _begin_melee_action(clip: String, duration: float, damage_mult: float, uppe
 	# committed move, and one masked to the upper body is walked through.
 	_begin_action(clip, duration, upper_body, not upper_body, true, window)
 	_pending_hits = animator.hit_times(clip, _action_duration, window)
+	if clip == HEAVY_CLIP and not _pending_hits.is_empty():
+		_pending_hits = [_pending_hits[-1]]
 	if _pending_hits.is_empty():
 		# Nothing measured in this stretch: still land one hit, halfway through.
 		_pending_hits = [_action_duration * 0.5]
@@ -2557,7 +2601,7 @@ func _deal_damage(target: Node, amount: float, is_melee: bool, exile_on_kill: bo
 func _apply_melee_damage(damage_mult: float) -> int:
 	var is_kick: bool = damage_mult < 0.0
 	var reach: float = GameSettings.spell_melee_kick_range if is_kick else GameSettings.spell_melee_range
-	var knockback: float = GameSettings.spell_melee_kick_knockback if is_kick else GameSettings.spell_melee_knockback
+	var knockback: float = GameSettings.spell_melee_kick_knockback if is_kick else _attack_knockback_strength
 	var dmg: float = GameSettings.spell_melee_kick_damage if is_kick else GameSettings.spell_melee_damage * damage_mult
 	dmg *= get_spell_damage_multiplier() * _giant_damage_mult()
 	# Trample (Gruul passive): melee scales off the player's own health pool, which is
@@ -2608,6 +2652,15 @@ func _apply_basic_attack_knockback(enemy: Node3D, strength: float = -1.0) -> voi
 	enemy.apply_knockback(knockback_direction.normalized() * strength)
 
 
+func _heavy_lunge_distance(progress: float) -> float:
+	if progress <= HEAVY_LUNGE_EXTRA_START:
+		return HEAVY_LUNGE_DISTANCE * progress / HEAVY_LUNGE_EXTRA_START
+	if progress <= HEAVY_LUNGE_EXTRA_END:
+		var extra_progress: float = (progress - HEAVY_LUNGE_EXTRA_START) / (HEAVY_LUNGE_EXTRA_END - HEAVY_LUNGE_EXTRA_START)
+		return HEAVY_LUNGE_DISTANCE + HEAVY_LUNGE_EXTRA_DISTANCE * extra_progress
+	return HEAVY_LUNGE_DISTANCE + HEAVY_LUNGE_EXTRA_DISTANCE
+
+
 # --- BLOCK ---
 
 ## Guard state for this frame. Deliberately not gated on a swing being in flight -
@@ -2645,6 +2698,17 @@ func _blocks_attack_from(source: Node3D) -> bool:
 	if to_source.length_squared() <= 0.001:
 		return true
 	return -transform.basis.z.dot(to_source.normalized()) >= GameSettings.player_block_cone
+
+
+func _block_sound_for(source: Node3D) -> StringName:
+	if is_instance_valid(source) and "enemy_data" in source:
+		var data: EnemyData = source.enemy_data as EnemyData
+		if data != null:
+			if data.enemy_class == "Ranged":
+				return &"block_impact_arrow"
+			if data.enemy_class == "Mage":
+				return &"block_impact_magic"
+	return &"block_impact_blunt"
 
 func _physics_process(delta: float) -> void:
 	if not is_local:
@@ -2694,6 +2758,7 @@ func _physics_process(delta: float) -> void:
 
 	if is_local and Input.is_action_just_pressed("jump") and is_on_floor():
 		velocity.y = jump_velocity * (1.0 + get_passive_bonus("flight"))
+		animator.start_jump(velocity.y)
 
 	# Titanic Leap is in the air: gravity and the launch impulse own the player, so
 	# the ordinary movement code below is skipped entirely rather than being allowed
@@ -2829,8 +2894,15 @@ func _physics_process(delta: float) -> void:
 		# Zeroed outright rather than by falling through to move_toward() below:
 		# with current_speed at 0 that call is a no-op, and the player would coast
 		# on at whatever velocity the swing started with.
-		velocity.x = 0.0
-		velocity.z = 0.0
+		var lunge_speed: float = 0.0
+		if _action_is_melee and _attack_swing_sound == &"blade_heavy_swing":
+			var previous_progress: float = clampf((_action_elapsed - delta) / maxf(_action_duration, 0.01), 0.0, 1.0)
+			var current_progress: float = clampf(_action_elapsed / maxf(_action_duration, 0.01), 0.0, 1.0)
+			lunge_speed = (_heavy_lunge_distance(current_progress) - _heavy_lunge_distance(previous_progress)) / maxf(delta, 0.001)
+		var lunge_direction: Vector3 = -transform.basis.z
+		lunge_direction.y = 0.0
+		velocity.x = lunge_direction.normalized().x * lunge_speed
+		velocity.z = lunge_direction.normalized().z * lunge_speed
 	elif direction:
 		velocity.x = direction.x * current_speed
 		velocity.z = direction.z * current_speed

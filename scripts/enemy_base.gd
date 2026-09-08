@@ -197,6 +197,7 @@ func setup(data: EnemyData) -> void:
 		# Scale correction: imported models are tiny (~0.016m). We scale them up 100x to match a 1-unit base.
 		visual_instance.scale = Vector3(100, 100, 100)
 		add_child(visual_instance)
+		_ground_visual(visual_instance)
 		# find_child rather than get_node: it holds for both the melee scenes (player
 		# is a direct child) and the imported boss scenes, without assuming depth.
 		visual_anim_player = visual_instance.find_child("AnimationPlayer", true, false)
@@ -264,6 +265,30 @@ func _build_synchronizer() -> void:
 	sync.replication_config = config
 	sync.set_multiplayer_authority(1)
 	add_child(sync)
+
+
+func _ground_visual(visual_instance: Node3D) -> void:
+	var skeleton: Skeleton3D = visual_instance.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton == null:
+		return
+	var mesh_instance: MeshInstance3D = null
+	for child: Node in skeleton.get_children():
+		if child is MeshInstance3D:
+			mesh_instance = child as MeshInstance3D
+			break
+	if mesh_instance == null:
+		return
+	var local_aabb: AABB = mesh_instance.get_aabb()
+	var min_y: float = INF
+	for corner_idx: int in range(8):
+		var corner: Vector3 = local_aabb.position + Vector3(
+			local_aabb.size.x * float(corner_idx & 1),
+			local_aabb.size.y * float((corner_idx >> 1) & 1),
+			local_aabb.size.z * float((corner_idx >> 2) & 1)
+		)
+		min_y = min(min_y, (mesh_instance.global_transform * corner).y)
+	if is_finite(min_y):
+		visual_instance.position.y -= min_y - global_position.y
 
 
 func _physics_process(delta: float) -> void:
@@ -845,7 +870,7 @@ func perform_mage_spell() -> void:
 			if players.size() > 0 and global_position.distance_to(players[0].global_position) < GameSettings.enemy_red_mage_range:
 				if players[0].has_method("take_damage"):
 					var scaled_damage = enemy_data.attack_damage * GameSettings.get_player_scaling_factor(get_tree())
-					players[0].take_damage(scaled_damage)
+					players[0].take_damage(scaled_damage, self)
 		"Blue":
 			# Slows player
 			var players = get_tree().get_nodes_in_group("player")
