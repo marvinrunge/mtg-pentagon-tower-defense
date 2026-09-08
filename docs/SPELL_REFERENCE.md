@@ -13,7 +13,7 @@ precedence over older skill-tree tooltip text.
 | Affinity rank cost | 1 matching mana |
 | Active spell rank cost | 1 skill point per rank |
 | Active spell level gates | Team levels 1, 3, 5, 7, 9 |
-| Maximum charge time | 2 seconds |
+| Maximum charge time | 5 seconds (`GameSettings.spell_charge_max_time`) |
 | Minimum released charge | 20% |
 | Multicolor access | Any color can be ranked and unlocked |
 | Active hotbar branch | Selected by clicking an unlocked spell or binding it from the skill tree |
@@ -57,7 +57,7 @@ ranks 11-20 grant 1% each, and ranks 21+ grant 0.5% each.
 
 | Tier | Spell | Cost | Cooldown | Charge | Damage | Range / Radius | Details |
 |---:|---|---:|---:|:---:|---:|---:|---|
-| 1 | Unsummon | 1 | 3s | No | 35 | Projectile | Applies 14 knockback. Hitting a wall or obstacle during knockback deals 80 additional impact damage. |
+| 1 | Unsummon | 1 | 3s | No | 35 | Cone | Applies 21 knockback plus 7.5 of upward lift, so enemies are thrown off the ground and land stunned. Hitting a wall or obstacle during knockback deals 80 additional impact damage. |
 | 2 | Frostwave | 1 | 12s | No | Damage / slow | Area | Freezes nearby enemies and damages them; bosses are slowed instead. |
 | 3 | Frost Globe | 1 | 16s | No | Projectile block | Placed sphere | Places an ice sphere that blocks enemy projectiles. |
 | 4 | Suction | 1 | 11s | No | Pull | Area | Pulls nearby enemies into one location. |
@@ -96,7 +96,12 @@ ranks 11-20 grant 1% each, and ranks 21+ grant 0.5% each.
 ## Charge Formulas
 
 Currently, only Fireball is chargeable. Its charge multiplier ranges from `0.2` to
-`1.0` when the cast is released.
+`1.0` when the cast is released - a full-power Fireball therefore takes the whole
+5-second window, and the charge fires by itself once it closes.
+
+The caster is not idle while it builds: the cast clip's lead-in is stretched across the
+charge window, so the wind-up is visibly held for as long as the button is down, and the
+release continues that same animation into the cast (`Player._begin_spell_windup`).
 
 | Spell | Formula |
 |---|---|

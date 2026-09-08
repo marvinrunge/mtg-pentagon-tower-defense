@@ -185,8 +185,12 @@ func _check_blue() -> void:
 	var forward: Vector3 = -_player.transform.basis.z
 	var shoved: EnemyBase = _spawn_enemy(forward * 5.0)
 	_cast("blue_1")
-	_check("blue_1 Unsummon", shoved.knockback_velocity.length() > 0.1 and shoved.stun_timer > 0.0,
-		"knock=%.1f stun=%.1f" % [shoved.knockback_velocity.length(), shoved.stun_timer])
+	# The Y component is asserted separately: the shove throws enemies off the ground as
+	# well as away, and a purely horizontal push would still satisfy a length check.
+	_check("blue_1 Unsummon", shoved.knockback_velocity.length() > 0.1 			and shoved.knockback_velocity.y > 0.0 and shoved.stun_timer > 0.0,
+		"knock=%.1f lift=%.1f stun=%.1f" % [
+			shoved.knockback_velocity.length(), shoved.knockback_velocity.y, shoved.stun_timer])
+	_clear_enemies()
 	_clear_enemies()
 
 	var frozen: EnemyBase = _spawn_enemy(Vector3(3.0, 0.0, 0.0))
@@ -207,7 +211,17 @@ func _check_blue() -> void:
 	var pulled: EnemyBase = _spawn_enemy(pull_dir.normalized() * 6.0)
 	pulled._suction_timer = 0.0
 	_cast("blue_4")
-	_check("blue_4 Suction", not _nodes_of("SuctionZone").is_empty() and pulled._suction_timer > 0.0, "no zone or no pull")
+	# Duration is asserted alongside the pull, because Suction's whole identity is how LONG
+	# it drags: "a zone exists and it pulls" was already true when the zone lasted two and a
+	# half seconds, so it would not have noticed the vortex curve being wrong.
+	var zones: Array[Node] = _nodes_of("SuctionZone")
+	var vortex_life: float = zones[0]._life_timer if not zones.is_empty() else 0.0
+	_check(
+		"blue_4 Suction",
+		not zones.is_empty()
+			and pulled._suction_timer > 0.0
+			and vortex_life >= GameSettings.spell_blue_suction_duration - 0.5,
+		"zones=%d pull=%.2f life=%.1f" % [zones.size(), pulled._suction_timer, vortex_life])
 	_clear_spawned()
 	_clear_enemies()
 
@@ -248,7 +262,21 @@ func _check_black() -> void:
 
 	_clear_spawned()
 	_cast("black_4")
-	_check("black_4 Wall of Souls", not _nodes_of("SoulWall").is_empty(), "no wall placed")
+	var walls: Array[Node] = _nodes_of("SoulWall")
+	# ORIENTATION, not just existence. The wall lies across the approach the caster is
+	# looking down, so its curtain's normal - the quad's local +Z - has to point back along
+	# the aim. A quarter turn out and it lies ALONG the lane instead, which is the one
+	# placement that catches nothing walking down it, and nothing about the node's presence
+	# would have caught that.
+	var aligned: bool = false
+	if not walls.is_empty():
+		var facing: Vector3 = -_player.camera.global_basis.z
+		facing.y = 0.0
+		var normal: Vector3 = walls[0].global_basis.z
+		normal.y = 0.0
+		aligned = absf(facing.normalized().dot(normal.normalized())) > 0.9
+	_check("black_4 Wall of Souls", not walls.is_empty() and aligned,
+		"placed=%s aligned=%s" % [not walls.is_empty(), aligned])
 	_clear_spawned()
 
 	# Zombify needs corpses, so the test makes some the way the game does.

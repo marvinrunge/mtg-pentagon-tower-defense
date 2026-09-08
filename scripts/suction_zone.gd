@@ -9,9 +9,12 @@ class_name SuctionZone
 ## rather than knockback on purpose: the flinch reaction keys off knockback, and a
 ## held pull would otherwise read as one long flinch.
 
+const VORTEX_TINT: Color = Color(0.45, 0.7, 1.0)
+
 var radius: float = 12.0
 var pull_speed: float = 4.0
 var _life_timer: float = 0.0
+var _fx: Node3D
 
 
 static func create(p_radius: float, p_duration: float, p_pull_speed: float) -> SuctionZone:
@@ -21,6 +24,19 @@ static func create(p_radius: float, p_duration: float, p_pull_speed: float) -> S
 	zone._life_timer = p_duration
 	zone.name = "SuctionZone"
 	return zone
+
+
+func _ready() -> void:
+	# The zone runs for ten to thirty seconds. Without a standing effect the player gets one
+	# ring on the cast frame and then a large invisible area that drags things - which reads
+	# as enemies behaving strangely rather than as a spell being in effect.
+	_fx = SpellFx.vortex(radius, VORTEX_TINT, _life_timer)
+	add_child(_fx)
+	# The zone is placed by an aim raycast, which can land on an enemy or a ledge. Its
+	# swirl can hang in the air; its ground MARK cannot.
+	var mark: Node3D = _fx.get_node_or_null("SpellDecal") as Node3D
+	if mark:
+		mark.global_position = SpellFx.ground_transform(self, global_position).origin
 
 
 func _physics_process(delta: float) -> void:

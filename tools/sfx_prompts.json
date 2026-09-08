@@ -101,6 +101,12 @@
       "prompt_influence": 0.72,
       "prompt": "Gentle epic sacred level-up swell: very soft 0.35 second fade-in, warm rising orchestral strings, distant soft French horns, shimmering highs, soaring wordless mixed choir on open vowel ahs, radiant and triumphant without a harsh attack, spacious cathedral reverb, delayed echo on the final choir chord, long luminous decay, polished game sound effect, no lyrics"
     },
+    "skill_unlock": {
+      "skill": "Skill tree node unlock",
+      "duration_seconds": 1.1,
+      "prompt_influence": 0.8,
+      "prompt": "Short crisp magical skill unlock chime: a bright crystalline note blooms into a quick ascending three-note arpeggio, a tiny warm shimmer at the end, clear and rewarding, polished fantasy game interface sound effect, no music, no voice"
+    },
     "block_impact": {
       "skill": "Player guard absorbs hit",
       "duration_seconds": 0.65,

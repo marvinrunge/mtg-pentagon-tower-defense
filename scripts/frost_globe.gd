@@ -19,8 +19,9 @@ class_name FrostGlobe
 var _life_timer: float = 0.0
 var _radius: float = 2.4
 var _mesh: MeshInstance3D
-var _material: StandardMaterial3D
-var _base_alpha: float = 0.24
+var _material: ShaderMaterial
+
+const SHELL_SHADER := "res://assets/shaders/frost_globe.gdshader"
 
 
 static func create(radius: float, duration: float) -> FrostGlobe:
@@ -57,20 +58,19 @@ func _ready() -> void:
 	sphere_mesh.radius = _radius
 	sphere_mesh.height = _radius * 2.0
 	_mesh.mesh = sphere_mesh
-	_material = StandardMaterial3D.new()
-	# High frost, low alpha: the colour rides on emission and a hard rim rather than on
-	# the surface, so it reads as glowing ice haze rather than as a painted balloon.
-	_material.albedo_color = Color(0.7, 0.92, 1.0, _base_alpha)
-	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_material.emission_enabled = true
-	_material.emission = Color(0.5, 0.85, 1.0)
-	_material.emission_energy_multiplier = 2.2
-	_material.rim_enabled = true
-	_material.rim = 1.0
-	_material.rim_tint = 0.9
-	# Drawn from both sides so the player standing inside their own globe can still see
-	# out of it rather than facing a wall of backface culling.
-	_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Fresnel and crystal veins, from assets/shaders/frost_globe.gdshader. A StandardMaterial
+	# could only give this a flat tint and a rim, which is what made it read as a painted
+	# balloon rather than as ice - there was no structure anywhere on the surface.
+	_material = ShaderMaterial.new()
+	_material.shader = load(SHELL_SHADER) as Shader
+	# Above Sky3D's fog pass - see SpellFx.FX_RENDER_PRIORITY.
+	_material.render_priority = SpellFx.FX_RENDER_PRIORITY
+	_material.set_shader_parameter("tint", Color(0.72, 0.93, 1.0))
+	_material.set_shader_parameter("frost_noise", _frost_noise())
+	# Tied to the globe's own size, so a rank-5 globe is not the same pattern magnified -
+	# the crystals stay the size crystals are.
+	_material.set_shader_parameter("crystal_scale", maxf(_radius * 0.22, 0.15))
+	_material.set_shader_parameter("fade", 0.0)
 	_mesh.material_override = _material
 	add_child(_mesh)
 
@@ -87,6 +87,23 @@ func _ready() -> void:
 	scale = Vector3.ONE * 0.2
 	var tween: Tween = create_tween()
 	tween.tween_property(self, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## Seamless simplex, the same trick the soul curtain uses: the crystal pattern is one
+## channel of noise the shader cuts thin ridges out of, which no authored texture would
+## describe better and which tiles perfectly by construction.
+func _frost_noise() -> NoiseTexture2D:
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.seed = 20931
+	noise.frequency = 0.022
+	noise.fractal_octaves = 3
+	var texture := NoiseTexture2D.new()
+	texture.width = 256
+	texture.height = 256
+	texture.seamless = true
+	texture.noise = noise
+	return texture
 
 
 ## A projectile caught by the shield simply never arrives. The globe's reason to exist
@@ -134,4 +151,4 @@ func _process(delta: float) -> void:
 	# Fades over its last second, so the cover disappearing is something the player can
 	# see coming rather than something they notice by being shot.
 	if _life_timer < 1.0:
-		_material.albedo_color.a = _base_alpha * _life_timer
+		_material.set_shader_parameter("fade", 1.0 - _life_timer)

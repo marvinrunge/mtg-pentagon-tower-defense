@@ -5,24 +5,12 @@ class_name BaseUI
 @onready var build_btn: Button = $Panel/MarginContainer/VBoxContainer/BuildButton
 
 var main_controller: Node3D
-var skill_list_container: VBoxContainer
+
 
 func _ready() -> void:
 	hide()
 	build_btn.pressed.connect(_on_build_pressed)
-	
-	# Dynamically add skill unlock UI
-	var sep = HSeparator.new()
-	$Panel/MarginContainer/VBoxContainer.add_child(sep)
-	
-	var title = Label.new()
-	title.text = "Unlock Skills"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 18)
-	$Panel/MarginContainer/VBoxContainer.add_child(title)
-	
-	skill_list_container = VBoxContainer.new()
-	$Panel/MarginContainer/VBoxContainer.add_child(skill_list_container)
+
 
 func open(main_ref: Node3D) -> void:
 	main_controller = main_ref
@@ -40,6 +28,11 @@ func _input(event: InputEvent) -> void:
 		close()
 		get_viewport().set_input_as_handled()
 
+## Lane order, and the mana colour each one is. Used for the assignment icons; the indices
+## are MainController.mana_sources' own order, so this cannot drift from the lanes.
+const LANE_COLORS: Array[String] = ["white", "blue", "black", "red", "green"]
+
+
 func refresh_ui() -> void:
 	if not main_controller:
 		return
@@ -50,8 +43,14 @@ func refresh_ui() -> void:
 		
 	var active_myrs = get_tree().get_nodes_in_group("myrs")
 
-	build_btn.text = "Build Myr (Cost: %d Any Mana) - Built: %d" % [GameSettings.myr_mana_cost, active_myrs.size()]
-	build_btn.disabled = RunState.total_mana() < GameSettings.myr_mana_cost
+	# The count is shown against the cap, not on its own: "Built: 10" tells the player
+	# nothing about why the button stopped working.
+	var at_cap: bool = active_myrs.size() >= GameSettings.myr_max_count
+	build_btn.text = "Build Myr (Cost: %d Any Mana) - Built: %d/%d" % [
+		GameSettings.myr_mana_cost, active_myrs.size(), GameSettings.myr_max_count]
+	if at_cap:
+		build_btn.text = "Myr Limit Reached (%d/%d)" % [active_myrs.size(), GameSettings.myr_max_count]
+	build_btn.disabled = at_cap or RunState.total_mana() < GameSettings.myr_mana_cost
 
 	# How full each well already is, shown on the lane buttons so "the well is full"
 	# is visible before the click that would be refused.
@@ -64,66 +63,71 @@ func refresh_ui() -> void:
 		var myr = active_myrs[i]
 		var hbox = HBoxContainer.new()
 
-		var lbl = Label.new()
-		lbl.text = "Myr " + str(i + 1) + "  "
-		hbox.add_child(lbl)
+		# Named, not numbered. A player who has bought four levels into one myr has a
+		# relationship with it, and "Myr 3" is not a name for something you have invested
+		# in - it is also wrong the moment an earlier myr dies and the numbering shifts.
+		var name_field := LineEdit.new()
+		name_field.custom_minimum_size = Vector2(120.0, 0.0)
+		name_field.placeholder_text = "Myr %d" % (i + 1)
+		name_field.text = myr.display_name
+		name_field.max_length = 18
+		name_field.tooltip_text = "Name this myr"
+		# Stored as it is typed rather than on submit: the list is rebuilt by any other
+		# action in this panel, and a name only committed on Enter would be lost by
+		# clicking a lane button next to it.
+		name_field.text_changed.connect(func(text: String) -> void: myr.display_name = text)
+		hbox.add_child(name_field)
+
+		var level_btn := Button.new()
+		var next_level: int = myr.level + 1
+		var level_cost: int = GameSettings.myr_level_cost * next_level
+		if myr.level >= GameSettings.myr_max_level:
+			level_btn.text = "Lv %d MAX" % myr.level
+			level_btn.disabled = true
+		else:
+			level_btn.text = "Lv %d  +%d" % [myr.level, level_cost]
+			level_btn.disabled = RunState.total_mana() < level_cost
+			level_btn.pressed.connect(_level_up.bind(myr, level_cost))
+		level_btn.tooltip_text = "Level %d: %d health, carries %d mana per trip" % [
+			myr.level,
+			int(myr.max_health),
+			myr.carry_amount()]
+		level_btn.custom_minimum_size = Vector2(88.0, 34.0)
+		hbox.add_child(level_btn)
 
 		var current_lane = myr.lane_index
 
-		var w_btn = Button.new()
-		w_btn.text = "W" + slot_suffixes[0]
-		w_btn.add_theme_color_override("font_color", Color.WHITE)
-		if current_lane == 0: w_btn.disabled = true
-		w_btn.pressed.connect(func(): _assign(myr, 0))
-		hbox.add_child(w_btn)
+		# One button per lane, drawn with the same mana symbol the HUD and the skill tree
+		# use. A row of letters made the player translate "U" into blue every time they
+		# assigned a myr, when the icon is the thing they already recognise everywhere else.
+		# The slot count stays as text beside it - that is a number, and a number has no
+		# icon.
+		for lane: int in range(LANE_COLORS.size()):
+			var button := Button.new()
+			button.icon = load(SpellDatabase.get_icon_path(LANE_COLORS[lane])) as Texture2D
+			# Scaled to the button rather than drawn at its own size, which for these
+			# symbols is far larger than a row of five of them can be.
+			button.expand_icon = true
+			button.custom_minimum_size = Vector2(64.0, 34.0)
+			button.text = slot_suffixes[lane].strip_edges()
+			button.tooltip_text = "Send this myr to the %s well" % LANE_COLORS[lane]
+			button.disabled = current_lane == lane
+			button.pressed.connect(_assign.bind(myr, lane))
+			hbox.add_child(button)
 
-		var u_btn = Button.new()
-		u_btn.text = "U" + slot_suffixes[1]
-		u_btn.add_theme_color_override("font_color", Color(0.3,0.5,1))
-		if current_lane == 1: u_btn.disabled = true
-		u_btn.pressed.connect(func(): _assign(myr, 1))
-		hbox.add_child(u_btn)
-
-		var b_btn = Button.new()
-		b_btn.text = "B" + slot_suffixes[2]
-		b_btn.add_theme_color_override("font_color", Color.GRAY)
-		if current_lane == 2: b_btn.disabled = true
-		b_btn.pressed.connect(func(): _assign(myr, 2))
-		hbox.add_child(b_btn)
-		
-		var r_btn = Button.new()
-		r_btn.text = "R" + slot_suffixes[3]
-		r_btn.add_theme_color_override("font_color", Color.RED)
-		if current_lane == 3: r_btn.disabled = true
-		r_btn.pressed.connect(func(): _assign(myr, 3))
-		hbox.add_child(r_btn)
-		
-		var g_btn = Button.new()
-		g_btn.text = "G" + slot_suffixes[4]
-		g_btn.add_theme_color_override("font_color", Color.GREEN)
-		if current_lane == 4: g_btn.disabled = true
-		g_btn.pressed.connect(func(): _assign(myr, 4))
-		hbox.add_child(g_btn)
-		
 		myr_list_container.add_child(hbox)
 		
-	# Open Skill Tree Button
-	for child in skill_list_container.get_children():
-		child.queue_free()
-		
-	var st_btn = Button.new()
-	st_btn.custom_minimum_size = Vector2(0, 45)
-	st_btn.text = "OPEN MTG SKILL TREE (Press 'K')"
-	st_btn.pressed.connect(_open_skill_tree)
-	skill_list_container.add_child(st_btn)
 
-func _open_skill_tree() -> void:
-	var st = get_tree().current_scene.get_node_or_null("SkillTree")
-	if st:
-		close()
-		st.show()
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		st.update_ui()
+## Buys one level for `myr`. The mana is spent first and the level only applied if that
+## succeeded, so a purchase that could not be paid for changes nothing.
+func _level_up(myr: Node3D, cost: int) -> void:
+	if myr.level >= GameSettings.myr_max_level:
+		return
+	if not RunState.spend({"Colorless": cost}):
+		return
+	myr.set_level(myr.level + 1)
+	refresh_ui()
+
 
 func _on_build_pressed() -> void:
 	if RunState.spend({"Colorless": GameSettings.myr_mana_cost}):

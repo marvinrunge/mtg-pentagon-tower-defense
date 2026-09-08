@@ -18,7 +18,15 @@ extends Node
 ## Phase 1 of docs/MULTIPLAYER_PLAN.md lands. Everything downstream already scales -
 ## enemy damage, target selection and the Upkeep vote threshold all read the count.
 @export var player_count: int = 1
-@export var player_base_speed: float = 6.0
+## Matched to what the animation pack was authored for, rather than chosen first and
+## patched over afterwards. run_forward covers 2.47 m/s at its own recorded speed, so
+## moving at 2.5 plays that cycle at 1.0x - the legs turn over exactly as animated,
+## with no stretching and no sliding.
+##
+## This is a large cut from the original 6.0, and it is the whole cost of playing the
+## clips untouched: a 144 m lane now takes about a minute to cross on foot. Raising it
+## does not break anything, it just reintroduces sped-up playback in proportion.
+@export var player_base_speed: float = 2.5
 @export var player_sprint_speed_mult: float = 1.5
 @export var player_jump_velocity: float = 4.5
 @export var player_mouse_sensitivity: float = 0.002
@@ -72,7 +80,11 @@ extends Node
 ## How far a locomotion clip may be sped up or slowed down to match real velocity
 ## before the feet start reading as skating either way.
 @export var player_locomotion_speed_min: float = 0.6
-@export var player_locomotion_speed_max: float = 1.8
+## 1.5 rather than the old 1.8 or the 2.6 that a 5 m/s base needed. With base speed
+## matched to the clips, ordinary movement and blocking both land on 1.0x and never
+## come near this; it exists for sprint, which at 1.5x base wants exactly 1.5x playback
+## - a genuine sprint turning the legs over faster, not a walk pretending to be one.
+@export var player_locomotion_speed_max: float = 1.5
 ## Cross-fade lengths. Locomotion changes often, so it gets the longer blend;
 ## a strike has to land on the frame it says it does.
 @export var player_anim_blend_locomotion: float = 0.16
@@ -157,6 +169,8 @@ extends Node
 @export var sfx_positional_voices: int = 16
 @export var sfx_flat_voices: int = 4
 @export var sfx_volume_db: float = -6.0
+@export var music_enabled: bool = true
+@export var music_volume_db: float = -6.0
 ## Random detune either side of 1.0, so a handful of recordings survive being heard
 ## thousands of times without reading as a loop.
 @export var sfx_pitch_jitter: float = 0.08
@@ -238,6 +252,19 @@ extends Node
 ## a hit to count as coming from the front. 0.35 is roughly a 140-degree arc.
 @export var player_block_cone: float = 0.35
 @export var player_block_speed_mult: float = 0.4
+
+## Movement while a fight is still live, as a fraction of base speed.
+##
+## Exists because the animation follows the same rule: mid-fight the legs stay on the
+## armed walk cycle, which covers 0.99 m/s. Running at full base speed on a walk cycle
+## is exactly the foot-sliding this pass set out to remove, so combat movement is
+## brought down to meet the clip rather than the clip stretched to meet it.
+@export var player_combat_speed_mult: float = 0.45
+
+## How long after the last swing, cast or block the player still counts as fighting.
+## Long enough that walking between two hits does not flicker back to the travel run,
+## short enough that leaving a fight lets you break into a run promptly.
+@export var player_combat_linger: float = 0.5
 ## Bosses swing straight through a guard - blocking one does nothing.
 @export var player_block_ignores_boss: bool = true
 ## How long the guard-flinch clip is squeezed into. Does not take control away -
@@ -268,12 +295,28 @@ extends Node
 @export var spell_stab_debuff_duration: float = 8.0
 @export var spell_unsummon_teleport_distance: float = 15.0
 
-# Infinite color affinity ranks. Rank 1-10 grants 2% each, 11-20 grants
-# 1% each, and every rank after 20 grants 0.5%.
+# Infinite color affinity ranks. Every rank grants a constant 10% bonus.
 @export var affinity_rank_mana_cost: int = 1
-@export var affinity_rank_bonus_early: float = 0.02
-@export var affinity_rank_bonus_mid: float = 0.01
-@export var affinity_rank_bonus_late: float = 0.005
+@export var affinity_rank_bonus_base: float = 0.10
+@export var affinity_rank_bonus_early: float = 0.10
+@export var affinity_rank_bonus_mid: float = 0.10
+@export var affinity_rank_bonus_late: float = 0.10
+## How much a player must have INVESTED IN A COLOUR to reach its Nth tier of spell, and
+## its Nth rank of any of them. One ladder for both, because unlocking and deepening are
+## the same question asked twice - "how committed are you to this colour" - and answering
+## it with two unrelated systems is what made the old tree hard to reason about.
+##
+## Investment is counted by Player.color_investment: the colour's affinity ranks plus every
+## rank held in its five spells. Not the affinity node alone - a player who has poured six
+## points into Fireball has committed to red whether or not they bought a second affinity
+## rank, and the ladder should see that.
+##
+## This REPLACED a team-level gate. The old rule froze a player out of their own colour on
+## a clock they could not influence; this one is entirely in their hands, which is why the
+## numbers can be this steep.
+@export var color_investment_ladder: Array[int] = [1, 2, 5, 7, 10]
+## Kept only for save compatibility and the detail panel's old wording. Nothing gates on it
+## any more - see color_investment_ladder.
 @export var affinity_spell_rank_requirements: Array[int] = [1, 5, 10, 15, 25]
 ## How deep into a colour the capstone fork sits, and what taking it costs. One purchase,
 ## expensive, permanent for the run - and only ONE across all five colours, because the
@@ -281,6 +324,16 @@ extends Node
 ## build gets named after, so it is deliberately out of reach of a casual splash.
 @export var capstone_rank_requirement: int = 20
 @export var capstone_skill_point_cost: int = 3
+
+## How long a chargeable spell (SpellDatabase "chargeable") can be held before it fires
+## on its own, and therefore how long a full-power cast takes to build. The release
+## scales the payload by how much of this window was actually held - Fireball's radius
+## and damage both ride that fraction (Player.cast_red_fireball) - with a floor of 20%
+## for a tap, so a quick cast is weak rather than nothing.
+##
+## The cast clip's discarded lead-in is stretched across this window, so the caster
+## visibly winds the spell up for as long as it is held (Player._begin_spell_windup).
+@export var spell_charge_max_time: float = 5.0
 
 # Per-spell cooldowns moved to scripts/spell_database.gd, which owns one row per
 # spell. Tier costs stay here: they are shared tuning, not per-spell data.
@@ -303,7 +356,15 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_fervor_speed_boost: float = 1.15
 
 # --- BLUE SKILLS ---
-@export var spell_blue_unsummon_knockback: float = 14.0
+@export var spell_blue_unsummon_knockback: float = 21.0
+## How hard the shove also throws them UPWARD. A purely horizontal push slid enemies
+## along the floor like furniture; lifting them makes the same shove read as a blast that
+## picked them up, and it is what turns the landing into an event the player can watch.
+##
+## Not a full launch: at this against gravity the arc peaks about a metre up and is over
+## in well under a second, so the stun that follows still lands on an enemy standing on
+## the ground rather than one floating out of reach.
+@export var spell_blue_unsummon_lift: float = 7.5
 @export var spell_blue_unsummon_damage: float = 35.0
 @export var spell_blue_unsummon_impact_damage: float = 80.0
 @export var spell_blue_freeze_breath_shatter_damage: float = 90.0
@@ -387,7 +448,16 @@ func get_tier_cost(tier_index: int) -> int:
 ## counterplay, and a yank that nothing can escape removes it.
 @export var spell_blue_suction_radius: float = 12.0
 @export var spell_blue_suction_pull_speed: float = 4.0
-@export var spell_blue_suction_duration: float = 2.5
+## Suction is the one spell whose whole identity is DURATION: a vortex that keeps pulling
+## for as long as it stands, rather than a shove. Its rank curve is written out rather than
+## riding rank_duration_mult, because the numbers are the design - 10 / 15 / 20 / 25 / 30
+## seconds - and a generic multiplier would only approximate them.
+##
+## Note the cooldown (11s, SpellDatabase) is SHORTER than the duration at every rank past
+## the first, so a high-rank Suction can have two or three vortexes running at once. That is
+## a deliberate consequence of the curve, not an oversight.
+@export var spell_blue_suction_duration: float = 10.0
+@export var spell_blue_suction_duration_max: float = 30.0
 ## Phantasmal Decoy (blue_5)
 @export var spell_blue_decoy_hp: float = 260.0
 @export var spell_blue_decoy_duration: float = 12.0
@@ -437,7 +507,11 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_red_bolt_damage: float = 230.0
 @export var spell_red_bolt_radius: float = 2.8
 @export var spell_red_bolt_delay: float = 0.55
-@export var spell_red_bolt_range: float = 30.0
+## Effectively unlimited: the bolt lands wherever the crosshair meets the ground, however
+## far that is. It is the one spell aimed at a POINT rather than around the caster, and a
+## 30-unit cap meant the strike silently landed short of what the player was looking at -
+## which reads as the spell missing rather than as a range limit.
+@export var spell_red_bolt_range: float = 500.0
 
 # --- GREEN: primal vitality ---
 ## Giant Growth (green_2). The bonus HP is a multiple of player_max_hp, so green's own
@@ -611,6 +685,16 @@ func rank_count(base: int, top: int, rank: int) -> int:
 
 
 ## The team level this rank needs. Rank 1 is the unlock itself.
+## What the colour-investment ladder asks for at tier or rank `step` (1-based). Clamped
+## rather than wrapped, so a sixth step - if one is ever added - inherits the last rung
+## instead of silently costing nothing.
+func color_investment_requirement(step: int) -> int:
+	if color_investment_ladder.is_empty():
+		return 0
+	var index: int = clampi(step - 1, 0, color_investment_ladder.size() - 1)
+	return color_investment_ladder[index]
+
+
 func rank_level_requirement(rank: int) -> int:
 	if spell_rank_level_requirements.is_empty():
 		return 1
@@ -839,6 +923,21 @@ const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
 @export var myr_harvest_time: float = 10.0
 @export var myr_deposit_time: float = 1.0
 @export var myr_mana_cost: int = 2
+## How many myrs can exist at once. A hard cap rather than a soft economic one: past this
+## the base screen stops being a list anybody reads, and five wells of five slots cannot
+## usefully absorb more than this many anyway.
+@export var myr_max_count: int = 10
+## Levels are bought per myr in the base. Rank 1 is the myr as built.
+@export var myr_max_level: int = 5
+## Flat health added per level past the first. A levelled myr is meant to SURVIVE a leaked
+## enemy, which is the thing that actually costs the player a harvest run.
+@export var myr_level_hp_bonus: float = 25.0
+## Extra mana carried home per trip, per level. At 1 a level-3 myr brings back three where
+## it used to bring one - the levelling is worth more than a second myr long before the
+## count cap is reached, which is the point of having a cap at all.
+@export var myr_level_carry_bonus: int = 1
+## Mana the next level costs, multiplied by the level being bought - so 2, 4, 6, 8.
+@export var myr_level_cost: int = 2
 ## A well has room for this many Myrs standing around it, Warcraft-mine style. More
 ## than that is what wedged them against the model, so the base UI refuses the sixth.
 @export var myr_well_max_slots: int = 5

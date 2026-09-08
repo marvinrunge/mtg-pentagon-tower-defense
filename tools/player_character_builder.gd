@@ -103,8 +103,12 @@ const SPAN_LEAD_OUT_OVERRIDE := {
 const MIN_HIT_SEPARATION := 0.18
 
 ## clip name -> [source fbx (relative to PLAYER_ROOT), loop, trim policy].
-## Deliberately excludes the unarmed/* and crouch* sets - the player is always
-## armed, per the 2026-08-30 instruction.
+##
+## The crouch* set stays excluded. The unarmed set is no longer excluded wholesale:
+## the 2026-08-30 "player is always armed" instruction held for everything the player
+## does with the weapon, but the armed run reads badly at travel speed, so the two
+## unarmed run cycles are pulled in for out-of-combat sprinting only. Everything a
+## fight touches - walking under guard, attacking, casting - still uses the armed set.
 const CLIPS := {
 	# --- locomotion ---
 	"idle": ["standing idle.fbx", true, Trim.NONE],
@@ -116,6 +120,10 @@ const CLIPS := {
 	"walk_right": ["standing walk right.fbx", true, Trim.NONE],
 	"run_forward": ["standing run forward.fbx", true, Trim.NONE],
 	"run_back": ["standing run back.fbx", true, Trim.NONE],
+	# Travel cycles: used when sprinting with no fight in progress. See the note above
+	# for why these two are the exception to the armed-only rule.
+	"run_forward_unarmed": ["unarmed run forward.fbx", true, Trim.NONE],
+	"run_back_unarmed": ["unarmed run back.fbx", true, Trim.NONE],
 	"jump": ["standing jump.fbx", false, Trim.NONE],
 	# --- attacks (trimmed to the swing) ---
 	# The player has exactly two melee moves. The light attack is the combo_3

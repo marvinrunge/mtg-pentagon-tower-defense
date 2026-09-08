@@ -46,6 +46,10 @@ signal enchantment_changed(color: String, stacks: int)
 ## A player joined or left the run.
 signal players_changed(count: int)
 
+## Raised whenever a full-screen menu opens or closes over the game. The HUD listens so the
+## gameplay readouts can get out of the way - a skill tree read through a crosshair, a
+## hotbar and a minimap is a skill tree nobody can read.
+signal menu_opened(menu: String, is_open: bool)
 signal interact_prompt_changed(text: String, visible: bool)
 signal damage_number_requested(pos: Vector3, amount: float, color: Color)
 signal enemy_health_bars_visibility_changed(is_enabled: bool)

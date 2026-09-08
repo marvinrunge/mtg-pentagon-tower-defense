@@ -71,6 +71,15 @@ func _ready() -> void:
 	lobby.name = "Lobby"
 	add_child(lobby)
 
+	# Nights pass faster than days. Sky3D's own clock is linear, so this cannot be a
+	# setting on it - see DayNightPacing.
+	var sky: Node = get_node_or_null("Sky3D")
+	if sky:
+		var pacing := DayNightPacing.new()
+		pacing.name = "DayNightPacing"
+		pacing.phase_changed.connect(SoundBank.set_gameplay_music)
+		sky.add_child(pacing)
+
 	RunState.reset()
 	
 	# Populate mana sources and spawners from the static lanes
@@ -122,8 +131,13 @@ func _style_crystal_visual() -> void:
 			if not source_material is StandardMaterial3D:
 				continue
 			var crystal_material: StandardMaterial3D = (source_material as StandardMaterial3D).duplicate()
-			crystal_material.metallic = 0.72
-			crystal_material.roughness = 0.12
+			# The five coloured lights only read on the crystal if it has a diffuse term
+			# to catch them with. At the previous metallic 0.72 it had almost none - a
+			# metallic surface reflects rather than scatters - and roughness 0.12 made it
+			# near-mirror, so the lights showed up as five pinpoint dots and nothing else.
+			# Enough metallic is kept for the faces to stay glassy rather than chalky.
+			crystal_material.metallic = 0.15
+			crystal_material.roughness = 0.35
 			# Opaque. It used to run TRANSPARENCY_ALPHA at 0.99 alpha, which bought a
 			# barely-perceptible see-through and cost real problems: an alpha material
 			# writes no depth by default, so it lands in the sorted transparent queue
@@ -135,6 +149,11 @@ func _style_crystal_visual() -> void:
 			crystal_material.emission_enabled = false
 			crystal_material.emission_energy_multiplier = 0.0
 			mesh_instance.set_surface_override_material(surface_index, crystal_material)
+## Reach of each of the five coloured lights ringing the crystal. Generous on purpose:
+## the crystal visual is scaled 5x, so the previous range of 5 barely cleared the mesh
+## itself and none of the colour reached the ground around the base.
+const CRYSTAL_LIGHT_RANGE: float = 50.0
+
 
 func _build_crystal_lights() -> void:
 	var light_colors: Array[Color] = [
@@ -144,16 +163,24 @@ func _build_crystal_lights() -> void:
 		Color(0.62, 0.16, 0.95),
 		Color(1.0, 0.86, 0.62),
 	]
-	var light_radius: float = 2.8
+	# How far out from the crystal's axis the five lights sit - the size of the ring,
+	# not the reach of the lights.
+	var light_ring_radius: float = 2.8
 	for index: int in range(light_colors.size()):
 		var light := OmniLight3D.new()
 		var angle: float = TAU * float(index) / float(light_colors.size())
 		light.name = "CrystalLight%d" % index
 		light.light_color = light_colors[index]
+		# Energy deliberately left where it was. Widening the range does brighten the
+		# light at any given distance, since Godot spreads the falloff across the whole
+		# range - but checked side by side at night, 0.7 holds up and dimming it just
+		# took back the extra reach.
 		light.light_energy = 0.7
-		light.omni_range = 5.0
+		light.omni_range = CRYSTAL_LIGHT_RANGE
 		light.shadow_enabled = false
-		light.position = Vector3(cos(angle) * light_radius, 2.6, sin(angle) * light_radius)
+		light.position = Vector3(
+			cos(angle) * light_ring_radius, 2.6, sin(angle) * light_ring_radius
+		)
 		crystal_visual.add_child(light)
 
 func bake_map_navigation() -> void:
@@ -330,7 +357,17 @@ func _spawn_enemy(data: Variant) -> Node:
 func spawn_myr() -> Node3D:
 	if not Net.is_server():
 		return null
+	# Enforced here rather than only on the button, so nothing else in the game can route
+	# around the cap by calling this directly.
+	if myr_count() >= GameSettings.myr_max_count:
+		return null
 	return $MyrNetSpawner.spawn({}) as Node3D
+
+
+## Myrs alive right now. The group is the roster - there is no separate list to keep in
+## step with it.
+func myr_count() -> int:
+	return get_tree().get_nodes_in_group("myrs").size()
 
 
 ## Claims a harvest slot at `lane_index`'s well for `myr`, and hands the Myr the

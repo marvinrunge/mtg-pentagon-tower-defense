@@ -49,6 +49,13 @@ const JUMP_CLIP := "jump"
 const DEATH_CLIP := "death"
 const IDLE_VARIATIONS := ["idle_look_1", "idle_look_2"]
 
+## Travel cycles, used only when sprinting with no fight in progress. The armed run
+## reads badly at speed - the weapon pins the arms and the whole stride goes stiff -
+## so covering ground borrows the unarmed cycles instead. Anything a fight touches
+## stays on the armed set.
+const RUN_FORWARD_TRAVEL := "run_forward_unarmed"
+const RUN_BACK_TRAVEL := "run_back_unarmed"
+
 ## Clips that live on the locomotion layer, i.e. can be cross-faded into as the
 ## character's resting state. `reset` restarts the clip on entry: wanted for the
 ## one-shot-ish ones, unwanted for the loops (it would jerk the stride every time
@@ -61,6 +68,8 @@ const LOCOMOTION_CLIPS := {
 	"walk_right": false,
 	"run_forward": false,
 	"run_back": false,
+	"run_forward_unarmed": false,
+	"run_back_unarmed": false,
 	"block_idle": false,
 	"idle_look_1": true,
 	"idle_look_2": true,
@@ -301,6 +310,17 @@ func release_time(clip: String, duration: float, use_last: bool = false) -> floa
 
 # --- things the combat code makes happen -------------------------------------
 
+## Where `clip` releases, in seconds from the START of the stored clip rather than as a
+## time within the played window - the same relationship hit_offsets() has to hit_times().
+## What a cast continuing out of its own wind-up needs, since its playhead is measured
+## against the whole clip rather than against the strike window alone.
+func release_offset(clip: String, use_last: bool = false) -> float:
+	var offsets: Array[float] = hit_offsets(clip)
+	if offsets.is_empty():
+		return windup_length(clip) + strike_length(clip) * 0.5
+	return offsets[-1] if use_last else offsets[0]
+
+
 ## Fires `clip` over `duration` seconds, speeding it up or slowing it down to fit.
 ##
 ## `upper_body` decides whether the legs keep walking underneath. Pass true for a
@@ -367,11 +387,15 @@ func hit_offsets(clip: String) -> Array[float]:
 ## the exact moment a full-length charge completes, and the swing would then have to
 ## blend in from idle rather than continue the raise. release_windup() speeds this
 ## same shot up instead of firing another one.
-func play_windup(clip: String, duration: float) -> bool:
+## `upper_body` is the same switch play_action() takes: false for a move that owns the
+## whole body (the heavy's raise, which roots the player anyway), true for one the player
+## can keep walking through - a held spell, where the legs staying on their cycle is what
+## lets the caster reposition while the charge builds.
+func play_windup(clip: String, duration: float, upper_body: bool = false) -> bool:
 	var lead_in: float = windup_length(clip)
 	if _tree == null or _is_dead or lead_in <= 0.0:
 		return false
-	_fire_shot(clip, 0.0, lead_in + strike_length(clip), lead_in / maxf(duration, 0.01), duration, false)
+	_fire_shot(clip, 0.0, lead_in + strike_length(clip), lead_in / maxf(duration, 0.01), duration, upper_body)
 	return true
 
 
@@ -481,7 +505,14 @@ func revive() -> void:
 ## playing: the legs have to keep walking underneath a filtered swing. A full-body
 ## action masks this layer out anyway, and `Player` roots the character for those, so
 ## what is chosen here is idle.
-func update_locomotion(delta: float, planar_velocity: Vector3, sprinting: bool, on_floor: bool, blocking: bool) -> void:
+func update_locomotion(
+	delta: float,
+	planar_velocity: Vector3,
+	sprinting: bool,
+	on_floor: bool,
+	blocking: bool,
+	in_combat: bool,
+) -> void:
 	if _tree == null or _is_dead:
 		return
 
@@ -492,8 +523,18 @@ func update_locomotion(delta: float, planar_velocity: Vector3, sprinting: bool, 
 
 	if blocking:
 		_cancel_idle_variation()
-		_request_loco(BLOCK_CLIP)
-		_tree.set(PARAM_LOCO_SPEED, 1.0)
+		# block_idle has no travel of its own (travel_speed 0), so holding it while the
+		# player is actually moving plants both feet and slides the whole character
+		# across the ground. Walking under guard keeps the legs driving; standing still
+		# under guard is what block_idle is for.
+		if speed > MOVING_SPEED_EPSILON:
+			# Guard up is a fight by definition, so the legs stay on the armed walk.
+			var guard_clip := _pick_locomotion_clip(planar_velocity, false, true)
+			_request_loco(guard_clip)
+			_tree.set(PARAM_LOCO_SPEED, _speed_scale_for(guard_clip, speed))
+		else:
+			_request_loco(BLOCK_CLIP)
+			_tree.set(PARAM_LOCO_SPEED, 1.0)
 		return
 
 	if not on_floor and has_clip(JUMP_CLIP):
@@ -508,7 +549,7 @@ func update_locomotion(delta: float, planar_velocity: Vector3, sprinting: bool, 
 
 	if speed > MOVING_SPEED_EPSILON:
 		_cancel_idle_variation()
-		var clip := _pick_locomotion_clip(planar_velocity, sprinting)
+		var clip := _pick_locomotion_clip(planar_velocity, sprinting, in_combat)
 		_request_loco(clip)
 		_tree.set(PARAM_LOCO_SPEED, _speed_scale_for(clip, speed))
 		return
@@ -573,13 +614,28 @@ func _roll_next_idle_variation() -> void:
 
 # --- clip selection ----------------------------------------------------------
 
-func _pick_locomotion_clip(planar_velocity: Vector3, sprinting: bool) -> String:
+## Above this ground speed the run cycle is used even without the sprint key.
+##
+## Sits between the two clips' own recorded speeds - walk_forward covers 0.99 m/s,
+## run_forward 2.47 - so each cycle is chosen for the range it was actually animated
+## at. Ordinary movement (2.5) lands on the run clip and blocking (1.0) on the walk
+## clip, both at 1.0x playback. Choosing on the sprint flag alone instead meant normal
+## movement stretched a walk cycle to cover ground it was never animated for.
+const RUN_CLIP_SPEED := 1.5
+
+
+## `in_combat` is what separates travelling from fighting. A player mid-fight keeps the
+## armed walk however fast they are going - breaking into a relaxed unarmed run with a
+## weapon out and an enemy in front reads as a bug - while a player who has stopped
+## swinging and is holding sprint gets the travel cycle.
+func _pick_locomotion_clip(planar_velocity: Vector3, sprinting: bool, in_combat: bool) -> String:
 	var local := global_transform.basis.inverse() * planar_velocity
+	var fast: bool = not in_combat and (sprinting or planar_velocity.length() >= RUN_CLIP_SPEED)
 	# -Z is forward for a Node3D, so a negative local z means moving ahead.
 	if absf(local.z) >= absf(local.x):
 		if local.z <= 0.0:
-			return "run_forward" if sprinting else "walk_forward"
-		return "run_back" if sprinting else "walk_back"
+			return RUN_FORWARD_TRAVEL if fast else "walk_forward"
+		return RUN_BACK_TRAVEL if fast else "walk_back"
 	# The pack has no sideways run, so a sprinting strafe keeps the walk cycle and
 	# leans on the speed scaling below instead.
 	return "walk_right" if local.x > 0.0 else "walk_left"

@@ -262,6 +262,15 @@ func _trigger_fireball_aoe() -> void:
 	var burst: Node3D = EmberFx.build_burst(radius)
 	get_tree().current_scene.add_child(burst)
 	burst.global_position = global_position
+	# What the blast leaves behind. Outlives the fire by seconds, which is the whole point:
+	# a detonation with nothing after it reads as having happened in front of the world
+	# rather than to it. See docs/SPELL_VFX_PLAN.md, the settle beat.
+	var scorch: MeshInstance3D = SpellFx.ground_decal(
+		"decal_scorch", Color(0.07, 0.04, 0.03, 0.85), radius)
+	get_tree().current_scene.add_child(scorch)
+	# Dropped onto the floor, not left where the bolt happened to strike - a fireball that
+	# detonates against an enemy's chest goes off well above the ground it burns.
+	scorch.global_transform = SpellFx.ground_transform(self, global_position)
 	# Its own burst rather than the giant's landing thud, which is what it used to
 	# borrow: a fireball detonating and a body hitting the ground are not the same event.
 	SoundBank.play_at(&"spell_fireball_impact", global_position)

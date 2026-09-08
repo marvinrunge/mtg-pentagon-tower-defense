@@ -241,7 +241,14 @@ const SPELLS: Dictionary = {
 		# it was authored at. The leap is a real commitment, though: nothing else may
 		# start until the slam has landed, so `commit` covers launch AND landing rather
 		# than ending early the way a move with a free recovery does.
-		"cast_clip": "jump_attack", "cast_duration": 2.6, "commit": 2.6, "roots": false,
+		#
+		# ROOTS for that whole window, including the stand-up. The flight itself is not
+		# affected - Player's leap branch moves the character before the rooting check ever
+		# runs - so this only governs the seconds after the landing, where the player used
+		# to be able to walk out of their own recovery. A character sliding across the
+		# ground while playing an animation of getting to their feet is the one thing that
+		# reads as broken rather than as slow.
+		"cast_clip": "jump_attack", "cast_duration": 2.6, "commit": 2.6, "roots": true,
 		"upper_body": false,
 		"release_on_last": true,
 	},
@@ -336,7 +343,10 @@ const CAPSTONES: Dictionary = {
 			"desc": "Far more maximum health, and steady regeneration.",
 		},
 		"manifestation": {
-			"id": "aura_trample", "name": "Trample",
+			# NOT "Trample": the Gruul passive already owns that name, and it is the one
+			# that matches the MTG keyword. Two nodes reading "Trample" in the same tree is
+			# a naming bug, not a theme.
+			"id": "aura_trample", "name": "Stampede",
 			"desc": "Enemies near you take continuous damage - but only while you are moving.",
 		},
 	},

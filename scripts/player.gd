@@ -1,4 +1,4 @@
-extends CharacterBody3D
+﻿extends CharacterBody3D
 class_name Player
 
 @export var speed: float = GameSettings.player_base_speed
@@ -37,17 +37,27 @@ var unlocked_spells_in_path: Array[String] = []
 ## source of truth; `unlocked_spells_in_path` is kept beside it for the code that only
 ## asks "do I have this at all".
 var spell_ranks: Dictionary = {}
-## What each of the ten hotbar keys casts, chosen by the PLAYER rather than derived from
-## a colour. Empty means the slot is free.
+## How many spells the bar holds, and therefore the highest number key that casts one.
+##
+## Eight rather than ten because the bar has to be reachable on a CONTROLLER, where every
+## slot costs a button or a modifier combination - ten needs a scheme no pad has room for,
+## and the last two slots were the ones nothing was ever bound to anyway.
+const QUICK_SLOT_COUNT: int = 8
+
+## What each of the QUICK_SLOT_COUNT hotbar keys casts, chosen by the PLAYER rather than
+## derived from a colour. Empty means the slot is free.
 ##
 ## This is what makes multicolour builds real: a red main can carry Fireball, Fire Dash
 ## and Rain of Ember and still keep a slot for blue's Frostwave, because the slots are a
 ## loadout and not a view of one branch of the tree.
-var quick_slots: Array[String] = ["", "", "", "", "", "", "", "", "", ""]
+var quick_slots: Array[String] = _empty_quick_slots()
 ## The rank of the spell currently being cast. Set once where the cast starts and read by
 ## the cast functions, rather than threaded through twenty-five signatures - every one of
 ## them would have to pass it down to the same three helpers anyway.
 var _casting_rank: int = 1
+## The team level that grants Blade Dance, the light attack's third stage. It is no longer
+## purchasable - see _on_team_level_changed.
+const BLADE_DANCE_LEVEL: int = 10
 ## Exalted Strike and Fire Dash both outlive the cast that started them - the first waits
 ## for a melee hit, the second keeps dropping fire for a third of a second - so both
 ## resolve their numbers AT CAST TIME rather than reading _casting_rank later, when
@@ -69,7 +79,9 @@ var affinity_ranks: Dictionary = {
 # --- Spell Charging State ---
 var is_charging: bool = false
 var charge_timer: float = 0.0
-var charge_max_time: float = 2.0
+## Set again from GameSettings on every charge; seeded here so the HUD reads a real
+## window even from a charge_changed emitted before the player has ever held one.
+var charge_max_time: float = GameSettings.spell_charge_max_time
 var charging_spell_id: String = ""
 
 # --- Temporary Buffs & Combo Timers ---
@@ -215,6 +227,10 @@ var _buffered_swing_timer: float = 0.0
 ## cast are the same thing here. Kept in Player rather than read back off the
 ## animator so gameplay has one source of truth.
 var _action_timer: float = 0.0
+## Counts down from player_combat_linger after anything that counts as fighting. Drives
+## both the locomotion clip choice and the combat movement speed, so the two cannot
+## disagree about whether a fight is happening.
+var _combat_timer: float = 0.0
 var _action_duration: float = 0.0
 var _action_elapsed: float = 0.0
 ## True while the committed move holds the player in place.
@@ -245,6 +261,10 @@ var _attack_shake_strength: float = 0.0
 var _pending_cast_id: String = ""
 var _pending_cast_time: float = 0.0
 var _pending_cast_charge: float = 1.0
+## The clip whose LEAD-IN is being held while a chargeable spell is charged, empty when
+## no charge is being wound up. Kept so the release can continue that same shot instead
+## of firing a second one over the top of it - see _begin_cast.
+var _cast_windup_clip: String = ""
 ## The chain lapses if nothing continues it, so a stage landed a minute ago isn't
 ## still counted as step one.
 var _combo_reset_timer: float = 0.0
@@ -376,9 +396,21 @@ func _interact_key_label() -> String:
 ## Shared by mouse-motion look (per-event, already-scaled pixel delta) and the
 ## gamepad right-stick poll in _physics_process (per-frame, delta-scaled).
 func _apply_look_delta(yaw: float, pitch: float) -> void:
-	rotate_y(yaw)
-	camera_pivot.rotate_x(pitch)
-	camera_pivot.rotation.x = clamp(camera_pivot.rotation.x, -deg_to_rad(70.0), deg_to_rad(30.0))
+	if is_downed:
+		# A body on the ground does not pivot to follow the mouse. Yaw goes to the
+		# camera rig instead of the body, so a downed player can still look around -
+		# watching for the teammate coming to revive them is most of what there is to
+		# do while down - without the corpse spinning in place.
+		#
+		# Set on the euler rather than rotate_y(): the pivot carries pitch too, and
+		# rotating about its local axes once both are non-zero accumulates roll. Godot
+		# composes euler angles in YXZ order, which is exactly yaw-then-pitch.
+		camera_pivot.rotation.y += yaw
+	else:
+		rotate_y(yaw)
+	camera_pivot.rotation.x = clampf(
+		camera_pivot.rotation.x + pitch, -deg_to_rad(70.0), deg_to_rad(30.0)
+	)
 
 ## Replicates the least that produces the most: position, rotation and VELOCITY.
 ##
@@ -511,9 +543,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			var target_idx: int = -1
 			if keycode >= KEY_1 and keycode <= KEY_9:
 				target_idx = keycode - KEY_1
-			elif keycode == KEY_0:
-				target_idx = 9
-			if target_idx >= 0:
+			if target_idx >= 0 and target_idx < quick_slots.size():
 				if event.pressed:
 					if is_spell_unlocked(target_idx):
 						if active_spell_index != target_idx:
@@ -579,10 +609,16 @@ func first_free_quick_slot() -> int:
 ## ANOTHER script is a runtime error - the literal only infers its type inside the script
 ## that declares the property.
 func reset_quick_slots() -> void:
-	quick_slots.clear()
-	for _i: int in range(10):
-		quick_slots.append("")
+	quick_slots = _empty_quick_slots()
 	SignalBus.quick_slots_changed.emit()
+
+
+## A full bar of empty slots. Static so the property's own initializer can call it, which
+## is what keeps the bar's length and QUICK_SLOT_COUNT from drifting apart.
+static func _empty_quick_slots() -> Array[String]:
+	var slots: Array[String] = []
+	slots.resize(QUICK_SLOT_COUNT)
+	return slots
 
 
 func is_spell_owned(spell_id: String) -> bool:
@@ -593,6 +629,26 @@ func get_spell_rank(spell_id: String) -> int:
 	return int(spell_ranks.get(spell_id, 0))
 
 
+## Everything this player has put into one colour, counted in ranks: the colour's affinity
+## plus every rank held in its five spells.
+##
+## Derived rather than stored. A running total kept alongside the purchases would be one
+## more thing to keep in step - and one more thing to migrate when an old save is loaded -
+## for a sum over ten small numbers.
+func color_investment(color: String) -> int:
+	var total: int = get_affinity_rank(color)
+	for index: int in range(1, 6):
+		total += get_spell_rank("%s_%d" % [color, index])
+	return total
+
+
+## The colour a spell belongs to, from its id ("red_3" -> "red"). Capstones and passives are
+## not colour-scoped this way and never reach here.
+static func spell_color(spell_id: String) -> String:
+	var parts: PackedStringArray = spell_id.split("_")
+	return parts[0] if parts.size() > 1 else ""
+
+
 ## Whether the NEXT rank of this spell is reachable right now, and why not if it is not.
 ## Returns an empty string when it is buyable, otherwise the reason to show the player -
 ## the tree prints it verbatim, so "cannot" is never silent.
@@ -600,9 +656,13 @@ func spell_rank_blocker(spell_id: String) -> String:
 	var rank: int = get_spell_rank(spell_id)
 	if rank >= GameSettings.spell_max_rank:
 		return "Maximum rank"
-	var required_level: int = GameSettings.rank_level_requirement(rank + 1)
-	if RunState.team_level < required_level:
-		return "Needs team level %d" % required_level
+	# The same ladder that decides which tier is reachable decides how deep a spell can go.
+	# Rank 5 therefore costs a real commitment to the colour rather than waiting for the
+	# team's clock to catch up - and a player who wants it can go and earn it now.
+	var color: String = spell_color(spell_id)
+	var required: int = GameSettings.color_investment_requirement(rank + 1)
+	if color != "" and color_investment(color) < required:
+		return "Needs %d invested in %s" % [required, color.capitalize()]
 	if not GameSettings.debug_free_skills and skill_points < GameSettings.spell_rank_point_cost:
 		return "Needs %d skill point" % GameSettings.spell_rank_point_cost
 	return ""
@@ -622,7 +682,13 @@ func _rank_area() -> float:
 func _rank_duration() -> float:
 	# Vigilance (Selesnya passive) lengthens everything with a duration, so it rides the
 	# one funnel every spell's duration already passes through.
-	return GameSettings.rank_duration_mult(_casting_rank) * (1.0 + get_passive_bonus("vigilance"))
+	return GameSettings.rank_duration_mult(_casting_rank) * _vigilance_mult()
+
+
+## The part of a duration bonus that is NOT rank. For a spell whose rank curve is written
+## out explicitly (Suction), so the passive still applies without rank being counted twice.
+func _vigilance_mult() -> float:
+	return 1.0 + get_passive_bonus("vigilance")
 
 
 ## Rank of a neutral passive, 0 if not owned. The five passives live between the
@@ -710,14 +776,7 @@ func get_affinity_rank(color: String) -> int:
 
 func get_affinity_bonus(color: String) -> float:
 	var rank: int = get_affinity_rank(color)
-	var early_ranks: int = mini(rank, 10)
-	var mid_ranks: int = mini(maxi(rank - 10, 0), 10)
-	var late_ranks: int = maxi(rank - 20, 0)
-	return (
-		early_ranks * GameSettings.affinity_rank_bonus_early
-		+ mid_ranks * GameSettings.affinity_rank_bonus_mid
-		+ late_ranks * GameSettings.affinity_rank_bonus_late
-	)
+	return float(rank) * GameSettings.affinity_rank_bonus_base
 
 func get_spell_rank_requirement(slot_idx: int) -> int:
 	if slot_idx < 0 or slot_idx >= GameSettings.affinity_spell_rank_requirements.size():
@@ -799,8 +858,9 @@ func cast_active_spell() -> void:
 	if is_chargeable(spell_id):
 		is_charging = true
 		charge_timer = 0.0
-		charge_max_time = 2.0
+		charge_max_time = GameSettings.spell_charge_max_time
 		charging_spell_id = spell_id
+		_begin_spell_windup(spell_id)
 		SignalBus.spell_charge_changed.emit(0.0, charge_max_time, true)
 	else:
 		_begin_cast(spell_id, 1.0)
@@ -813,14 +873,64 @@ func _can_start_cast() -> bool:
 	return not is_downed and _stagger_timer <= 0.0 and _action_timer <= 0.0
 
 
+## Starts the held part of a chargeable spell: the cast clip's discarded lead-in, spread
+## across the whole charge window, so the caster is visibly building the spell for as long
+## as the button is down instead of standing still until it fires.
+##
+## The lead-in is where the animation STOPS (see PlayerAnimator.play_windup), so a charge
+## can never reach the release frame on its own - and because the charge fires by itself
+## at charge_max_time, the raise arrives at the top exactly as the spell goes off.
+##
+## Upper body only, unlike the heavy's raise: charging does not root the caster, and the
+## legs keeping their own cycle is what lets them reposition while the spell builds.
+func _begin_spell_windup(spell_id: String) -> void:
+	_cast_windup_clip = ""
+	var row: Dictionary = SpellDatabase.get_spell(spell_id)
+	var clip: String = String(row.get("cast_clip", ""))
+	if clip == "" or not animator.has_clip(clip):
+		return
+	var upper_body: bool = bool(row.get("upper_body", not bool(row.get("roots", false))))
+	if animator.play_windup(clip, maxf(charge_max_time, 0.01), upper_body):
+		_cast_windup_clip = clip
+
+
+## Drops a wind-up that is not going to become a cast, so a charge the player gave up on
+## does not leave the caster holding a pose for a spell that is no longer coming.
+func _stop_spell_windup() -> void:
+	if _cast_windup_clip == "":
+		return
+	_cast_windup_clip = ""
+	animator.stop_action()
+
+
+## Abandons a charge in progress - the state, the HUD readout and the raise being held.
+## Nothing is cast and nothing is spent: a dropped charge costs the player only the time
+## they held it, since the cooldown is stamped in execute_spell() and never reached.
+func _cancel_spell_charge() -> void:
+	if is_charging:
+		is_charging = false
+		charge_timer = 0.0
+		charging_spell_id = ""
+		SignalBus.spell_charge_changed.emit(0.0, charge_max_time, false)
+	_stop_spell_windup()
+
+
 ## Starts a spell's wind-up. The effect itself does not happen here - it fires from
 ## _update_actions() when the animation reaches the release frame the builder
 ## measured for that clip, exactly as melee damage lands on its impact frames.
-func _begin_cast(spell_id: String, charge_pct: float) -> void:
+##
+## `windup_progress` is how far into the charge window a held cast got, or negative for
+## an ordinary uncharged one. A released charge does NOT start a new shot: the one the
+## charge is already playing speeds up to cast pace, so the caster continues from the
+## exact pose the wind-up reached rather than snapping back and starting over - the same
+## continuity _release_heavy_charge() gives the heavy swing.
+func _begin_cast(spell_id: String, charge_pct: float, windup_progress: float = -1.0) -> void:
 	var row: Dictionary = SpellDatabase.get_spell(spell_id)
 	var clip: String = String(row.get("cast_clip", ""))
 	var duration: float = float(row.get("cast_duration", 0.4))
 	var roots: bool = bool(row.get("roots", false))
+	var from_windup: bool = windup_progress >= 0.0 and _cast_windup_clip == clip
+	_cast_windup_clip = ""
 
 	if clip == "" or not animator.has_clip(clip):
 		# No animation for this spell: fall back to the old instant behaviour rather
@@ -829,10 +939,30 @@ func _begin_cast(spell_id: String, charge_pct: float) -> void:
 		execute_spell(spell_id, charge_pct)
 		return
 
+	var release_on_last: bool = bool(row.get("release_on_last", false))
+	var commit: float = float(row.get("commit", duration))
+	# Clip-seconds per real second: the pace an uncharged cast of this spell plays at,
+	# matched exactly, so continuing out of a wind-up makes the cast LONGER - there is
+	# more lead-in still to cover - rather than slower.
+	var pace: float = animator.strike_length(clip) / maxf(duration, 0.01)
+	# Where the raise actually got to, in seconds of stored clip. A full charge sits
+	# exactly at the start of the strike window, so it finishes as an ordinary cast.
+	var from: float = animator.windup_length(clip) * clampf(windup_progress, 0.0, 1.0)
+	var remaining: float = animator.windup_length(clip) + animator.strike_length(clip) - from
+
 	_casting_rank = get_spell_rank(spell_id)
 	_pending_cast_id = spell_id
 	_pending_cast_charge = charge_pct
-	_pending_cast_time = animator.release_time(clip, duration, bool(row.get("release_on_last", false)))
+	if from_windup:
+		# Scheduled off the position the animation continues from, so the effect still
+		# lands on its own release frame however briefly the charge was held.
+		_pending_cast_time = maxf(
+			(animator.release_offset(clip, release_on_last) - from) / maxf(pace, 0.01), 0.0
+		)
+		# Only the leftover lead-in is added; the cast's own commitment is unchanged.
+		commit += remaining / maxf(pace, 0.01) - duration
+	else:
+		_pending_cast_time = animator.release_time(clip, duration, release_on_last)
 	# A spell whose animation MOVES the caster has to start moving now, not on the
 	# release frame - the release is the payload landing, and by then the leap has to
 	# already have carried them there. Fire Dash is the same shape: the release frame
@@ -844,23 +974,31 @@ func _begin_cast(spell_id: String, charge_pct: float) -> void:
 	# The two halves separately, rather than through _begin_action: a cast may be
 	# committed for less time than its animation runs, and a recovery that is still
 	# playing after the player has control back is the whole point of `commit`.
-	_commit_action(float(row.get("commit", duration)), roots, false)
-	animator.play_action(clip, duration, bool(row.get("upper_body", not roots)))
+	_commit_action(commit, roots, false)
+	if from_windup:
+		animator.release_windup(remaining, remaining / maxf(pace, 0.01))
+	else:
+		animator.play_action(clip, duration, bool(row.get("upper_body", not roots)))
 
 func release_charged_spell() -> void:
 	if not is_charging:
 		return
 		
-	var pct = clamp(charge_timer / charge_max_time, 0.2, 1.0)
+	# The payload has a 20% floor, but the ANIMATION does not: the raise is wherever the
+	# hold actually left it, so a tap continues from near the start of the lead-in.
+	var progress: float = clampf(charge_timer / maxf(charge_max_time, 0.01), 0.0, 1.0)
+	var pct = clamp(progress, 0.2, 1.0)
 	var spell_id = charging_spell_id
 	is_charging = false
 	charge_timer = 0.0
 	SignalBus.spell_charge_changed.emit(0.0, charge_max_time, false)
 	if not is_spell_owned(spell_id) or spell_cooldown_timers.get(spell_id, 0.0) > 0.0:
+		_stop_spell_windup()
 		return
 	if not _can_start_cast():
+		_stop_spell_windup()
 		return
-	_begin_cast(spell_id, pct)
+	_begin_cast(spell_id, pct, progress)
 
 ## The moment a spell's effect actually happens, on the frame its clip releases.
 ##
@@ -1040,10 +1178,7 @@ func _cancel_action() -> void:
 	# the cooldown is only stamped in execute_spell(), it costs the player nothing.
 	_pending_cast_id = ""
 	_end_channel()
-	if is_charging:
-		is_charging = false
-		charge_timer = 0.0
-		SignalBus.spell_charge_changed.emit(0.0, charge_max_time, false)
+	_cancel_spell_charge()
 	_combo_stage = 0
 	_combo_reset_timer = 0.0
 	_cancel_heavy_charge()
@@ -1223,17 +1358,29 @@ func revive() -> void:
 		return
 	is_downed = false
 	down_timer = 0.0
+	_recentre_camera_after_downed()
 	hp = max_hp
 	SignalBus.player_health_changed.emit(hp, max_hp)
 	_invulnerable_timer = 2.0
 	animator.revive()
 	print("Player revived by teammate!")
 
+## Folds any yaw the player accumulated while down back onto the body, so getting up
+## faces the direction they were actually looking instead of snapping back to whatever
+## way they happened to fall.
+func _recentre_camera_after_downed() -> void:
+	if is_zero_approx(camera_pivot.rotation.y):
+		return
+	rotate_y(camera_pivot.rotation.y)
+	camera_pivot.rotation.y = 0.0
+
+
 func respawn_at_base() -> void:
 	if not is_downed:
 		return
 	is_downed = false
 	down_timer = 0.0
+	_recentre_camera_after_downed()
 	global_position = Vector3(0, 1.0, 0)
 	hp = max_hp
 	SignalBus.player_health_changed.emit(hp, max_hp)
@@ -1252,6 +1399,9 @@ func cast_red_fireball(charge_pct: float) -> void:
 	var radius = GameSettings.spell_red_fireball_base_radius * (0.8 + 0.7 * charge_pct) * _rank_area()
 	var mult = (0.6 + 1.2 * charge_pct) * get_spell_damage_multiplier() * _rank_damage()
 	proj.activate(spawn_pos, dir, 4, false, mult, -1.0, radius, self)
+	# The bolt carries its own trail and its own detonation, but nothing used to happen at
+	# the CASTER - so a charged Fireball left the hand with no sign it had been thrown.
+	_spawn_cast_flash(FX_RED, 1.8 + charge_pct * 1.4)
 	SoundBank.play_at(&"spell_cast", global_position)
 
 ## The green ability: a running leap that ends in a ground slam.
@@ -1268,6 +1418,9 @@ func cast_green_titanic_leap() -> void:
 	velocity = forward.normalized() * GameSettings.spell_green_leap_speed
 	velocity.y = GameSettings.spell_green_leap_rise
 	_leap_timer = GameSettings.spell_green_leap_duration
+	# Dust off the take-off. The slam at the far end already had its ring; the launch that
+	# throws the character across the arena had nothing at all.
+	_spawn_ring(global_position, FX_GREEN, 2.0)
 	SoundBank.play_at(&"blade_heavy_swing", global_position)
 
 
@@ -1314,6 +1467,9 @@ func cast_red_rain_ember() -> void:
 	)
 	get_tree().current_scene.add_child(zone)
 	zone.global_position = target_pos
+	# The zone is the spell, but it lands somewhere else - so without this the caster
+	# performs a full cast animation with nothing happening anywhere near them.
+	_spawn_cast_flash(FX_RED, 2.2)
 
 # --- Shared aiming and area helpers -------------------------------------------
 #
@@ -1387,6 +1543,39 @@ func _allies_in_radius(radius: float, include_self: bool = true) -> Array[Node3D
 ## Adds a node to the running scene at a world position. Every placed skill does exactly
 ## this, and doing it in the wrong order - position before parent - silently puts the
 ## thing at the origin, because global_position means nothing outside the tree.
+## Layer 3 is enemies (EnemyBase sets collision_layer 4). Dropping that bit from the
+## player's own mask is what lets Fire Dash and Titanic Leap travel through a pack instead
+## of stopping dead on the first body they touch.
+##
+## Both are committed moves the player cannot steer once they start, and one that bounces
+## off the front rank is one that never reaches what it was aimed at - the leap in
+## particular exists to land IN the crowd. Nothing else changes: layer 1 (world) and layer 5
+## (blockers) stay in the mask, so walls still stop both.
+const ENEMY_COLLISION_BIT: int = 4
+
+var _phasing: bool = false
+
+
+func _set_phasing(active: bool) -> void:
+	if _phasing == active:
+		return
+	_phasing = active
+	if active:
+		collision_mask &= ~ENEMY_COLLISION_BIT
+	else:
+		collision_mask |= ENEMY_COLLISION_BIT
+
+
+## A settle-beat mark, dropped onto whatever ground is under `at` and tilted onto it.
+##
+## The player's own origin sits at their feet, so a decal centred on them is already close
+## to right - but not on a slope, and not on the stairs and rises the lanes are built from.
+func _place_ground_decal(slot: String, tint: Color, radius: float, at: Vector3) -> void:
+	var decal: MeshInstance3D = SpellFx.ground_decal(slot, tint, radius)
+	get_tree().current_scene.add_child(decal)
+	decal.global_transform = SpellFx.ground_transform(self, at)
+
+
 func _place_in_world(node: Node3D, world_position: Vector3) -> void:
 	get_tree().current_scene.add_child(node)
 	node.global_position = world_position
@@ -1469,7 +1658,7 @@ func cast_white_circle_of_protection() -> void:
 			# A myr has no shield to give, so its share arrives as health. The pool is
 			# still divided the same way - what changes is the form it takes.
 			ally.heal(each)
-		_spawn_ring(ally.global_position, Color(1.0, 0.95, 0.65), 1.6)
+		_spawn_ring(ally.global_position, FX_WHITE, 1.6)
 	SoundBank.play_at(&"spell_circle_protection", global_position)
 
 
@@ -1483,7 +1672,7 @@ func cast_white_reprisal_ward() -> void:
 	_reprisal_block_chance = GameSettings.rank_fraction(
 		GameSettings.spell_white_reprisal_block_chance, GameSettings.spell_white_reprisal_block_chance_max, _casting_rank
 	)
-	_spawn_cast_flash(Color(1.0, 0.9, 0.55), 2.6)
+	_spawn_cast_flash(FX_WHITE, 2.6)
 	SoundBank.play_at(&"spell_reprisal_ward", global_position)
 
 
@@ -1495,7 +1684,9 @@ func cast_white_wrath_of_god() -> void:
 		_deal_damage(enemy, damage, false)
 	SoundBank.play_at(&"spell_wrath_of_god", global_position)
 	SignalBus.camera_shake_requested.emit(0.6, 0.4)
-	_spawn_ring(global_position, Color(1.0, 0.97, 0.8), radius)
+	# The full release beat rather than a ring: this is the loudest thing white does, and
+	# it was drawn with exactly the same primitive as Circle of Protection healing a myr.
+	_place_in_world(SpellFx.impact(FX_WHITE, radius), global_position)
 
 
 ## white_5. The only skill in all thirty that UNDOES a loss rather than preventing one,
@@ -1515,7 +1706,7 @@ func cast_white_rally_the_fallen() -> void:
 				continue
 			revives_left -= 1
 			ally.revive()
-			_spawn_ring(ally.global_position, Color(1.0, 1.0, 0.85), 2.2)
+			_spawn_ring(ally.global_position, FX_WHITE, 2.2)
 			continue
 		if ally.has_method("heal"):
 			ally.heal(heal_amount)
@@ -1525,6 +1716,9 @@ func cast_white_rally_the_fallen() -> void:
 	# The solo floor: nobody to revive means the cast instead wards the caster - the
 	# next would-be death inside the window is refused. See die().
 	_phoenix_ward_timer = GameSettings.spell_white_rally_ward_duration * _rank_duration()
+	# The caster's own half of it. Rally reaches other people, so without this the one
+	# player who cast it is the only one who sees nothing happen where they are standing.
+	_spawn_cast_flash(FX_WHITE, 2.8)
 	SoundBank.play_at(&"spell_rally_fallen", global_position)
 
 
@@ -1532,26 +1726,45 @@ func cast_white_rally_the_fallen() -> void:
 
 ## blue_1. Shoves the cone ahead far back and stuns whatever lands. The impact damage for
 ## anything thrown into a wall is EnemyBase's, on the knockback path.
+##
+## The shove is up as well as away: EnemyBase drives knockback through move_and_collide
+## while its own gravity keeps running underneath on move_and_slide, so a vertical
+## component arcs the enemy off the ground and drops it again on its own, with no airborne
+## state to track and nothing to land them from.
 func cast_blue_unsummon() -> void:
 	var pushed: int = 0
 	# Push distance and stun duration are what rank buys here - the cone itself does not
 	# widen, so aiming it stays the skill.
 	var push: float = GameSettings.spell_blue_unsummon_knockback * _rank_area()
 	var stun: float = GameSettings.spell_blue_unsummon_stun * _rank_duration()
+	# The lift does NOT scale with rank. Rank buys distance and stun; a rank-5 Unsummon
+	# throwing enemies twice as high would put them out of reach of everything else the
+	# player could follow up with.
+	var lift: float = GameSettings.spell_blue_unsummon_lift
 	for enemy: Node3D in _enemies_in_cone(GameSettings.spell_blue_unsummon_range, GameSettings.spell_blue_unsummon_cone_dot):
 		var away: Vector3 = enemy.global_position - global_position
 		away.y = 0.0
 		if away.length_squared() < 0.01:
 			away = -transform.basis.z
 		if enemy.has_method("apply_knockback"):
-			enemy.apply_knockback(away.normalized() * push)
+			enemy.apply_knockback(away.normalized() * push + Vector3.UP * lift)
 		if enemy.has_method("apply_stun") and not (enemy.has_method("is_immune_to_control") and enemy.is_immune_to_control()):
 			enemy.apply_stun(stun)
 		pushed += 1
+	# A blast of air down the cone, not a ring around the caster. Unsummon pushes in ONE
+	# direction, and a ring told the player it had happened in every direction - including
+	# behind them, where it is safe and nothing was shoved at all.
+	var facing: Vector3 = -transform.basis.z
+	facing.y = 0.0
+	var blast: Node3D = SpellFx.gust(GameSettings.spell_blue_unsummon_range, FX_BLUE)
+	_place_in_world(blast, global_position + Vector3(0.0, 1.0, 0.0))
+	if facing.length_squared() > 0.01:
+		blast.look_at(blast.global_position + facing.normalized(), Vector3.UP)
 	SoundBank.play_at(&"spell_unsummon", global_position)
 	if pushed > 0:
 		SoundBank.play_at(&"blunt_hit", global_position)
-	SignalBus.camera_shake_requested.emit(0.3, 0.25)
+	# Shaken harder than it used to be, to match a shove that now lifts what it hits.
+	SignalBus.camera_shake_requested.emit(0.45, 0.35)
 
 
 ## blue_2. Freezes everything around the caster. BOSSES ARE SLOWED, NEVER FROZEN - that
@@ -1569,6 +1782,9 @@ func cast_blue_frostwave() -> void:
 		elif "freeze_timer" in enemy:
 			enemy.freeze_timer = maxf(enemy.freeze_timer, freeze)
 	_spawn_ring(global_position, Color(0.55, 0.85, 1.0), radius)
+	# The settle beat: the ground it froze stays frozen for a few seconds after the wave
+	# has gone, which is what makes the radius legible AFTER the fact.
+	_place_ground_decal("decal_frost", Color(0.78, 0.92, 1.0, 0.75), radius, global_position)
 	SoundBank.play_at(&"spell_frostwave", global_position)
 	SignalBus.camera_shake_requested.emit(0.35, 0.3)
 
@@ -1579,7 +1795,11 @@ func cast_blue_frostwave() -> void:
 func cast_blue_frost_globe() -> void:
 	var radius: float = GameSettings.spell_blue_frost_globe_radius * _rank_area()
 	var globe := FrostGlobe.create(radius, GameSettings.spell_blue_frost_globe_duration * _rank_duration())
-	_place_in_world(globe, global_position + Vector3(0.0, radius * 0.8, 0.0))
+	# Centred ON the ground rather than floating a radius above it, so the sphere's widest
+	# ring is at ground level and only the top half is above it. A dome covers the most
+	# ground a sphere of this radius can, and the buried half was never cover anyway - it
+	# was under the floor.
+	_place_in_world(globe, _ground_snap(global_position))
 	SoundBank.play_at(&"spell_frost_globe", global_position)
 
 
@@ -1587,14 +1807,19 @@ func cast_blue_frost_globe() -> void:
 ## its centre for its whole duration rather than pulling once. See SuctionZone.
 func cast_blue_suction() -> void:
 	# RADIUS and DURATION scale, pull speed does not - walking out of the zone is the
-	# counterplay, and a rank-5 yank that nothing can escape would remove it.
+	# counterplay, and a rank-5 yank that nothing can escape would remove it. What rank
+	# really buys is how long the vortex stands there doing it.
 	var radius: float = GameSettings.spell_blue_suction_radius * _rank_area()
 	var center: Vector3 = _aim_point(radius)
-	var zone := SuctionZone.create(
-		radius,
-		GameSettings.spell_blue_suction_duration * _rank_duration(),
-		GameSettings.spell_blue_suction_pull_speed
-	)
+	# Rank buys TIME here, on its own explicit curve - see the GameSettings comment. It is
+	# multiplied by the Vigilance bonus but NOT by rank_duration_mult, which would count the
+	# rank a second time on top of the curve.
+	var duration: float = GameSettings.rank_fraction(
+		GameSettings.spell_blue_suction_duration,
+		GameSettings.spell_blue_suction_duration_max,
+		_casting_rank
+	) * _vigilance_mult()
+	var zone := SuctionZone.create(radius, duration, GameSettings.spell_blue_suction_pull_speed)
 	_place_in_world(zone, center)
 	# Prime the pull on everything already inside, so the drag starts on the cast frame
 	# rather than one physics frame late.
@@ -1667,6 +1892,9 @@ func cast_black_fear() -> void:
 		if enemy.has_method("apply_fear"):
 			enemy.apply_fear(GameSettings.spell_black_fear_duration * _rank_duration(), global_position)
 	_spawn_ring(global_position, Color(0.45, 0.15, 0.6), radius)
+	# Black's settle beat: the ground the shout emptied stays marked, so the player can see
+	# where their own safe circle was after the enemies have scattered out of it.
+	_place_ground_decal("decal_blight", Color(0.16, 0.05, 0.22, 0.8), radius, global_position)
 	SoundBank.play_at(&"spell_fear", global_position)
 
 
@@ -1732,8 +1960,12 @@ func cast_black_wall_of_souls() -> void:
 	var facing: Vector3 = -camera.global_basis.z
 	facing.y = 0.0
 	if facing.length_squared() > 0.01:
-		# Perpendicular: the wall lies ACROSS the approach the player is looking down.
-		wall.rotation.y = atan2(facing.x, facing.z) + PI * 0.5
+		# The wall lies ACROSS the approach the player is looking down, so its NORMAL is
+		# what points back at them. A yaw of atan2(x, z) already aims local +Z along
+		# `facing`, and the curtain's normal is its local +Z - the extra quarter turn this
+		# used to add turned the wall edge-on and laid it ALONG the lane instead, which is
+		# the one orientation that blocks nothing.
+		wall.rotation.y = atan2(facing.x, facing.z)
 
 
 ## black_5. Turns the corpse registry - which until now existed only to cap how many dead
@@ -1770,7 +2002,7 @@ func cast_black_zombify() -> void:
 		# A corpse's own position is where the enemy DIED, which can be off the navmesh
 		# edge or mid-clip - so the summon is dropped onto the ground actually under it.
 		_place_in_world(undead, _ground_snap(where) + Vector3(0.0, 0.5, 0.0))
-		_spawn_ring(where, Color(0.35, 0.8, 0.4), 1.8)
+		_spawn_ring(where, FX_BLACK, 1.8)
 		raised += 1
 	SoundBank.play_at(&"spell_zombify", global_position)
 
@@ -1793,6 +2025,9 @@ func cast_red_fire_dash() -> void:
 	_dash_trail_dps = GameSettings.spell_red_dash_trail_dps * get_spell_damage_multiplier() * _rank_damage()
 	_dash_trail_duration = GameSettings.spell_red_dash_trail_duration * _rank_duration()
 	_dash_trail_radius = GameSettings.spell_red_dash_trail_radius * _rank_area()
+	# The burst the dash leaves AT the start line. The trail draws where the player went;
+	# this is what says they went.
+	_spawn_cast_flash(FX_RED, 2.0)
 	SoundBank.play_at(&"spell_fire_dash", global_position)
 
 
@@ -1904,6 +2139,11 @@ func cast_green_giant_growth() -> void:
 	# Gaining maximum health should ARRIVE as health, or the buff reads as a downgrade
 	# for the first few seconds while the bar sits at a lower fraction than before.
 	heal(_giant_bonus_hp, false)
+	# Giant Growth had NO effect of any kind: the character silently got bigger, which
+	# reads as a rendering glitch rather than as a spell. The ring is sized to what the
+	# player has just become, so the growth is announced at the scale it actually is.
+	_spawn_cast_flash(FX_GREEN, 3.0)
+	_spawn_ring(global_position, FX_GREEN, 2.2 * giant_scale)
 	SoundBank.play_at(&"spell_giant_growth", global_position)
 
 
@@ -1930,7 +2170,8 @@ func cast_green_roar() -> void:
 		if enemy.has_method("apply_taunt"):
 			enemy.apply_taunt(self, GameSettings.spell_green_roar_duration * _rank_duration())
 			taunted += 1
-	_spawn_ring(global_position, Color(0.35, 0.85, 0.3), radius)
+	# A shout is a front leaving the caster, which is what the release beat draws.
+	_place_in_world(SpellFx.impact(FX_GREEN, radius), global_position)
 	SoundBank.play_at(&"spell_roar", global_position)
 	SignalBus.camera_shake_requested.emit(0.3, 0.3)
 	if taunted > 0:
@@ -1947,7 +2188,9 @@ func cast_green_ironbark() -> void:
 		GameSettings.spell_green_ironbark_reduction, GameSettings.spell_green_ironbark_reduction_max, _casting_rank
 	)
 	_stagger_timer = 0.0
-	_spawn_cast_flash(Color(0.45, 0.32, 0.16), 2.2)
+	# Bark rather than leaf: green's earth end of the palette, so Ironbark cannot be
+	# mistaken for Giant Growth at a glance.
+	_spawn_cast_flash(Color(0.52, 0.40, 0.22), 2.2)
 	SoundBank.play_at(&"spell_ironbark", global_position)
 
 
@@ -2025,7 +2268,7 @@ func _update_channel(delta: float) -> void:
 	var length: float = GameSettings.spell_red_fire_cone_length * GameSettings.rank_area_mult(_channel_rank)
 	for enemy: Node3D in _enemies_in_cone(length, GameSettings.spell_red_fire_cone_dot):
 		_deal_damage(enemy, damage, false)
-	animator.update_locomotion(delta, Vector3.ZERO, false, is_on_floor(), false)
+	animator.update_locomotion(delta, Vector3.ZERO, false, is_on_floor(), false, true)
 
 
 ## Ends the channel and takes its flames with it. Called from _update_channel when it
@@ -2054,78 +2297,55 @@ func _end_channel() -> void:
 
 # --- Shared spell visuals ------------------------------------------------------
 #
-# Deliberately small and generic. Every skill gets SOMETHING the player can see, because
-# a spell with no feedback is indistinguishable from a spell that did not fire - which is
-# exactly how the skill tree bug that hid all of this went unnoticed for a release.
+# The five dialects from docs/SPELL_VFX_PLAN.md, as constants rather than as a colour
+# typed at each call site. Twenty-odd spells used to pick their own literal, which is how
+# white ended up with four different whites - and a colour the player cannot recognise
+# across its own spells is not carrying any information.
+const FX_WHITE: Color = Color(1.0, 0.94, 0.72)
+const FX_BLUE: Color = Color(0.55, 0.82, 1.0)
+const FX_BLACK: Color = Color(0.62, 0.25, 0.92)
+const FX_RED: Color = Color(1.0, 0.55, 0.18)
+const FX_GREEN: Color = Color(0.55, 0.9, 0.45)
 
-## An expanding ring on the ground. The area a skill just affected, drawn at the size it
-## actually used, so the player can learn the radius by watching rather than by reading.
+#
+# Every skill gets SOMETHING the player can see, because a spell with no feedback is
+# indistinguishable from a spell that did not fire - which is exactly how the skill tree
+# bug that hid all of this went unnoticed for a release.
+#
+# The SHAPES now live in scripts/spell_fx.gd, the way every fire effect lives in
+# ember_fx.gd. These three stay as the names the twenty-odd call sites already use, so a
+# spell asks for "a ring at this radius" and the effect layer decides what a ring is.
+
+## The area a skill just affected, drawn at the size it actually used, so the player can
+## learn a radius by watching rather than by reading.
 func _spawn_ring(center: Vector3, tint: Color, radius: float) -> void:
-	var ring := MeshInstance3D.new()
-	var torus := TorusMesh.new()
-	torus.inner_radius = radius * 0.88
-	torus.outer_radius = radius
-	ring.mesh = torus
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(tint.r, tint.g, tint.b, 0.75)
-	mat.emission_enabled = true
-	mat.emission = tint
-	mat.emission_energy_multiplier = 3.5
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	ring.material_override = mat
-	_place_in_world(ring, center + Vector3(0.0, 0.12, 0.0))
-	ring.scale = Vector3(0.35, 1.0, 0.35)
-	var tween: Tween = ring.create_tween()
-	tween.tween_property(ring, "scale", Vector3.ONE, 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.parallel().tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	tween.tween_callback(ring.queue_free)
+	# Lifted just clear of the ground: coplanar with it, the wave z-fights the terrain.
+	_place_in_world(SpellFx.shockwave(tint, radius), center + Vector3(0.0, 0.12, 0.0))
 
 
 ## A straight shaft of light. Doom Blade's line and Lightning Bolt's strike are the same
 ## shape seen from two angles.
 func _spawn_beam(origin: Vector3, direction: Vector3, length: float, tint: Color) -> void:
-	var beam := MeshInstance3D.new()
-	var cylinder := CylinderMesh.new()
-	cylinder.top_radius = 0.22
-	cylinder.bottom_radius = 0.22
-	cylinder.height = length
-	beam.mesh = cylinder
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(tint.r, tint.g, tint.b, 0.85)
-	mat.emission_enabled = true
-	mat.emission = tint
-	mat.emission_energy_multiplier = 6.0
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	beam.material_override = mat
-	_place_in_world(beam, origin + direction.normalized() * length * 0.5)
-	# A cylinder mesh stands on Y, so it has to be laid down along the direction asked for.
-	if absf(direction.normalized().dot(Vector3.UP)) < 0.99:
-		beam.look_at(origin + direction.normalized() * length, Vector3.UP)
-		beam.rotate_object_local(Vector3.RIGHT, PI * 0.5)
-	var tween: Tween = beam.create_tween()
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.22)
-	tween.tween_callback(beam.queue_free)
+	# Placed at the beam's START, not its middle: SpellFx.beam builds it running out along
+	# its own +X from wherever it is put, which is what a caster-to-target shot wants.
+	_place_in_world(SpellFx.beam(direction, length, tint), origin)
 
 
 ## A pulse of light on the caster. What a self-buff looks like, since it has nowhere else
-## to happen.
+## to happen. Parented to the player rather than to the world, so a buff cast on the move
+## travels with them.
 func _spawn_cast_flash(tint: Color, radius: float) -> void:
-	var light := OmniLight3D.new()
-	light.light_color = tint
-	light.light_energy = 4.0
-	light.omni_range = radius * 2.0
-	light.position = Vector3(0.0, 1.2, 0.0)
-	add_child(light)
-	var tween: Tween = light.create_tween()
-	tween.tween_property(light, "light_energy", 0.0, 0.5)
-	tween.tween_callback(light.queue_free)
+	add_child(SpellFx.cast_glow(tint, radius))
 
 
-func _on_team_level_changed(_level: int, levels_gained: int) -> void:
+func _on_team_level_changed(level: int, levels_gained: int) -> void:
+	# Blade Dance used to be the tree's centre node, bought with mana. It is a reward for
+	# surviving now: the hub shows the team level instead, and the third combo stage arrives
+	# on its own when that level reaches BLADE_DANCE_LEVEL.
+	if level >= BLADE_DANCE_LEVEL and not melee_combo_extended:
+		melee_combo_extended = true
+		SignalBus.melee_combo_unlocked.emit()
+		_notify("Blade Dance unlocked")
 	if levels_gained <= 0:
 		return
 	hp = max_hp
@@ -2506,6 +2726,7 @@ func _swing_duration() -> float:
 ##
 ## `window` narrows playback to one stage of a chained clip; see _advance_light_chain.
 func _begin_action(clip: String, duration: float, upper_body: bool, roots: bool, is_melee: bool, window: Vector2 = PlayerAnimator.FULL_WINDOW) -> void:
+	_combat_timer = GameSettings.player_combat_linger
 	_commit_action(duration, roots, is_melee)
 	animator.play_action(clip, _action_duration, upper_body, window)
 	# Tell the other peers WHAT started, not what it looks like. Each of them runs the
@@ -2544,6 +2765,12 @@ func _commit_action(duration: float, roots: bool, is_melee: bool) -> void:
 	# Ends the charge as a flag only. Whatever animation follows either replaces the
 	# wind-up's shot or continues it; either way there is nothing to abort.
 	_heavy_charge_timer = -1.0
+	# A held spell is dropped outright instead, because the action layer has room for
+	# exactly one thing: a swing started mid-charge would take the shot the charge is
+	# riding, and the release would then speed up the SWING. A cast released out of its
+	# own wind-up has already handed that shot over (see _begin_cast), so this is a
+	# no-op for the one action that is allowed to continue a charge.
+	_cancel_spell_charge()
 	_action_duration = maxf(duration, 0.01)
 	_action_timer = _action_duration
 	_action_elapsed = 0.0
@@ -2676,11 +2903,16 @@ func _update_block() -> void:
 		and _stagger_timer <= 0.0
 		and _action_timer <= 0.0
 	)
+	if wants_to_block:
+		_combat_timer = GameSettings.player_combat_linger
 	if wants_to_block and not is_blocking:
-		# Raising the guard drops any half-built combo, and any heavy being wound up.
+		# Raising the guard drops any half-built combo, and anything being wound up -
+		# a heavy or a held spell alike. Both are two-handed commitments; neither can
+		# survive the same hands coming up to guard.
 		_combo_stage = 0
 		_attack_hold_timer = -1.0
 		_cancel_heavy_charge()
+		_cancel_spell_charge()
 	is_blocking = wants_to_block
 
 
@@ -2715,7 +2947,7 @@ func _physics_process(delta: float) -> void:
 		# A puppet's transform is authored by its owner and arrives over the wire. All
 		# this end has to do is keep the animator fed from the replicated velocity,
 		# which is what makes it walk, run and strafe correctly with nothing else sent.
-		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), false, is_on_floor(), is_blocking)
+		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), false, is_on_floor(), is_blocking, false)
 		return
 	_sync_capstone_aura()
 	# Runs before the downed early-out so a shake still settles while downed.
@@ -2764,10 +2996,15 @@ func _physics_process(delta: float) -> void:
 	# the ordinary movement code below is skipped entirely rather than being allowed
 	# to overwrite velocity.x/z with whatever the stick is doing. The slam itself is
 	# scheduled off the clip's landing frame, not off this timer.
+	# Both committed dashes pass THROUGH bodies. Re-evaluated every frame rather than
+	# toggled at each end, so a leap cut short by a stagger, a death or a cancelled cast
+	# cannot leave the player permanently able to walk through enemies.
+	_set_phasing(_leap_timer > 0.0 or _dash_timer > 0.0)
+
 	if _leap_timer > 0.0:
 		_leap_timer -= delta
 		move_and_slide()
-		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), true, is_on_floor(), false)
+		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), true, is_on_floor(), false, true)
 		return
 
 	# Fire Dash, the same shape as the leap: the impulse owns the player for its length,
@@ -2780,7 +3017,7 @@ func _physics_process(delta: float) -> void:
 			_dash_trail_timer = DASH_TRAIL_SPACING
 			_drop_trail_segment()
 		move_and_slide()
-		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), true, is_on_floor(), false)
+		animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), true, is_on_floor(), false, true)
 		return
 
 	# Charging Logic
@@ -2889,6 +3126,10 @@ func _physics_process(delta: float) -> void:
 		current_speed *= GameSettings.player_block_speed_mult
 	elif _action_timer > 0.0:
 		current_speed *= GameSettings.player_attack_move_mult
+	elif _combat_timer > 0.0:
+		# Still in a fight, just not mid-swing: walk pace, matching the armed walk cycle
+		# the animator holds for the same window.
+		current_speed *= GameSettings.player_combat_speed_mult
 
 	if rooted:
 		# Zeroed outright rather than by falling through to move_toward() below:
@@ -2912,7 +3153,11 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	animator.update_locomotion(delta, Vector3(velocity.x, 0.0, velocity.z), sprinting, is_on_floor(), is_blocking)
+	_combat_timer = maxf(_combat_timer - delta, 0.0)
+	animator.update_locomotion(
+		delta, Vector3(velocity.x, 0.0, velocity.z), sprinting, is_on_floor(), is_blocking,
+		_combat_timer > 0.0
+	)
 	
 	if is_giant:
 		giant_timer -= delta

@@ -12,7 +12,7 @@ class_name HUD
 @onready var mana_label_g: Label = $Control/MarginContainer/VBoxContainer/ManaContainer/ManaLabelG
 @onready var status_label: Label = $Control/MarginContainer/VBoxContainer/StatusLabel
 @onready var interact_label: Label = $Control/InteractLabel
-@onready var xp_bar: ProgressBar = $Control/HotbarContainer/XPBar
+@onready var xp_bar: ProgressBar = $Control/XPBar
 @onready var settings_backdrop: ColorRect = $Control/SettingsBackdrop
 
 @onready var settings_panel: PanelContainer = $Control/SettingsPanel
@@ -23,6 +23,8 @@ class_name HUD
 @onready var enemy_health_bars_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/EnemyHealthBarsCheckbox
 @onready var attack_indicators_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/AttackIndicatorsCheckbox
 @onready var camera_shake_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/CameraShakeCheckbox
+@onready var music_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/MusicCheckbox
+@onready var music_volume_slider: HSlider = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/MusicVolumeSlider
 @onready var minimap_size_slider: HSlider = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/MinimapSizeSlider
 
 @onready var quality_preset_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/QualityPresetOption
@@ -57,18 +59,60 @@ var _warning_panel: PanelContainer
 var _warning_label: Label
 var _warning_tween: Tween
 var _fps_update_timer: float = 0.0
+## Which full-screen menus are up right now. A set rather than a flag because more than one
+## can be open at a time, and the HUD has to stay out of the way until the LAST one closes.
+var _open_menus: Dictionary = {}
+## Exactly what this hid when a menu opened, so closing it restores those and nothing else.
+## Without this, a wave panel the player had put away with Tab would come back every time
+## they closed the skill tree.
+var _hidden_for_menu: Array[CanvasItem] = []
 
 const ACTIVE_SLOT_COLOR: Color = Color(0.95, 0.72, 0.22)
+
+## The player's health runs light to dark across the bar - a pale spring green at the left
+## edge into a deep forest green at the right. Both sit off pure green (the light end is
+## warmed towards yellow, the dark end cooled towards blue), which is what keeps the ramp
+## reading as one material rather than as one colour being dimmed.
+const HP_FILL_LIGHT: Color = Color(0.65, 0.90, 0.53, 0.95)
+const HP_FILL_DARK: Color = Color(0.08, 0.38, 0.24, 0.95)
+## Small, because it is stretched to the bar: only the ramp and the corner shape have to
+## survive, and neither carries any detail worth more pixels than this.
+## The frame every readout shares - both bars and the minimap. Kept as constants because
+## the point of it is that they MATCH; three copies of "2px, this grey, 8px corners" drift
+## the first time one of them is nudged.
+const BAR_BORDER_COLOR: Color = Color(0.42, 0.5, 0.6, 0.9)
+const BAR_BORDER_WIDTH: int = 2
+const BAR_CORNER_RADIUS: int = 8
+
+const HP_FILL_TEXTURE_SIZE := Vector2i(96, 24)
+const HP_FILL_CORNER_RADIUS: float = 5.0
+
+## Team XP runs blue into violet - the two colours nothing else in the HUD uses, so the
+## bar cannot be mistaken for either health (green) or the crystal (red) at a glance. Same
+## ramp direction as health: the lighter end at the left, where the bar starts.
+const XP_FILL_LIGHT: Color = Color(0.35, 0.68, 1.0, 0.95)
+const XP_FILL_DARK: Color = Color(0.47, 0.22, 0.82, 0.95)
+
+## The crystal, on the same ramp shape as the other two: a hot ember at the left into deep
+## crimson at the right. Read as "the thing that is burning down", which is what it is.
+const BASE_FILL_LIGHT: Color = Color(1.0, 0.45, 0.32, 0.95)
+const BASE_FILL_DARK: Color = Color(0.52, 0.07, 0.13, 0.95)
+
+## The minimap's corners, as a fraction of its own size rather than the bars' flat 8px.
+## It is a square window onto a PENTAGON, so there is nothing in the corners to clip - and
+## at 200px a quarter is 50, which no fixed number shared with a 30px-tall bar could be.
+const MINIMAP_CORNER_RATIO: float = 0.25
 
 ## Hotbar slots are square, so a square spell icon fills one instead of sitting
 ## letterboxed in an upright rectangle. 60 was already the minimum WIDTH, but the VBox
 ## stacked an icon, a key number and a name row, and that pushed the height past it.
 const HOTBAR_SLOT_SIZE := 60.0
-## Only a floor. The icon takes whatever height the key number leaves it, rather than a
-## fixed size - the PanelContainer's stylebox margins and the number's font metrics both
-## feed the total, and hand-tuning a constant against them landed the slot two pixels
-## over square.
-const HOTBAR_ICON_MIN := 24.0
+## The icon is the slot now: it sits directly under the PanelContainer, which stretches a
+## direct child to fill, so there is no minimum size left to tune. The key number rides on
+## top as an overlay instead of stealing a layout row from it.
+##
+## Its rounded corners come from IconStyle, which every icon in the game shares.
+const IconStyle := preload("res://scripts/icon_style.gd")
 
 func _ready() -> void:
 	settings_panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -85,6 +129,7 @@ func _ready() -> void:
 	# rebound in the skill tree changes what these ten keys say they do.
 	SignalBus.spell_rank_changed.connect(func(_id, _rank): _update_hotbar_display(_active_spell_idx))
 	SignalBus.quick_slots_changed.connect(func(): _update_hotbar_display(_active_spell_idx))
+	SignalBus.menu_opened.connect(_on_menu_opened)
 	SignalBus.wave_state_changed.connect(_on_wave_state_changed)
 	SignalBus.lane_warning_requested.connect(_on_lane_warning_requested)
 	
@@ -101,6 +146,12 @@ func _ready() -> void:
 	if camera_shake_checkbox:
 		camera_shake_checkbox.button_pressed = GameSettings.camera_shake_enabled
 		camera_shake_checkbox.toggled.connect(_on_camera_shake_toggled)
+	if music_checkbox:
+		music_checkbox.button_pressed = GameSettings.music_enabled
+		music_checkbox.toggled.connect(_on_music_toggled)
+	if music_volume_slider:
+		music_volume_slider.value = GameSettings.music_volume_db
+		music_volume_slider.value_changed.connect(_on_music_volume_changed)
 	minimap_size_slider.value_changed.connect(_on_minimap_size_changed)
 	_setup_graphics_settings()
 	_build_settings_tabs()
@@ -109,12 +160,14 @@ func _ready() -> void:
 	game_over_panel.hide()
 	_build_wave_ui()
 	
+	# hud.tscn authors the first five; the rest are duplicates of it, so the bar follows
+	# Player.QUICK_SLOT_COUNT rather than a count written out twice.
 	var spell_hotbar: HBoxContainer = $Control/HotbarContainer/SpellHotbar
-	for slot_index: int in range(5, 10):
+	for slot_index: int in range(spell_hotbar.get_child_count(), Player.QUICK_SLOT_COUNT):
 		var slot: PanelContainer = spell_hotbar.get_child(0).duplicate() as PanelContainer
 		slot.name = "Slot%d" % (slot_index + 1)
 		var num_label: Label = slot.get_node("VBox/Num") as Label
-		num_label.text = "0" if slot_index == 9 else str(slot_index + 1)
+		num_label.text = str(slot_index + 1)
 		spell_hotbar.add_child(slot)
 	for child: Node in spell_hotbar.get_children():
 		if child is PanelContainer:
@@ -179,35 +232,29 @@ func setup_styles() -> void:
 	# Style the Health ProgressBar with a modern glassmorphic theme
 	var sb_bg = StyleBoxFlat.new()
 	sb_bg.bg_color = Color(0.1, 0.1, 0.15, 0.5)
-	sb_bg.border_width_left = 2
-	sb_bg.border_width_top = 2
-	sb_bg.border_width_right = 2
-	sb_bg.border_width_bottom = 2
-	sb_bg.border_color = Color(0.2, 0.25, 0.3, 0.7)
-	sb_bg.corner_radius_top_left = 8
-	sb_bg.corner_radius_top_right = 8
-	sb_bg.corner_radius_bottom_left = 8
-	sb_bg.corner_radius_bottom_right = 8
-	
-	var sb_fg = StyleBoxFlat.new()
-	sb_fg.bg_color = Color(0.85, 0.2, 0.3, 0.9) # Crimson red
-	sb_fg.corner_radius_top_left = 6
-	sb_fg.corner_radius_top_right = 6
-	sb_fg.corner_radius_bottom_left = 6
-	sb_fg.corner_radius_bottom_right = 6
+	sb_bg.set_border_width_all(BAR_BORDER_WIDTH)
+	sb_bg.border_color = BAR_BORDER_COLOR
+	sb_bg.set_corner_radius_all(BAR_CORNER_RADIUS)
 	
 	health_bar.add_theme_stylebox_override("background", sb_bg)
-	health_bar.add_theme_stylebox_override("fill", sb_fg)
+	health_bar.add_theme_stylebox_override("fill", _gradient_fill_style(BASE_FILL_LIGHT, BASE_FILL_DARK))
 	
-	var sb_player_fg = sb_fg.duplicate()
-	sb_player_fg.bg_color = Color(0.2, 0.8, 0.3, 0.9) # Green
 	player_health_bar.add_theme_stylebox_override("background", sb_bg)
-	player_health_bar.add_theme_stylebox_override("fill", sb_player_fg)
+	player_health_bar.add_theme_stylebox_override("fill", _gradient_fill_style(HP_FILL_LIGHT, HP_FILL_DARK))
 
-	var sb_xp_fg: StyleBoxFlat = sb_fg.duplicate() as StyleBoxFlat
-	sb_xp_fg.bg_color = Color(0.2, 0.55, 1.0, 0.95)
 	xp_bar.add_theme_stylebox_override("background", sb_bg)
-	xp_bar.add_theme_stylebox_override("fill", sb_xp_fg)
+	xp_bar.add_theme_stylebox_override("fill", _gradient_fill_style(XP_FILL_LIGHT, XP_FILL_DARK))
+
+	# The frame goes over all three, and over the minimap, which is the fourth readout in
+	# the same corner language even though it is not a bar.
+	# The crystal's number goes INSIDE its bar, the way the player's health already does.
+	# Beside it, the label pushed the bar off-centre and made the pair read as two separate
+	# things rather than as one readout.
+	_move_label_into_bar(health_label, health_bar)
+	_add_border_overlay(health_bar)
+	_add_border_overlay(player_health_bar)
+	_add_border_overlay(xp_bar)
+	_style_minimap(sb_bg)
 
 	var settings_bg := StyleBoxFlat.new()
 	settings_bg.bg_color = Color(0.015, 0.02, 0.03, 1.0)
@@ -218,10 +265,148 @@ func setup_styles() -> void:
 	settings_bg.border_color = Color(0.35, 0.42, 0.55, 1.0)
 	settings_panel.add_theme_stylebox_override("panel", settings_bg)
 
+## A ProgressBar's fill is a stylebox, and a StyleBoxFlat is one flat colour - so a
+## gradient fill has to be a TEXTURE. Drawn here rather than importped so the ramp lives
+## next to the colours it is made of, and given the same rounded silhouette the flat fills
+## have by baking the corner into the image's alpha, because a StyleBoxTexture carries no
+## corner_radius of its own.
+##
+## The texture stretches to whatever the fill rect currently is, so the ramp always spans
+## the FILLED part of the bar - at a sliver of health the player sees the whole light-to-
+## dark run compressed, not just its light end.
+## Gives the minimap the same rounded, bordered ground the bars stand on.
+##
+## The minimap is a ColorRect that paints its own square black rectangle and then draws the
+## world's dots over it, so it cannot simply be given a stylebox. Its colour is cleared and
+## a Panel is slipped in BEHIND it instead - a sibling drawn first, which is the only way to
+## get a rounded background under something that does its own drawing - and the frame goes
+## over the top the same way it does on a bar.
+## Reparents a bar's number onto the bar itself, hard against the left edge.
+##
+## Left rather than centred: this one shares its line with nothing, and a number pinned to
+## the edge it fills from is easier to read at a glance than one that floats in the middle
+## of a bar whose fill is moving underneath it.
+func _move_label_into_bar(label: Label, bar: ProgressBar) -> void:
+	if label == null or bar == null or label.get_parent() == bar:
+		return
+	label.get_parent().remove_child(label)
+	bar.add_child(label)
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# It now sits ON the fill, which is bright at one end and dark at the other, so it
+	# carries its own outline exactly as the player's health readout does.
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.9))
+	label.add_theme_constant_override("outline_size", 4)
+	label.add_theme_constant_override("line_spacing", 0)
+	# Indented off the border rather than touching it.
+	label.offset_left = 10.0
+	label.offset_right = -10.0
+
+
+func _style_minimap(background: StyleBoxFlat) -> void:
+	if minimap == null or minimap_container == null:
+		return
+	if minimap_container.get_node_or_null("MinimapBackdrop") == null:
+		var backdrop := Panel.new()
+		backdrop.name = "MinimapBackdrop"
+		backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Its own copy of the bars' background: the corner radius differs, and a shared
+		# StyleBox would take the bars' corners with it.
+		backdrop.add_theme_stylebox_override("panel", background.duplicate())
+		minimap_container.add_child(backdrop)
+		minimap_container.move_child(backdrop, 0)
+	# Cleared, or the square corners of its own fill show outside the rounded frame.
+	minimap.color = Color(0.0, 0.0, 0.0, 0.0)
+	_add_border_overlay(minimap, _minimap_corner_radius())
+	_apply_minimap_size(minimap.custom_minimum_size.x)
+
+
+func _minimap_corner_radius() -> int:
+	var side: float = minf(minimap.custom_minimum_size.x, minimap.custom_minimum_size.y)
+	if side <= 0.0:
+		side = minf(minimap.size.x, minimap.size.y)
+	return int(roundf(side * MINIMAP_CORNER_RATIO))
+
+
+## The radius is a FRACTION, so it has to be recomputed whenever the minimap is resized
+## from the settings panel - otherwise a map dragged from 200px to 320px keeps the corners
+## it had at 200 and stops matching itself.
+func _refresh_minimap_corners() -> void:
+	var radius: int = _minimap_corner_radius()
+	for node: Node in [minimap_container.get_node_or_null("MinimapBackdrop"),
+			minimap.get_node_or_null("BorderOverlay")]:
+		if node == null:
+			continue
+		var style: StyleBoxFlat = (node as Control).get_theme_stylebox("panel") as StyleBoxFlat
+		if style != null:
+			style.set_corner_radius_all(radius)
+
+
+## Draws the frame ON TOP of `target` rather than behind it.
+##
+## A ProgressBar's fill ignores its background stylebox's margins and is drawn over the
+## whole rect - so at 100% the fill covers the background's border completely, and the bar
+## loses its outline at exactly the moment the player most wants to see that it is full.
+## An overlay child is drawn after its parent, which is the one place a border survives a
+## full bar.
+##
+## `draw_center = false` is what makes the stylebox a frame and nothing else, so the fill
+## underneath shows through untouched.
+func _add_border_overlay(target: Control, corner_radius: int = BAR_CORNER_RADIUS) -> void:
+	if target == null or target.get_node_or_null("BorderOverlay") != null:
+		return
+	var overlay := Panel.new()
+	overlay.name = "BorderOverlay"
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var style := StyleBoxFlat.new()
+	style.draw_center = false
+	style.border_color = BAR_BORDER_COLOR
+	style.set_border_width_all(BAR_BORDER_WIDTH)
+	style.set_corner_radius_all(corner_radius)
+	overlay.add_theme_stylebox_override("panel", style)
+
+	target.add_child(overlay)
+	# Anchors alone were not enough: a Panel added to a Control that has already been laid
+	# out keeps a zero rect until something re-runs the layout, and nothing does - the
+	# overlay was present, visible, and 0x0 on every bar. Sized explicitly now, and kept in
+	# step with the bar afterwards, which the minimap needs anyway because its size is a
+	# setting the player can drag.
+	# NOT anchored to the parent's rect: stretched anchors plus an explicit size is exactly
+	# what Godot warns about, and the anchors alone left the overlay at 0x0 anyway - nothing
+	# re-runs the layout of a Control that was already laid out before the child arrived.
+	overlay.size = target.size
+	overlay.position = Vector2.ZERO
+	target.resized.connect(func() -> void:
+		if is_instance_valid(overlay):
+			overlay.size = target.size
+			overlay.position = Vector2.ZERO)
+
+
+func _gradient_fill_style(light: Color, dark: Color) -> StyleBoxTexture:
+	var image := Image.create(HP_FILL_TEXTURE_SIZE.x, HP_FILL_TEXTURE_SIZE.y, false, Image.FORMAT_RGBA8)
+	var half := Vector2(HP_FILL_TEXTURE_SIZE) * 0.5
+	for x: int in range(HP_FILL_TEXTURE_SIZE.x):
+		var ramp: Color = light.lerp(dark, float(x) / float(HP_FILL_TEXTURE_SIZE.x - 1))
+		for y: int in range(HP_FILL_TEXTURE_SIZE.y):
+			# Distance to a rounded box, the same shape the flat styleboxes draw, turned
+			# into one pixel of coverage so the corners are not stair-stepped.
+			var corner: Vector2 = (Vector2(x, y) + Vector2(0.5, 0.5) - half).abs() \
+				- (half - Vector2(HP_FILL_CORNER_RADIUS, HP_FILL_CORNER_RADIUS))
+			var dist: float = Vector2(maxf(corner.x, 0.0), maxf(corner.y, 0.0)).length() - HP_FILL_CORNER_RADIUS
+			image.set_pixel(x, y, Color(ramp.r, ramp.g, ramp.b, ramp.a * clampf(0.5 - dist, 0.0, 1.0)))
+	var style := StyleBoxTexture.new()
+	style.texture = ImageTexture.create_from_image(image)
+	return style
+
+
 func update_health(current: float, max_health: float) -> void:
 	health_bar.max_value = max_health
 	health_bar.value = current
-	health_label.text = "Crystal Integrity: %d / %d" % [current, max_health]
+	health_label.text = "Base: %d / %d" % [current, max_health]
 	
 	if current <= 0:
 		status_label.text = "DEFEAT - THE CRYSTAL SHATTERED!"
@@ -275,6 +460,7 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		settings_panel.visible = !settings_panel.visible
 		settings_backdrop.visible = settings_panel.visible
+		SignalBus.menu_opened.emit("settings", settings_panel.visible)
 		if settings_panel.visible:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			show_minimap_checkbox.grab_focus()
@@ -343,6 +529,16 @@ func _on_camera_shake_toggled(button_pressed: bool) -> void:
 	GameSettings.camera_shake_enabled = button_pressed
 
 
+func _on_music_toggled(button_pressed: bool) -> void:
+	GameSettings.music_enabled = button_pressed
+	SoundBank.apply_music_settings()
+
+
+func _on_music_volume_changed(value: float) -> void:
+	GameSettings.music_volume_db = value
+	SoundBank.apply_music_settings()
+
+
 ## Debug: makes every skill-tree node free and ungated. The tree redraws itself off
 ## the mana_changed signal, so nudging it is what repaints the nodes that just became
 ## affordable without waiting for the next mana pickup.
@@ -351,7 +547,24 @@ func _on_free_skills_toggled(button_pressed: bool) -> void:
 	SignalBus.mana_changed.emit(RunState.mana_pool)
 
 func _on_minimap_size_changed(value: float) -> void:
-	minimap.custom_minimum_size = Vector2(value, value)
+	_apply_minimap_size(value)
+
+
+## Resizes the minimap AND the container holding it.
+##
+## Setting only the map's minimum size is what produced the two mismatched frames: the
+## container is pinned by its anchors and does not grow, so the ColorRect enforced its own
+## minimum and overflowed while its backdrop - which has no minimum of its own - stayed at
+## the old size. Moving the container's offsets is what actually resizes both of them.
+func _apply_minimap_size(side: float) -> void:
+	if minimap == null or minimap_container == null:
+		return
+	minimap.custom_minimum_size = Vector2(side, side)
+	var margin_x: float = float(minimap_container.get_theme_constant("margin_right"))
+	var margin_y: float = float(minimap_container.get_theme_constant("margin_bottom"))
+	minimap_container.offset_left = -(side + margin_x)
+	minimap_container.offset_top = -(side + margin_y)
+	_refresh_minimap_corners()
 
 func _setup_graphics_settings() -> void:
 	quality_preset_option.clear()
@@ -459,6 +672,64 @@ func _on_at_base_changed(is_at_base: bool) -> void:
 		interact_label.text = "Press [E] to Manage Base"
 		interact_label.visible = is_at_base
 
+## Everything that belongs to PLAYING, as opposed to the panels that sit over the game.
+##
+## Listed rather than derived from the Control's children because the exceptions are the
+## whole point: SettingsPanel, SettingsBackdrop and GameOverPanel are children of the same
+## node, and hiding those along with the rest would hide the menu just opened. The FPS
+## counter is left alone too - it is a diagnostic overlay, not part of the game's readout.
+const GAMEPLAY_HUD_PATHS: Array[String] = [
+	"Control/MarginContainer",
+	"Control/PlayerHealthBar",
+	"Control/HotbarContainer",
+	"Control/XPBar",
+	"Control/Crosshair",
+	"Control/MinimapContainer",
+	"Control/InteractLabel",
+]
+
+
+func _on_menu_opened(menu: String, is_open: bool) -> void:
+	if is_open:
+		_open_menus[menu] = true
+	else:
+		_open_menus.erase(menu)
+	_refresh_gameplay_hud()
+
+
+## Puts the gameplay HUD away while any menu is up and brings it back when the last one
+## closes.
+##
+## Restores by remembering what it hid rather than by showing everything: several of these
+## are conditionally visible in normal play - the interact prompt, the wave panel, the
+## minimap the settings can switch off - and a blanket show() would turn all of them on.
+func _refresh_gameplay_hud() -> void:
+	if _open_menus.is_empty():
+		for node: CanvasItem in _hidden_for_menu:
+			if is_instance_valid(node):
+				node.visible = true
+		_hidden_for_menu.clear()
+		return
+	# Already hidden: a second menu opening on top of the first must not re-record an
+	# empty set and lose what the first one put away.
+	if not _hidden_for_menu.is_empty():
+		return
+	var gameplay: Array[CanvasItem] = []
+	for path: String in GAMEPLAY_HUD_PATHS:
+		var node: CanvasItem = get_node_or_null(path) as CanvasItem
+		if node != null:
+			gameplay.append(node)
+	# Built in code rather than authored in hud.tscn, so these two have no path to list.
+	if _wave_panel:
+		gameplay.append(_wave_panel)
+	if _warning_panel:
+		gameplay.append(_warning_panel)
+	for node: CanvasItem in gameplay:
+		if node.visible:
+			node.visible = false
+			_hidden_for_menu.append(node)
+
+
 func _on_interact_prompt_changed(text: String, visible: bool) -> void:
 	if interact_label:
 		interact_label.text = text
@@ -470,9 +741,8 @@ func _update_hotbar_display(active_idx: int) -> void:
 		if not slot:
 			continue
 			
-		var num_label: Label = slot.get_node_or_null("VBox/Num") as Label
-		var name_label: Label = slot.get_node_or_null("Rank") as Label
-		var icon: TextureRect = slot.get_node_or_null("VBox/Icon") as TextureRect
+		var num_label: Label = slot.get_node_or_null("Num") as Label
+		var icon: TextureRect = slot.get_node_or_null("Icon") as TextureRect
 		var spell_id: String = _player._get_spell_id_for_slot(i) if _player and _player.has_method("_get_spell_id_for_slot") else ""
 		if icon:
 			var icon_path: String = SpellDatabase.get_icon_path(spell_id)
@@ -487,20 +757,6 @@ func _update_hotbar_display(active_idx: int) -> void:
 		var is_unlocked = false
 		if _player and _player.has_method("is_spell_unlocked"):
 			is_unlocked = _player.is_spell_unlocked(i)
-		if name_label:
-			# No spell names and no "Empty" placeholder: the icon identifies the spell and
-			# the number identifies the key, so the text row was only ever clutter across
-			# ten slots.
-			#
-			# The RANK stays. It is the one thing on a slot that the icon cannot show and
-			# that changes which key the player presses, and dropping it would take a
-			# working readout away rather than tidy one up.
-			var slot_text: String = ""
-			if _player and is_unlocked:
-				var rank: int = int(_player.get_spell_rank(_player._get_spell_id_for_slot(i)))
-				if rank > 0:
-					slot_text = "%d/%d" % [rank, GameSettings.spell_max_rank]
-			name_label.text = slot_text
 			
 		if i == active_idx:
 			sb.bg_color = Color(0.15, 0.15, 0.15, 0.95)
@@ -538,51 +794,60 @@ func _update_hotbar_display(active_idx: int) -> void:
 
 		slot.add_theme_stylebox_override("panel", sb)
 
+## Gives every slot a rounded icon that covers the whole square.
+##
+## The icon is a DIRECT child of the PanelContainer rather than a VBox row: a
+## PanelContainer stretches its direct children to fill, so this is what makes the icon
+## the size of the slot. It goes in at index 0 so CooldownOverlay still draws over it.
 func _ensure_hotbar_icons() -> void:
 	for slot: PanelContainer in _hotbar_slots:
-		var vbox: VBoxContainer = slot.get_node("VBox") as VBoxContainer
-		if vbox.get_node_or_null("Icon") != null:
+		if slot.get_node_or_null("Icon") != null:
 			continue
 		var icon := TextureRect.new()
 		icon.name = "Icon"
-		icon.custom_minimum_size = Vector2(HOTBAR_ICON_MIN, HOTBAR_ICON_MIN)
-		icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		icon.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		# SCALE, not KEEP_ASPECT_CENTERED: the slot is square and so are the spell icons,
+		# so scaling fills it edge to edge instead of leaving a letterboxed margin.
+		icon.stretch_mode = TextureRect.STRETCH_SCALE
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		vbox.add_child(icon)
-		vbox.move_child(icon, 0)
+		icon.material = IconStyle.rounded_material()
+		slot.add_child(icon)
+		slot.move_child(icon, 0)
 
-## Squares every slot and lifts the rank readout out of the layout flow.
+## Squares every slot and leaves exactly one thing written on it: the key that fires it,
+## in the bottom-left corner.
 ##
 ## Runs after the slots are duplicated, so it covers the five authored in hud.tscn and
 ## the five built at runtime alike.
 ##
-## The rank label has to move rather than just be hidden. It used to be a VBox row, and
-## an empty Label still reserves a full line of height - that row is what made the slot
-## taller than it is wide. Reparenting it onto the slot makes it an overlay instead:
-## PanelContainer stretches a direct child to fill, so aligning the text bottom-right
-## parks it in the corner of the icon without occupying any layout space, and slots no
-## longer change height when a rank appears or disappears.
+## The number has to MOVE rather than just be restyled. It used to be a VBox row sharing
+## the slot's height with the icon, next to a second row for the spell's rank, and an
+## empty Label still reserves a full line - together that is what kept the icon small and
+## the slot taller than it is wide. Reparenting the number onto the slot makes it an
+## overlay instead: PanelContainer stretches a direct child to fill, so aligning it into a
+## corner parks it over the icon without occupying any layout space at all.
+##
+## The rank row is freed rather than reparented. The icon and the key are the whole
+## readout now; rank lives in the skill tree, which is where it is chosen.
 func _lay_out_hotbar_slots() -> void:
 	for slot: PanelContainer in _hotbar_slots:
 		slot.custom_minimum_size = Vector2(HOTBAR_SLOT_SIZE, HOTBAR_SLOT_SIZE)
 		var vbox: VBoxContainer = slot.get_node_or_null("VBox") as VBoxContainer
 		if vbox == null:
 			continue
-		if slot.get_node_or_null("Rank") != null:
-			continue
-		var rank_label: Label = vbox.get_node_or_null("Name") as Label
-		if rank_label == null:
-			continue
-		vbox.remove_child(rank_label)
-		rank_label.name = "Rank"
-		rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		rank_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		rank_label.add_theme_font_size_override("font_size", 10)
-		rank_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot.add_child(rank_label)
+		var num_label: Label = vbox.get_node_or_null("Num") as Label
+		if num_label != null:
+			vbox.remove_child(num_label)
+			num_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			num_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+			num_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			# The number sits ON the artwork now that the icon covers the whole slot, so
+			# it carries its own outline rather than relying on the slot's background to
+			# separate it from whatever is behind it.
+			num_label.add_theme_constant_override("outline_size", 4)
+			num_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
+			slot.add_child(num_label)
+		vbox.queue_free()
 
 
 func _setup_mana_icons() -> void:
@@ -597,6 +862,7 @@ func _setup_mana_icons() -> void:
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		icon.texture = load(SpellDatabase.get_icon_path(colors[index])) as Texture2D
+		icon.material = IconStyle.rounded_material()
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		parent.add_child(icon)
 		parent.move_child(icon, label.get_index())

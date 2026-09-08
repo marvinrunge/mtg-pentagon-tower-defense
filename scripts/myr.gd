@@ -30,6 +30,13 @@ var target_crystal: Node3D
 var lane_index: int = -1
 var health: float = GameSettings.myr_max_hp
 var max_health: float = GameSettings.myr_max_hp
+## What the player calls this one. Empty means they never named it, and the base screen
+## shows a positional "Myr 3" instead - a default name stored here would be wrong the
+## moment an earlier myr died and the numbering shifted under it.
+var display_name: String = ""
+## Bought in the base, per myr. Raises health and how much mana it carries home; see
+## set_level and carry_amount.
+var level: int = 1
 var fervor_active: bool = false
 var is_dying: bool = false
 
@@ -147,6 +154,33 @@ func _lane_color() -> String:
 		return main_node.LANE_NAMES[lane_index]
 	return ""
 
+## How much this myr brings back per trip. Levels are worth more to a myr that is already
+## walking the route than a second myr would be, because the walk is the cost.
+func carry_amount() -> int:
+	return 1 + (level - 1) * GameSettings.myr_level_carry_bonus
+
+
+## Sets the level and rebuilds what depends on it.
+##
+## The health GAIN arrives as health rather than only as headroom: a level bought while
+## hurt that left the bar at the same number, only further from full, would read as having
+## done nothing.
+func set_level(new_level: int) -> void:
+	var clamped: int = clampi(new_level, 1, GameSettings.myr_max_level)
+	if clamped == level:
+		return
+	var gained: float = float(clamped - level) * GameSettings.myr_level_hp_bonus
+	level = clamped
+	max_health = GameSettings.myr_max_hp + float(level - 1) * GameSettings.myr_level_hp_bonus
+	health = minf(max_health, health + maxf(gained, 0.0))
+
+
+## What the base screen calls this myr. `fallback_index` is its position in the list, used
+## only when the player has not named it.
+func label(fallback_index: int) -> String:
+	return display_name if display_name.strip_edges() != "" else "Myr %d" % fallback_index
+
+
 func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false) -> void:
 	if is_dying:
 		return
@@ -229,7 +263,7 @@ func _ground_visual(visual_instance: Node3D) -> void:
 			local_aabb.size.y * float((corner_idx >> 1) & 1),
 			local_aabb.size.z * float((corner_idx >> 2) & 1)
 		)
-		min_y = min(min_y, mesh_instance.global_transform * corner).y
+		min_y = min(min_y, (mesh_instance.global_transform * corner).y)
 	if is_finite(min_y):
 		visual_instance.position.y -= min_y - global_position.y
 
@@ -355,4 +389,4 @@ func start_depositing() -> void:
 	state_timer = deposit_time
 
 	var color := _lane_color()
-	SignalBus.mana_deposited.emit(color if color != "" else "Colorless", 1)
+	SignalBus.mana_deposited.emit(color if color != "" else "Colorless", carry_amount())

@@ -2,6 +2,8 @@ extends CanvasLayer
 class_name SkillTree
 
 const COLOR_NAMES: Array[String] = ["white", "blue", "black", "red", "green"]
+## Rounds every node icon by the same fraction the hotbar rounds its own.
+const IconStyle := preload("res://scripts/icon_style.gd")
 ## The hub at the middle of the pentagon. It belongs to no colour and gates no
 ## spell - it is the one colourless purchase, paid for out of any mana, and it
 ## lengthens the player's light attack chain by a stage.
@@ -74,7 +76,49 @@ const PASSIVE_DATA: Dictionary = {
 @onready var control_root: Control = $Control
 
 var _board: Control
-var _outer_line: Line2D
+var _passive_lines: Array[Line2D] = []
+## Where each branch sits inside its colour's wedge: x is the angle off the colour's own
+## axis in degrees, y is how far out it sits between the hub and the rim.
+##
+## A colour is a TREE, not a line. It used to be six nodes strung along one spoke, which
+## made every colour identical in shape, wasted the whole width of its wedge, and said
+## nothing about which spells belong together. Now it opens out:
+##
+##       affinity              one node, on the axis
+##      /        \
+##   spell 1   spell 2         the two the colour opens with
+##    /   \    /   \
+##  s3     s4      s5          the three it builds towards
+##
+## Red reads as: affinity, then Fireball and Fire Dash, then Rain of Ember, Fire Cone and
+## Lightning Bolt. The wedge is 72 degrees wide, so the widest pair at 26 degrees still
+## leaves a clear gap to the neighbouring colour - and the guild passive that sits on the
+## bisector between them is at a different radius again.
+const BRANCH_LAYOUT: Dictionary = {
+	0: Vector2(0.0, 0.12),
+	1: Vector2(-14.0, 0.58),
+	2: Vector2(14.0, 0.58),
+	3: Vector2(-26.0, 1.0),
+	4: Vector2(0.0, 1.0),
+	5: Vector2(26.0, 1.0),
+}
+
+## Which nodes are joined by a line, as pairs of branch indices (CENTER_BRANCH is the hub).
+##
+## The middle of the outer row is fed by BOTH openers rather than by one of them: three
+## children over two parents has no symmetric strict-tree answer, and the diamond that
+## makes reads as a lattice rather than as an arbitrary choice about which opener owns it.
+## The capstone fork then hangs off that same middle node, which is the colour's tip.
+const BRANCH_EDGES: Array = [
+	[CENTER_BRANCH, 0],
+	[0, 1], [0, 2],
+	[1, 3], [1, 4], [2, 4], [2, 5],
+	[4, CAPSTONE_BRANCHES[0]], [4, CAPSTONE_BRANCHES[1]],
+]
+
+## Bigger nearer the trunk, so the eye reads the hierarchy before it reads the icons.
+const BRANCH_DIAMETERS: Dictionary = {0: 48.0, 1: 44.0, 2: 44.0, 3: 40.0, 4: 40.0, 5: 40.0}
+
 var _branch_lines: Dictionary = {}
 var _button_records: Array[Dictionary] = []
 var _texture_cache: Dictionary = {}
@@ -87,6 +131,10 @@ var _hovered_record: Dictionary = {}
 ## the pentagon rather than buried in a corner, because it is the one number every
 ## purchase in this screen revolves around.
 var _skill_points_label: Label
+## The team level, drawn in the middle of the pentagon where Blade Dance used to sit. It is
+## the one number the whole board is measured against, so it belongs at the centre of it.
+var _level_badge: Panel
+var _level_label: Label
 
 # --- Gamepad/keyboard radial navigation (mouse hover still works independently) ---
 var _selection_ring: Control
@@ -103,12 +151,15 @@ func _ready() -> void:
 	SignalBus.passive_rank_changed.connect(func(_passive_id: String, _rank: int): update_ui())
 	SignalBus.quick_slots_changed.connect(update_ui)
 	SignalBus.skill_points_changed.connect(func(_player: Node, _points: int): update_ui())
+	# The hub shows the team level now, so the board has to follow it.
+	SignalBus.team_level_changed.connect(func(_level: int, _gained: int): update_ui())
 	_build_ui()
 	update_ui()
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("skill_tree") or (visible and event.is_action_pressed("ui_cancel")):
 		visible = not visible
+		SignalBus.menu_opened.emit("skill_tree", visible)
 		if visible:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 			update_ui()
@@ -124,19 +175,20 @@ func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 
-	# Radial keyboard/gamepad navigation - ui_left/right/up/down/accept already carry
-	# sensible engine-default gamepad bindings (d-pad + left stick + face button A).
+	# Spatial keyboard/gamepad navigation - each direction chooses the nearest visible
+	# node in that direction, so the controls follow the tree on screen instead of an
+	# abstract colour/branch grid.
 	if event.is_action_pressed("ui_left"):
-		_select_node(wrapi(_selected_color_index - 1, 0, COLOR_NAMES.size()), _selected_branch_index)
+		_select_direction(Vector2.LEFT)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_right"):
-		_select_node(wrapi(_selected_color_index + 1, 0, COLOR_NAMES.size()), _selected_branch_index)
+		_select_direction(Vector2.RIGHT)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_up"):
-		_select_node(_selected_color_index, wrapi(_selected_branch_index - 1, CENTER_BRANCH, BRANCH_COUNT))
+		_select_direction(Vector2.UP)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_down"):
-		_select_node(_selected_color_index, wrapi(_selected_branch_index + 1, CENTER_BRANCH, BRANCH_COUNT))
+		_select_direction(Vector2.DOWN)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_accept"):
 		var record: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
@@ -144,24 +196,54 @@ func _input(event: InputEvent) -> void:
 			_on_node_pressed(record["color"], record["branch_index"], record["info"])
 		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo \
-			and ((event.keycode >= KEY_1 and event.keycode <= KEY_9) or event.keycode == KEY_0):
+			and event.keycode >= KEY_1 and event.keycode < KEY_1 + Player.QUICK_SLOT_COUNT:
 		# Number keys bind whatever the pointer or the selection is on to that hotbar
 		# slot. This is the whole loadout UI: the alternative was a drag-and-drop bar,
 		# and the keys being bound ARE the keys you press to cast, which is easier to
 		# explain than any widget would be.
-		var slot_index: int = 9 if event.keycode == KEY_0 else event.keycode - KEY_1
-		_bind_hovered_to_slot(slot_index)
+		_bind_hovered_to_slot(event.keycode - KEY_1)
 		get_viewport().set_input_as_handled()
 
 func _select_node(color_index: int, branch_index: int) -> void:
-	_selected_color_index = color_index
-	_selected_branch_index = branch_index
 	var color: String = COLOR_NAMES[color_index]
 	var record: Dictionary = _find_record(color, branch_index)
 	if record.is_empty():
 		return
-	_show_details(record["color"], branch_index, record["info"])
+	_select_record(record)
+
+func _select_record(record: Dictionary) -> void:
+	var record_color: String = String(record["color"])
+	if COLOR_NAMES.has(record_color):
+		_selected_color_index = COLOR_NAMES.find(record_color)
+	_selected_branch_index = int(record["branch_index"])
+	_show_details(record["color"], int(record["branch_index"]), record["info"])
 	_position_selection_ring(record["button"])
+
+func _select_direction(direction: Vector2) -> void:
+	var current: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
+	if current.is_empty():
+		return
+	var current_button: TextureButton = current["button"]
+	var current_center: Vector2 = current_button.position + current_button.size * 0.5
+	var best_record: Dictionary = {}
+	var best_score: float = INF
+	for record: Dictionary in _button_records:
+		var candidate_button: TextureButton = record["button"]
+		if candidate_button == current_button:
+			continue
+		var offset: Vector2 = candidate_button.position + candidate_button.size * 0.5 - current_center
+		var distance: float = offset.length()
+		if distance <= 0.01:
+			continue
+		var alignment: float = direction.dot(offset / distance)
+		if alignment < 0.35:
+			continue
+		var score: float = distance / alignment
+		if score < best_score:
+			best_score = score
+			best_record = record
+	if not best_record.is_empty():
+		_select_record(best_record)
 
 func _position_selection_ring(button: TextureButton) -> void:
 	if not is_instance_valid(_selection_ring):
@@ -186,6 +268,28 @@ func _build_ui() -> void:
 	_board.clip_contents = true
 	control_root.add_child(_board)
 
+	_level_badge = Panel.new()
+	_level_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_level_badge.z_index = 1
+	var level_badge_style := StyleBoxFlat.new()
+	level_badge_style.bg_color = Color(0.025, 0.03, 0.035, 0.94)
+	level_badge_style.border_color = Color(0.72, 0.68, 0.52, 0.9)
+	level_badge_style.set_border_width_all(2)
+	level_badge_style.set_corner_radius_all(1000)
+	_level_badge.add_theme_stylebox_override("panel", level_badge_style)
+	_board.add_child(_level_badge)
+
+	_level_label = Label.new()
+	_level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_level_label.z_index = 2
+	_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_level_label.add_theme_font_size_override("font_size", 34)
+	_level_label.add_theme_color_override("font_color", Color(0.95, 0.93, 0.82))
+	_level_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_level_label.add_theme_constant_override("outline_size", 6)
+	_board.add_child(_level_label)
+
 	_skill_points_label = Label.new()
 	_skill_points_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_skill_points_label.position = Vector2(-320.0, 18.0)
@@ -198,19 +302,26 @@ func _build_ui() -> void:
 	_skill_points_label.add_theme_constant_override("outline_size", 6)
 	control_root.add_child(_skill_points_label)
 
-	_outer_line = Line2D.new()
-	_outer_line.width = 2.0
-	_outer_line.default_color = Color(0.72, 0.68, 0.52, 0.42)
-	_outer_line.antialiased = true
-	_board.add_child(_outer_line)
+	for _connection: int in range(COLOR_NAMES.size() * 2):
+		var passive_line := Line2D.new()
+		passive_line.width = 2.0
+		passive_line.default_color = Color(0.72, 0.68, 0.52, 0.42)
+		passive_line.antialiased = true
+		_board.add_child(passive_line)
+		_passive_lines.append(passive_line)
 
 	for color: String in COLOR_NAMES:
-		var branch_line := Line2D.new()
-		branch_line.width = 3.0
-		branch_line.default_color = COLOR_HEX[color] * Color(1.0, 1.0, 1.0, 0.46)
-		branch_line.antialiased = true
-		_board.add_child(branch_line)
-		_branch_lines[color] = branch_line
+		# One Line2D per EDGE now. A branching colour is not a polyline, and a single Line2D
+		# can only ever draw one continuous run of points.
+		var edges: Array[Line2D] = []
+		for _edge: Array in BRANCH_EDGES:
+			var branch_line := Line2D.new()
+			branch_line.width = 3.0
+			branch_line.default_color = COLOR_HEX[color] * Color(1.0, 1.0, 1.0, 0.46)
+			branch_line.antialiased = true
+			_board.add_child(branch_line)
+			edges.append(branch_line)
+		_branch_lines[color] = edges
 
 	var center_info: Dictionary = CENTER_INFO.duplicate()
 	center_info["cost"] = GameSettings.melee_combo_unlock_cost
@@ -273,6 +384,9 @@ func _create_icon_node(color: String, branch_index: int, info: Dictionary) -> vo
 	var button := TextureButton.new()
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	# The same rounding the hotbar gives its icons: a node in the tree and the slot it
+	# gets bound to are the same picture, and they have to read as the same object.
+	button.material = IconStyle.rounded_material()
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.mouse_entered.connect(_show_details.bind(color, branch_index, info))
@@ -367,44 +481,47 @@ func _layout_nodes() -> void:
 	if not is_instance_valid(_board) or _board.size.x <= 0.0 or _board.size.y <= 0.0:
 		return
 
-	# The pentagon is centred in the space ABOVE the detail panel, not in the whole board.
-	#
-	# It used to be centred in the board, which was survivable while every node sat on the
-	# pentagon itself. The capstone fork put two more nodes per colour OUTSIDE it, and the
-	# lowest of those landed under the panel - clickable, because the panel ignores the
-	# mouse, but invisible. Reserving the panel's band first is the fix that holds at any
-	# aspect ratio, because the panel is a FIXED 620x116 and therefore eats a far larger
-	# share of a 720p board than of a 1080p one. tools/tests/skill_purchase.gd asserts it
-	# at three shapes rather than trusting one.
-	var panel_reserve: float = _detail_panel.size.y + 36.0
-	var usable_height: float = maxf(_board.size.y - panel_reserve, 120.0)
-	var center := Vector2(_board.size.x * 0.5, usable_height * 0.5)
-	var outer_radius: float = minf(_board.size.x * 0.43, usable_height * 0.46)
+	# The detail panel is an overlay, so the pentagon can use the full window. Its position
+	# is chosen from the hovered node below, keeping the selected node readable at either
+	# edge of the tree.
+	var center := Vector2(_board.size.x * 0.5, _board.size.y * 0.5)
+	var outer_radius: float = minf(_board.size.x * 0.43, _board.size.y * 0.46)
 	var branch_radius: float = outer_radius * 0.87
 	var inner_radius: float = branch_radius * 0.18
-	var outer_vertices := PackedVector2Array()
-
+	var icon_scale: float = clampf(minf(_board.size.x, _board.size.y) / 720.0, 1.0, 2.0)
+	var node_centers: Dictionary = {}
 	var center_record: Dictionary = _find_record(CENTER_KEY, CENTER_BRANCH)
 	if not center_record.is_empty():
 		var center_button: TextureButton = center_record["button"]
-		center_button.size = Vector2(48.0, 48.0)
+		center_button.size = Vector2(48.0, 48.0) * icon_scale
 		center_button.position = center - center_button.size * 0.5
+	if is_instance_valid(_level_label):
+		# Over the hub, which now draws nothing of its own.
+		_level_label.size = Vector2(120.0, 48.0)
+		_level_label.position = center - _level_label.size * 0.5
+	if is_instance_valid(_level_badge):
+		_level_badge.size = Vector2(76.0, 76.0) * icon_scale
+		_level_badge.position = center - _level_badge.size * 0.5
 
 	for color_index: int in range(COLOR_NAMES.size()):
 		var color: String = COLOR_NAMES[color_index]
 		var angle: float = -PI * 0.5 + TAU * float(color_index) / float(COLOR_NAMES.size())
 		var direction := Vector2(cos(angle), sin(angle))
-		var branch_points := PackedVector2Array([center])
+		# Every node's centre, kept so the edges can be drawn between them afterwards
+		# rather than guessed at a second time.
+		var points: Dictionary = {CENTER_BRANCH: center}
 
 		for branch_index: int in range(6):
-			var progress: float = float(branch_index) / 5.0
-			var radius: float = lerpf(inner_radius, branch_radius, progress)
-			var point: Vector2 = center + direction * radius
-			branch_points.append(point)
+			var layout: Vector2 = BRANCH_LAYOUT[branch_index]
+			var node_angle: float = angle + deg_to_rad(layout.x)
+			var radius: float = lerpf(inner_radius, branch_radius, layout.y)
+			var point: Vector2 = center + Vector2(cos(node_angle), sin(node_angle)) * radius
+			points[branch_index] = point
+			node_centers["%s_%d" % [color, branch_index]] = point
 			var record: Dictionary = _find_record(color, branch_index)
 			if not record.is_empty():
 				var button: TextureButton = record["button"]
-				var diameter: float = 48.0 if branch_index == 0 else 40.0
+				var diameter: float = float(BRANCH_DIAMETERS.get(branch_index, 40.0)) * icon_scale
 				button.size = Vector2(diameter, diameter)
 				button.position = point - button.size * 0.5
 				_place_badge(record, button)
@@ -413,35 +530,61 @@ func _layout_nodes() -> void:
 		# two halves read as alternatives to each other rather than as two more steps.
 		var fork_radius: float = outer_radius
 		for half: int in range(CAPSTONE_BRANCHES.size()):
+			# Splayed narrowly, INSIDE the outer row's own spread: the fork is the tip of
+			# the colour, and a fork wider than the row it grows out of reads as a sixth
+			# and seventh spell rather than as a choice between two endings.
+			var splay: float = deg_to_rad(-11.0 if half == 0 else 11.0)
+			var fork_direction := Vector2(cos(angle + splay), sin(angle + splay))
+			var fork_point: Vector2 = center + fork_direction * fork_radius
+			points[CAPSTONE_BRANCHES[half]] = fork_point
 			var fork_record: Dictionary = _find_record(color, CAPSTONE_BRANCHES[half])
 			if fork_record.is_empty():
 				continue
-			var splay: float = deg_to_rad(-13.0 if half == 0 else 13.0)
-			var fork_direction := Vector2(cos(angle + splay), sin(angle + splay))
 			var fork_button: TextureButton = fork_record["button"]
-			fork_button.size = Vector2(44.0, 44.0)
-			fork_button.position = center + fork_direction * fork_radius - fork_button.size * 0.5
+			fork_button.size = Vector2(44.0, 44.0) * icon_scale
+			fork_button.position = fork_point - fork_button.size * 0.5
 			_place_badge(fork_record, fork_button)
 
-		var branch_line: Line2D = _branch_lines[color]
-		branch_line.points = branch_points
-		outer_vertices.append(center + direction * branch_radius)
-
+		var edge_lines: Array = _branch_lines[color]
+		for edge_index: int in range(BRANCH_EDGES.size()):
+			var edge: Array = BRANCH_EDGES[edge_index]
+			var line: Line2D = edge_lines[edge_index]
+			if points.has(edge[0]) and points.has(edge[1]):
+				line.points = PackedVector2Array([points[edge[0]], points[edge[1]]])
+			else:
+				line.points = PackedVector2Array()
 	# The guild passives sit on the bisector of their two colours, a little inside the
 	# ring of spell nodes - between the colours, which is the whole point of them.
+	var passive_points: Array[Vector2] = []
 	for gap: int in range(COLOR_NAMES.size()):
 		var passive_record: Dictionary = _find_record(COLOR_NAMES[gap], PASSIVE_BRANCH)
 		if passive_record.is_empty():
 			continue
 		var bisector: float = -PI * 0.5 + TAU * (float(gap) + 0.5) / float(COLOR_NAMES.size())
 		var passive_button: TextureButton = passive_record["button"]
-		passive_button.size = Vector2(36.0, 36.0)
-		passive_button.position = center + Vector2(cos(bisector), sin(bisector)) * (branch_radius * 0.55) - passive_button.size * 0.5
+		passive_button.size = Vector2(36.0, 36.0) * icon_scale
+		var passive_point: Vector2 = center + Vector2(cos(bisector), sin(bisector)) * (branch_radius * 0.55)
+		passive_points.append(passive_point)
+		passive_button.position = passive_point - passive_button.size * 0.5
 		_place_badge(passive_record, passive_button)
 
-	outer_vertices.append(outer_vertices[0])
-	_outer_line.points = outer_vertices
-	_detail_panel.position = Vector2(center.x - 310.0, _board.size.y - 134.0)
+	for gap: int in range(passive_points.size()):
+		var next_color_index: int = (gap + 1) % COLOR_NAMES.size()
+		var left_key: String = "%s_%d" % [COLOR_NAMES[gap], 2]
+		var right_key: String = "%s_%d" % [COLOR_NAMES[next_color_index], 1]
+		var passive_point: Vector2 = passive_points[gap]
+		var line_index: int = gap * 2
+		_passive_lines[line_index].points = PackedVector2Array([passive_point, node_centers[left_key]])
+		_passive_lines[line_index + 1].points = PackedVector2Array([passive_point, node_centers[right_key]])
+	if not _hovered_record.is_empty():
+		var hovered_layout: Dictionary = _find_record(
+			String(_hovered_record["color"]), int(_hovered_record["branch_index"]))
+		if not hovered_layout.is_empty():
+			_position_detail_panel(hovered_layout["button"])
+	else:
+		_detail_panel.position = Vector2(
+			maxf((_board.size.x - _detail_panel.size.x) * 0.5, 18.0),
+			_board.size.y - _detail_panel.size.y - 18.0)
 
 	if is_instance_valid(_selection_ring) and _selection_ring.visible:
 		var current_record: Dictionary = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
@@ -456,6 +599,21 @@ func _place_badge(record: Dictionary, button: TextureButton) -> void:
 	var badge: Label = record["badge"]
 	badge.size = Vector2(button.size.x + 24.0, 16.0)
 	badge.position = Vector2(button.position.x - 12.0, button.position.y + button.size.y - 2.0)
+
+
+func _position_detail_panel(button: TextureButton) -> void:
+	var side_margin: float = 18.0
+	var max_x: float = maxf(side_margin, _board.size.x - _detail_panel.size.x - side_margin)
+	var panel_x: float = clampf(
+		button.position.x + button.size.x * 0.5 - _detail_panel.size.x * 0.5,
+		side_margin, max_x)
+	var node_center_y: float = button.position.y + button.size.y * 0.5
+	var panel_y: float
+	if node_center_y < _board.size.y * 0.5:
+		panel_y = _board.size.y - _detail_panel.size.y - side_margin
+	else:
+		panel_y = side_margin
+	_detail_panel.position = Vector2(panel_x, panel_y)
 
 
 func _find_record(color: String, branch_index: int) -> Dictionary:
@@ -482,14 +640,16 @@ func update_ui() -> void:
 		var branch_index: int = record["branch_index"]
 		var info: Dictionary = record["info"]
 		if bool(info.get("is_center", false)):
-			var center_state: String = "available"
-			if bool(player.melee_combo_extended):
-				center_state = "unlocked"
-			elif not _affordable(_total_mana(mana_pool), int(info["cost"])):
-				center_state = "locked"
-			button.texture_normal = _get_icon_texture(info, color)
-			button.texture_hover = button.texture_normal
-			button.modulate = _icon_modulate(center_state)
+			# The hub is a READOUT now, not a node. Blade Dance arrives on its own at team
+			# level 10 (Player._on_team_level_changed), so there is nothing here to buy -
+			# and the number every colour's ladder is measured against belongs in the middle
+			# of the board rather than in a corner of the HUD.
+			button.texture_normal = null
+			button.texture_hover = null
+			button.modulate = Color.WHITE
+			_set_badge(record, "", Color.WHITE)
+			if is_instance_valid(_level_label):
+				_level_label.text = "%d" % RunState.team_level
 			continue
 
 		var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
@@ -506,17 +666,21 @@ func update_ui() -> void:
 				state = "locked"
 			elif not _gate_met(player, color, info) or not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
-			button.texture_normal = _get_icon_texture(info, color)
-			button.texture_hover = button.texture_normal
 			var taken_elsewhere: bool = player.unlocked_capstone_aura != "" and player.unlocked_capstone_aura != capstone_id
+			button.texture_normal = _get_icon_texture(info, color) if state == "unlocked" else _mana_pip_texture(color)
+			button.texture_hover = button.texture_normal
+			button.material = IconStyle.rounded_material(state == "unlocked")
 			button.modulate = Color(0.25, 0.27, 0.3) if taken_elsewhere else _icon_modulate(state)
 			continue
 
 		if bool(info.get("is_passive", false)):
 			var passive_id: String = String(info["id"])
 			var passive_rank: int = player.get_passive_rank(passive_id)
+			var passive_reachable: bool = _passive_reachable(player, color)
 			if passive_rank > 0:
 				state = "unlocked"
+			elif not passive_reachable:
+				state = "unreachable"
 			elif not _passive_gate_met(player, passive_rank + 1) or not _affordable(available_mana, GameSettings.spell_rank_point_cost):
 				state = "locked"
 			if passive_rank > 0:
@@ -524,8 +688,9 @@ func update_ui() -> void:
 					Color(1.0, 0.85, 0.35) if passive_rank >= GameSettings.spell_max_rank else Color(0.88, 0.92, 0.96))
 			else:
 				_set_badge(record, "", Color.WHITE)
-			button.texture_normal = _get_icon_texture(info, color)
+			button.texture_normal = _get_icon_texture(info, color) if state == "unlocked" else _mana_pip_texture(color)
 			button.texture_hover = button.texture_normal
+			button.material = IconStyle.rounded_material(state == "unlocked")
 			button.modulate = _icon_modulate(state)
 			continue
 
@@ -539,12 +704,24 @@ func update_ui() -> void:
 			var rank: int = int(player.get_spell_rank(info["id"]))
 			if rank > 0:
 				state = "unlocked"
-			elif not _gate_met(player, color, info) or not _affordable(available_mana, int(info["cost"])):
+			elif not _is_reachable(player, color, branch_index):
+				# Not merely unaffordable - unreachable. The node keeps its place on the
+				# board, so the shape of the colour is always legible, but it shows the
+				# colour's mana symbol instead of the spell's icon and _show_details will
+				# not name it. What is behind it is something to go and find.
+				state = "unreachable"
+			elif rank > 0 and not _investment_met(player, color, branch_index) \
+					or not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
 			_set_spell_badge(record, player, String(info["id"]), rank)
 
-		button.texture_normal = _get_icon_texture(info, color)
+		if state == "unreachable":
+			button.texture_normal = _mana_pip_texture(color)
+			_set_badge(record, "", Color.WHITE)
+		else:
+			button.texture_normal = _get_icon_texture(info, color)
 		button.texture_hover = button.texture_normal
+		button.material = IconStyle.rounded_material(state == "unlocked")
 		button.modulate = _icon_modulate(state)
 
 	if not _hovered_record.is_empty():
@@ -582,13 +759,26 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	var mana_pool: Dictionary = RunState.mana_pool
 	_hovered_record = {"color": color, "branch_index": branch_index, "info": info}
 	_detail_panel.show()
+	var detail_record: Dictionary = _find_record(color, branch_index)
+	if not detail_record.is_empty():
+		_position_detail_panel(detail_record["button"])
 
 	if bool(info.get("is_center", false)):
-		_detail_title.text = info["name"]
+		_detail_title.text = "Team Level %d" % RunState.team_level
 		_detail_title.add_theme_color_override("font_color", Color(0.86, 0.84, 0.72))
-		var center_status: String = "UNLOCKED" if bool(player.melee_combo_extended) else "Cost %d mana of any colour" % int(info["cost"])
-		_detail_status.text = "%s  Mana %d" % [center_status, _total_mana(mana_pool)]
-		_detail_body.text = info["desc"]
+		_detail_status.text = "Blade Dance is granted at level 10" if not bool(player.melee_combo_extended) else "Blade Dance unlocked"
+		_detail_body.text = "Every colour's ladder is measured against this number."
+		return
+
+	# Withheld, not dimmed. A node with no owned neighbour shows its colour's mana symbol on
+	# the board and says nothing here - no name, no description, no cost. Reaching it is the
+	# thing that reveals what it is.
+	if not bool(info.get("is_passive", false)) and not bool(info["is_affinity"]) \
+			and not _is_reachable(player, color, branch_index):
+		_detail_title.text = "%s - Undiscovered" % COLOR_DISPLAY[color]
+		_detail_title.add_theme_color_override("font_color", COLOR_HEX[color] * Color(1, 1, 1, 0.7))
+		_detail_status.text = "Unlock a connected skill to reveal this"
+		_detail_body.text = ""
 		return
 
 	var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
@@ -602,8 +792,6 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 			status = "YOUR CAPSTONE"
 		elif player.unlocked_capstone_aura != "":
 			status = "Locked - you already chose %s" % SpellDatabase.get_capstone_name(player.unlocked_capstone_aura)
-		elif not _gate_met(player, color, info):
-			status = "Requires %d ranks in %s" % [int(info["rank_requirement"]), COLOR_DISPLAY[color]]
 		else:
 			status = "Costs %d skill points - PERMANENT for the run" % int(info["cost"])
 		_detail_status.text = "%s  %s  Points %d" % [COLOR_SYMBOL[color], status, _skill_points(player)]
@@ -617,8 +805,8 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 		_detail_title.text = "%s - %s" % [String(info["guild"]), info["name"]]
 		_detail_title.add_theme_color_override("font_color", (COLOR_HEX[pair[0]] + COLOR_HEX[pair[1]]) * 0.5)
 		var passive_status: String
-		if not _passive_gate_met(player, passive_rank + 1):
-			passive_status = "Requires team level %d" % GameSettings.rank_level_requirement(passive_rank + 1)
+		if passive_rank <= 0 and not _passive_reachable(player, color):
+			passive_status = "Unlock a connected skill first  |  "
 		elif passive_rank >= GameSettings.spell_max_rank:
 			passive_status = "Rank %d/%d - MAX  |  " % [passive_rank, GameSettings.spell_max_rank] + _passive_value_text(player, passive_id, passive_rank)
 		elif passive_rank <= 0:
@@ -641,10 +829,7 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 		var status: String = ""
 		if rank <= 0:
 			# Not owned yet: the affinity gate is the thing standing in the way.
-			if _gate_met(player, color, info):
-				status = "Unlock for %d point" % GameSettings.spell_rank_point_cost
-			else:
-				status = "Requires team level %d" % int(info["rank_requirement"])
+			status = "Unlock for %d point" % GameSettings.spell_rank_point_cost
 		else:
 			# Owned: what matters is what the NEXT rank costs and what is stopping it.
 			var blocker: String = String(player.spell_rank_blocker(spell_id))
@@ -671,18 +856,13 @@ func _hide_details() -> void:
 ## `main_controller.has_method("spend_mana_cost")`, which the economy rework deleted when
 ## mana moved to RunState - so the guard silently refused EVERY purchase, debug switch
 ## included. The only thing a purchase actually needs is the local player.
-func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> void:
+func _on_node_pressed(color: String, branch_index: int, info: Dictionary) -> void:
 	var player = PlayerRegistry.get_local()
 	if player == null:
 		return
 
 	if bool(info.get("is_center", false)):
-		if bool(player.melee_combo_extended):
-			return
-		# Colourless, so it draws from whichever pools happen to hold mana.
-		if _pay(player, GameSettings.skill_point_cost_melee_combo):
-			SignalBus.melee_combo_unlocked.emit()
-			update_ui()
+		# Nothing to buy: the hub shows the team level, and Blade Dance is granted at 10.
 		return
 
 	# One capstone per run, and taking it is irreversible - so the check that another is
@@ -690,11 +870,14 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 	if bool(info.get("is_capstone", false)):
 		if player.unlocked_capstone_aura != "":
 			return
-		if not _gate_met(player, color, info):
+		# The fork hangs off the middle finisher, so a capstone asks the player to have
+		# finished the colour rather than to have reached a team level.
+		if not _is_reachable(player, color, branch_index):
 			return
 		if _pay(player, int(info["cost"])):
 			player.unlock_capstone(String(info["id"]))
 			update_ui()
+			SoundBank.play(&"skill_unlock")
 		return
 
 	if bool(info.get("is_passive", false)):
@@ -702,18 +885,19 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 		var passive_rank: int = player.get_passive_rank(passive_id)
 		if passive_rank >= GameSettings.spell_max_rank:
 			return
-		if not _passive_gate_met(player, passive_rank + 1):
-			_flash_status("Requires team level %d" % GameSettings.rank_level_requirement(passive_rank + 1))
+		if passive_rank <= 0 and not _passive_reachable(player, color):
 			return
 		if _pay(player, GameSettings.spell_rank_point_cost):
 			player.grant_passive_rank(passive_id)
 			update_ui()
+			SoundBank.play(&"skill_unlock")
 		return
 
 	if bool(info["is_affinity"]):
 		if _pay(player, 1):
 			player.invest_affinity(color)
 			update_ui()
+			SoundBank.play(&"skill_unlock")
 		return
 
 	# One click, one rank - the first buys the spell, the next four deepen it. Clicking a
@@ -722,11 +906,15 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 	var spell_id: String = String(info["id"])
 	var rank: int = int(player.get_spell_rank(spell_id))
 	if rank <= 0:
-		if not _gate_met(player, color, info):
+		# Unreachable nodes are not merely refused, they are not described either - see
+		# _show_details. Nothing to flash here, because the player was never shown a name
+		# to click at in the first place.
+		if not _is_reachable(player, color, branch_index):
 			return
 		if _pay(player, GameSettings.spell_rank_point_cost):
 			SignalBus.spell_unlocked.emit(color, spell_id)
 			update_ui()
+			SoundBank.play(&"skill_unlock")
 		return
 
 	# Level gates come from the team's level, not from anything the player can buy in
@@ -739,6 +927,7 @@ func _on_node_pressed(color: String, _branch_index: int, info: Dictionary) -> vo
 		player.grant_spell_rank(spell_id)
 		player.select_color_path(color)
 		update_ui()
+		SoundBank.play(&"skill_unlock")
 
 
 ## Says why a click did nothing, in the panel the player is already looking at. A skill
@@ -774,17 +963,77 @@ func _pay(player: Node, points: int) -> bool:
 	return bool(player.spend_skill_points(points))
 
 
-func _gate_met(player: Node, color: String, info: Dictionary) -> bool:
+## Whether a node can be bought AT ALL yet: is anything joined to it already owned?
+##
+## This is the rule the fan layout was drawn for. A colour is a graph now, and BRANCH_EDGES
+## is that graph, so reachability is a walk over the edges the player can already see
+## rather than a second set of numbers to keep in step with the picture.
+##
+## The affinity is joined to the hub, so it is always reachable and every colour still opens
+## the same way. The capstone fork hangs off the middle finisher, which is why taking a
+## capstone means finishing a colour rather than rushing it.
+func _is_reachable(player: Node, color: String, branch_index: int) -> bool:
 	if GameSettings.debug_free_skills:
 		return true
-	return RunState.team_level >= int(info["rank_requirement"])
+	if branch_index == CENTER_BRANCH or branch_index == PASSIVE_BRANCH:
+		return true
+	for edge: Array in BRANCH_EDGES:
+		var neighbour: int = -99
+		if edge[0] == branch_index:
+			neighbour = edge[1]
+		elif edge[1] == branch_index:
+			neighbour = edge[0]
+		else:
+			continue
+		if _branch_owned(player, color, neighbour):
+			return true
+	return false
+
+
+## Between-colour passives are connected to the two adjacent skills shown by their lines:
+## the second opener on the gap's left colour and the first opener on the next colour.
+func _passive_reachable(player: Node, gap_color: String) -> bool:
+	if GameSettings.debug_free_skills:
+		return true
+	var gap_index: int = COLOR_NAMES.find(gap_color)
+	if gap_index < 0:
+		return false
+	var next_color: String = COLOR_NAMES[(gap_index + 1) % COLOR_NAMES.size()]
+	return _branch_owned(player, gap_color, 2) or _branch_owned(player, next_color, 1)
+
+
+## Whether the player already holds the node at `branch_index` of `color`. The hub counts as
+## owned unconditionally - it is the root every colour grows from, and after the level
+## readout replaced Blade Dance there is nothing there to buy.
+func _branch_owned(player: Node, color: String, branch_index: int) -> bool:
+	if branch_index == CENTER_BRANCH:
+		return true
+	if branch_index == 0:
+		return player.get_affinity_rank(color) > 0
+	if branch_index in CAPSTONE_BRANCHES:
+		return player.unlocked_capstone_aura != ""
+	return player.get_spell_rank("%s_%d" % [color, branch_index]) > 0
+
+
+## What the colour-investment ladder asks of this node, and whether it has been paid.
+##
+## Connectivity says WHERE you may go; this says how deep into the colour you have to be to
+## go there. Two questions, one ladder - see GameSettings.color_investment_ladder.
+func _investment_met(player: Node, color: String, branch_index: int) -> bool:
+	if GameSettings.debug_free_skills:
+		return true
+	if branch_index < 1 or branch_index > 5:
+		return true
+	return player.color_investment(color) >= GameSettings.color_investment_requirement(branch_index)
+
+
+func _gate_met(player: Node, color: String, info: Dictionary) -> bool:
+	return true
 
 
 ## Passive ranks use the same shared team-level clock as active skill ranks.
 func _passive_gate_met(player: Node, rank: int) -> bool:
-	if GameSettings.debug_free_skills:
-		return true
-	return RunState.team_level >= GameSettings.rank_level_requirement(rank)
+	return true
 
 
 ## "25% move speed" style readout for the detail panel, computed from the same numbers
@@ -821,11 +1070,7 @@ func _total_mana(mana_pool: Dictionary) -> int:
 
 
 func _get_next_rank_bonus(next_rank: int) -> float:
-	if next_rank <= 10:
-		return GameSettings.affinity_rank_bonus_early
-	if next_rank <= 20:
-		return GameSettings.affinity_rank_bonus_mid
-	return GameSettings.affinity_rank_bonus_late
+	return GameSettings.affinity_rank_bonus_base
 
 ## The blended pair colour of each guild passive, built lazily because a const cannot
 ## blend two Colors at parse time.
@@ -887,14 +1132,30 @@ func _get_icon_texture(info: Dictionary, fallback_color: String) -> Texture2D:
 	return _get_placeholder_texture(fallback_color, 0, "available")
 
 
+## The mana symbol a colour's undiscovered nodes wear. Cached through the same texture cache
+## the placeholder art uses, because five colours of pip serve the whole board.
+func _mana_pip_texture(color: String) -> Texture2D:
+	var key: String = "pip_" + color
+	if _texture_cache.has(key):
+		return _texture_cache[key]
+	var path: String = SpellDatabase.get_icon_path(color)
+	var texture: Texture2D = load(path) as Texture2D if path != "" else null
+	_texture_cache[key] = texture
+	return texture
+
+
 func _icon_modulate(state: String) -> Color:
+	# Darker than "locked", and deliberately so: a locked node is something the player can
+	# see and cannot yet afford, while an unreachable one is not an offer at all.
+	if state == "unreachable":
+		return Color(0.2, 0.21, 0.24, 1.0)
 	if state == "locked":
-		return Color(0.42, 0.44, 0.48)
+		return Color(0.32, 0.34, 0.38)
 	if state == "hover":
 		return Color(1.15, 1.15, 1.15)
 	if state == "unlocked":
 		return Color.WHITE
-	return Color(0.58, 0.6, 0.64)
+	return Color(0.42, 0.44, 0.48)
 
 func _is_placeholder_mark(offset: Vector2, branch_index: int) -> bool:
 	var abs_x: float = absf(offset.x)

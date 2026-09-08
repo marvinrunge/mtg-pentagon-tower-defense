@@ -117,6 +117,23 @@ text = "100 / 100"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="XPBar" type="ProgressBar" parent="Control" unique_id=987103861]
+custom_minimum_size = Vector2(700, 30)
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -350.0
+offset_top = -60.0
+offset_right = 350.0
+offset_bottom = -30.0
+grow_horizontal = 2
+grow_vertical = 0
+max_value = 1.0
+show_percentage = false
+
 [node name="InteractLabel" type="Label" parent="Control" unique_id=39489284]
 visible = false
 layout_mode = 1
@@ -264,6 +281,22 @@ text = "Show Attack Hitbox Indicators"
 layout_mode = 2
 button_pressed = true
 text = "Camera Shake"
+
+[node name="MusicCheckbox" type="CheckBox" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
+layout_mode = 2
+button_pressed = true
+text = "Music"
+
+[node name="MusicVolumeLabel" type="Label" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
+layout_mode = 2
+text = "Music Volume"
+
+[node name="MusicVolumeSlider" type="HSlider" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer"]
+layout_mode = 2
+min_value = -24.0
+max_value = 0.0
+step = 1.0
+value = -6.0
 
 [node name="SizeLabel" type="Label" parent="Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer" unique_id=966529125]
 layout_mode = 2
@@ -415,9 +448,9 @@ anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
 offset_left = -360.0
-offset_top = -125.0
+offset_top = -150.0
 offset_right = 360.0
-offset_bottom = -30.0
+offset_bottom = -70.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_constants/separation = 5
@@ -427,12 +460,6 @@ alignment = 1
 layout_mode = 2
 theme_override_constants/separation = 10
 alignment = 1
-
-[node name="XPBar" type="ProgressBar" parent="Control/HotbarContainer" unique_id=987103861]
-custom_minimum_size = Vector2(700, 12)
-layout_mode = 2
-max_value = 1.0
-show_percentage = false
 
 [node name="Slot1" type="PanelContainer" parent="Control/HotbarContainer/SpellHotbar" unique_id=987103821]
 custom_minimum_size = Vector2(60, 60)

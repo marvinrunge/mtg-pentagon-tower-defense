@@ -89,7 +89,7 @@ threat off the board.
 | Skill | Kind | Effect | Scales with rank | Uses |
 |---|---|---|---|---|
 | **Frost Globe** ✅ | Placed | Spawns an ice sphere that **blocks enemy projectiles**. Ranged and mage enemies lose line of fire through it; melee walk around it. | Radius, duration | New static body on the projectile collision layer |
-| **Unsummon** ✅ | Burst | Shoves every enemy in front far back and **stuns** them on landing. | Push distance, stun duration | `apply_knockback()`, `stun_timer` |
+| **Unsummon** ✅ | Burst | Shoves every enemy in front far back and **off the ground**, and **stuns** them on landing. | Push distance, stun duration (never the lift) | `apply_knockback()`, `stun_timer` |
 | **Suction** ✅ | Burst | **Pulls** nearby enemies into the centre, packing them for an area follow-up. | Radius (pull strength stays fixed — see note) | Inverse `apply_knockback()` |
 | **Frostwave** ✅ | 360° burst | Freezes every enemy around the caster and deals moderate damage. **Bosses are slowed, never frozen.** | Radius, damage, freeze duration | `freeze_timer`, `frost_slow_timer` |
 | **Phantasmal Decoy** 🆕✅ | Summon | Drops an illusion enemies retarget onto until it is destroyed or expires. | Decoy HP, duration | Enemy `evaluate_target()` — needs a targetable group |
@@ -132,7 +132,7 @@ stand next to.
 | **Roar** ✅ | Taunt | Nearby enemies **retarget onto you**, pulling them off the crystal and the myrs. | Radius, taunt duration | Enemy `evaluate_target()` override |
 | **Giant Growth** ✅ | Self-buff | The player grows physically larger and gains maximum HP for a duration. | Size, bonus HP, duration | `is_giant` / `giant_timer` (already stubbed in `Player`) |
 | **Ironbark** 🆕✅ | Self-buff | A short window of heavy damage reduction **and immunity to knockback, stun and freeze**. | Damage reduction, duration | `_stagger_timer`, knockback rejection |
-| **Aura: Trample** ✅ | Aura | Enemies near the player take small continuous damage **while the player is moving**. | Damage/sec, radius | Per-frame proximity sweep gated on velocity |
+| **Aura: Stampede** ✅ | Aura | Enemies near the player take small continuous damage **while the player is moving**. | Damage/sec, radius | Per-frame proximity sweep gated on velocity |
 
 > **Roar and Fog are the crystal-defence pair** — the only two skills in the game that
 > protect the objective rather than kill things. Worth keeping both cheap at rank 1.
@@ -361,7 +361,7 @@ problem to resolve. It is the most interesting fork in the tree, so make it the 
 | Blue | **Rhystic Study** · ×0.7 cooldowns, 15 shield per cast | **Orb of Frost** · orbits and fires ice, damage + slow |
 | Black | **Phyrexian Arena** · ×1.25 damage, ×1.15 speed, −1.5% HP/s | **Grave Pact** · kills leave souls that heal and stack damage |
 | Red | **Fervor** · ×1.15 attack and movement speed | **Orb of Fire** · orbits and fires bolts, damage + burn |
-| Green | **Sylvan Library** · ×1.35 max HP, +3 HP/s | **Trample** · enemies near you take damage while you move |
+| Green | **Sylvan Library** · ×1.35 max HP, +3 HP/s | **Stampede** · enemies near you take damage while you move |
 
 One capstone per run, as today — `Player.unlocked_capstone_aura` is already a single
 string, so this costs almost nothing to build.
@@ -436,15 +436,16 @@ putting the Core skills first is what makes a colour playable the moment it is i
 
 ### Multicolour: the hotbar is a loadout ✅
 
-**The five hotbar keys are assigned by the player, not derived from a colour.**
+**The eight hotbar keys are assigned by the player, not derived from a colour.**
 
 They used to be `chosen_color_path + "_" + slot`, which meant a build could only ever be
 one colour — and worse, that investing a single point in a second colour silently replaced
 the first colour's whole bar. That is the thing that made multicolour impossible, and it
 was one function.
 
-`Player.quick_slots` is now a five-entry loadout. Any owned spell in any colour can sit in
-any slot; **hover a spell in the tree and press 1–5** to bind it. A spell already in
+`Player.quick_slots` is now an eight-entry loadout (`Player.QUICK_SLOT_COUNT` - eight so
+the bar stays reachable on a controller). Any owned spell in any colour can sit in any
+slot; **hover a spell in the tree and press 1–8** to bind it. A spell already in
 another slot *swaps* rather than appearing twice. Newly bought spells bind themselves to
 the first free slot, because a spell you own and cannot cast is a bug report waiting to
 happen.

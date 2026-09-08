@@ -409,7 +409,7 @@ mesh = SubResource("ArrayMesh_2sts1")
 skin = SubResource("Skin_nfp83")
 skeleton = NodePath("..")
 
-[node name="RightHandAttachment" type="BoneAttachment3D" parent="Skeleton3D" unique_id=1472589055]
+[node name="RightHandAttachment" type="BoneAttachment3D" parent="Skeleton3D" unique_id=151539373]
 bone_name = "mixamorig_RightHand"
 
 [node name="Weapon" type="Node3D" parent="Skeleton3D/RightHandAttachment" unique_id=610369295 instance=ExtResource("5_7lhs6")]

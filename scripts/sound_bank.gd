@@ -23,6 +23,7 @@ extends Node
 ## what triggers the sound.
 
 const SFX_ROOT := "res://assets/soundeffects/"
+const MUSIC_ROOT := "res://assets/music/"
 
 ## event -> the interchangeable recordings of it. More than one entry means the
 ## event picks between them, so a run of hits does not machine-gun one waveform.
@@ -109,6 +110,8 @@ const EVENT_FILES := {
 	&"spell_ironbark": ["generated/spell_ironbark/spell_ironbark_1.mp3"],
 	## Shared team level-up chime.
 	&"level_up": ["generated/level_up/level_up_1.mp3"],
+	## Skill tree node unlock chime.
+	&"skill_unlock": ["generated/skill_unlock/skill_unlock_1.mp3"],
 	## Incoming hit absorbed by the player's guard, selected by enemy weapon class.
 	&"block_impact_blunt": ["generated/block_impact_blunt/block_impact_blunt_1.mp3"],
 	&"block_impact_arrow": ["generated/block_impact_arrow/block_impact_arrow_1.mp3"],
@@ -185,14 +188,25 @@ var _flat: Array[AudioStreamPlayer] = []
 ## settings: the whole reason these exist is that the ordinary pool recycles too fast to
 ## let a four-second arrival finish.
 var _global: Array[AudioStreamPlayer3D] = []
+var _music_player: AudioStreamPlayer = null
+var _gameplay_music: bool = false
+var _gameplay_night: bool = false
+var _next_gameplay_track: int = 0
 var _next_positional: int = 0
 var _next_flat: int = 0
 var _next_global: int = 0
+
+const MUSIC_FILES: Dictionary = {
+	&"title_music": ["main-title.mp3"],
+	&"day_music": ["main-title.mp3", "day1.mp3"],
+	&"night_music": ["night1.mp3", "night2.mp3"],
+}
 
 
 func _ready() -> void:
 	_load_streams()
 	_build_pools()
+	_setup_title_music()
 
 
 func _load_streams() -> void:
@@ -235,6 +249,92 @@ func _build_pools() -> void:
 		var player := AudioStreamPlayer.new()
 		add_child(player)
 		_flat.append(player)
+
+
+func _load_music_stream() -> AudioStream:
+	var music_key: StringName = &"title_music"
+	if _gameplay_music:
+		music_key = &"night_music" if _gameplay_night else &"day_music"
+	var stream_paths: Array = MUSIC_FILES.get(music_key, [])
+	if stream_paths.is_empty():
+		return null
+
+	var track_index: int = 0
+	if _gameplay_music:
+		track_index = _next_gameplay_track % stream_paths.size()
+		_next_gameplay_track += 1
+	var path: String = MUSIC_ROOT + String(stream_paths[track_index])
+	if not ResourceLoader.exists(path):
+		push_warning("Music track '%s' is missing; music will be silent" % path)
+		return null
+
+	var stream: AudioStream = load(path) as AudioStream
+	if stream == null:
+		push_warning("'%s' did not load as an AudioStream" % path)
+		return null
+	return stream
+
+
+func set_gameplay_music(night: bool) -> void:
+	if not _gameplay_music or _gameplay_night != night:
+		_next_gameplay_track = 0
+	_gameplay_music = true
+	_gameplay_night = night
+	if _music_player == null:
+		_setup_title_music()
+		return
+	var stream: AudioStream = _load_music_stream()
+	if stream == null:
+		return
+	_music_player.stream = stream
+	_music_player.play()
+
+
+func _setup_title_music() -> void:
+	if _music_player != null:
+		_apply_music_settings()
+		return
+
+	var stream: AudioStream = _load_music_stream()
+	if stream == null:
+		return
+
+	_music_player = AudioStreamPlayer.new()
+	_music_player.name = "TitleMusicPlayer"
+	_music_player.stream = stream
+	_music_player.autoplay = false
+	_music_player.bus = "Master"
+	_music_player.finished.connect(func() -> void:
+		if GameSettings.music_enabled and _music_player != null and _music_player.stream != null:
+			if _gameplay_music:
+				var next_stream: AudioStream = _load_music_stream()
+				if next_stream != null:
+					_music_player.stream = next_stream
+			_music_player.play()
+			else:
+				_music_player.play()
+	)
+	add_child(_music_player)
+	_apply_music_settings()
+
+
+func apply_music_settings() -> void:
+	if _music_player == null:
+		_setup_title_music()
+	if _music_player == null:
+		return
+	_apply_music_settings()
+
+
+func _apply_music_settings() -> void:
+	if _music_player == null:
+		return
+	if GameSettings.music_enabled:
+		_music_player.volume_db = GameSettings.music_volume_db
+		if not _music_player.playing:
+			_music_player.play()
+	else:
+		_music_player.stop()
 
 
 ## Plays `event` at a point on the map. Silently does nothing for an event with no
