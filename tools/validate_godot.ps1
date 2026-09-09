@@ -91,7 +91,17 @@ try {
 Write-Output "PASS: project imports and scripts parse."
 
 if (-not $SkipRuntime) {
-    $runtimeResult = Invoke-GodotCheck -Name "runtime" -Arguments @("--headless", "--path", $projectRoot) -TimeoutSeconds $SmokeTestSeconds
+    # The project boots into the main MENU now, so booting the default scene no longer
+    # exercises the map. Both are checked, and the map is named explicitly rather than
+    # relied on being the startup scene.
+    $menuResult = Invoke-GodotCheck -Name "menu" -Arguments @("--headless", "--path", $projectRoot) -TimeoutSeconds $SmokeTestSeconds
+    if ($menuResult.TimedOut) {
+        Write-Output "PASS: main menu stayed alive for $SmokeTestSeconds seconds without engine errors."
+    } else {
+        Write-Output "PASS: main menu exited cleanly with code $($menuResult.ExitCode)."
+    }
+
+    $runtimeResult = Invoke-GodotCheck -Name "runtime" -Arguments @("--headless", "--path", $projectRoot, "res://scenes/misc/main.tscn") -TimeoutSeconds $SmokeTestSeconds
     if ($runtimeResult.TimedOut) {
         Write-Output "PASS: main scene stayed alive for $SmokeTestSeconds seconds without engine errors."
     } else {
@@ -118,4 +128,14 @@ if (-not $SkipRuntime) {
         throw "One or more skills in the roster do nothing."
     }
     Write-Output "PASS: all 25 spells and 10 capstones have an observable effect."
+
+    # And that two machines can actually find each other. The host launches a real
+    # second process; a single-process fake could not fail the way UDP discovery, a
+    # password check over ENet, or a ready round trip fail.
+    $lanResult = Invoke-GodotCheck -Name "lan-lobby" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/lan_lobby.tscn") -TimeoutSeconds 90
+    if ($lanResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($lanResult.Output)
+        throw "The LAN lobby (discovery, password, ready check, start) is broken."
+    }
+    Write-Output "PASS: LAN discovery, password refusal, ready checks and match start."
 }

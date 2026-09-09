@@ -163,10 +163,18 @@ Entirely new work — the old plan had no vote to network.
    budget: 1.45x at two players, 2.8x at five.
    **Still open:** the income curve in `docs/ECONOMY.md` was written for one player and
    needs a real playtest at five.
-2. Downed and revive already exist — surface them: teammate markers, a downed HUD, a
+2. ✅ **A main menu in front of the game.** `res://scenes/ui/main_menu.tscn` is the
+   startup scene: Host a game, Join a game, Play solo, Quit. Hosting opens a lobby with
+   a per-peer ready check that the host cannot start without; joining opens a server
+   browser whose Scan button broadcasts on UDP `27016` and lists the LAN hosts that
+   answer, with a password prompt for the ones that need one. The map is loaded only
+   once a choice is made, by the same call for one player as for five, so Play solo is
+   still exactly the old startup path. The in-map F9 lobby stays for a session already
+   under way.
+3. Downed and revive already exist — surface them: teammate markers, a downed HUD, a
    respawn timer.
-3. Reconnect, and graceful "host left" handling.
-4. A ping or marker system. In a five-lane map, "help, blue lane" needs to be one
+4. Reconnect, and graceful "host left" handling.
+5. A ping or marker system. In a five-lane map, "help, blue lane" needs to be one
    keypress.
 
 ---
