@@ -7,6 +7,9 @@ class_name MainController
 @export var skill_tree_scene: PackedScene = preload("res://scenes/ui/skill_tree.tscn")
 @export var base_ui_scene: PackedScene = preload("res://scenes/ui/base_ui.tscn")
 
+## Where a peer goes when the match it was in stops existing.
+const MENU_SCENE: String = "res://scenes/ui/main_menu.tscn"
+
 @onready var nav_region: NavigationRegion3D = $NavigationRegion3D
 @onready var lanes_parent: Node3D = $NavigationRegion3D/Lanes
 @onready var crystal_anchor: Marker3D = $NavigationRegion3D/CrystalAnchor
@@ -35,6 +38,11 @@ var _well_slot_holders: Dictionary = {}
 
 func _ready() -> void:
 	SignalBus.crystal_damaged.connect(damage_crystal)
+	# Players arriving and leaving mid-match. The map owns the avatars, so the map is
+	# what answers - Net only reports who is connected.
+	Net.peer_entered_match.connect(_on_peer_entered_match)
+	Net.peer_left_match.connect(_on_peer_left_match)
+	Net.match_connection_lost.connect(_on_match_connection_lost)
 	SignalBus.mana_deposited.connect(_on_mana_deposited)
 	SignalBus.damage_number_requested.connect(_on_damage_number_requested)
 
@@ -202,14 +210,26 @@ func spawn_entities() -> void:
 	$PlayerSpawner.spawn_function = _spawn_avatar
 	$EnemyNetSpawner.spawn_function = _spawn_enemy
 	$MyrNetSpawner.spawn_function = _spawn_myr
-	if Net.is_active():
+	if Net.is_joining():
+		# Joining a match already under way. The map has to be complete BEFORE the
+		# connection opens, because the server pushes the whole running world - every
+		# enemy, myr and avatar - the instant a peer connects, and a spawn command that
+		# arrives before its spawner exists is discarded rather than queued.
+		#
+		# Nothing is spawned locally: this peer's own avatar comes from the server like
+		# everybody else's, a moment after the handshake.
+		if Net.complete_pending_join() != OK:
+			push_warning("Could not reconnect to the host.")
+	elif Net.is_active():
 		spawn_networked_players()
 	else:
 		spawn_players(GameSettings.player_count)
 	# A run with no avatar has no current camera, which renders as a grey screen with the
 	# HUD floating on it and no error anywhere. Worth saying out loud, because it is
 	# otherwise silent and looks like a rendering fault rather than a spawn one.
-	if PlayerRegistry.count() == 0:
+	#
+	# A joining client legitimately has none yet - the server has not been asked for one.
+	if PlayerRegistry.count() == 0 and not Net.is_joining() and not Net.is_active():
 		push_error("No player was spawned - the map will render as an empty grey screen")
 	
 	# Myrs are now spawned by the player via base UI, not here
@@ -301,8 +321,60 @@ func spawn_networked_players() -> void:
 	if not multiplayer.is_server():
 		return
 	var ids: Array = Net.ordered_ids()
-	for i in ids.size():
-		$PlayerSpawner.spawn({"peer": int(ids[i]), "seat": i, "total": ids.size()})
+	for id in ids:
+		# The seat comes from Net rather than from the loop counter, because it has to
+		# survive a reconnect - the same player must come back to the same chair.
+		$PlayerSpawner.spawn({
+			"peer": int(id), "seat": Net.seat_of(int(id)), "total": Net.match_seats,
+		})
+
+
+## One avatar for a player who arrived after the match began - a reconnecting player,
+## most of the time. Their seat came back with them, so they reappear where they were
+## rather than being ringed somewhere new.
+##
+## Deferred by a frame because the peer list has only just changed and the newcomer's
+## own map is finishing its handshake; spawning into that frame is what produced an
+## avatar the client acknowledged before it had a spawner to build it with.
+func _on_peer_entered_match(peer_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	await get_tree().process_frame
+	if not Net.peers.has(peer_id):
+		return
+	_despawn_avatar(peer_id)
+	$PlayerSpawner.spawn({
+		"peer": peer_id, "seat": Net.seat_of(peer_id), "total": Net.match_seats,
+	})
+	# The economy and the crystal only ever go out when they CHANGE, so a newcomer would
+	# otherwise play with a full crystal and an empty mana pool until the next kill.
+	RunState.push_state_to(peer_id)
+	_sync_crystal_health.rpc_id(peer_id, crystal_health)
+
+
+## A player who dropped leaves no body standing in the map. Their seat is held by Net
+## for the rest of the match, so this is not a departure - it is an empty chair.
+func _on_peer_left_match(peer_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	_despawn_avatar(peer_id)
+
+
+func _despawn_avatar(peer_id: int) -> void:
+	var avatar: Node3D = PlayerRegistry.by_peer(peer_id)
+	if avatar == null:
+		return
+	PlayerRegistry.unregister(avatar)
+	avatar.get_parent().remove_child(avatar)
+	avatar.queue_free()
+
+
+## The host is gone and this map has nothing behind it any more. Keep the build, drop
+## the map, and let the menu offer to reconnect.
+func _on_match_connection_lost() -> void:
+	PlayerRegistry.save_local_build()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	get_tree().change_scene_to_file(MENU_SCENE)
 
 
 ## Runs on every peer, server and client alike, with the argument the server passed to

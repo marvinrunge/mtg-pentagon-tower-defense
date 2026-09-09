@@ -21,6 +21,38 @@ var local_player: Node3D = null
 ## Every player in the run, local and remote, in join order.
 var players: Array[Node3D] = []
 
+## The local player's BUILD, kept across a reconnect.
+##
+## A build is not the server's - skill points are spent locally and the host never had a
+## copy to give back - so the machine that owns it is the one that has to remember it.
+## That is enough for the case this exists for: the connection dropped, the process did
+## not, and the same player comes back to the same run a few seconds later.
+var _saved_build: Dictionary = {}
+
+
+## Called when a match is left in a way it might be returned from.
+func save_local_build() -> void:
+	var player: Node3D = get_local()
+	if player == null or not player.has_method("export_build"):
+		return
+	_saved_build = player.export_build()
+
+
+## Handed to the next local avatar, once. Cleared as it is taken so a NEW run does not
+## quietly inherit the build of the last one.
+func take_saved_build() -> Dictionary:
+	var build: Dictionary = _saved_build
+	_saved_build = {}
+	return build
+
+
+func has_saved_build() -> bool:
+	return not _saved_build.is_empty()
+
+
+func clear_saved_build() -> void:
+	_saved_build = {}
+
 
 ## Called by each player as it enters the tree. `is_local` is true for exactly one of
 ## them per machine - the one whose camera becomes current and whose input is read.

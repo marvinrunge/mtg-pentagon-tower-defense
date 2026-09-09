@@ -138,4 +138,13 @@ if (-not $SkipRuntime) {
         throw "The LAN lobby (discovery, password, ready check, start) is broken."
     }
     Write-Output "PASS: LAN discovery, password refusal, ready checks and match start."
+
+    # A dropped player must be able to come back. Also cross-process: the returning peer
+    # has a NEW id, which is exactly what makes recognising them by name necessary.
+    $rejoinResult = Invoke-GodotCheck -Name "lan-reconnect" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/lan_reconnect.tscn") -TimeoutSeconds 120
+    if ($rejoinResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($rejoinResult.Output)
+        throw "A player who drops mid-match cannot rejoin, or loses their seat."
+    }
+    Write-Output "PASS: a dropped player rejoins the running match into their held seat."
 }

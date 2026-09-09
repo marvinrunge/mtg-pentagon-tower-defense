@@ -29,6 +29,8 @@ var _join_button: Button
 var _direct_address_field: LineEdit
 var _servers: Array = []
 
+var _reconnect_button: Button
+
 var _lobby_title: Label
 var _peer_list: VBoxContainer
 var _ready_button: Button
@@ -41,6 +43,13 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_build_ui()
 	_show_page(Page.MAIN)
+
+	# Arriving here from a match that dropped rather than from the desktop. The address
+	# is still known and the host holds the seat, so the only thing worth showing is the
+	# way back in.
+	if Net.can_reconnect():
+		_set_status("Connection lost. Your seat is held - reconnect to rejoin the run.")
+	_refresh_reconnect()
 
 	Net.peer_list_changed.connect(_on_peer_list_changed)
 	Net.connection_failed.connect(_on_connection_failed)
@@ -56,6 +65,9 @@ func _ready() -> void:
 ## Single-player is deliberately the shortest path in this file: no peer, no lobby, no
 ## readiness - straight into the map, exactly as the game booted before this menu.
 func _on_solo_pressed() -> void:
+	# A solo run is a NEW run, so it must not inherit the build left over from a match
+	# this player was dropped out of.
+	PlayerRegistry.clear_saved_build()
 	GameSettings.player_count = 1
 	_enter_map()
 
@@ -66,6 +78,7 @@ func _on_create_pressed() -> void:
 	if result != OK:
 		_set_status("Could not open port %d - something else is already using it." % port)
 		return
+	PlayerRegistry.clear_saved_build()
 	_set_status("Hosting on port %d. Waiting for players." % port)
 	_show_page(Page.LOBBY)
 
@@ -81,13 +94,25 @@ func _on_scan_pressed() -> void:
 func _on_join_pressed() -> void:
 	var address: String = _direct_address_field.text.strip_edges()
 	var port: int = Net.DEFAULT_PORT
+	var in_progress: bool = false
 	var selected: PackedInt32Array = _server_list.get_selected_items()
 	if selected.size() > 0 and selected[0] < _servers.size():
 		var server: Dictionary = _servers[selected[0]]
 		address = String(server.get("address", ""))
 		port = int(server.get("port", Net.DEFAULT_PORT))
+		in_progress = bool(server.get("in_progress", false))
 	if address.is_empty():
 		_set_status("Pick a server from the list, or type an address.")
+		return
+	# Only RECONNECT brings a build back. Picking a match out of the browser is joining
+	# as a new player, even if the machine still remembers one.
+	PlayerRegistry.clear_saved_build()
+	if in_progress:
+		# There is no lobby to wait in - the match is already running. The map is loaded
+		# FIRST and opens the connection itself once it is standing, because the server
+		# pushes the whole existing world the moment a peer connects.
+		Net.begin_join(address, port, _player_name(), _join_password_field.text)
+		_enter_map()
 		return
 	if Net.join(address, port, _player_name(), _join_password_field.text) != OK:
 		_set_status("Could not reach %s:%d." % [address, port])
@@ -106,8 +131,31 @@ func _on_start_pressed() -> void:
 
 func _on_leave_pressed() -> void:
 	Net.leave()
+	Net.forget_last_join()
+	PlayerRegistry.clear_saved_build()
+	_refresh_reconnect()
 	_set_status("Left the session.")
 	_show_page(Page.MAIN)
+
+
+## Back into the run that dropped, on exactly the terms the browser uses for any other
+## match in progress: load the map, then connect.
+func _on_reconnect_pressed() -> void:
+	var details: Dictionary = Net.last_join
+	if details.is_empty():
+		return
+	Net.begin_join(
+		String(details["address"]),
+		int(details["port"]),
+		String(details["name"]),
+		String(details["password"]),
+	)
+	_enter_map()
+
+
+func _refresh_reconnect() -> void:
+	if is_instance_valid(_reconnect_button):
+		_reconnect_button.visible = Net.can_reconnect()
 
 
 func _on_quit_pressed() -> void:
@@ -126,6 +174,9 @@ func _on_connection_failed() -> void:
 
 
 func _on_server_closed() -> void:
+	Net.forget_last_join()
+	PlayerRegistry.clear_saved_build()
+	_refresh_reconnect()
 	_set_status("The host closed the session.")
 	_show_page(Page.MAIN)
 
@@ -141,6 +192,8 @@ func _on_lan_servers_updated(servers: Array) -> void:
 	for server in servers:
 		var entry: Dictionary = server
 		var lock: String = " [locked]" if bool(entry.get("password", false)) else ""
+		if bool(entry.get("in_progress", false)):
+			lock += " [in progress]"
 		_server_list.add_item("%s  -  %d/%d  -  %s:%d%s" % [
 			String(entry.get("name", "LAN Game")),
 			int(entry.get("players", 1)),
@@ -307,6 +360,9 @@ func _build_main_page() -> Control:
 	page.add_theme_constant_override("separation", 12)
 	page.add_child(_menu_button("HOST A GAME", func() -> void: _show_page(Page.HOST)))
 	page.add_child(_menu_button("JOIN A GAME", func() -> void: _show_page(Page.BROWSE)))
+	_reconnect_button = _menu_button("RECONNECT", _on_reconnect_pressed)
+	_reconnect_button.visible = false
+	page.add_child(_reconnect_button)
 	page.add_child(_menu_button("PLAY SOLO", _on_solo_pressed))
 	page.add_child(_menu_button("QUIT", _on_quit_pressed))
 	return page

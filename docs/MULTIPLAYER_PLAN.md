@@ -173,7 +173,18 @@ Entirely new work — the old plan had no vote to network.
    under way.
 3. Downed and revive already exist — surface them: teammate markers, a downed HUD, a
    respawn timer.
-4. Reconnect, and graceful "host left" handling.
+4. **Reconnect — done.** A host keeps advertising while a match runs and reports it as
+   in progress with the number of free seats, so a dropped player can find the run
+   again in the browser or press RECONNECT, which remembers the address for them. The
+   seat is held by NAME for the rest of the match (peer ids change on reconnect, so
+   nothing else about the returning player is the same), and the map spawns them back
+   into it and pushes the crystal and the economy, which otherwise only travel when
+   they change. A rejoining client loads the map BEFORE opening the connection: Godot
+   pushes every already-spawned node at the instant a peer connects, and a spawn whose
+   spawner is not in the tree yet is discarded rather than queued. Builds are spent
+   client-side and the host never had a copy, so the returning client re-applies its
+   own — which covers a dropped connection, but not a client that was closed. Losing
+   the host drops the map back to the menu with the reconnect offer showing.
 5. A ping or marker system. In a five-lane map, "help, blue lane" needs to be one
    keypress.
 

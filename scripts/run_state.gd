@@ -74,6 +74,15 @@ func _apply_state(xp: float, level: int, pool: Dictionary, ench: Dictionary) -> 
 	SignalBus.mana_changed.emit(mana_pool)
 
 
+## The whole economy, to ONE peer. The periodic flush only fires when something has
+## changed, so a player who joins or reconnects mid-match would otherwise stare at an
+## empty mana pool and level 1 until the next kill happened to dirty the state.
+func push_state_to(peer_id: int) -> void:
+	if not Net.is_active() or not Net.is_server():
+		return
+	_apply_state.rpc_id(peer_id, team_xp, team_level, mana_pool, enchantments)
+
+
 func reset() -> void:
 	team_xp = 0.0
 	team_level = 1

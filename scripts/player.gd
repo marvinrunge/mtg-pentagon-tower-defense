@@ -308,7 +308,13 @@ func _ready() -> void:
 		SignalBus.spell_unlocked.connect(_on_spell_unlocked)
 		SignalBus.melee_combo_unlocked.connect(_on_melee_combo_unlocked)
 	SignalBus.team_level_changed.connect(_on_team_level_changed)
-	
+
+	# A build kept from a match this player was dropped out of. Applied here rather than
+	# by whoever spawned the avatar, because the spawn runs on every peer and a build
+	# belongs to exactly one of them.
+	if is_local and PlayerRegistry.has_saved_build():
+		apply_build(PlayerRegistry.take_saved_build())
+
 	# Delay emitting the initial active spell until the HUD is ready
 	call_deferred("_emit_initial_spell")
 
@@ -619,6 +625,61 @@ static func _empty_quick_slots() -> Array[String]:
 	var slots: Array[String] = []
 	slots.resize(QUICK_SLOT_COUNT)
 	return slots
+
+
+## Everything this player SPENT, in a form that survives the avatar being destroyed.
+##
+## Only the choices are saved, never the moment-to-moment state: no hp, no cooldowns, no
+## position. Coming back from a dropped connection puts you back in your build, not back
+## in the middle of your last fight.
+func export_build() -> Dictionary:
+	return {
+		"skill_points": skill_points,
+		"spent_skill_points": spent_skill_points,
+		"spell_ranks": spell_ranks.duplicate(true),
+		"affinity_ranks": affinity_ranks.duplicate(true),
+		"quick_slots": quick_slots.duplicate(),
+		"unlocked_spells_in_path": unlocked_spells_in_path.duplicate(),
+		"chosen_color_path": chosen_color_path,
+		"unlocked_capstone_aura": unlocked_capstone_aura,
+	}
+
+
+## The other half of export_build, applied to a freshly spawned local avatar.
+##
+## The capstone goes through unlock_capstone rather than being assigned, because the aura
+## is not a string - it is a signal connection and a spawned orb, and only that function
+## builds them.
+func apply_build(build: Dictionary) -> void:
+	if build.is_empty():
+		return
+	skill_points = int(build.get("skill_points", skill_points))
+	spent_skill_points = int(build.get("spent_skill_points", spent_skill_points))
+	spell_ranks = (build.get("spell_ranks", {}) as Dictionary).duplicate(true)
+	affinity_ranks = (build.get("affinity_ranks", affinity_ranks) as Dictionary).duplicate(true)
+	chosen_color_path = String(build.get("chosen_color_path", ""))
+
+	unlocked_spells_in_path.clear()
+	for spell_id in build.get("unlocked_spells_in_path", []):
+		unlocked_spells_in_path.append(String(spell_id))
+
+	var slots: Array[String] = _empty_quick_slots()
+	var saved_slots: Array = build.get("quick_slots", [])
+	for i in mini(slots.size(), saved_slots.size()):
+		slots[i] = String(saved_slots[i])
+	quick_slots = slots
+
+	# Forces the green affinity's move-speed bonus to be recomputed: it is applied as a
+	# DIFFERENCE against the last rank seen, and this avatar has seen none.
+	_applied_green_affinity_rank = -1
+	var capstone: String = String(build.get("unlocked_capstone_aura", ""))
+	if capstone != "":
+		unlocked_capstone_aura = ""
+		unlock_capstone(capstone)
+
+	SignalBus.quick_slots_changed.emit()
+	SignalBus.skill_points_changed.emit(self, skill_points)
+	SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
 
 
 func is_spell_owned(spell_id: String) -> bool:
