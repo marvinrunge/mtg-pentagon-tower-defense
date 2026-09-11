@@ -1173,11 +1173,15 @@ func get_wave_health_factor(wave: int) -> float:
 	return 1.0 + float(maxi(wave, 0)) * enemy_health_per_wave
 
 
-func get_player_scaling_factor(tree: SceneTree) -> float:
+## `tree` is no longer read: PlayerRegistry already keeps the roster this used to
+## rebuild. `get_nodes_in_group` allocates a fresh Array on every call, and this is called
+## on every enemy attack - once per swing, per arrow, per boss special. The registry
+## answers the same question by walking five entries in place. The parameter stays so the
+## call sites do not all have to change.
+func get_player_scaling_factor(_tree: SceneTree) -> float:
 	if not scale_by_players:
 		return 1.0
-	var players = tree.get_nodes_in_group("player")
-	var player_count = max(1, players.size())
+	var player_count = max(1, PlayerRegistry.count())
 	var clamp_count = clamp(player_count, 1, 5)
 	return lerp(min_damage_scale, 1.0, (clamp_count - 1) / 4.0)
 

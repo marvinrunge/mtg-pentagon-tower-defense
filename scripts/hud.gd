@@ -50,6 +50,11 @@ var _applying_preset: bool = false
 
 # --- Spell Hotbar ---
 var _hotbar_slots: Array[PanelContainer] = []
+## The cooldown overlay and its readout for each slot, found once when the bar is built.
+## _process touches all eight of these every frame, and get_node_or_null() parses a path
+## and walks the children on every one of those calls.
+var _hotbar_overlays: Array[Control] = []
+var _hotbar_cd_labels: Array[Label] = []
 var _player: Node3D = null
 var _active_spell_idx: int = 0
 var _wave_panel: PanelContainer
@@ -279,7 +284,13 @@ func _ready() -> void:
 		spell_hotbar.add_child(slot)
 	for child: Node in spell_hotbar.get_children():
 		if child is PanelContainer:
-			_hotbar_slots.append(child as PanelContainer)
+			var slot: PanelContainer = child as PanelContainer
+			_hotbar_slots.append(slot)
+			var overlay: Control = slot.get_node_or_null("CooldownOverlay") as Control
+			_hotbar_overlays.append(overlay)
+			_hotbar_cd_labels.append(
+				overlay.get_node_or_null("Label") as Label if overlay != null else null
+			)
 	_ensure_hotbar_icons()
 	_lay_out_hotbar_slots()
 	_setup_mana_icons()
@@ -315,24 +326,24 @@ func _process(delta: float) -> void:
 		_player = PlayerRegistry.get_local()
 		
 	if _player != null and "spell_cooldown_timers" in _player:
-		for i in range(_hotbar_slots.size()):
-			var slot = _hotbar_slots[i]
-			if not slot:
+		var has_slot_lookup: bool = _player.has_method("_get_spell_id_for_slot")
+		for i in range(_hotbar_overlays.size()):
+			var overlay: Control = _hotbar_overlays[i]
+			if overlay == null:
 				continue
-				
-			var overlay = slot.get_node_or_null("CooldownOverlay")
-			if overlay:
-				var spell_id = ""
-				if _player.has_method("_get_spell_id_for_slot"):
-					spell_id = _player._get_spell_id_for_slot(i)
-				var cd = _player.spell_cooldown_timers.get(spell_id, 0.0)
-				if cd > 0.0:
-					overlay.show()
-					var label = overlay.get_node_or_null("Label")
-					if label:
-						label.text = "%.1fs" % cd
-				else:
+			var spell_id: String = _player._get_spell_id_for_slot(i) if has_slot_lookup else ""
+			var cd: float = _player.spell_cooldown_timers.get(spell_id, 0.0)
+			if cd <= 0.0:
+				# Only when it CHANGES: hide() on an already-hidden node still walks the
+				# subtree to propagate visibility, every frame, per slot.
+				if overlay.visible:
 					overlay.hide()
+				continue
+			if not overlay.visible:
+				overlay.show()
+			var label: Label = _hotbar_cd_labels[i]
+			if label != null:
+				label.text = "%.1fs" % cd
 		_update_xp_bar()
 
 func _update_xp_bar() -> void:
@@ -1118,8 +1129,7 @@ func _update_hotbar_display(active_idx: int) -> void:
 		var icon: TextureRect = slot.get_node_or_null("Icon") as TextureRect
 		var spell_id: String = _player._get_spell_id_for_slot(i) if _player and _player.has_method("_get_spell_id_for_slot") else ""
 		if icon:
-			var icon_path: String = SpellDatabase.get_icon_path(spell_id)
-			icon.texture = load(icon_path) as Texture2D if icon_path != "" else null
+			icon.texture = SpellDatabase.get_icon(spell_id)
 		
 		var sb = StyleBoxFlat.new()
 		sb.corner_radius_top_left = 6
@@ -1234,7 +1244,7 @@ func _setup_mana_icons() -> void:
 		icon.custom_minimum_size = Vector2(24.0, 24.0)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.texture = load(SpellDatabase.get_icon_path(colors[index])) as Texture2D
+		icon.texture = SpellDatabase.get_icon(colors[index])
 		icon.material = IconStyle.rounded_material()
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		parent.add_child(icon)

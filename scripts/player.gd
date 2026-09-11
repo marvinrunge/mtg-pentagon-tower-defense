@@ -110,7 +110,10 @@ var _leap_timer: float = 0.0
 var last_spell_cast_time: float = -999.0
 var rhystic_shield: float = 0.0
 var glorious_anthem_shield: float = 0.0
-var _applied_auras: String = ""
+## Aura fingerprint as last applied. Never compared before the first _sync_auras pass:
+## `_applied_green_affinity_rank` starts at -1 and no colour can be at rank -1, so the
+## first call always runs in full whatever this happens to hold.
+var _applied_auras: int = 0
 var _applied_green_affinity_rank: int = -1
 
 var active_spell_index: int = 0
@@ -240,9 +243,9 @@ var _channel_fx: Node3D = null
 ## Set once a client has told the host its cast button came up, so the notice goes out
 ## once instead of every frame of the round trip. See _watch_remote_channel.
 var _channel_release_sent: bool = false
-## JSON of the build as it was last broadcast, so _publish_build can tell a real change
-## from the sixty times a second it is asked.
-var _published_build: String = ""
+## Fingerprint of the build as it was last broadcast, so _publish_build can tell a real
+## change from the sixty times a second it is asked.
+var _published_build: int = 0
 ## Grave Pact (black aura). Stacks decay if the player stops killing, which is the
 ## whole design - it pays aggression rather than existence.
 var _grave_stacks: int = 0
@@ -1591,7 +1594,7 @@ func _cancel_action() -> void:
 ## stops the bonus drifting when the aura changes while the buff is up.
 func _sync_auras() -> void:
 	var green_affinity_rank: int = get_affinity_rank("green")
-	var aura_signature: String = _aura_signature()
+	var aura_signature: int = _aura_signature()
 	if (
 		_applied_auras == aura_signature
 		and _applied_green_affinity_rank == green_affinity_rank
@@ -1687,12 +1690,24 @@ func build_snapshot() -> Dictionary:
 func _publish_build() -> void:
 	if not Net.is_active() or not is_local:
 		return
-	var snapshot: Dictionary = build_snapshot()
-	var signature: String = JSON.stringify(snapshot)
-	if signature == _published_build:
+	var fingerprint: int = _build_fingerprint()
+	if fingerprint == _published_build:
 		return
-	_published_build = signature
-	_net_sync_build.rpc(snapshot)
+	_published_build = fingerprint
+	_net_sync_build.rpc(build_snapshot())
+
+
+## A number that changes when any part of the build does.
+##
+## This runs every frame, so it must not allocate its answer. It used to be
+## `JSON.stringify(build_snapshot())`, which built a dictionary with seven string keys and
+## then serialised the whole thing to text sixty times a second in order to notice that
+## nothing had changed. The snapshot is now built only on the frame the fingerprint moves.
+func _build_fingerprint() -> int:
+	return hash([
+		spell_ranks, aura_ranks, affinity_ranks, passive_ranks,
+		unlocked_spells_in_path, chosen_color_path, melee_combo_extended,
+	])
 
 
 ## Hands this player's build to ONE peer, from the server. For a player who joined after
@@ -1766,14 +1781,22 @@ func has_aura(aura_id: String) -> bool:
 	return get_aura_rank(aura_id) > 0
 
 
-func _aura_signature() -> String:
-	var owned: Array[String] = []
-	for aura_id: String in aura_ranks.keys():
+## A number that changes when the set of owned auras or their ranks does.
+##
+## Summed rather than concatenated, so it is order-independent without a sort: the same
+## auras at the same ranks compare equal however the dictionary was filled. That property
+## is the point - `_sync_auras` rebuilds the orbiting orbs when this moves, and an orb
+## rebuild is visible, so it must not fire on a reordering that changed nothing.
+##
+## Was a sorted, joined "id:rank" string, built every frame for one player in order to
+## discover that it matched the last one.
+func _aura_signature() -> int:
+	var signature: int = 0
+	for aura_id: String in aura_ranks:
 		var rank: int = get_aura_rank(aura_id)
 		if rank > 0:
-			owned.append("%s:%d" % [aura_id, rank])
-	owned.sort()
-	return "|".join(owned)
+			signature += hash(aura_id) * (rank + 1)
+	return signature
 
 
 ## Buys one rank of an aura. No exclusivity: the two auras a colour offers used to be a
