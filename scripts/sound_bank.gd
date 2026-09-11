@@ -90,7 +90,7 @@ const EVENT_FILES := {
 	&"spell_wrath_of_god": ["generated/spell_wrath_of_god/spell_wrath_of_god_2.mp3"],
 	## white_5 Rally the Fallen
 	&"spell_rally_fallen": ["generated/spell_rally_fallen/spell_rally_fallen_3.mp3"],
-	## blue_5 Phantasmal Decoy
+	## Former blue_5 Phantasmal Decoy sound, kept for older references.
 	&"spell_decoy": ["generated/spell_decoy/spell_decoy_1.mp3"],
 	## black_1 Doom Blade
 	&"spell_doom_blade": ["generated/spell_doom_blade/spell_doom_blade_2.mp3"],
@@ -116,13 +116,13 @@ const EVENT_FILES := {
 	&"block_impact_blunt": ["generated/block_impact_blunt/block_impact_blunt_1.mp3"],
 	&"block_impact_arrow": ["generated/block_impact_arrow/block_impact_arrow_1.mp3"],
 	&"block_impact_magic": ["generated/block_impact_magic/block_impact_magic_1.mp3"],
-	## Capstone: Orb of Frost
+	## Aura choice: Winter Orb
 	&"aura_orb_frost": ["generated/aura_orb_frost/aura_orb_frost_2.mp3"],
-	## Capstone: Orb of Fire
+	## Aura: Orb of Fire
 	&"aura_orb_fire": ["generated/aura_orb_fire/aura_orb_fire_2.mp3"],
-	## Capstone: Healing Orb
+	## Aura: Healing Orb
 	&"aura_orb_heal": ["generated/aura_orb_heal/aura_orb_heal_3.mp3"],
-	## Capstone: Grave Pact
+	## Aura: Grave Pact
 	&"aura_grave_pact": ["generated/aura_grave_pact/aura_grave_pact_2.mp3"],
 	## One arrival per boss. They are five different creatures wearing five different
 	## models (BossDatabase.VISUAL_SCENES), so one shared horn blast for all of them was
@@ -154,7 +154,7 @@ const EVENT_FILES := {
 ## that they make players look up.
 ##
 ## `heavy_landing` is the interesting omission. It is enormous, but it is shared between
-## the boss special's impact and the player's own Titanic Leap, which comes off an eight
+## the boss special's impact and the player's own Titanic Brawl, which comes off an eight
 ## second cooldown - making it global would turn the most frequent green skill into the
 ## loudest thing on the map.
 const GLOBAL_EVENTS: Array[StringName] = [

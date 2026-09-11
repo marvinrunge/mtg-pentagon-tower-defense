@@ -128,22 +128,22 @@
       "prompt": "One close-up magical bolt absorbed by an enchanted steel shield: soft crystalline impact, bright shimmering deflection, controlled warm magical resonance, clear defensive hit, no explosion, no rumble, no voices, no music"
     },
     "aura_orb_frost": {
-      "skill": "Capstone: Orb of Frost, one shot",
+      "skill": "Aura: Orb of Frost, one shot",
       "duration_seconds": 1.0,
       "prompt": "A small icy dart firing from a floating orb: a short crystalline zip with a delicate frost crackle tail, cold and precise, very short, dry, no music"
     },
     "aura_orb_fire": {
-      "skill": "Capstone: Orb of Fire, one shot",
+      "skill": "Aura: Orb of Fire, one shot",
       "duration_seconds": 1.0,
       "prompt": "A small fire bolt spitting from a floating orb: a short punchy flame burst with an ember crackle tail, hot and quick, very short, dry, no music"
     },
     "aura_orb_heal": {
-      "skill": "Capstone: Healing Orb, one tick",
+      "skill": "Aura: Healing Orb, one tick",
       "duration_seconds": 1.2,
       "prompt": "A gentle healing pulse from a floating orb: a soft warm bell chime with a brief shimmering rise, comforting and clean, very short, no music"
     },
     "aura_grave_pact": {
-      "skill": "Capstone: Grave Pact, a soul absorbed",
+      "skill": "Aura: Grave Pact, a soul absorbed",
       "duration_seconds": 1.0,
       "prompt": "A soul wisp being pulled in and absorbed: a short ghostly inhale with a faint whispered sigh and a dark warm pulse underneath, necrotic but satisfying, very short, no music"
     },

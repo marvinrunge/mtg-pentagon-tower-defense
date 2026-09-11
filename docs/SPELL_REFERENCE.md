@@ -50,26 +50,26 @@ ranks 11-20 grant 1% each, and ranks 21+ grant 0.5% each.
 | 1 | Fireball | 1 | 5s | Yes | Charged | Blast radius | Charged explosive projectile with a scaling blast radius. |
 | 2 | Fire Dash | 1 | 8s | No | Trail damage | Dash | Dashes forward and leaves a burning trail. |
 | 3 | Rain of Ember | 1 | 9s | No | Zone DPS | Ground zone | Creates a burning zone that damages enemies inside it. |
-| 4 | Fire Cone | 1 | 10s | No | Channel DPS | Frontal cone | Held channel that burns enemies in front of the player. |
-| 5 | Lightning Bolt | 1 | 12s | No | Target damage | Aimed area | Calls lightning down on a precisely aimed target area. |
+| 4 | Fire Cone | 1 | Refill | No | Channel DPS / slow | Frontal cone | Hold to burn and slow enemies while moving. The meter lasts up to 5s and then refills. |
+| 5 | Lightning Bolt | 1 | 12s | No | Single-target damage | Aimed area | Calls lightning down on a precisely aimed target area. Bosses and elites take roughly double. |
 
 ## Blue - Control
 
 | Tier | Spell | Cost | Cooldown | Charge | Damage | Range / Radius | Details |
 |---:|---|---:|---:|:---:|---:|---:|---|
 | 1 | Unsummon | 1 | 3s | No | 35 | Cone | Applies 21 knockback plus 7.5 of upward lift, so enemies are thrown off the ground and land stunned. Hitting a wall or obstacle during knockback deals 80 additional impact damage. |
-| 2 | Frostwave | 1 | 12s | No | Damage / slow | Area | Freezes nearby enemies and damages them; bosses are slowed instead. |
-| 3 | Frost Globe | 1 | 16s | No | Projectile block | Placed sphere | Places an ice sphere that blocks enemy projectiles. |
-| 4 | Suction | 1 | 11s | No | Pull | Area | Pulls nearby enemies into one location. |
-| 5 | Phantasmal Decoy | 1 | 24s | No | Taunt | Placed decoy | Creates an illusion enemies attack instead of the player. |
+| 2 | Frost Breath | 1 | 12s | No | Damage / slow | Area | Freezes nearby enemies and damages them; bosses are briefly slowed instead. |
+| 3 | Suction | 1 | 11s | No | Pull | Area | Pulls nearby enemies into one location. Overlapping vortexes cover more ground but never pull one enemy harder. |
+| 4 | Wall of Frost | 1 | 16s | No | Projectile block / combo | Placed wall | Raises an ice wall. Unsummon deals bonus damage when it slams enemies into it. |
+| 5 | Displace | 1 | 10s | No | Mobility | Blink | Blink a short distance to the aimed ground point. |
 
 ## Green - Strength
 
 | Tier | Spell | Cost | Cooldown | Charge | Damage | Range / Radius | Details |
 |---:|---|---:|---:|:---:|---:|---:|---|
-| 1 | Titanic Leap | 1 | 8s | No | Landing damage | Leap | Leaps forward and slams the ground on landing. |
+| 1 | Titanic Brawl | 1 | 8s | No | Landing damage | Leap | Leaps forward and slams the ground on landing. |
 | 2 | Giant Growth | 1 | 22s | No | Maximum HP | Self | Grows the player temporarily and increases maximum health. |
-| 3 | Fog | 1 | 18s | No | Damage suppression | Ground zone | Creates fog where enemies deal no damage. |
+| 3 | Fog | 1 | 18s | No | Damage suppression / slow | Ground zone | Creates fog where enemies deal no damage and wade rather than walk. Prevented damage is shown over each attacker. |
 | 4 | Roar | 1 | 16s | No | Taunt | Area | Forces nearby enemies to target the player. |
 | 5 | Ironbark | 1 | 20s | No | Damage reduction | Self | Reduces damage and prevents knockback, stun, and freeze. |
 
@@ -78,7 +78,7 @@ ranks 11-20 grant 1% each, and ranks 21+ grant 0.5% each.
 | Tier | Spell | Cost | Cooldown | Charge | Damage / Healing | Range / Radius | Details |
 |---:|---|---:|---:|:---:|---:|---:|---|
 | 1 | Exalted Strike | 1 | 8s | No | Melee buff | Self | Strengthens and extends the next melee hit; kills are exiled. |
-| 2 | Circle of Protection | 1 | 18s | No | Shield pool | Ally area | Divides a shield pool among nearby allies. |
+| 2 | Circle of Protection | 1 | 18s | No | Temporary shield | Ally area | Shields every nearby ally for 8s, a little more per ally present. Recasting refreshes rather than stacks. |
 | 3 | Reprisal Ward | 1 | 16s | No | Reflect / block | Self | Reflects damage and grants a chance to block attacks. |
 | 4 | Wrath of God | 1 | 20s | No | Area damage | Area | Deals heavy damage to nearby enemies. |
 | 5 | Rally the Fallen | 1 | 45s | No | Revive / heal | Ally area | Revives downed teammates and heals surviving allies and myrs. |
@@ -88,7 +88,7 @@ ranks 11-20 grant 1% each, and ranks 21+ grant 0.5% each.
 | Tier | Spell | Cost | Cooldown | Charge | Damage / Healing | Range / Radius | Details |
 |---:|---|---:|---:|:---:|---:|---:|---|
 | 1 | Doom Blade | 1 | 7s | No | Line damage | 5m line | Sends a black blade along the camera aim line through enemies. |
-| 2 | Fear | 1 | 14s | No | Flee | Area | Nearby enemies flee instead of fighting. |
+| 2 | Fear | 1 | 14s | No | Flee / vulnerability | Area | Nearby enemies flee instead of fighting, and take more damage while they run. |
 | 3 | Kill | 1 | 60s | No | Execute | Single target | Instantly kills an enemy; bosses must be below one third health. |
 | 4 | Wall of Souls | 1 | 20s | No | Damage amplifier | Wall | Enemies crossing the wall take increased damage. |
 | 5 | Zombify | 1 | 30s | No | Summon | Corpse area | Raises corpses as temporary undead allies. |

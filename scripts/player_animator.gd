@@ -56,25 +56,47 @@ const IDLE_VARIATIONS := ["idle_look_1", "idle_look_2"]
 const RUN_FORWARD_TRAVEL := "run_forward_unarmed"
 const RUN_BACK_TRAVEL := "run_back_unarmed"
 
-## Clips that live on the locomotion layer, i.e. can be cross-faded into as the
-## character's resting state. `reset` restarts the clip on entry: wanted for the
-## one-shot-ish ones, unwanted for the loops (it would jerk the stride every time
-## walk and run swap).
-const LOCOMOTION_CLIPS := {
+## The non-directional states the locomotion layer can cross-fade into. `reset` restarts
+## the clip on entry: wanted for the one-shot-ish ones, unwanted for the loops.
+##
+## Travel is NOT here. The four walk clips and the two run clips are blended rather than
+## chosen, so they live inside the two BlendSpace2Ds below instead of being transition
+## inputs of their own - see GAIT_SPACES.
+const STATE_CLIPS := {
 	"idle": false,
-	"walk_forward": false,
-	"walk_back": false,
-	"walk_left": false,
-	"walk_right": false,
-	"run_forward": false,
-	"run_back": false,
-	"run_forward_unarmed": false,
-	"run_back_unarmed": false,
 	"block_idle": false,
 	"idle_look_1": true,
 	"idle_look_2": true,
 	"jump": true,
 	"death": true,
+}
+
+const WALK_SPACE := "walk_space"
+const RUN_SPACE := "run_space"
+
+## The two gaits, each a BlendSpace2D over [forward, back, left, right].
+##
+## Replaces picking ONE cardinal clip per frame, which had no diagonal at all and flickered
+## on every one. `_pick_locomotion_clip` decided with `absf(local.z) >= absf(local.x)`, and on
+## a keyboard diagonal those two are exactly equal - the input is (0.7071, -0.7071) - so the
+## comparison resolved on whatever floating-point noise `move_and_slide` had left in the
+## velocity, differently most frames. Each flip restarted the transition's 0.16s cross-fade,
+## so the character sat in a cross-fade that never finished. Mouse-turning made it permanent
+## rather than causing it: movement is body-relative, so turning keeps the local direction
+## pinned at exactly 45 degrees and there is no way to rotate off the boundary.
+##
+## The run row reuses the two WALK strafe clips because the pack ships no sideways run. A
+## diagonal sprint therefore blends a real run with a sped-up walk, which is the same
+## compromise the old picker made - it just no longer has to choose between them.
+const GAIT_SPACES := {
+	WALK_SPACE: {
+		"forward": "walk_forward", "back": "walk_back",
+		"left": "walk_left", "right": "walk_right",
+	},
+	RUN_SPACE: {
+		"forward": "run_forward_unarmed", "back": "run_back_unarmed",
+		"left": "walk_left", "right": "walk_right",
+	},
 }
 
 ## Everything from the spine up. The complement of this - hips and both leg chains -
@@ -94,6 +116,9 @@ const LOCO_SPEED_NODE := "loco_speed"
 const ACTION_NODE := "action"
 const ACTION_SPEED_NODE := "action_speed"
 const SHOT_NODE := "shot"
+
+const PARAM_WALK_POINT := "parameters/%s/blend_position" % WALK_SPACE
+const PARAM_RUN_POINT := "parameters/%s/blend_position" % RUN_SPACE
 
 const PARAM_LOCO_REQUEST := "parameters/%s/transition_request" % LOCO_NODE
 const PARAM_LOCO_SPEED := "parameters/%s/scale" % LOCO_SPEED_NODE
@@ -120,6 +145,16 @@ var _next_idle_variation: float = 0.0
 var _idle_variation_timer: float = 0.0
 
 var _current_loco: String = ""
+## The blend point actually in use, eased toward the target every frame. Smoothed because the
+## velocity this is derived from carries floor-snap and wall-slide noise out of move_and_slide,
+## and because a strafe turning into a forward run should read as a weight shift rather than a
+## snap. Short enough (see GameSettings.player_anim_blend_point_smoothing) that it never lags
+## behind the input in a way a player can feel.
+var _blend_point: Vector2 = Vector2(0.0, 1.0)
+## Which gait is current, kept so the walk/run switch can be hysteretic - a speed sitting on
+## the threshold would otherwise chatter between two spaces the way the old picker chattered
+## between two clips.
+var _running: bool = false
 var _cached_jump_scale: float = -1.0
 ## clip+stage-count -> the stage windows it splits into. Purely derived from the
 ## clip's impact metadata, so it is worked out once and kept.
@@ -140,7 +175,7 @@ func _ready() -> void:
 
 
 ## Builds the blend graph described in this file's header. Done in code rather than
-## authored as a .tres so the node set stays derived from LOCOMOTION_CLIPS and the
+## authored as a .tres so the node set stays derived from STATE_CLIPS/GAIT_SPACES and the
 ## bone filter stays derived from the actual skeleton - adding a clip or re-rigging
 ## does not leave a stale resource behind.
 func _build_tree() -> void:
@@ -154,22 +189,37 @@ func _build_tree() -> void:
 	var loco := AnimationNodeTransition.new()
 	loco.xfade_time = GameSettings.player_anim_blend_locomotion
 	loco.allow_transition_to_self = false
-	var available: Array[String] = []
-	for clip in LOCOMOTION_CLIPS.keys():
+
+	# The transition's inputs are the STATES plus the two gait spaces. A blend tree accepts a
+	# BlendSpace2D as a node like any other, and a transition input is an ordinary graph
+	# connection, so travel becomes two inputs instead of six.
+	var inputs: Array[String] = []
+	var resets: Array[bool] = []
+	for clip in STATE_CLIPS.keys():
 		if library.has_animation(clip):
-			available.append(clip)
+			inputs.append(clip)
+			resets.append(bool(STATE_CLIPS[clip]))
 		else:
 			push_warning("Locomotion clip '%s' is missing from the player library" % clip)
-	loco.set("input_count", available.size())
-	for i in available.size():
-		loco.set("input_%d/name" % i, available[i])
-		loco.set("input_%d/reset" % i, LOCOMOTION_CLIPS[available[i]])
-		var clip_node := AnimationNodeAnimation.new()
-		clip_node.animation = available[i]
-		graph.add_node("loco_" + available[i], clip_node, Vector2(0.0, 80.0 * i))
+	for space_name in GAIT_SPACES.keys():
+		if _build_gait_space(graph, library, String(space_name)):
+			inputs.append(String(space_name))
+			resets.append(false)
+
+	loco.set("input_count", inputs.size())
+	for i in inputs.size():
+		loco.set("input_%d/name" % i, inputs[i])
+		loco.set("input_%d/reset" % i, resets[i])
 	graph.add_node(LOCO_NODE, loco, Vector2(280.0, 0.0))
-	for i in available.size():
-		graph.connect_node(LOCO_NODE, i, "loco_" + available[i])
+	for i in inputs.size():
+		# A gait space is already a node in the graph; a state clip needs one building.
+		if GAIT_SPACES.has(inputs[i]):
+			graph.connect_node(LOCO_NODE, i, inputs[i])
+			continue
+		var clip_node := AnimationNodeAnimation.new()
+		clip_node.animation = inputs[i]
+		graph.add_node("loco_" + inputs[i], clip_node, Vector2(0.0, 80.0 * i))
+		graph.connect_node(LOCO_NODE, i, "loco_" + inputs[i])
 
 	var loco_speed := AnimationNodeTimeScale.new()
 	graph.add_node(LOCO_SPEED_NODE, loco_speed, Vector2(480.0, 0.0))
@@ -204,6 +254,40 @@ func _build_tree() -> void:
 	_tree.active = true
 
 
+## One gait as a BlendSpace2D: forward at +Y, back at -Y, right at +X, left at -X.
+##
+## Four points on the axes rather than eight around a circle. The domain is then a diamond,
+## and `_blend_point` normalizes by the L1 norm so a 45-degree input lands at (0.5, 0.5) -
+## exactly the midpoint of the forward-right edge, a clean 50/50 blend. Normalizing the usual
+## way would hand it (0.707, 0.707), which is OUTSIDE the diamond and gets clamped back to the
+## same place anyway, only without the weights being anything this file could compute for
+## itself - and `_blended_travel_speed` needs them.
+##
+## Returns false when the clips are missing, so a stripped library falls back to the states
+## rather than leaving a dead transition input nothing can play.
+func _build_gait_space(graph: AnimationNodeBlendTree, library: AnimationLibrary, space_name: String) -> bool:
+	var clips: Dictionary = GAIT_SPACES[space_name]
+	for clip in clips.values():
+		if not library.has_animation(String(clip)):
+			push_warning("Gait '%s' is missing clip '%s'; falling back" % [space_name, clip])
+			return false
+
+	var space := AnimationNodeBlendSpace2D.new()
+	space.blend_mode = AnimationNodeBlendSpace2D.BLEND_MODE_INTERPOLATED
+	space.min_space = Vector2(-1.0, -1.0)
+	space.max_space = Vector2(1.0, 1.0)
+	space.snap = Vector2(0.05, 0.05)
+	for entry in [
+		["forward", Vector2(0.0, 1.0)], ["back", Vector2(0.0, -1.0)],
+		["right", Vector2(1.0, 0.0)], ["left", Vector2(-1.0, 0.0)],
+	]:
+		var point := AnimationNodeAnimation.new()
+		point.animation = String(clips[entry[0]])
+		space.add_blend_point(point, entry[1])
+	graph.add_node(space_name, space, Vector2(60.0, 520.0 if space_name == RUN_SPACE else 360.0))
+	return true
+
+
 ## Every bone that is not hips-or-below. Derived from the skeleton rather than
 ## listed, so a rig change cannot silently leave a bone unmasked.
 func _upper_body_bones() -> Array[String]:
@@ -221,6 +305,29 @@ func _upper_body_bones() -> Array[String]:
 # how long a swing commits it and how long a stagger locks it out, and those are
 # gameplay facts, not animation ones - exposing a second copy from this node would
 # invite the two to disagree.
+
+## Where a held spell should sit: midway between the two hands, in world space.
+##
+## Read off the live skeleton rather than from an offset on the body, because the point of a
+## charge effect is that the character is visibly holding it - an orb pinned to the chest
+## drifts away from the hands the moment the cast clip moves them, and `cast_red`'s lead-in
+## does exactly that over the whole charge.
+##
+## Falls back to a point in front of the chest if either hand is missing from the rig, so a
+## re-rig degrades to "roughly right" instead of dropping the effect at the character's feet.
+func hand_midpoint() -> Transform3D:
+	var fallback := Transform3D(global_transform.basis, global_position + Vector3(0.0, 1.25, 0.0) - global_transform.basis.z * 0.45)
+	if _skeleton == null:
+		return fallback
+	var left: int = _skeleton.find_bone("mixamorig_LeftHand")
+	var right: int = _skeleton.find_bone("mixamorig_RightHand")
+	if left == -1 or right == -1:
+		return fallback
+	var to_world: Transform3D = _skeleton.global_transform
+	var left_pos: Vector3 = (to_world * _skeleton.get_bone_global_pose(left)).origin
+	var right_pos: Vector3 = (to_world * _skeleton.get_bone_global_pose(right)).origin
+	return Transform3D(global_transform.basis, (left_pos + right_pos) * 0.5)
+
 
 func has_clip(clip: String) -> bool:
 	return _anim != null and _anim.has_animation(clip)
@@ -529,9 +636,7 @@ func update_locomotion(
 		# under guard is what block_idle is for.
 		if speed > MOVING_SPEED_EPSILON:
 			# Guard up is a fight by definition, so the legs stay on the armed walk.
-			var guard_clip := _pick_locomotion_clip(planar_velocity, false, true)
-			_request_loco(guard_clip)
-			_tree.set(PARAM_LOCO_SPEED, _speed_scale_for(guard_clip, speed))
+			_drive_gait(WALK_SPACE, planar_velocity, speed, delta)
 		else:
 			_request_loco(BLOCK_CLIP)
 			_tree.set(PARAM_LOCO_SPEED, 1.0)
@@ -549,9 +654,7 @@ func update_locomotion(
 
 	if speed > MOVING_SPEED_EPSILON:
 		_cancel_idle_variation()
-		var clip := _pick_locomotion_clip(planar_velocity, sprinting, in_combat)
-		_request_loco(clip)
-		_tree.set(PARAM_LOCO_SPEED, _speed_scale_for(clip, speed))
+		_drive_gait(_pick_gait(speed, sprinting, in_combat), planar_velocity, speed, delta)
 		return
 
 	_tree.set(PARAM_LOCO_SPEED, 1.0)
@@ -614,41 +717,86 @@ func _roll_next_idle_variation() -> void:
 
 # --- clip selection ----------------------------------------------------------
 
-## Above this ground speed the run cycle is used even without the sprint key.
-##
-## Sits between the two clips' own recorded speeds - walk_forward covers 0.99 m/s,
-## run_forward 2.47 - so each cycle is chosen for the range it was actually animated
-## at. Ordinary movement (2.5) lands on the run clip and blocking (1.0) on the walk
-## clip, both at 1.0x playback. Choosing on the sprint flag alone instead meant normal
-## movement stretched a walk cycle to cover ground it was never animated for.
-const RUN_CLIP_SPEED := 1.5
-
-
-## `in_combat` is what separates travelling from fighting. A player mid-fight keeps the
-## armed walk however fast they are going - breaking into a relaxed unarmed run with a
-## weapon out and an enemy in front reads as a bug - while a player who has stopped
-## swinging and is holding sprint gets the travel cycle.
-func _pick_locomotion_clip(planar_velocity: Vector3, sprinting: bool, in_combat: bool) -> String:
-	var local := global_transform.basis.inverse() * planar_velocity
-	var fast: bool = not in_combat and (sprinting or planar_velocity.length() >= RUN_CLIP_SPEED)
-	# -Z is forward for a Node3D, so a negative local z means moving ahead.
-	if absf(local.z) >= absf(local.x):
-		if local.z <= 0.0:
-			return RUN_FORWARD_TRAVEL if fast else "walk_forward"
-		return RUN_BACK_TRAVEL if fast else "walk_back"
-	# The pack has no sideways run, so a sprinting strafe keeps the walk cycle and
-	# leans on the speed scaling below instead.
-	return "walk_right" if local.x > 0.0 else "walk_left"
-
-
-## Playback speed that makes the clip's own stride cover the ground the character is
-## actually covering. Clamped: past a point, stretching a walk cycle looks worse
-## than letting the feet slide a little.
-func _speed_scale_for(clip: String, speed: float) -> float:
-	var native := _travel_speed(clip)
+## Points a gait space at this velocity and times it to the ground actually being covered.
+func _drive_gait(space: String, planar_velocity: Vector3, speed: float, delta: float) -> void:
+	_request_loco(space)
+	_drive_blend_point(_blend_point_for(planar_velocity), space, delta)
+	var native: float = _blended_travel_speed(space, _blend_point)
 	if native <= 0.01:
-		return 1.0
-	return clampf(speed / native, GameSettings.player_locomotion_speed_min, GameSettings.player_locomotion_speed_max)
+		_tree.set(PARAM_LOCO_SPEED, 1.0)
+		return
+	_tree.set(PARAM_LOCO_SPEED, clampf(
+		speed / native,
+		GameSettings.player_locomotion_speed_min,
+		GameSettings.player_locomotion_speed_max
+	))
+
+
+## The speed band the run cycle takes over at, with hysteresis: break into a run above the
+## first, drop back to a walk only below the second.
+##
+## Two numbers rather than one because a single threshold is a boundary a speed can sit on -
+## a slow debuff or a haste bonus landing near it would flip the gait every frame, which is
+## the same failure the diagonal had. The pair sit either side of the old 1.5, so ordinary
+## movement and blocking still land where they did.
+const RUN_ENTER_SPEED := 1.65
+const RUN_EXIT_SPEED := 1.35
+
+
+## Which gait to blend in. Unlike the old picker this depends only on SPEED and whether a
+## fight is on - never on direction - so turning with the mouse cannot change it.
+##
+## `in_combat` is what separates travelling from fighting. A player mid-fight keeps the armed
+## walk however fast they are going; a player who has stopped swinging and is holding sprint
+## gets the travel cycle.
+func _pick_gait(speed: float, sprinting: bool, in_combat: bool) -> String:
+	if in_combat:
+		_running = false
+		return WALK_SPACE
+	if sprinting:
+		_running = true
+	elif _running:
+		_running = speed > RUN_EXIT_SPEED
+	else:
+		_running = speed >= RUN_ENTER_SPEED
+	return RUN_SPACE if _running else WALK_SPACE
+
+
+## Where in a gait space this velocity sits, as the L1-normalized [right, forward] pair.
+##
+## L1 rather than the usual normalize: it puts a 45-degree input exactly on the diamond's edge
+## at (0.5, 0.5), which is both a clean 50/50 blend and a pair of weights this file can read
+## back off directly - `_blended_travel_speed` is those same two numbers.
+func _blend_point_for(planar_velocity: Vector3) -> Vector2:
+	var local: Vector3 = global_transform.basis.inverse() * planar_velocity
+	# -Z is forward for a Node3D, so forward is the NEGATED local z.
+	var point := Vector2(local.x, -local.z)
+	var l1: float = absf(point.x) + absf(point.y)
+	if l1 < 0.0001:
+		return _blend_point
+	return point / l1
+
+
+## Eases the live blend point toward `target` and hands it to whichever space is playing.
+func _drive_blend_point(target: Vector2, space: String, delta: float) -> void:
+	var tau: float = maxf(GameSettings.player_anim_blend_point_smoothing, 0.001)
+	_blend_point = _blend_point.lerp(target, 1.0 - exp(-delta / tau))
+	_tree.set(PARAM_RUN_POINT if space == RUN_SPACE else PARAM_WALK_POINT, _blend_point)
+
+
+## How fast the BLEND is travelling under its own power, in units/second.
+##
+## The old _speed_scale_for divided by one clip's travel_speed, which is meaningless once two
+## clips are playing at once: a forward-right diagonal is half walk_forward (0.99 m/s) and half
+## walk_right (1.06), so its real stride covers 1.03 and dividing by either one alone asks the
+## legs to turn over at the wrong rate. The blend weights are exactly |x| and |y| of the L1
+## point, so the blended figure is one line.
+func _blended_travel_speed(space: String, point: Vector2) -> float:
+	var clips: Dictionary = GAIT_SPACES[space]
+	var forward_back: String = String(clips["forward"] if point.y >= 0.0 else clips["back"])
+	var sideways: String = String(clips["right"] if point.x >= 0.0 else clips["left"])
+	var native: float = absf(point.y) * _travel_speed(forward_back) + absf(point.x) * _travel_speed(sideways)
+	return native
 
 
 ## Playback speed that fits the jump clip into the time a jump actually lasts, from

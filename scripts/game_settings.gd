@@ -6,6 +6,26 @@ extends Node
 @export var map_base_radius: float = 50.0
 
 # ============================================================
+# DAY / NIGHT
+# ============================================================
+## The in-game hour a run begins at. Applied to Sky3D by MainController._ready.
+##
+## A run used to open at 20:45, which is past DayNightPacing's 20:00 dusk - so the game
+## started in the dark, with the night music and the night clock rate, before the player had
+## done anything. That was not a decision: it is whatever time the Sky3D node happened to be
+## scrubbed to when scenes/misc/main.tscn was last saved, and any editor session that touches
+## the sky can move it again.
+##
+## 7:00 is morning proper rather than 6:00 dawn: the sun is up and low, which is the best
+## light the arena gets, and it leaves thirteen of the fourteen daylight hours ahead - close
+## to a full day_real_minutes before the first night falls.
+##
+## The .tscn still carries a matching value so the EDITOR preview is not night either. This
+## one is what the game actually uses, the same split DayNightPacing documents for
+## minutes_per_day.
+@export var day_start_hour: float = 7.0
+
+# ============================================================
 # CRYSTAL
 # ============================================================
 @export var crystal_max_hp: float = 1000.0
@@ -49,6 +69,16 @@ extends Node
 @export var player_revive_channel_time: float = 3.0
 @export var player_revive_range: float = 3.0
 @export var player_base_proximity: float = 5.0
+## How far from the crystal each player's spawn point sits.
+##
+## Players used to spawn at the world origin - solo literally at Vector3(0, 1, 0), which is
+## INSIDE the crystal, and in a party on a 2.5-unit ring that is still inside its visual. The
+## five points are now one per lane, so everyone starts facing the direction their enemies
+## come from and nobody starts embedded in the objective.
+##
+## Must stay below player_base_proximity: spawning outside it would open a run with the "Press
+## E to Manage Base" prompt already gone, and the first thing a player does is shop.
+@export var player_spawn_ring_radius: float = 4.2
 ## Myrs only, for the same reason - the player never carries anything now.
 @export var player_carry_speed_penalty: float = 0.5
 @export var player_base_hp_regen: float = 1.0
@@ -91,6 +121,11 @@ extends Node
 ## Long enough that one swing chaining into the next reads as a blend rather than a
 ## snap, short enough that a strike still lands on the frame it says it does.
 @export var player_anim_blend_action: float = 0.12
+## Time constant for easing the locomotion blend point toward where the player is actually
+## going. The point is derived from post-collision velocity, which carries floor-snap and
+## wall-slide noise, and a strafe turning into a forward run should read as a weight shift
+## rather than a snap. Short enough that it never lags behind the stick in a way anyone feels.
+@export var player_anim_blend_point_smoothing: float = 0.09
 
 # ============================================================
 # PLAYER MELEE COMBO
@@ -213,7 +248,7 @@ extends Node
 @export var spell_red_fireball_shake_duration: float = 0.35
 
 # ============================================================
-# GREEN: TITANIC LEAP
+# GREEN: TITANIC BRAWL
 # ============================================================
 ## The launch impulse. Forward speed decides how far the leap carries; the rise is
 ## tuned against the clip rather than to taste - the jump_attack clip lands its slam
@@ -318,12 +353,7 @@ extends Node
 ## Kept only for save compatibility and the detail panel's old wording. Nothing gates on it
 ## any more - see color_investment_ladder.
 @export var affinity_spell_rank_requirements: Array[int] = [1, 5, 10, 15, 25]
-## How deep into a colour the capstone fork sits, and what taking it costs. One purchase,
-## expensive, permanent for the run - and only ONE across all five colours, because the
-## player holds a single capstone. It is the last thing a build decides and the thing a
-## build gets named after, so it is deliberately out of reach of a casual splash.
-@export var capstone_rank_requirement: int = 20
-@export var capstone_skill_point_cost: int = 3
+@export var aura_skill_point_cost: int = 3
 
 ## How long a chargeable spell (SpellDatabase "chargeable") can be held before it fires
 ## on its own, and therefore how long a full-power cast takes to build. The release
@@ -333,7 +363,16 @@ extends Node
 ##
 ## The cast clip's discarded lead-in is stretched across this window, so the caster
 ## visibly winds the spell up for as long as it is held (Player._begin_spell_windup).
-@export var spell_charge_max_time: float = 5.0
+##
+## Cut from 5.0 on 2026-09-10. Fireball is the only chargeable spell, and five seconds was a
+## long commitment mid-fight for what it buys: charge multiplies damage 0.6 -> 1.8 and radius
+## 2.4 -> 4.5, which is a real payoff, but not one worth standing still five seconds for while
+## a lane walks past you. Three keeps the same range of outcomes on a hold a fight can afford.
+##
+## Everything downstream is expressed as a FRACTION of this, so nothing else moves: the
+## charge_pct the spell scales by is unchanged, and _begin_spell_windup stretches the cast
+## clip's lead-in across whatever this says - the raise simply plays faster.
+@export var spell_charge_max_time: float = 3.0
 
 # Per-spell cooldowns moved to scripts/spell_database.gd, which owns one row per
 # spell. Tier costs stay here: they are shared tuning, not per-spell data.
@@ -383,7 +422,16 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_white_swords_ally_heal: float = 60.0
 @export var spell_white_path_to_exile_exec_mult: float = 0.5
 @export var spell_white_pacifism_debuff_mult: float = 0.5
+## Glorious Anthem's shield is documented as PERMANENT, and it was not: it is assigned once in
+## Player._sync_auras, which early-returns when the aura signature has not changed, so
+## the first hit that broke it broke it for the rest of the run. It recharges out of combat now,
+## which is what "permanent" has to mean for a shield that can be spent.
 @export var aura_glorious_anthem_shield: float = 35.0
+## Seconds without TAKING DAMAGE before it starts coming back, then how fast. Keyed off damage
+## taken rather than the combat timer, which is set by the player's own swings - a white player
+## meleeing safely behind their team is not the case this is meant to lock out.
+@export var aura_glorious_anthem_recharge_delay: float = 6.0
+@export var aura_glorious_anthem_recharge_rate: float = 10.0
 @export var aura_glorious_anthem_damage_mult: float = 1.15
 
 # --- BLACK SKILLS ---
@@ -396,7 +444,7 @@ func get_tier_cost(tier_index: int) -> int:
 # ============================================================
 # SKILL ROSTER - docs/SKILL_DESIGN.md
 # ============================================================
-# Five rankable skills per colour plus a capstone fork, exactly as the colour tables
+# Five rankable skills per colour plus a aura fork, exactly as the colour tables
 # specify. What each skill DOES lives in Player; only its numbers live here, and only
 # the ones a designer would want to reach for. Cooldowns are the one exception: they
 # belong to the spell row in scripts/spell_database.gd, alongside the animation timing
@@ -411,9 +459,25 @@ func get_tier_cost(tier_index: int) -> int:
 ## Circle of Protection (white_2). A BASE shield per ally, grown a little for every
 ## ally beyond the first - white's power goes UP with more allies alive, and dividing
 ## one pool said the opposite. Bound to player_max_hp like every white/green HP number.
-@export var spell_white_circle_shield_hp_mult: float = 2.2
+## Circle of Protection (white_2). Cut from 2.2 on 2026-09-10, and that number was a bug rather
+## than a balance choice: the spell used to be one POOL of 220 divided between everyone in range
+## (spell_white_circle_shield_total), and when it became a shield PER ALLY the 220 came along
+## unchanged. A five-player cast went from granting 220 shield in total to granting 1540, and
+## even solo it was 2.2 whole health bars from one button.
+##
+## 0.35 of max HP is 35 a head at rank 1 and 70 at rank 5 - about three ordinary hits, four with
+## the crowd bonus. Compare the tier-5 defensive skills it was outclassing: Ironbark is 60%
+## reduction for six seconds, and Rally's ward brings you back at 40% health.
+@export var spell_white_circle_shield_hp_mult: float = 0.35
 @export var spell_white_circle_ally_bonus: float = 0.10
 @export var spell_white_circle_radius: float = 12.0
+## ...and it EXPIRES. Nothing else in the roster is permanent, and a shield that is not was the
+## other half of the problem: with an 18s cooldown and no duration the correct play was to stand
+## in the base spamming it until the pool was arbitrarily large, which is not a decision.
+##
+## Comfortably shorter than the 18s cooldown even at rank 5 with Vigilance (8 x 1.5 x 1.2 =
+## 14.4s), so the shield cannot be kept up permanently by recasting either.
+@export var spell_white_circle_duration: float = 8.0
 ## Reprisal Ward (white_3)
 @export var spell_white_reprisal_reflect: float = 0.45
 @export var spell_white_reprisal_block_chance: float = 0.3
@@ -435,15 +499,18 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_blue_unsummon_range: float = 12.0
 @export var spell_blue_unsummon_cone_dot: float = 0.2
 @export var spell_blue_unsummon_stun: float = 1.5
-## Frostwave (blue_2). Bosses are SLOWED, never frozen - see the colour table.
+## Frost Breath (blue_2). Bosses are SLOWED, never frozen - see the colour table.
 @export var spell_blue_frostwave_radius: float = 8.5
 @export var spell_blue_frostwave_damage: float = 65.0
 @export var spell_blue_frostwave_freeze: float = 3.0
-@export var spell_blue_frostwave_boss_slow: float = 4.0
-## Frost Globe (blue_3)
-@export var spell_blue_frost_globe_radius: float = 2.4
-@export var spell_blue_frost_globe_duration: float = 12.0
-## Suction (blue_4). A zone that keeps dragging enemies inward for its whole duration
+## Cut from 4.0 on 2026-09-09. Frost Breath already deals damage, freezes every ordinary
+## enemy outright, and scales its radius, damage and duration - a full panic button and a
+## damage spell in one, which left it competing with White's Wrath and with blue's own
+## control kit. The boss clause is the half that was doing too much: a boss slowed for four
+## seconds on a repeatable cooldown is a boss that never gets to act. It still buys real
+## time, just not a whole phase of one.
+@export var spell_blue_frostwave_boss_slow: float = 2.5
+## Suction (blue_3). A zone that keeps dragging enemies inward for its whole duration
 ## rather than pulling once. The pull is slow on purpose: walking out of it is the
 ## counterplay, and a yank that nothing can escape removes it.
 @export var spell_blue_suction_radius: float = 12.0
@@ -458,9 +525,14 @@ func get_tier_cost(tier_index: int) -> int:
 ## a deliberate consequence of the curve, not an oversight.
 @export var spell_blue_suction_duration: float = 10.0
 @export var spell_blue_suction_duration_max: float = 30.0
-## Phantasmal Decoy (blue_5)
-@export var spell_blue_decoy_hp: float = 260.0
-@export var spell_blue_decoy_duration: float = 12.0
+## Wall of Frost (blue_4). Real collision, plus bonus damage when Unsummon slams an
+## enemy into it instead of ordinary terrain.
+@export var spell_blue_wall_of_frost_length: float = 8.5
+@export var spell_blue_wall_of_frost_duration: float = 10.0
+@export var spell_blue_wall_of_frost_unsummon_bonus_damage: float = 120.0
+## Displace (blue_5). A short blink to the aimed ground point, capped so it stays a
+## mobility tool rather than a cross-lane teleport.
+@export var spell_blue_displace_distance: float = 9.0
 
 # --- BLACK: parasitic drain ---
 ## Doom Blade (black_1). Passes THROUGH - only what the line actually touches is hit,
@@ -471,6 +543,16 @@ func get_tier_cost(tier_index: int) -> int:
 ## Fear (black_2)
 @export var spell_black_fear_radius: float = 9.0
 @export var spell_black_fear_duration: float = 4.0
+## What makes Fear worth casting in a game about keeping enemies CLUSTERED. Scattering the
+## pack is actively bad for Suction, Wall of Souls, Rain of Ember, Fireball and every other
+## area skill in the roster, so the flee needs to buy something the cluster cannot: everything
+## running takes this much more damage for as long as it runs. Fear becomes a damage window
+## the player opens deliberately, rather than a button that undoes their own positioning.
+##
+## Rides the same curse channel as Wall of Souls' mark (EnemyBase.apply_doom_curse), which
+## keeps the stronger of the two rather than letting one overwrite the other.
+@export var spell_black_fear_vulnerability: float = 1.3
+@export var spell_black_fear_vulnerability_max: float = 1.6
 ## Kill (black_3). The boss clause is what stops an instant delete trivialising the wave
 ## bosses; the cooldown (spell_database.gd) is the harshest in the game for the same
 ## reason.
@@ -496,17 +578,38 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_red_dash_trail_dps: float = 45.0
 @export var spell_red_dash_trail_duration: float = 4.0
 @export var spell_red_dash_trail_radius: float = 2.2
-## Fire Cone (red_4). The only skill in the game whose value depends on choosing to
-## stand still in a tower defence, so its damage per second is the highest there is.
-@export var spell_red_fire_cone_dps: float = 145.0
-@export var spell_red_fire_cone_length: float = 9.0
+## Fire Cone (red_4). A refill meter rather than a normal cooldown: hold to spend up to
+## this many seconds of flame, then wait for the meter to fill again.
+##
+## Retuned 2026-09-09 from 145 dps at 9.0 length. At 145 a full 5-second channel was 725
+## damage to EVERY enemy in the cone before rank scaling - more than Lightning Bolt's single
+## target number, three times Fire Dash's trail and nearly six times Rain of Ember's dps, on
+## a spell the player can walk with. Red's four fire skills all wanted the same job; this one
+## is now the one that holds a line rather than the one that clears it, which is what the
+## slow below is for. Total per enemy at the new numbers: 425 over a full channel.
+@export var spell_red_fire_cone_dps: float = 85.0
+@export var spell_red_fire_cone_length: float = 7.0
 @export var spell_red_fire_cone_dot: float = 0.55
-@export var spell_red_fire_cone_max_duration: float = 4.0
+@export var spell_red_fire_cone_max_duration: float = 5.0
+## The control half of Fire Cone's new job. Refreshed every frame the enemy is in the cone
+## and lapsing shortly after it sweeps off them, so keeping something slowed means keeping
+## the flame ON it - which is the sustained-pressure shape the damage no longer provides.
+@export var spell_red_fire_cone_slow_mult: float = 0.6
+@export var spell_red_fire_cone_slow_duration: float = 0.4
 ## Lightning Bolt (red_5). Precision against one big target: the smallest area in the
 ## game and the largest single number.
 @export var spell_red_bolt_damage: float = 230.0
 @export var spell_red_bolt_radius: float = 2.8
 @export var spell_red_bolt_delay: float = 0.55
+## What the bolt is FOR. Against a boss or an elite it hits for this much more, which is the
+## one thing no other red skill does: Fireball, Rain, Fire Dash and Fire Cone are all area
+## damage, and against a single large target they are all mediocre. 230 flat was strictly
+## worse than parking a Fire Cone on the same boss; 460 at rank 1 through 598 at rank 5 is a
+## number worth rooting yourself and eating the telegraph delay for.
+##
+## Ordinary enemies feel none of this - the bolt stays a bad way to clear a wave, on purpose.
+@export var spell_red_bolt_elite_mult: float = 2.0
+@export var spell_red_bolt_elite_mult_max: float = 2.6
 ## Effectively unlimited: the bolt lands wherever the crosshair meets the ground, however
 ## far that is. It is the one spell aimed at a POINT rather than around the caster, and a
 ## 30-unit cap meant the strike silently landed short of what the player was looking at -
@@ -523,6 +626,15 @@ func get_tier_cost(tier_index: int) -> int:
 ## half of green, with Roar.
 @export var spell_green_fog_radius: float = 7.0
 @export var spell_green_fog_duration: float = 8.0
+## Fog's problem was never its strength, it was that suppressed damage is INVISIBLE: the
+## player sees enemies swinging and nothing happening, which reads as the spell having failed
+## rather than as the spell working. Two answers, both here: the prevented damage is now shown
+## as a floating number (Player/EnemyBase), and enemies wade through the cloud rather than
+## walking through it - a slow the player can see at a glance without reading numbers.
+##
+## Milder than frost's 0.3 on purpose. Fog is not a control spell that also blocks damage; it
+## is ground the player holds, and the wading is legibility, not the effect.
+@export var spell_green_fog_slow_mult: float = 0.65
 ## Roar (green_4)
 @export var spell_green_roar_radius: float = 14.0
 @export var spell_green_roar_duration: float = 6.0
@@ -531,14 +643,14 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_green_ironbark_reduction: float = 0.6
 @export var spell_green_ironbark_duration: float = 6.0
 
-# --- CAPSTONE MANIFESTATIONS ---
-# The second half of every colour's capstone fork. The Attunements (Fervor, Rhystic
+# --- AURAS: THE ORBS ---
+# The second half of every colour's aura fork. The Attunements (Fervor, Rhystic
 # Study and the rest, above) are flat multipliers; these are presence - something
 # visibly fighting alongside the player. All three orbs are ONE implementation.
 @export var aura_orb_radius: float = 2.2
 @export var aura_orb_height: float = 1.9
 @export var aura_orb_speed: float = 2.0
-## Orb of Frost - blue's Manifestation
+## Winter Orb - blue's Manifestation
 @export var aura_orb_of_frost_damage: float = 34.0
 @export var aura_orb_of_frost_interval: float = 1.4
 @export var aura_orb_of_frost_range: float = 14.0
@@ -630,7 +742,7 @@ func get_tier_cost(tier_index: int) -> int:
 # ============================================================
 # Every active skill is bought up to five times. Rank 1 is the skill working; ranks 2-5
 # scale the two or three numbers its row in docs/SKILL_DESIGN.md lists under "Scales with
-# rank". The capstones are deliberately NOT rankable - the moment a capstone becomes a
+# rank". The auras are deliberately NOT rankable - the moment a aura becomes a
 # slider it stops being a decision.
 #
 # The price is flat, one skill point per rank, and the SCARCITY IS THE TEAM LEVEL instead
@@ -684,6 +796,31 @@ func rank_count(base: int, top: int, rank: int) -> int:
 	return int(roundf(rank_fraction(float(base), float(top), rank)))
 
 
+## The share of an aura's listed bonus that rank 1 already pays out. Rank 5 always pays
+## the full listed number; this is only where the walk to it STARTS.
+const AURA_RANK1_SHARE := 0.4
+
+## For a aura aura's MULTIPLIER - Fervor's x1.15 speed, Phyrexian Arena's x1.25 damage,
+## Rhystic Study's x0.7 cooldown. `ceiling` is what the aura is documented as giving, and
+## rank 5 is what reaches it.
+##
+## Exists because these were written as `lerpf(1.0, ceiling, rank_damage_mult(rank) - 1.0)`,
+## and rank_damage_mult(1) is 1.0 - so the lerp weight at rank 1 was ZERO and the first rank
+## of every one of these auras granted nothing at all. Phyrexian Arena rank 1 was the worst
+## of them: it drained health for a damage and speed bonus that was still exactly x1.0.
+##
+## Multiplying by rank_damage_mult() instead would be wrong in the other direction: it would
+## take Fervor's x1.15 to x2.3, and Rhystic Study's x0.7 cooldown to x1.4 - a COST. A bonus
+## expressed as a multiplier has to walk from a smaller bonus to its listed one, which is
+## what rank_fraction already does for every other fraction in the game. This is that, with
+## the rank-1 starting point derived from the ceiling rather than written out per aura.
+##
+## Direction-agnostic on purpose: a ceiling below 1.0 (a cooldown multiplier) walks DOWN to
+## it from a weaker discount, exactly as a ceiling above 1.0 walks up.
+func aura_bonus_mult(ceiling: float, rank: int) -> float:
+	return 1.0 + (ceiling - 1.0) * rank_fraction(AURA_RANK1_SHARE, 1.0, rank)
+
+
 ## The team level this rank needs. Rank 1 is the unlock itself.
 ## What the colour-investment ladder asks for at tier or rank `step` (1-based). Clamped
 ## rather than wrapped, so a sixth step - if one is ever added - inherits the last rung
@@ -712,6 +849,11 @@ func rank_level_requirement(rank: int) -> int:
 @export var wave_spawn_delay_base: float = 1.0
 @export var wave_spawn_delay_scaling: float = 0.05
 @export var wave_spawn_delay_min: float = 0.1
+@export var wave_spawn_cluster_size: int = 3
+@export var wave_spawn_cluster_delay: float = 0.18
+@export var wave_spawn_cluster_lateral_spacing: float = 2.4
+@export var wave_spawn_cluster_depth_spacing: float = 2.0
+@export var wave_spawn_cluster_jitter: float = 0.45
 ## How much bigger a wave gets per player beyond the first. Enemy DAMAGE already scales
 ## with head count (get_player_scaling_factor), but wave SIZE never did - five players
 ## against a solo-sized wave shred it without the crystal ever being threatened, and earn
@@ -801,6 +943,9 @@ func rank_level_requirement(rank: int) -> int:
 # boss_special_windup_* seconds before the hit lands - that window is the dodge.
 @export var boss_special_cooldown: float = 9.0
 @export var boss_special_first_delay: float = 5.0
+## Unused since each special carries its own `min_range` (BossDatabase.SPECIALS). Kept as the
+## documented default a new special should be written against: the big area attacks are all
+## held back to this so the melee special owns the point-blank band.
 @export var boss_special_min_range: float = 3.0
 @export var boss_special_damage_mult: float = 2.0
 # Bigger bosses wind up proportionally longer (they also animate slower), so the

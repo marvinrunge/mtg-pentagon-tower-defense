@@ -1,7 +1,7 @@
 extends Area3D
 class_name DoTZone
 
-## fire_rain, toxic_deluge, holy_trail, fog.
+## fire_rain, fire_patch, toxic_deluge, holy_trail, fog.
 ##
 ## `fog` is the odd one and the reason this comment exists: it is the only zone that does
 ## not deal or restore anything. Green's green_3 puts down ground where enemies deal NO
@@ -54,7 +54,7 @@ func _ready() -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.emission_enabled = true
 	
-	if zone_type == "fire_rain":
+	if zone_type == "fire_rain" or zone_type == "fire_patch":
 		mat.albedo_color = Color(1.0, 0.3, 0.1, 0.4)
 		mat.emission = Color(1.0, 0.2, 0.0)
 	elif zone_type == "toxic_deluge":
@@ -71,6 +71,8 @@ func _ready() -> void:
 	add_child(visual)
 	if zone_type == "fire_rain":
 		_build_firestorm()
+	elif zone_type == "fire_patch":
+		_build_fire_patch()
 	elif zone_type == "fog":
 		_build_fog()
 	_life_timer = duration
@@ -95,22 +97,6 @@ func _build_firestorm() -> void:
 	disc_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	visual.height = 0.06
 
-	# A brighter rim, so the edge of the danger is readable from across the map -
-	# this zone is something the player has to place, and then avoid standing in.
-	var rim := CSGTorus3D.new()
-	rim.inner_radius = radius * 0.94
-	rim.outer_radius = radius
-	rim.sides = 8
-	rim.ring_sides = 6
-	var rim_material := StandardMaterial3D.new()
-	rim_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	rim_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	rim_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	rim_material.albedo_color = Color(1.0, 0.55, 0.15, 0.85)
-	rim.material = rim_material
-	rim.position = Vector3(0.0, 0.08, 0.0)
-	add_child(rim)
-
 	# One looping voice per firestorm, hung on the zone so it stops when the zone does.
 	# A one-shot at the cast site would end long before the fire did.
 	SoundBank.attach_loop(&"spell_rain_ember", self, false)
@@ -129,6 +115,24 @@ func _build_firestorm() -> void:
 	scale = Vector3(0.4, 1.0, 0.4)
 	var tween := create_tween()
 	tween.tween_property(self, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _build_fire_patch() -> void:
+	var disc_material: StandardMaterial3D = visual.material as StandardMaterial3D
+	disc_material.albedo_color = Color(0.42, 0.08, 0.02, 0.48)
+	disc_material.emission = Color(0.95, 0.22, 0.04)
+	disc_material.emission_energy_multiplier = 1.35
+	disc_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	disc_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	visual.height = 0.04
+
+	_ground_fire = EmberFx.build_ground_fire(radius)
+	_ground_fire.amount = 26
+	add_child(_ground_fire)
+
+	_light = EmberFx.build_fire_light(radius * 1.8, 1.5)
+	_light.position = Vector3(0.0, 0.7, 0.0)
+	add_child(_light)
 
 ## The cloud itself. Low, wide and slow - it has to read as SAFE ground at a glance,
 ## which is the opposite of everything else this class builds, so it borrows nothing from
@@ -170,6 +174,12 @@ func _process(delta: float) -> void:
 		_rain.emitting = false
 		_ground_fire.emitting = false
 		
+	# The disc, the embers and the light run everywhere; the DAMAGE runs on the server
+	# alone. The zone is spawned onto every peer so that all five players can see the
+	# ground they must not stand on, and a client applying its own ticks on top of the
+	# host's would burn everything inside it twice.
+	if not Net.is_server():
+		return
 	_tick_timer += delta
 	if _tick_timer >= tick_interval:
 		_tick_timer = 0.0
@@ -189,11 +199,19 @@ func _apply_ticks() -> void:
 			# away with it.
 			if b.is_in_group("enemies") and b.has_method("suppress_damage"):
 				b.suppress_damage(tick_interval * 2.0)
+				# Wading, not walking. Fog's real effect is invisible - enemies swinging and
+				# connecting with nothing - so the cloud also has to LOOK like it is doing
+				# something from across the field. Same refresh window as the suppression, so
+				# both halves lapse together.
+				if b.has_method("apply_slow"):
+					b.apply_slow(tick_interval * 2.0, GameSettings.spell_green_fog_slow_mult)
 			continue
 
 		if zone_type == "holy_trail":
 			if b.is_in_group("player") and b.has_method("heal"):
-				b.heal(damage)
+				var restored: float = b.heal(damage)
+				if is_instance_valid(caster) and caster.has_method("_credit_heal"):
+					caster._credit_heal(b, restored)
 		else:
 			if b.is_in_group("enemies") and b.has_method("take_damage"):
 				b.take_damage(damage, caster)

@@ -17,9 +17,14 @@ var proj_type: int = 0
 var aoe_radius: float = 0.0
 var caster_ref: WeakRef
 var effect_multiplier: float = 1.0
+var visual_kind: String = "magic"
 
 @onready var visual: CSGSphere3D = $Visual
 var projectile_material: StandardMaterial3D
+var _arrow_visual: MeshInstance3D
+var _stone_visual: MeshInstance3D
+var _arrow_material: StandardMaterial3D
+var _stone_material: StandardMaterial3D
 ## Built once per pooled projectile and retinted per shot, rather than per spell:
 ## these live and die with the pool entry, not with the bolt.
 var _trail: GPUParticles3D
@@ -34,6 +39,7 @@ func _ready() -> void:
 	lifetime = base_lifetime
 	projectile_material = visual.material.duplicate() as StandardMaterial3D
 	visual.material = projectile_material
+	_build_physical_visuals()
 	_trail = EmberFx.build_trail(28)
 	_trail.emitting = false
 	add_child(_trail)
@@ -43,14 +49,17 @@ func _ready() -> void:
 	add_child(_glow)
 	body_entered.connect(_on_body_entered)
 
-func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = false, multiplier: float = 1.0, damage_override: float = -1.0, p_aoe_radius: float = 0.0, p_caster: Node3D = null) -> void:
+func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = false, multiplier: float = 1.0, damage_override: float = -1.0, p_aoe_radius: float = 0.0, p_caster: Node3D = null, p_visual_kind: String = "magic", p_tint: Color = Color(0.8, 0.2, 0.8)) -> void:
 	global_position = start_pos
 	direction = dir
+	if direction.length_squared() > 0.001:
+		look_at(global_position + direction.normalized(), Vector3.UP)
 	active = true
 	visible = true
 	process_mode = Node.PROCESS_MODE_INHERIT
 	proj_type = type
 	is_enemy = _is_enemy
+	visual_kind = p_visual_kind
 	collision_mask = 19 if is_enemy else 22
 	aoe_radius = p_aoe_radius
 	caster_ref = weakref(p_caster) if is_instance_valid(p_caster) else null
@@ -77,11 +86,11 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 		mat.albedo_color = Color(0.1, 0.3, 1.0)
 		mat.emission = Color(0.1, 0.3, 1.0)
 	elif type == 3:
-		# Enemy Magic Missile (Purple/Pink)
+		# Enemy shot. Mages tint the magic by mana colour; ranged units use physical meshes.
 		speed = base_speed * GameSettings.projectile_enemy_speed_mult
 		damage = base_damage * GameSettings.projectile_enemy_damage_mult * GameSettings.get_player_scaling_factor(get_tree())
-		mat.albedo_color = Color(0.8, 0.2, 0.8)
-		mat.emission = Color(0.8, 0.2, 0.8)
+		mat.albedo_color = p_tint
+		mat.emission = p_tint
 	elif type == 4:
 		# Fireball (Red Explosive)
 		speed = base_speed * 0.9
@@ -110,11 +119,13 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 	if damage_override >= 0.0:
 		damage = damage_override
 
+	_apply_visual_mode(mat.emission)
+
 	# Every bolt carries its own light and tail, tinted to match itself; the fireball
 	# just gets much more of both, because it is the one meant to look dangerous while
 	# it is still in the air.
 	_glow.light_color = mat.emission
-	_glow.light_energy = 3.2 if type == 4 else 1.4
+	_glow.light_energy = _glow_energy_for_visual(type)
 	_glow.omni_range = 6.5 if type == 4 else 3.5
 	# Tinting the RAMP rather than the mesh: the texture is white, and the ramp is
 	# what actually colours each particle. Only the fireball keeps the full fire
@@ -129,11 +140,69 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 		var ramp := GradientTexture1D.new()
 		ramp.gradient = gradient
 		trail_process.color_ramp = ramp
-	_trail.amount = 28 if type == 4 else 14
+	_trail.amount = _trail_amount_for_visual(type)
 	_trail.restart()
-	_trail.emitting = true
+	_trail.emitting = _trail.amount > 0
 
 	life_timer = base_lifetime
+
+
+func _build_physical_visuals() -> void:
+	_arrow_material = StandardMaterial3D.new()
+	_arrow_material.albedo_color = Color(0.42, 0.30, 0.18)
+	_arrow_material.roughness = 0.75
+	_arrow_visual = MeshInstance3D.new()
+	_arrow_visual.name = "ArrowVisual"
+	var arrow_mesh := CylinderMesh.new()
+	arrow_mesh.top_radius = 0.035
+	arrow_mesh.bottom_radius = 0.035
+	arrow_mesh.height = 0.95
+	_arrow_visual.mesh = arrow_mesh
+	_arrow_visual.material_override = _arrow_material
+	_arrow_visual.rotation.x = PI * 0.5
+	_arrow_visual.hide()
+	add_child(_arrow_visual)
+
+	_stone_material = StandardMaterial3D.new()
+	_stone_material.albedo_color = Color(0.34, 0.32, 0.28)
+	_stone_material.roughness = 0.95
+	_stone_visual = MeshInstance3D.new()
+	_stone_visual.name = "StoneVisual"
+	var stone_mesh := SphereMesh.new()
+	stone_mesh.radius = 0.18
+	stone_mesh.height = 0.34
+	_stone_visual.mesh = stone_mesh
+	_stone_visual.material_override = _stone_material
+	_stone_visual.hide()
+	add_child(_stone_visual)
+
+
+func _apply_visual_mode(tint: Color) -> void:
+	visual.show()
+	_arrow_visual.hide()
+	_stone_visual.hide()
+	if visual_kind == "arrow":
+		visual.hide()
+		_arrow_visual.show()
+	elif visual_kind == "stone":
+		visual.hide()
+		_stone_visual.show()
+	else:
+		visual.show()
+		projectile_material.albedo_color = tint
+		projectile_material.emission = tint
+
+
+func _glow_energy_for_visual(type: int) -> float:
+	if visual_kind == "arrow" or visual_kind == "stone":
+		return 0.0
+	return 3.2 if type == 4 else 1.4
+
+
+func _trail_amount_for_visual(type: int) -> int:
+	if visual_kind == "arrow" or visual_kind == "stone":
+		return 0
+	return 28 if type == 4 else 14
 
 ## Only the enemy shots have recordings of their own; a spell's own effect is
 ## already what the player hears, and firing an arrow sound off a fireball would be
@@ -190,6 +259,11 @@ func _on_body_entered(body: Node3D) -> void:
 	# for the shooter's benefit; the authoritative one was fired by the server when the
 	# cast was requested (see Player.execute_spell).
 	if not Net.is_server():
+		# The LOOK of the detonation still belongs here. A client's fireball reaching an
+		# enemy and winking out without a fireball is the same nothing the whole exercise
+		# is meant to remove - the damage is the server's, the explosion is everybody's.
+		if proj_type == 4:
+			_fireball_blast_visuals()
 		_play_impact_sound()
 		deactivate()
 		return
@@ -226,7 +300,9 @@ func _on_body_entered(body: Node3D) -> void:
 			var current_caster: Node3D = _get_caster()
 			body.take_damage(damage, current_caster)
 			if current_caster and current_caster.has_method("heal"):
-				current_caster.heal(damage * GameSettings.spell_black_drain_life_lifesteal)
+				var drained: float = current_caster.heal(damage * GameSettings.spell_black_drain_life_lifesteal)
+				if current_caster.has_method("_credit_heal"):
+					current_caster._credit_heal(current_caster, drained)
 	elif proj_type == 6:
 		# Swords to Plowshares (% Max HP Holy Exile or Ally Heal)
 		if body.is_in_group("enemies"):
@@ -238,7 +314,10 @@ func _on_body_entered(body: Node3D) -> void:
 				)
 				body.take_damage(holy_dmg, _get_caster())
 		elif body.has_method("heal"):
-			body.heal(GameSettings.spell_white_swords_ally_heal)
+			var given: float = body.heal(GameSettings.spell_white_swords_ally_heal)
+			var healer: Node3D = _get_caster()
+			if is_instance_valid(healer) and healer.has_method("_credit_heal"):
+				healer._credit_heal(body, given)
 	elif proj_type == 7:
 		# Path to Exile (% missing HP execute + Holy Trail)
 		if body.is_in_group("enemies") and body.has_method("take_damage"):
@@ -246,11 +325,16 @@ func _on_body_entered(body: Node3D) -> void:
 				var missing_hp = body.enemy_data.health - body.health
 				var exec_dmg = (40.0 + missing_hp * GameSettings.spell_white_path_to_exile_exec_mult) * effect_multiplier
 				body.take_damage(exec_dmg, _get_caster())
-		# Spawn Holy Trail
-		var trail = DoTZone.new()
-		trail.setup("holy_trail", 3.0, 15.0, 4.0, _get_caster())
-		trail.global_position = global_position
-		get_tree().current_scene.add_child(trail)
+		# Spawn Holy Trail - through the effect spawner, so the ally who is meant to walk
+		# through it can see where it is.
+		var scene: Node = get_tree().current_scene
+		if scene != null and scene.has_method("request_effect"):
+			var healer: Node3D = _get_caster()
+			scene.request_effect({
+				"kind": "dot_zone", "type": "holy_trail", "position": global_position,
+				"radius": 3.0, "dps": 15.0, "duration": 4.0,
+				"caster": healer.get_multiplayer_authority() if healer != null else 0,
+			})
 	else:
 		if body.has_method("take_damage"):
 			body.take_damage(damage, _get_caster())
@@ -258,6 +342,18 @@ func _on_body_entered(body: Node3D) -> void:
 	deactivate()
 
 func _trigger_fireball_aoe() -> void:
+	_fireball_blast_visuals()
+	var radius = aoe_radius if aoe_radius > 0.0 else GameSettings.spell_red_fireball_base_radius
+	var enemies = get_tree().get_nodes_in_group("enemies")
+	for e in enemies:
+		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:
+			if e.has_method("take_damage"):
+				e.take_damage(damage, _get_caster())
+
+
+## Everything about the detonation that is not damage. Split out because it runs on every
+## peer while the damage above runs on one.
+func _fireball_blast_visuals() -> void:
 	var radius = aoe_radius if aoe_radius > 0.0 else GameSettings.spell_red_fireball_base_radius
 	var burst: Node3D = EmberFx.build_burst(radius)
 	get_tree().current_scene.add_child(burst)
@@ -278,12 +374,6 @@ func _trigger_fireball_aoe() -> void:
 		GameSettings.spell_red_fireball_shake_strength,
 		GameSettings.spell_red_fireball_shake_duration
 	)
-	var enemies = get_tree().get_nodes_in_group("enemies")
-	for e in enemies:
-		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= radius:
-			if e.has_method("take_damage"):
-				e.take_damage(damage, _get_caster())
-	
 	# Spawn temporary visual explosion
 	var exp_mesh = CSGSphere3D.new()
 	exp_mesh.radius = radius

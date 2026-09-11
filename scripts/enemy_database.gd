@@ -18,6 +18,16 @@ static func get_enemy_data(color_id: String, type_id: String) -> EnemyData:
 		data.speed = 2.0
 		data.attack_damage = 8.0
 		data.attack_range = 10.0
+		# Half the melee cadence. Ranged never set attack_speed at all and so inherited
+		# EnemyData's 1.0 default - the same one second between attacks a melee unit gets, but
+		# fired from ten units away (fifteen for Blue, whose range modifier is x1.5) with no
+		# need to close and nothing to dodge on the way in. A rank of five archers was putting
+		# out 40 sustained dps on the crystal for free while the melee beside them had to walk
+		# into contact for 50.
+		#
+		# 2.0 also reads better: perform_attack stretches the draw animation to fit the
+		# cadence, so the bow now has a visible pull instead of a twitch.
+		data.attack_speed = 2.0
 		data.model_scale = 0.8
 	elif type_id == "Mage":
 		data.health = 100.0

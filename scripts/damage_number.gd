@@ -19,7 +19,10 @@ func _ready() -> void:
 	horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
-func activate(pos: Vector3, amount: float, text_color: Color) -> void:
+## `label`, when it is not empty, replaces the formatted number entirely - for the effects
+## whose news is not a quantity ("Fogged", "Warded"). Everything else about the popup is
+## the same, so those read as part of the same feedback language rather than as new UI.
+func activate(pos: Vector3, amount: float, text_color: Color, label: String = "") -> void:
 	global_position = pos
 	active = true
 	visible = true
@@ -32,9 +35,16 @@ func activate(pos: Vector3, amount: float, text_color: Color) -> void:
 	var angle: float = randf_range(0, TAU)
 	_drift_velocity = Vector3(cos(angle) * 0.4, 0, sin(angle) * 0.4)
 
-	if amount < 0:
+	if label != "":
+		text = label
+		# A word needs to be smaller than a damage number or it dominates the screen at the
+		# same font size a three-digit hit uses.
+		font_size = 30
+	elif amount < 0:
+		font_size = 42
 		text = "+%d" % round(abs(amount))
 	else:
+		font_size = 42
 		text = "%d" % round(amount)
 
 func deactivate() -> void:

@@ -59,6 +59,88 @@ func _ready() -> void:
 	Net.lan_scan_finished.connect(_on_lan_scan_finished)
 	Net.match_started.connect(_on_match_started)
 
+	# Two windows on one desk, skipping the lobby. See _apply_autostart.
+	_apply_autostart.call_deferred()
+
+
+# --- starting from the command line -------------------------------------------
+#
+# Testing multiplayer means driving two windows through host, scan, join and two ready
+# checks before a single frame of the actual game, every time. These flags do that part.
+
+## Set when this instance was told to host or join on the command line, so the lobby
+## starts the match by itself once everyone is in rather than waiting for the button.
+var _autostart_seats: int = 0
+
+
+## Reads `--autohost` / `--autojoin` off the command line and acts on them.
+##
+## Passed after `++` so Godot hands them through as user args:
+##
+##     godot --path . ++ --autohost=2          # host, and start once 2 players are ready
+##     godot --path . ++ --autojoin=127.0.0.1  # join that address and mark ready
+##
+## Both accept an optional `:port`. The host counts players rather than starting straight
+## away, because a match that begins before the client has connected leaves them joining
+## a run in progress instead of starting one together.
+func _apply_autostart() -> void:
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	for arg: String in args:
+		if arg.begins_with("--autohost"):
+			_autostart_host(arg)
+			return
+		if arg.begins_with("--autojoin"):
+			_autostart_join(arg)
+			return
+
+
+func _autostart_host(arg: String) -> void:
+	var value: String = arg.get_slice("=", 1) if arg.contains("=") else ""
+	_autostart_seats = maxi(int(value) if value.is_valid_int() else 2, 1)
+	var port: int = Net.DEFAULT_PORT
+	if value.contains(":"):
+		port = int(value.get_slice(":", 1))
+		_autostart_seats = maxi(int(value.get_slice(":", 0)), 1)
+	_name_field.text = "Host"
+	if Net.host(port, "Host", "Autostart", "") != OK:
+		_set_status("Autostart: could not open port %d." % port)
+		return
+	Net.set_local_ready(true)
+	_show_page(Page.LOBBY)
+	_set_status("Autostart: hosting on %d, waiting for %d players." % [port, _autostart_seats])
+
+
+func _autostart_join(arg: String) -> void:
+	var value: String = arg.get_slice("=", 1) if arg.contains("=") else "127.0.0.1"
+	var address: String = value.get_slice(":", 0)
+	var port: int = int(value.get_slice(":", 1)) if value.contains(":") else Net.DEFAULT_PORT
+	if address.is_empty():
+		address = "127.0.0.1"
+	_name_field.text = "Client"
+	PlayerRegistry.clear_saved_build()
+	if Net.join(address, port, "Client", "") != OK:
+		_set_status("Autostart: could not reach %s:%d." % [address, port])
+		return
+	_show_page(Page.LOBBY)
+	_set_status("Autostart: joining %s:%d." % [address, port])
+
+
+## Readiness and the start, once the peer list says everyone has arrived. Called from
+## _on_peer_list_changed, which is the only place that knows the list has moved.
+func _autostart_tick() -> void:
+	if _autostart_seats <= 0:
+		# A client: say ready as soon as the server's list has us in it, then wait for
+		# the host to start.
+		if Net.is_active() and not Net.is_server() \
+				and Net.peers.has(Net.local_id()) and not Net.is_ready(Net.local_id()):
+			Net.set_local_ready(true)
+		return
+	if Net.peers.size() < _autostart_seats or not Net.all_ready():
+		return
+	# Once only: start_match is what loads the map, and a second call would reload it.
+	_autostart_seats = 0
+	Net.start_match()
+
 
 # --- actions ------------------------------------------------------------------
 
@@ -165,6 +247,7 @@ func _on_quit_pressed() -> void:
 # --- net callbacks ------------------------------------------------------------
 
 func _on_peer_list_changed(_peers: Dictionary) -> void:
+	_autostart_tick()
 	_refresh_lobby()
 
 

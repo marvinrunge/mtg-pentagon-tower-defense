@@ -17,9 +17,9 @@ Decided and implemented, in this order:
 | What "investment" counts | `Player.color_investment` - the colour's affinity ranks plus every rank in its five spells |
 | Rank gate | The same ladder. Team level no longer gates a rank at all |
 | Unreachable nodes | Mana symbol only, no name, no description, no cost. Committed, no switch |
-| Trample collision | The capstone is now **Stampede**; the Gruul passive keeps "Trample" |
+| Trample collision | The aura is now **Stampede**; the Gruul passive keeps "Trample" |
 
-Capstones and guild passives were deliberately left on their existing rules: the capstone
+Auras and guild passives were deliberately left on their existing rules: the aura
 fork stays visible so the choice between the two halves remains legible all run, and the
 passives sit between colours rather than inside one, so a colour's edges say nothing about
 them.
@@ -125,11 +125,11 @@ Recommendation: the second, so unlocking and ranking are governed by the *same* 
 ## 5. Trample is two different things
 
 `trample_strike` (Gruul passive — melee hits add a fraction of max HP) and `aura_trample`
-(green's Manifestation capstone — damage to nearby enemies while moving) both display as
+(green's Manifestation aura — damage to nearby enemies while moving) both display as
 **"Trample"**. In a tree where both are visible at once, that is simply a bug in the
 naming.
 
-Rename the **capstone**, since the passive is the one that matches the MTG keyword:
+Rename the **aura**, since the passive is the one that matches the MTG keyword:
 `aura_trample` → **"Stampede"**, which keeps the moving-damage idea and is unambiguous.
 One string in `SpellDatabase` plus the `docs/SKILL_DESIGN.md` row; the id stays.
 

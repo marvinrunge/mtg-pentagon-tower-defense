@@ -209,7 +209,7 @@ script = ExtResource("1_main")
 environment = SubResource("Environment_7uu3w")
 camera_attributes = SubResource("CameraAttributesPractical_sq54b")
 script = ExtResource("9_ppysr")
-current_time = 20.75713417725774
+current_time = 7.0
 minutes_per_day = 60.0
 skydome_energy = 0.84
 cloud_intensity = 0.52
@@ -250,7 +250,7 @@ cumulus_intensity = 0.52
 script = ExtResource("11_rywwc")
 dome_path = NodePath("../SkyDome")
 minutes_per_day = 60.0
-current_time = 20.75713417725774
+current_time = 7.0
 day = 5
 
 [node name="HUD" parent="." unique_id=1088357893 instance=ExtResource("2_hud")]
@@ -441,3 +441,8 @@ spawn_path = NodePath("../Enemies")
 
 [node name="MyrNetSpawner" type="MultiplayerSpawner" parent="." unique_id=1751286531]
 spawn_path = NodePath("../Myrs")
+
+[node name="Effects" type="Node3D" parent="." unique_id=985572344]
+
+[node name="EffectNetSpawner" type="MultiplayerSpawner" parent="." unique_id=1751286532]
+spawn_path = NodePath("../Effects")

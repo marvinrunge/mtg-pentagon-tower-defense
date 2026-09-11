@@ -47,7 +47,7 @@ at these files is the `TEXTURES` dictionary at the top of `scripts/spell_fx.gd`.
 | `mote_glint.png` | Four-rayed star | Motes gathering into a cast (`SpellFx.cast_glow`) |
 | `shard_diamond.png` | Sharp at both ends | Blue's splinters (`SpellFx.sparks`, slot `shard`) |
 | `decal_scorch.png` | Ragged round burn | Where a fireball detonated |
-| `decal_frost.png` | Radial frost bloom | Ground Frostwave froze |
+| `decal_frost.png` | Radial frost bloom | Ground Frost Breath froze |
 | `decal_blight.png` | Creeping tendrils | Ground Fear emptied |
 
 The three decals are the ones most worth replacing with authored art first: a scorch mark

@@ -27,6 +27,11 @@ var crystal_health: float = GameSettings.crystal_max_hp
 var max_crystal_health: float = GameSettings.crystal_max_hp
 
 const LANE_NAMES = ["White", "Blue", "Black", "Red", "Green"]
+
+## What the run is FOR, announced once on the HUD when the map comes up. Lives here rather
+## than in the HUD because it is a fact about this game mode - five lanes converging on one
+## crystal - and the HUD's job is only to show whatever it is told.
+const MISSION_OBJECTIVE: String = "Protect the Crystal!"
 var base_ui_instance: Control
 
 ## Harvest slots per mana well. A well has room for a handful of Myrs standing AROUND
@@ -83,6 +88,12 @@ func _ready() -> void:
 	# setting on it - see DayNightPacing.
 	var sky: Node = get_node_or_null("Sky3D")
 	if sky:
+		# The clock is set BEFORE the pacing node is attached, and the order is the point:
+		# DayNightPacing._ready reads current_time to decide which phase it is starting in and
+		# emits phase_changed accordingly. Attached first, it would read the scene's authored
+		# time, announce night, and start the night music - which the next frame would then
+		# correct, giving a run that opens on a stab of night music at dawn.
+		sky.current_time = GameSettings.day_start_hour
 		var pacing := DayNightPacing.new()
 		pacing.name = "DayNightPacing"
 		pacing.phase_changed.connect(SoundBank.set_gameplay_music)
@@ -210,6 +221,7 @@ func spawn_entities() -> void:
 	$PlayerSpawner.spawn_function = _spawn_avatar
 	$EnemyNetSpawner.spawn_function = _spawn_enemy
 	$MyrNetSpawner.spawn_function = _spawn_myr
+	$EffectNetSpawner.spawn_function = _spawn_effect
 	if Net.is_joining():
 		# Joining a match already under way. The map has to be complete BEFORE the
 		# connection opens, because the server pushes the whole running world - every
@@ -239,6 +251,10 @@ func spawn_entities() -> void:
 	wave_manager.name = "WaveManager"
 	add_child(wave_manager)
 	wave_manager.start_waves(self)
+
+	# Last, so it goes up over a map that is already built. The HUD is instanced in
+	# main.tscn, and children are ready before their parent, so it is already listening.
+	SignalBus.mission_announced.emit(MISSION_OBJECTIVE)
 
 ## Undoes leakage, up to whatever is actually missing. Server-only for the same reason
 ## damage is: five peers each healing their own copy would disagree instantly.
@@ -281,16 +297,16 @@ func _apply_crystal_damage(amount: float) -> void:
 	if amount != 0:
 		var text_color = Color(1.0, 0.35, 0.1) if amount > 0 else Color(0.2, 1.0, 0.4)
 		var spawn_pos = crystal_anchor.global_position + Vector3(randf_range(-0.5, 0.5), 2.5, randf_range(-0.5, 0.5)) if crystal_anchor else Vector3(0, 2.5, 0)
-		SignalBus.damage_number_requested.emit(spawn_pos, amount, text_color)
+		NetFx.damage_number(spawn_pos, amount, text_color, "")
 		
 	if crystal_health <= 0.0:
 		game_over()
 
-func _on_damage_number_requested(pos: Vector3, amount: float, color: Color) -> void:
+func _on_damage_number_requested(pos: Vector3, amount: float, color: Color, label: String) -> void:
 	if not GameSettings.show_damage_numbers:
 		return
 	var dn: DamageNumber = DamageNumberPool.get_damage_number()
-	dn.activate(pos, amount, color)
+	dn.activate(pos, amount, color, label)
 
 ## Spawns `count` players around the crystal, the first of them local.
 ##
@@ -304,7 +320,7 @@ func spawn_players(count: int) -> void:
 	var total: int = maxi(count, 1)
 	for i in total:
 		var player: Node3D = player_scene.instantiate()
-		player.position = _player_seat(i, total)
+		_seat_player(player, i)
 		player.name = "Player" if i == 0 else "Player%d" % (i + 1)
 		# Player 0 is whoever is sitting here. The rest are placeholders until Phase 1
 		# gives them a peer to be driven by.
@@ -350,6 +366,12 @@ func _on_peer_entered_match(peer_id: int) -> void:
 	# otherwise play with a full crystal and an empty mana pool until the next kill.
 	RunState.push_state_to(peer_id)
 	_sync_crystal_health.rpc_id(peer_id, crystal_health)
+	# ...and everybody's skill build. A build goes out when it CHANGES, and in a match
+	# already under way every change happened before this player connected - so without
+	# this their copies of the rest of the party have empty trees and no aura orbs.
+	for player: Node3D in PlayerRegistry.players:
+		if is_instance_valid(player) and player.has_method("push_build_to"):
+			player.push_build_to(peer_id)
 
 
 ## A player who dropped leaves no body standing in the map. Their seat is held by Net
@@ -385,17 +407,67 @@ func _spawn_avatar(data: Variant) -> Node:
 	var player: Node3D = player_scene.instantiate()
 	player.name = "Player_%d" % int(info["peer"])
 	player.set_multiplayer_authority(int(info["peer"]))
-	player.position = _player_seat(int(info["seat"]), int(info["total"]))
+	_seat_player(player, int(info["seat"]))
 	return player
 
 
-## Ringed around the crystal rather than stacked on one point, so five bodies do not
-## resolve their overlap by exploding outward on the first frame.
-func _player_seat(index: int, total: int) -> Vector3:
-	if total <= 1:
-		return Vector3(0, 1.0, 0)
-	var angle: float = TAU * float(index) / float(total)
-	return Vector3(0, 1.0, 0) + Vector3(sin(angle), 0.0, cos(angle)) * 2.5
+## The five spawn points: one per lane, each on the crystal's own platform and each already
+## facing the lane its enemies walk down.
+##
+## Replaces a ring of `TAU * index / total`, which had two problems. Solo it returned
+## Vector3(0, 1, 0) - the world origin, which is where the crystal stands, so a single player
+## spawned INSIDE the objective; the 5x-scaled CrystalVisual swallowed them and the camera
+## started looking at the inside of a gemstone. And in a party the ring was keyed to the
+## PLAYER COUNT rather than to the map, so with two players the seats were 180 degrees apart
+## and lined up with no lane at all, and with three they were 120 apart and lined up with a
+## different set of nothing each time somebody joined.
+##
+## Seats are fixed to the five lanes now, so seat 2 is the same place whether two people are
+## playing or five, and every one of them looks down a lane from the moment they arrive.
+func _player_seat(index: int) -> Transform3D:
+	var lane: int = posmod(index, LANE_NAMES.size())
+	var outward: Vector3 = _lane_outward(lane)
+	var origin: Vector3 = Vector3(0.0, 1.0, 0.0) + outward * GameSettings.player_spawn_ring_radius
+	# atan2(x, z) aims local +Z along a direction, so the NEGATED direction aims -Z - which is
+	# what a Node3D calls forward. Same idiom as the wall placement in Player.
+	var basis := Basis(Vector3.UP, atan2(-outward.x, -outward.z))
+	return Transform3D(basis, origin)
+
+
+## Which way lane `index` lies, as a flat unit vector from the crystal.
+##
+## Measured off the lane's actual EnemySpawner rather than computed as `index * 72 degrees`.
+## The five lanes are a pentagon in main.tscn and the arithmetic would agree today, but a map
+## edit that nudges one lane would silently leave one player facing a gap - and the whole point
+## of these seats is that they point at something real. Falls back to the pentagon angles only
+## if the scene has no spawner to measure, which is the case in a stripped test scene.
+func _lane_outward(index: int) -> Vector3:
+	var spawner: Node3D = get_node_or_null(
+		"NavigationRegion3D/Lanes/Lane_%s/EnemySpawner" % LANE_NAMES[index]
+	) as Node3D
+	if spawner != null:
+		var to_lane: Vector3 = spawner.global_position - _crystal_origin()
+		to_lane.y = 0.0
+		if to_lane.length_squared() > 0.01:
+			return to_lane.normalized()
+	var angle: float = TAU * float(index) / float(LANE_NAMES.size())
+	return Vector3(-sin(angle), 0.0, -cos(angle))
+
+
+## Puts `player` in its seat and points it down its lane. The seat is also recorded on the
+## player, because respawning at base has to return them to it - it used to teleport them to
+## Vector3(0, 1, 0), which is the same spot inside the crystal the solo spawn used.
+func _seat_player(player: Node3D, seat: int) -> void:
+	var seat_transform: Transform3D = _player_seat(seat)
+	player.position = seat_transform.origin
+	player.rotation.y = seat_transform.basis.get_euler().y
+	player.set("spawn_point", seat_transform)
+
+
+func _crystal_origin() -> Vector3:
+	if is_instance_valid(crystal_anchor):
+		return Vector3(crystal_anchor.global_position.x, 0.0, crystal_anchor.global_position.z)
+	return Vector3.ZERO
 
 
 ## The one place that knows how to build an enemy, and the one place that knows how to
@@ -434,6 +506,101 @@ func spawn_myr() -> Node3D:
 	if myr_count() >= GameSettings.myr_max_count:
 		return null
 	return $MyrNetSpawner.spawn({}) as Node3D
+
+
+## The persistent half of a spell: zones, walls, summons and telegraphs.
+##
+## These are not cosmetics and they do not go through NetFx. A suction vortex has a
+## collision shape that drags enemies, a soul wall stops what walks into it, a raised
+## undead fights - the server has to own one, and every other peer has to be able to SEE
+## the same object standing in the same place. That is exactly what a MultiplayerSpawner
+## is for, and it is the same arrangement enemies and myrs already use: the arguments
+## travel, not the node, and every peer builds its own copy from them.
+##
+## Which means every argument has to survive the trip. A caster is sent as its PEER ID
+## rather than as a node reference, and Zombify's corpse - an EnemyData resource on the
+## server - as the colour and class strings TemporaryAlly actually reads off it. A
+## resource passed by reference would arrive on the client as null and the summon would
+## come back as an untextured box.
+##
+## The gameplay logic inside these nodes is server-only (see the `Net.is_server()` guards
+## in DoTZone, SuctionZone, SoulWall and TemporaryAlly). The client copies are there to be
+## looked at; they run their own visuals, their own lifetime and nothing else.
+func request_effect(info: Dictionary) -> Node3D:
+	if not Net.is_server():
+		return null
+	return $EffectNetSpawner.spawn(info) as Node3D
+
+
+func _spawn_effect(data: Variant) -> Node:
+	var info: Dictionary = data
+	var caster: Node3D = NetFx.player_for(int(info.get("caster", 0)))
+	var node: Node3D = null
+	match String(info.get("kind", "")):
+		"dot_zone":
+			var zone := DoTZone.new()
+			zone.setup(
+				String(info["type"]), float(info["radius"]), float(info["dps"]),
+				float(info["duration"]), caster
+			)
+			node = zone
+		"suction":
+			node = SuctionZone.create(
+				float(info["radius"]), float(info["duration"]), float(info["pull"])
+			)
+		"wall_of_frost":
+			node = WallOfFrost.create(
+				float(info["length"]), float(info["duration"]), float(info["damage"])
+			)
+		"soul_wall":
+			node = SoulWall.create(
+				float(info["length"]), float(info["duration"]),
+				float(info["mark_duration"]), float(info["mark_mult"]), caster
+			)
+		"undead":
+			var ally := TemporaryAlly.new()
+			ally.configure(
+				"undead", float(info["hp"]), float(info["duration"]),
+				float(info["damage"]), caster
+			)
+			# What it looked like when it died. The EnemyData itself cannot cross the wire;
+			# these two strings are everything TemporaryAlly reads off it.
+			ally.visual_color = String(info.get("color", ""))
+			ally.visual_class = String(info.get("class", ""))
+			node = ally
+		"bolt_telegraph":
+			node = _build_bolt_telegraph(float(info["radius"]), float(info["delay"]))
+		_:
+			push_warning("Unknown networked effect: %s" % info.get("kind", ""))
+			return null
+	node.position = info.get("position", Vector3.ZERO)
+	# Sent as a yaw rather than as a look_at target, because the node is not in the tree
+	# yet - it has no global transform to aim from until the spawner has added it.
+	if info.has("yaw"):
+		node.rotation.y = float(info["yaw"])
+	return node
+
+
+## The ground circle Lightning Bolt draws before it lands, plus the clock that clears it.
+##
+## The telegraph resolves ITSELF, on every peer, off the same delay the server used. The
+## caster used to hold the reference and call resolve() when its own timer fired, which
+## works on one machine and leaves a permanent blue ring on every other one.
+func _build_bolt_telegraph(radius: float, delay: float) -> Node3D:
+	var anchor := Node3D.new()
+	anchor.name = "BoltTelegraph"
+	var indicator: AttackIndicator = AttackIndicator.spawn(
+		anchor, AttackIndicator.Shape.CIRCLE, radius, 0.0, delay, Color(0.7, 0.85, 1.0)
+	)
+	# Deferred, because the timer needs a tree and this node has not been added to one yet.
+	anchor.ready.connect(func() -> void:
+		anchor.get_tree().create_timer(delay).timeout.connect(func() -> void:
+			if is_instance_valid(indicator):
+				indicator.resolve()
+			if is_instance_valid(anchor):
+				# Outlives the indicator's own fade, which is parented to it.
+				anchor.get_tree().create_timer(0.5).timeout.connect(anchor.queue_free)))
+	return anchor
 
 
 ## Myrs alive right now. The group is the roster - there is no separate list to keep in

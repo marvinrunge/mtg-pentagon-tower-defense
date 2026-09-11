@@ -119,7 +119,7 @@ if (-not $SkipRuntime) {
     Write-Output "PASS: skill tree purchases apply (free-debug, paid, out-of-points and centre node)."
 
     # And that the things you buy DO something. Every one of the twenty-five spells and
-    # ten capstones is cast against real enemies with one assertion about an observable
+    # ten auras is cast against real enemies with one assertion about an observable
     # consequence - a spell that silently does nothing passes a parse check and a smoke
     # test alike, which is the whole reason this file exists.
     $rosterResult = Invoke-GodotCheck -Name "skill-roster" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/skill_roster.tscn") -TimeoutSeconds 90
@@ -127,7 +127,7 @@ if (-not $SkipRuntime) {
         [Console]::WriteLine($rosterResult.Output)
         throw "One or more skills in the roster do nothing."
     }
-    Write-Output "PASS: all 25 spells and 10 capstones have an observable effect."
+    Write-Output "PASS: all 25 spells and 10 auras have an observable effect."
 
     # And that two machines can actually find each other. The host launches a real
     # second process; a single-process fake could not fail the way UDP discovery, a

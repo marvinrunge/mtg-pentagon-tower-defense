@@ -31,7 +31,7 @@ const ICON_FILES: Dictionary = {
 	"white": "white.png", "blue": "blue.jpg", "black": "black.png", "red": "red.png", "green": "green.png",
 	"white_1": "exalted-strike.png", "white_2": "circle-of-protection.png", "white_3": "reprisal-ward.png",
 	"white_4": "wrath-of-god.png", "white_5": "rally-the-fallen.png", "blue_1": "unsummon.png",
-	"blue_2": "frostwave.png", "blue_3": "frost-globe.png", "blue_4": "suction.png", "blue_5": "phantasmal-decoy.png",
+	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": "frost-globe.png", "blue_5": "flying.png",
 	"black_1": "doom-blade.png", "black_2": "fear.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
 	"black_5": "zombify.png", "red_1": "fireball.png", "red_2": "fire-dash.png", "red_3": "rain-of-ember.png",
 	"red_4": "fire-cone.png", "red_5": "lightning-bolt.png", "green_1": "titanic-leap.png",
@@ -52,17 +52,17 @@ const ICON_FILES: Dictionary = {
 ##   cast_duration  how long that clip is squeezed into - the per-spell timing knob
 ##   commit         how long the player is actually tied up, if that is SHORTER than
 ##                  the animation. Defaults to cast_duration. Only a move with a long
-##                  recovery needs it: Titanic Leap's clip runs on for two seconds of
+##                  recovery needs it: Titanic Brawl's clip runs on for two seconds of
 ##                  standing back up after the slam, which should finish playing
 ##                  without locking the player out of everything while it does
 ##   roots          true for casts that hold the player still
 ##   upper_body     whether the cast plays on the upper body only, leaving the legs to
 ##                  the locomotion layer. Defaults to the opposite of `roots`, because
 ##                  a full-body clip over a character still sliding around is exactly
-##                  the foot-sliding the layering exists to remove. Titanic Leap is
+##                  the foot-sliding the layering exists to remove. Titanic Brawl is
 ##                  the one case where the two come apart and so states it outright:
 ##                  it moves the caster AND needs its own legs, because the movement
-##                  it makes IS the jump the clip is playing
+##                  it makes IS the brawl leap the clip is playing
 ##
 ## Two things are deliberately NOT stored here, both because storing them is how they
 ## drifted in the first place:
@@ -71,7 +71,7 @@ const ICON_FILES: Dictionary = {
 ##   ANIMATION, measured at build time by tools/player_character_builder.gd and kept
 ##   as `hit_ratios` metadata on the clip itself. Several spells share one clip and
 ##   all want the same moment. The one knob on top of that is `release_on_last`, for
-##   a clip whose payload is its FINAL impact rather than its first: Titanic Leap
+##   a clip whose payload is its FINAL impact rather than its first: Titanic Brawl
 ##   lands on the slam at 79% of the jump, not on the take-off at 15%.
 ##
 ##   the unlock cost - that is the tier's cost from GameSettings.TIER_COSTS.
@@ -125,27 +125,27 @@ const SPELLS: Dictionary = {
 		"cast_clip": "cast_blue", "cast_duration": 0.55, "roots": false,
 	},
 	"blue_2": {
-		"name": "Frostwave",
+		"name": "Frost Breath",
 		"desc": "Freezes every enemy around you and deals moderate damage. Bosses are slowed instead.",
 		"cooldown": 12.0, "chargeable": false,
 		"cast_clip": "cast_blue", "cast_duration": 0.7, "roots": true,
 	},
 	"blue_3": {
-		"name": "Frost Globe",
-		"desc": "An ice sphere that blocks enemy fire. Archers and mages lose their line through it.",
-		"cooldown": 16.0, "chargeable": false,
-		"cast_clip": "cast_blue", "cast_duration": 0.6, "roots": false,
-	},
-	"blue_4": {
 		"name": "Suction",
 		"desc": "Drags nearby enemies into one place, packing them for whatever comes next.",
 		"cooldown": 11.0, "chargeable": false,
 		"cast_clip": "cast_blue", "cast_duration": 0.6, "roots": true,
 	},
+	"blue_4": {
+		"name": "Wall of Frost",
+		"desc": "Raises a solid ice wall across your aim line. Unsummon deals bonus damage when it slams enemies into the wall.",
+		"cooldown": 16.0, "chargeable": false,
+		"cast_clip": "cast_blue", "cast_duration": 0.6, "roots": false,
+	},
 	"blue_5": {
-		"name": "Phantasmal Decoy",
-		"desc": "An illusion enemies attack instead of you, until it is destroyed or fades.",
-		"cooldown": 24.0, "chargeable": false,
+		"name": "Displace",
+		"desc": "Blink a short distance to the ground you are aiming at.",
+		"cooldown": 10.0, "chargeable": false,
 		"cast_clip": "cast_blue", "cast_duration": 0.7, "roots": false,
 	},
 
@@ -160,7 +160,7 @@ const SPELLS: Dictionary = {
 	},
 	"black_2": {
 		"name": "Fear",
-		"desc": "Nearby enemies turn and flee instead of fighting.",
+		"desc": "Nearby enemies turn and flee instead of fighting, and take more damage for as long as they run.",
 		"cooldown": 14.0, "chargeable": false,
 		"cast_clip": "cast_black", "cast_duration": 0.6, "roots": false,
 	},
@@ -193,7 +193,7 @@ const SPELLS: Dictionary = {
 		"cooldown": 5.0, "chargeable": true,
 		"cast_clip": "cast_red", "cast_duration": 0.55, "roots": false,
 	},
-	# Like Titanic Leap, this one MOVES the caster - so it launches when the cast starts
+	# Like Titanic Brawl, this one MOVES the caster - so it launches when the cast starts
 	# rather than on the release frame, and the release is the trail catching light.
 	"red_2": {
 		"name": "Fire Dash",
@@ -207,17 +207,16 @@ const SPELLS: Dictionary = {
 		"cooldown": 9.0, "chargeable": false,
 		"cast_clip": "cast_red", "cast_duration": 0.55, "roots": false,
 	},
-	# HELD, not cast: the only skill in the game whose value depends on choosing to
-	# stand still in a tower defence, which is what its damage per second pays for.
+	# HELD, not cast: Fire Cone spends a refill meter while the button is down.
 	"red_4": {
 		"name": "Fire Cone",
-		"desc": "Held. Burns everything in a cone ahead of you for as long as you keep it up. You cannot move while it runs.",
-		"cooldown": 10.0, "chargeable": false, "channel": true,
-		"cast_clip": "cast_red", "cast_duration": 0.4, "roots": true,
+		"desc": "Held. Burns and slows everything in a cone ahead of you while you hold it, then refills before it can be used again.",
+		"cooldown": 0.0, "chargeable": false, "channel": true,
+		"cast_clip": "cast_red", "cast_duration": 0.4, "roots": false,
 	},
 	"red_5": {
 		"name": "Lightning Bolt",
-		"desc": "Calls a bolt down on a small area. The precision answer to one big target.",
+		"desc": "Calls a bolt down on a small area, striking bosses and elites for double. The precision answer to one big target.",
 		"cooldown": 12.0, "chargeable": false,
 		"cast_clip": "cast_red", "cast_duration": 0.7, "roots": true,
 	},
@@ -226,7 +225,7 @@ const SPELLS: Dictionary = {
 	# Green fights by being physically present: bigger, harder to ignore, and dangerous
 	# to stand next to.
 	#
-	# Titanic Leap must NOT root: the leap drives the player's own movement, and holding
+	# Titanic Brawl must NOT root: the leap drives the player's own movement, and holding
 	# them still would fight it. See Player.cast_green_titanic_leap.
 	#
 	# And must NOT be filtered to the upper body either, which is the usual partner of
@@ -234,7 +233,7 @@ const SPELLS: Dictionary = {
 	# walk cycle the filter would leave underneath is precisely wrong for a character
 	# who is in the air.
 	"green_1": {
-		"name": "Titanic Leap",
+		"name": "Titanic Brawl",
 		"desc": "Leap forward and slam the ground, hurting everything around the landing.",
 		"cooldown": 8.0, "chargeable": false,
 		# 2.6s is the whole clip - leap, slam and the stand-up afterwards - at the pace
@@ -260,7 +259,7 @@ const SPELLS: Dictionary = {
 	},
 	"green_3": {
 		"name": "Fog",
-		"desc": "A bank of fog where enemies deal no damage at all. Ground to hold, not to kill on.",
+		"desc": "A bank of fog where enemies deal no damage at all and wade rather than walk. Ground to hold, not to kill on.",
 		"cooldown": 18.0, "chargeable": false,
 		"cast_clip": "cast_green", "cast_duration": 0.6, "roots": false,
 	},
@@ -281,7 +280,7 @@ const SPELLS: Dictionary = {
 }
 
 
-## The capstone fork: one per colour, two ways to take it, exactly one owned per run.
+## The aura fork: one per colour, two ways to take it, exactly one owned per run.
 ##
 ## `attunement` is the stat line - the five auras the game already shipped with, kept
 ## rather than replaced, because deleting working content to make room for planned
@@ -294,9 +293,9 @@ const SPELLS: Dictionary = {
 ## can only stand in one lane, is worth more than it looks.
 ##
 ## Deliberately UN-RANKED. One purchase, expensive, permanent for the run: the moment a
-## capstone becomes rankable it turns back into a stat slider and the fork stops being a
+## aura becomes rankable it turns back into a stat slider and the fork stops being a
 ## decision.
-const CAPSTONES: Dictionary = {
+const AURAS: Dictionary = {
 	"white": {
 		"attunement": {
 			"id": "aura_glorious_anthem", "name": "Glorious Anthem",
@@ -313,7 +312,7 @@ const CAPSTONES: Dictionary = {
 			"desc": "Sharply faster cooldowns, and every cast grants shield.",
 		},
 		"manifestation": {
-			"id": "aura_orb_of_frost", "name": "Orb of Frost",
+			"id": "aura_orb_of_frost", "name": "Winter Orb",
 			"desc": "An orb circles you, firing ice at nearby enemies for damage and slow.",
 		},
 	},
@@ -443,28 +442,28 @@ static func is_channelled(spell_id: String) -> bool:
 	return bool(SPELLS.get(spell_id, {}).get("channel", false))
 
 
-## Both halves of one colour's capstone fork, attunement first. Empty for a colour that
+## Both halves of one colour's aura fork, attunement first. Empty for a colour that
 ## has none, which no colour currently does.
-static func get_capstones(color: String) -> Array[Dictionary]:
-	var row: Dictionary = CAPSTONES.get(color, {})
+static func get_auras(color: String) -> Array[Dictionary]:
+	var row: Dictionary = AURAS.get(color, {})
 	if row.is_empty():
 		return []
 	return [row["attunement"], row["manifestation"]]
 
 
-## The colour a capstone id belongs to, or "" if it is not a capstone at all.
-static func get_capstone_color(capstone_id: String) -> String:
-	for color: String in CAPSTONES:
+## The colour a aura id belongs to, or "" if it is not a aura at all.
+static func get_aura_color(aura_id: String) -> String:
+	for color: String in AURAS:
 		for half: String in ["attunement", "manifestation"]:
-			if String(CAPSTONES[color][half]["id"]) == capstone_id:
+			if String(AURAS[color][half]["id"]) == aura_id:
 				return color
 	return ""
 
 
-static func get_capstone_name(capstone_id: String) -> String:
-	for color: String in CAPSTONES:
+static func get_aura_name(aura_id: String) -> String:
+	for color: String in AURAS:
 		for half: String in ["attunement", "manifestation"]:
-			var entry: Dictionary = CAPSTONES[color][half]
-			if String(entry["id"]) == capstone_id:
+			var entry: Dictionary = AURAS[color][half]
+			if String(entry["id"]) == aura_id:
 				return String(entry["name"])
 	return ""

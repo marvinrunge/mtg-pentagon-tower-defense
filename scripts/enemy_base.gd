@@ -50,6 +50,9 @@ var health: float = 100.0
 var health_bar: EnemyHealthBar
 var visual_anim_player: AnimationPlayer
 var is_dying: bool = false
+## Client-side latch for the death clip. `is_dying` replicates, so it is true on every
+## frame after the first, and the clip must only be started on that first one.
+var _puppet_death_played: bool = false
 
 # Playback multiplier for this enemy's clips. Stays 1.0 for regular enemies;
 # bosses get a size-derived value so bigger ones move more ponderously.
@@ -57,8 +60,13 @@ var _anim_speed_scale: float = 1.0
 var _reaction_clip: String = ""
 
 # --- Boss special attack (telegraphed and dodgeable) ---
+## Every special this boss has, and a cooldown per entry. Two, for every boss: the big
+## telegraphed area attack and a short-range melee one. See BossDatabase.SPECIALS.
+var _specials: Array = []
+var _special_cooldowns: Array[float] = []
+## The one currently being played, once _begin_special has chosen it.
 var _special_config: Dictionary = {}
-var _special_cooldown_timer: float = 0.0
+var _special_index: int = -1
 var _special_windup_timer: float = 0.0
 var _special_total_timer: float = 0.0
 var _is_special_active: bool = false
@@ -100,6 +108,15 @@ var taunt_source: Node3D = null
 ## from `damage_penalty` because that one is a flat SUBTRACTION and a big enough enemy
 ## would still push damage through it.
 var damage_suppress_timer: float = 0.0
+## The SOFT slow, as opposed to frost's hard one. Fog's wading and Fire Cone's sustained
+## pressure both ride this; both refresh it continuously and both want a multiplier of their
+## own rather than frost's iconic 0.3, which also drags attack speed with it.
+##
+## One channel shared by both rather than a timer per spell: they compose by taking the
+## strongest slow rather than multiplying down to a standstill, and a third source later
+## costs nothing but a call. See apply_slow().
+var slow_timer: float = 0.0
+var slow_mult: float = 1.0
 ## Burn (Orb of Fire, Fire Dash's trail is a zone instead): damage over time carried by
 ## the enemy rather than by a zone, so it follows whoever is running away with it.
 var burn_timer: float = 0.0
@@ -110,7 +127,7 @@ var burn_source: Node3D = null
 ## corpse. Set by take_damage, read by die().
 var _exile_on_death: bool = false
 var knockback_velocity: Vector3 = Vector3.ZERO
-## Suction (blue_4). The zone re-applies every frame while the enemy is inside, so the
+## Suction (blue_3). The zone re-applies every frame while the enemy is inside, so the
 ## timer only has to outlive one frame gap. Kept apart from knockback_velocity: the
 ## flinch reaction keys off knockback, and a held pull would read as one long flinch.
 var _suction_timer: float = 0.0
@@ -230,8 +247,10 @@ func setup(data: EnemyData) -> void:
 		# perform_attack() just compresses the swing back to normal speed to fit
 		# the unchanged cadence and the size never reads in the animation.
 		data.attack_speed /= maxf(_anim_speed_scale, 0.01)
-		_special_config = BossDatabase.get_special(data.color_identity)
-		_special_cooldown_timer = GameSettings.boss_special_first_delay
+		_specials = BossDatabase.get_specials(data.color_identity)
+		_special_cooldowns.clear()
+		for _entry in _specials:
+			_special_cooldowns.append(GameSettings.boss_special_first_delay)
 
 	if has_meta("elite_modifier"):
 		apply_elite_modifier(String(get_meta("elite_modifier")))
@@ -250,14 +269,24 @@ func update_path(force_update: bool = false) -> void:
 		nav_agent.target_position = target_pos
 		last_target_position = target_pos
 
-## Position, rotation and health, authored by the server. An enemy's AI is expensive
-## and must reach the same answer everywhere, so only the server runs it; clients render
-## what they are told and keep their own animator fed from the replicated transform.
+## Position, rotation, health, motion and dying, authored by the server. An enemy's AI is
+## expensive and must reach the same answer everywhere, so only the server runs it; clients
+## render what they are told.
+##
+## `velocity` is on the list because `_update_visual_animation` picks walk-or-stand from
+## it, and for want of it every enemy on a client stood perfectly still while gliding down
+## the lane. The comment here used to say clients animate "from the replicated transform" -
+## they did not, because the transform was replicated and the velocity behind the decision
+## was not.
+##
+## `is_dying` for the same reason one step further on: the server plays the death clip and
+## frees the body a couple of seconds later, and a client that never learns the enemy died
+## shows it standing until it blinks out of existence mid-stride.
 func _build_synchronizer() -> void:
 	if not Net.is_active():
 		return
 	var config := SceneReplicationConfig.new()
-	for property: String in [":position", ":rotation", ":health"]:
+	for property: String in [":position", ":rotation", ":health", ":velocity", ":is_dying"]:
 		config.add_property(NodePath(property))
 		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
 	var sync := MultiplayerSynchronizer.new()
@@ -294,13 +323,13 @@ func _ground_visual(visual_instance: Node3D) -> void:
 func _physics_process(delta: float) -> void:
 	if not enemy_data:
 		return # Not initialized yet
-	if is_dying:
-		return
+	# The client branch comes FIRST, before the is_dying guard below. A dying enemy is
+	# exactly what a client still has work to do about - it has a death clip to play that
+	# the server started on its own copy and cannot play on this one.
 	if not Net.is_server():
-		# A client's enemy is a puppet: its transform arrives over the wire and its AI
-		# would only fight that. It still animates, from the same walk/attack state the
-		# replicated motion implies.
-		_update_visual_animation()
+		_update_puppet()
+		return
+	if is_dying:
 		return
 
 	if elite_regeneration_per_second > 0.0 and health < enemy_data.health:
@@ -332,6 +361,11 @@ func _physics_process(delta: float) -> void:
 		if _impact_timer <= 0.0:
 			_impact_timer = -1.0
 			_resolve_attack_impact()
+			# Landing a hit can kill the attacker: Reprisal Ward reflects a share of the
+			# damage straight back, and the reflect runs inline inside the target's
+			# take_damage. Same in-frame death as the slam and the burn below.
+			if is_dying:
+				return
 		
 	if enemy_data.enemy_class == "Mage":
 		cast_timer -= delta
@@ -360,12 +394,22 @@ func _physics_process(delta: float) -> void:
 		if collision:
 			var collider = collision.get_collider()
 			if collider and not collider.is_in_group("enemies"):
-				take_damage(GameSettings.spell_blue_unsummon_impact_damage)
+				var impact_damage: float = GameSettings.spell_blue_unsummon_impact_damage
+				if collider.has_method("get_unsummon_bonus_damage"):
+					impact_damage += float(collider.get_unsummon_bonus_damage())
+				take_damage(impact_damage)
 				knockback_velocity = Vector3.ZERO
+				# The slam can be lethal - being shoved into a Wall of Frost adds its bonus
+				# damage on top - and take_damage runs die() inline. Everything below this
+				# point is AI and movement for an enemy that no longer exists, ending in
+				# _update_visual_animation; the animation guard stops it clobbering the death
+				# clip, and this stops it running at all.
+				if is_dying:
+					return
 		else:
 			knockback_velocity = knockback_velocity.move_toward(Vector3.ZERO, 30.0 * delta)
 
-	# Suction (blue_4): a steady drag toward the zone's centre, refreshed per frame by
+	# Suction (blue_3): a steady drag toward the zone's centre, refreshed per frame by
 	# the zone itself. move_and_collide rather than velocity, so it works on enemies
 	# that are attacking, rooted or mid-swing exactly the way knockback does.
 	if _suction_timer > 0.0:
@@ -387,6 +431,10 @@ func _physics_process(delta: float) -> void:
 			damage_penalty = 0.0
 	if damage_suppress_timer > 0.0:
 		damage_suppress_timer -= delta
+	if slow_timer > 0.0:
+		slow_timer -= delta
+		if slow_timer <= 0.0:
+			slow_mult = 1.0
 	if taunt_timer > 0.0:
 		taunt_timer -= delta
 		if taunt_timer <= 0.0:
@@ -402,19 +450,25 @@ func _physics_process(delta: float) -> void:
 		if burn_tick <= 0.0:
 			burn_tick = BURN_TICK_INTERVAL
 			take_damage(burn_dps * BURN_TICK_INTERVAL, burn_source)
+			# A burn that ticks an enemy to death kills it from inside its own frame, exactly
+			# as the knockback slam above does.
+			if is_dying:
+				return
 		if burn_timer <= 0.0:
 			burn_dps = 0.0
 			burn_source = null
 
 	# Boss special attack. Runs before the normal movement/attack block because a
 	# committed special overrides both - the boss is rooted for its whole duration.
-	if _special_cooldown_timer > 0.0:
-		_special_cooldown_timer -= delta
+	for i: int in range(_special_cooldowns.size()):
+		if _special_cooldowns[i] > 0.0:
+			_special_cooldowns[i] -= delta
 	if _is_special_active:
 		_process_special(delta)
 		return
-	if _can_begin_special(dist_to_target):
-		_begin_special()
+	var ready_special: int = _pick_special(dist_to_target)
+	if ready_special >= 0:
+		_begin_special(ready_special)
 		_process_special(0.0)
 		return
 
@@ -449,10 +503,7 @@ func _physics_process(delta: float) -> void:
 	var is_in_attack_range: bool = dist_to_target <= enemy_data.attack_range
 	if not is_in_attack_range and root_timer <= 0 and not nav_agent.is_navigation_finished():
 		var next_path_position = nav_agent.get_next_path_position()
-		var speed_mult: float = 1.0
-		if frost_slow_timer > 0:
-			speed_mult = GameSettings.enemy_frost_slow_mult
-		var new_velocity: Vector3 = (next_path_position - global_position).normalized() * enemy_data.speed * speed_mult
+		var new_velocity: Vector3 = (next_path_position - global_position).normalized() * enemy_data.speed * movement_speed_mult()
 		velocity.x = new_velocity.x
 		velocity.z = new_velocity.z
 		
@@ -474,7 +525,11 @@ func _physics_process(delta: float) -> void:
 
 		_face_target(delta)
 
-		if attack_cooldown <= 0 and blind_timer <= 0:
+		# Bosses have no ordinary swing. Everything they do is a telegraphed special now (see
+		# BossDatabase.SPECIALS), which is the whole point: an undodgeable hit from something
+		# that big was the one attack in the game a player had no answer to. _pick_special
+		# above is what actually attacks for them.
+		if attack_cooldown <= 0 and blind_timer <= 0 and not is_boss():
 			perform_attack()
 
 	_update_visual_animation()
@@ -505,6 +560,48 @@ func _tracks_target_while_attacking() -> bool:
 	return _is_shooter()
 
 
+## Everything a client's copy of an enemy does. It has no AI, no navigation and no
+## damage - its transform arrives over the wire - but three things still have to happen
+## here, because the code that normally does them only ever runs on the server:
+##
+##   * the HEALTH BAR. `health` replicates, but `set_health` is only called from
+##     take_damage and heal, so the bar sat at full while the number underneath it fell.
+##   * the ANIMATION, from the replicated velocity.
+##   * the DEATH, which the server plays on its own copy and frees a moment later.
+##
+## Together these are why a joining player reported being unable to hurt anything: the
+## damage was landing perfectly well on the host, and absolutely none of it was visible.
+func _update_puppet() -> void:
+	if health_bar != null and enemy_data != null:
+		health_bar.set_health(health, enemy_data.health)
+	if is_dying:
+		_play_puppet_death()
+		return
+	_update_visual_animation()
+
+
+## The death clip, played once on a client when `is_dying` arrives.
+##
+## Not routed through _play_visual_animation: that funnel refuses outright while
+## `is_dying` is set, which is deliberate - it is what stops the rest of a fatal frame
+## overwriting the death pose with a walk - and this is the one caller that has to get
+## past it. The server's own copy reaches the same clip through die().
+func _play_puppet_death() -> void:
+	if _puppet_death_played or visual_anim_player == null:
+		return
+	_puppet_death_played = true
+	if health_bar != null:
+		health_bar.visible = false
+	remove_from_group("enemies")
+	if not visual_anim_player.has_animation("death"):
+		return
+	var death_anim: Animation = visual_anim_player.get_animation("death")
+	var death_speed: float = maxf(_anim_speed_scale, 0.05)
+	if death_anim and death_anim.length / death_speed > DEATH_MAX_SECONDS:
+		death_speed = death_anim.length / DEATH_MAX_SECONDS
+	visual_anim_player.play("death", -1, death_speed)
+
+
 func _update_visual_animation() -> void:
 	if not visual_anim_player:
 		return
@@ -519,7 +616,24 @@ func _update_visual_animation() -> void:
 	else:
 		_rest_visual_animation()
 
+## Every clip this enemy plays EXCEPT the death one goes through here, and the is_dying guard
+## is the reason it is a funnel at all.
+##
+## `die()` starts "death" and then the frame keeps running: it is reached from take_damage,
+## which is called from inside _physics_process by the knockback slam and the burn tick, and
+## from _deal_attack_impact when Reprisal Ward reflects a fatal hit back at the attacker. In
+## every one of those the top-of-_physics_process is_dying check has ALREADY passed, so the
+## rest of the frame ran on a corpse and finished with _update_visual_animation playing "walk"
+## or "hit" straight over the death clip that had just been started. The enemy then held that
+## pose forever, because from the next frame on _physics_process really does return early and
+## nothing ever asks for another animation.
+##
+## That is the "stuck in the last pose" report, and the debug logging shows it exactly: those
+## enemies get a `play_requested` line and never a `confirmed` one, because by the time the
+## deferred check runs the current animation is walk or hit rather than death.
 func _play_visual_animation(anim_name: String, speed_scale: float = -1.0) -> void:
+	if is_dying:
+		return
 	var speed: float = _anim_speed_scale if speed_scale <= 0.0 else speed_scale
 	if visual_anim_player.current_animation != anim_name or not visual_anim_player.is_playing():
 		visual_anim_player.play(anim_name, -1, speed)
@@ -546,6 +660,8 @@ func _resolve_reaction_clip() -> String:
 # switching between two different poses (idle vs walk) right at the attack-range
 # boundary, which was the main source of visible flicker.
 func _rest_visual_animation() -> void:
+	if is_dying:
+		return
 	if visual_anim_player.current_animation != "walk":
 		visual_anim_player.play("walk", -1, _anim_speed_scale)
 	if visual_anim_player.is_playing():
@@ -560,28 +676,45 @@ func _rest_visual_animation() -> void:
 # circle, or out of the arc for the cone shapes, and the hit misses entirely.
 # ============================================================
 
-func _can_begin_special(dist_to_target: float) -> bool:
-	if _special_config.is_empty() or _special_cooldown_timer > 0.0:
-		return false
-	# Needs a real clip to telegraph with; the placeholder-box fallback has none.
-	if visual_anim_player == null or not visual_anim_player.has_animation("special"):
-		return false
+## Which special to start now, or -1. Walked in order, so the big one wins wherever both are
+## legal - a boss at mid range should open with the attack the player has to move for.
+func _pick_special(dist_to_target: float) -> int:
+	if _specials.is_empty() or _is_special_active:
+		return -1
 	if freeze_timer > 0.0 or stun_timer > 0.0 or root_timer > 0.0 or blind_timer > 0.0 or pacified_timer > 0.0:
-		return false
-	if not is_instance_valid(current_target):
-		return false
-	# Only ever aimed at something that can actually dodge. The crystal can't, and
-	# isn't in the hit set either, so letting a boss special the crystal would just
-	# burn the cooldown on a guaranteed whiff while it stopped hitting the crystal.
-	if not current_target.is_in_group("player") and not current_target.is_in_group("myrs"):
-		return false
-	# Held back at point-blank range so the boss still uses its ordinary swing up
-	# close, and skipped entirely if the target could not be reached anyway.
-	var reach: float = float(_special_config.get("radius", 5.0)) * 0.9
-	return dist_to_target >= GameSettings.boss_special_min_range and dist_to_target <= reach
+		return -1
+	if not is_instance_valid(current_target) or visual_anim_player == null:
+		return -1
+	for i: int in range(_specials.size()):
+		if _special_cooldowns[i] > 0.0:
+			continue
+		if _special_eligible(_specials[i], dist_to_target):
+			return i
+	return -1
 
-func _begin_special() -> void:
-	var anim: Animation = visual_anim_player.get_animation("special")
+
+func _special_eligible(config: Dictionary, dist_to_target: float) -> bool:
+	# Needs a real clip to telegraph with; the placeholder-box fallback has none.
+	if not visual_anim_player.has_animation(String(config.get("clip", "special"))):
+		return false
+	# The big area attack is only ever aimed at something that can DODGE. The crystal cannot,
+	# so pointing it there would burn the cooldown on a guaranteed whiff. The melee special is
+	# the exception - it is flagged hits_crystal, because a boss with no ordinary swing left
+	# still has to be able to break the thing it walked across the map for.
+	var target_is_dodger: bool = current_target.is_in_group("player") or current_target.is_in_group("myrs")
+	var may_hit_crystal: bool = bool(config.get("hits_crystal", false)) and current_target == target_crystal
+	if not target_is_dodger and not may_hit_crystal:
+		return false
+	# min_range keeps the two apart: the big one is held back at point-blank so the melee one
+	# owns that band, and neither is started from further away than it could reach.
+	var reach: float = float(config.get("radius", 5.0)) * 0.9
+	return dist_to_target >= float(config.get("min_range", 0.0)) and dist_to_target <= reach
+
+func _begin_special(index: int) -> void:
+	_special_index = index
+	_special_config = _specials[index]
+	var clip: String = String(_special_config.get("clip", "special"))
+	var anim: Animation = visual_anim_player.get_animation(clip)
 	var clip_length: float = anim.length if anim else 1.5
 	var playback_speed: float = maxf(_anim_speed_scale, 0.05)
 	var impact_fraction: float = clampf(float(_special_config.get("impact_fraction", 0.5)), 0.05, 0.95)
@@ -591,7 +724,9 @@ func _begin_special() -> void:
 	_special_total_timer = clip_length / playback_speed
 	_special_windup_timer = _special_total_timer * impact_fraction
 
-	visual_anim_player.play("special", -1, playback_speed)
+	if is_dying:
+		return
+	visual_anim_player.play(clip, -1, playback_speed)
 
 	# Lock facing at commit time. The cone shapes are dodged by leaving the arc, so
 	# the boss must not keep tracking the target once the indicator is drawn.
@@ -633,7 +768,10 @@ func _process_special(delta: float) -> void:
 
 func _resolve_special() -> void:
 	_special_resolved = true
-	_special_cooldown_timer = GameSettings.boss_special_cooldown
+	if _special_index >= 0 and _special_index < _special_cooldowns.size():
+		_special_cooldowns[_special_index] = float(
+			_special_config.get("cooldown", GameSettings.boss_special_cooldown)
+		)
 	# Sounded from the boss's own feet rather than from whatever it caught: every
 	# special is a slam, a sweep or a landing centred on the boss, and it makes that
 	# noise whether or not anyone was still standing in the circle.
@@ -653,6 +791,19 @@ func _resolve_special() -> void:
 			target.take_damage(damage, self, true)
 			if target.is_in_group("player"):
 				hit_player = true
+
+	# The crystal is not in _special_targets_in_shape - that set is players and myrs, the
+	# things that can move out of the way. It is hit here instead, and only by a special
+	# flagged hits_crystal, which is the melee one. Without this a boss stripped of its
+	# ordinary swing would walk up to the objective and stand there doing nothing.
+	if bool(_special_config.get("hits_crystal", false)) and is_instance_valid(target_crystal):
+		var to_crystal: Vector3 = target_crystal.global_position - global_position
+		to_crystal.y = 0.0
+		if to_crystal.length() <= float(_special_config.get("radius", 5.0)):
+			SoundBank.play_at(&"blunt_hit", target_crystal.global_position)
+			SignalBus.crystal_damaged.emit(
+				damage * elite_crystal_damage_multiplier * _crystal_ward_multiplier()
+			)
 
 	# Felt even on a clean dodge, just softer - a slam this size landing next to
 	# you should register.
@@ -757,7 +908,11 @@ func perform_attack() -> void:
 		# finishes exactly as the next attack fires, instead of restarting mid-swing.
 		var attack_anim: Animation = visual_anim_player.get_animation("attack")
 		var speed_scale: float = attack_anim.length / attack_cooldown if attack_cooldown > 0.0 else 1.0
-		visual_anim_player.play("attack", -1, speed_scale)
+		# Played directly rather than through _play_visual_animation: that helper skips a clip
+		# already running, and a swing has to RESTART on every attack even when the previous
+		# one has not quite finished. Only the is_dying guard is borrowed from it.
+		if not is_dying:
+			visual_anim_player.play("attack", -1, speed_scale)
 		impact_ratio = float(attack_anim.get_meta("hit_ratio", 0.5))
 
 	# A shooter's noise is its release, which happens partway into the clip; everyone
@@ -799,6 +954,8 @@ func _resolve_attack_impact() -> void:
 
 	if damage_suppress_timer > 0.0:
 		# Standing in Fog. The swing plays out and connects with nothing.
+		_report_fog_prevented(max(0.0, enemy_data.attack_damage - damage_penalty)
+			* GameSettings.get_player_scaling_factor(get_tree()))
 		return
 	var actual_damage: float = max(0.0, enemy_data.attack_damage - damage_penalty)
 	if current_target == target_crystal:
@@ -834,29 +991,56 @@ func _crystal_ward_multiplier() -> float:
 
 func fire_projectile() -> void:
 	if damage_suppress_timer > 0.0:
-		return  # Fog: the bow is drawn and nothing leaves it.
-	var proj = ProjectilePool.get_projectile()
-	if proj:
-		# Add a little height so it shoots from chest/head level
-		var start_pos = global_position + Vector3(0, 1.2, 0)
-		var target_pos = current_target.global_position
-		if current_target == target_crystal:
-			target_pos += Vector3(0, 2.0, 0) # Aim at crystal center
-		elif current_target.is_in_group("player") or current_target.is_in_group("myrs"):
-			target_pos += Vector3(0, 1.0, 0) # Aim at player chest
-		
-		var dir = (target_pos - start_pos).normalized()
-		
-		var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
-		if current_target == target_crystal:
-			actual_damage *= elite_crystal_damage_multiplier
-		actual_damage *= GameSettings.get_player_scaling_factor(get_tree())
-		
-		proj.activate(start_pos, dir, 3, true, 1.0, actual_damage, 0.0, self)
+		# Fog: the bow is drawn and nothing leaves it.
+		_report_fog_prevented(max(0.0, enemy_data.attack_damage - damage_penalty)
+			* GameSettings.get_player_scaling_factor(get_tree()))
+		return
+	# Add a little height so it shoots from chest/head level
+	var start_pos = global_position + Vector3(0, 1.2, 0)
+	var target_pos = current_target.global_position
+	if current_target == target_crystal:
+		target_pos += Vector3(0, 2.0, 0) # Aim at crystal center
+	elif current_target.is_in_group("player") or current_target.is_in_group("myrs"):
+		target_pos += Vector3(0, 1.0, 0) # Aim at player chest
+	
+	var dir = (target_pos - start_pos).normalized()
+	
+	var actual_damage = max(0.0, enemy_data.attack_damage - damage_penalty)
+	if current_target == target_crystal:
+		actual_damage *= elite_crystal_damage_multiplier
+	actual_damage *= GameSettings.get_player_scaling_factor(get_tree())
+	
+	ProjectilePool.fire(start_pos, dir, 3, true, 1.0, actual_damage, 0.0, self, _enemy_projectile_visual_kind(), _enemy_projectile_tint())
+
+
+func _enemy_projectile_visual_kind() -> String:
+	if enemy_data == null or enemy_data.enemy_class != "Ranged":
+		return "magic"
+	match enemy_data.color_identity:
+		"White", "Blue", "Green":
+			return "arrow"
+		"Black", "Red":
+			return "stone"
+	return "arrow"
+
+
+func _enemy_projectile_tint() -> Color:
+	if enemy_data == null:
+		return Color(0.8, 0.2, 0.8)
+	match enemy_data.color_identity:
+		"White": return Color(1.0, 0.96, 0.72)
+		"Blue": return Color(0.35, 0.68, 1.0)
+		"Black": return Color(0.58, 0.24, 0.72)
+		"Red": return Color(1.0, 0.25, 0.14)
+		"Green": return Color(0.25, 0.9, 0.36)
+	return enemy_data.visual_color
 
 func perform_mage_spell() -> void:
 	if damage_suppress_timer > 0.0:
-		return  # Fog silences the casters too, not only the ones that swing.
+		# Fog silences the casters too, not only the ones that swing. A mage's spell has no
+		# single damage number to report, so this one only says that it was stopped.
+		_report_fog_prevented(0.0)
+		return
 	match enemy_data.color_identity:
 		"White":
 			# AoE Heal - a physics broadphase query instead of scanning every
@@ -915,7 +1099,7 @@ func heal(amount: float, show_damage_number: bool = true) -> void:
 			health_bar.set_health(health, enemy_data.health)
 		if show_damage_number:
 			var spawn_pos = global_position + Vector3(0, 1.8, 0)
-			SignalBus.damage_number_requested.emit(spawn_pos, -amount, Color(0.2, 1.0, 0.4))
+			NetFx.damage_number(spawn_pos, -amount, Color(0.2, 1.0, 0.4), "")
 
 func apply_elite_modifier(modifier: String) -> void:
 	elite_modifier = modifier
@@ -1024,8 +1208,13 @@ func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false, 
 	if health_bar and enemy_data:
 		health_bar.set_health(health, enemy_data.health)
 	var spawn_pos = global_position + Vector3(randf_range(-0.3, 0.3), 1.5, randf_range(-0.3, 0.3))
-	SignalBus.damage_number_requested.emit(spawn_pos, amount, Color(1.0, 0.95, 0.2))
+	NetFx.damage_number(spawn_pos, amount, Color(1.0, 0.95, 0.2), "")
 	if health <= 0.0:
+		# The only point that knows both that this hit was fatal and who threw it. die() takes
+		# no source, and SignalBus.enemy_died carries none either - it is a team-wide "one
+		# fewer enemy", which is what the wave counter wants and not what a scoreboard does.
+		if is_instance_valid(source) and source.has_method("on_enemy_killed_by_me"):
+			source.on_enemy_killed_by_me()
 		die()
 		return
 	_react_to_hit(damage_dealt)
@@ -1055,6 +1244,7 @@ func die() -> void:
 	if _exile_on_death:
 		exile()
 		return
+	var death_debug_before: Dictionary = _death_animation_debug_state()
 	if enemy_data:
 		SignalBus.enemy_died.emit()
 		SignalBus.enemy_died_at.emit(global_position)
@@ -1070,6 +1260,7 @@ func die() -> void:
 	_hit_react_timer = 0.0
 
 	if visual_anim_player and visual_anim_player.has_animation("death"):
+		_log_death_animation_debug("play_requested", death_debug_before)
 		is_dying = true
 		collision_layer = 0
 		collision_mask = 0
@@ -1081,9 +1272,77 @@ func die() -> void:
 		if death_anim and death_anim.length / death_speed > DEATH_MAX_SECONDS:
 			death_speed = death_anim.length / DEATH_MAX_SECONDS
 		visual_anim_player.play("death", -1, death_speed)
+		call_deferred("_check_death_animation_started", death_speed)
 		_register_corpse()
 	else:
+		push_warning("Enemy death animation unavailable: %s" % _format_death_animation_debug(death_debug_before))
 		queue_free()
+
+
+func _death_animation_debug_state() -> Dictionary:
+	var data: Dictionary = {
+		"id": get_instance_id(),
+		"name": name,
+		"class": enemy_data.enemy_class if enemy_data else "<no enemy_data>",
+		"color": enemy_data.color_identity if enemy_data else "<no enemy_data>",
+		"elite": elite_modifier,
+		"health": health,
+		"is_dying": is_dying,
+		"queued": is_queued_for_deletion(),
+		"visual_player": "<none>",
+		"current": "<none>",
+		"playing": false,
+		"has_death": false,
+		"death_length": 0.0,
+		"animations": "",
+	}
+	if visual_anim_player == null:
+		return data
+	data["visual_player"] = str(visual_anim_player.get_path())
+	data["current"] = visual_anim_player.current_animation
+	data["playing"] = visual_anim_player.is_playing()
+	data["has_death"] = visual_anim_player.has_animation("death")
+	data["animations"] = ",".join(visual_anim_player.get_animation_list())
+	if visual_anim_player.has_animation("death"):
+		var death_anim: Animation = visual_anim_player.get_animation("death")
+		data["death_length"] = death_anim.length if death_anim else 0.0
+	return data
+
+
+func _log_death_animation_debug(stage: String, data: Dictionary, extra: String = "") -> void:
+	var suffix: String = "" if extra == "" else " %s" % extra
+	print("Enemy death animation %s: %s%s" % [stage, _format_death_animation_debug(data), suffix])
+
+
+func _format_death_animation_debug(data: Dictionary) -> String:
+	return "id=%s node=%s color=%s class=%s elite=%s health=%.2f dying=%s queued=%s player=%s current=%s playing=%s has_death=%s death_len=%.2f anims=[%s]" % [
+		str(data.get("id", "?")),
+		str(data.get("name", "?")),
+		str(data.get("color", "?")),
+		str(data.get("class", "?")),
+		str(data.get("elite", "")),
+		float(data.get("health", 0.0)),
+		str(data.get("is_dying", false)),
+		str(data.get("queued", false)),
+		str(data.get("visual_player", "?")),
+		str(data.get("current", "?")),
+		str(data.get("playing", false)),
+		str(data.get("has_death", false)),
+		float(data.get("death_length", 0.0)),
+		str(data.get("animations", "")),
+	]
+
+
+func _check_death_animation_started(requested_speed: float) -> void:
+	if not is_instance_valid(self) or visual_anim_player == null:
+		return
+	var data: Dictionary = _death_animation_debug_state()
+	var playing_death: bool = String(data["current"]) == "death" and bool(data["playing"])
+	var extra: String = "requested_speed=%.3f" % requested_speed
+	if playing_death:
+		_log_death_animation_debug("confirmed", data, extra)
+	else:
+		push_warning("Enemy death animation did not take over: %s %s" % [_format_death_animation_debug(data), extra])
 
 # Corpses are left in the scene (not freed) once their death clip finishes, up to
 # a cap; the oldest corpse is freed to make room for each new one past the cap.
@@ -1124,7 +1383,23 @@ func apply_knockback(force_vec: Vector3) -> void:
 
 ## Suction's pull, refreshed by the zone every frame the enemy is inside it. Strength
 ## is low on purpose - walking out of the zone is the counterplay.
+##
+## CAPPED PER ENEMY, because Suction's duration curve (10s at rank 1 to 30s at rank 5) runs
+## well past its 11-second cooldown and a high-rank blue player can have three vortexes
+## standing at once. Overlapping zones each call this every frame; last-writer-wins meant an
+## enemy in two of them was dragged towards a different centre on alternating frames, which
+## both jittered the body and let the pulls compound into something nothing could walk out of.
+##
+## The nearest centre wins instead. Stable frame to frame, so no jitter, and one enemy is never
+## pulled faster than a single vortex pulls - stacking vortexes covers more GROUND, which is
+## the reward the duration curve was actually meant to buy.
 func apply_suction(center: Vector3, strength: float) -> void:
+	if _suction_timer > 0.0:
+		var held: float = global_position.distance_squared_to(_suction_center)
+		if global_position.distance_squared_to(center) >= held:
+			# Already being pulled by something nearer; this zone contributes nothing extra.
+			_suction_timer = 0.2
+			return
 	_suction_center = center
 	_suction_strength = strength
 	_suction_timer = 0.2
@@ -1154,9 +1429,20 @@ func apply_stun(duration: float) -> void:
 func apply_blind(duration: float) -> void:
 	blind_timer = duration
 
+## Vulnerability: this enemy takes `mult` times damage for `duration`. Wall of Souls' mark
+## (black_4) and Fear's flee window (black_2) both land here.
+##
+## Keeps the HIGHER multiplier and the LONGER duration rather than overwriting, the same way
+## apply_burn keeps the higher dps. Overwriting meant whichever of black's two debuffs landed
+## second silently cancelled the first - Fear cast into a Wall of Souls would have downgraded
+## a x2 mark to x1.3, which is the opposite of what casting both should do.
+##
+## The two halves are taken independently, so a short strong curse does extend its strength
+## across a long weak one's remaining time. That is the same trade apply_burn already makes,
+## and it errs towards the player in a game where the player is the one applying them.
 func apply_doom_curse(duration: float, mult: float) -> void:
-	curse_timer = duration
-	curse_mult = mult
+	curse_mult = maxf(curse_mult, mult) if curse_timer > 0.0 else mult
+	curse_timer = maxf(curse_timer, duration)
 
 func apply_pacifism(duration: float) -> void:
 	pacified_timer = duration
@@ -1170,6 +1456,39 @@ func apply_stab_debuff() -> void:
 
 func apply_frost_slow(duration: float) -> void:
 	frost_slow_timer = duration
+
+
+## The soft slow, from Fog and from Fire Cone. Takes the STRONGEST multiplier and the
+## LONGEST duration rather than stacking them, exactly as apply_burn takes the higher dps:
+## two sources multiplying would put an enemy standing in fog under a fire cone at 0.39 speed,
+## which is a hard root neither spell was meant to be.
+##
+## Both callers refresh this every tick with a short duration, so an enemy that walks out
+## recovers within a fraction of a second instead of carrying the slow away with it.
+func apply_slow(duration: float, mult: float) -> void:
+	# A slow is control, so bosses shrug it off with everything else that would take them out
+	# of their own fight. Kept here rather than at the two call sites so a third source cannot
+	# forget it - and so Fog still suppresses a boss's damage while failing to slow it, which
+	# is the same split Frost Breath already makes.
+	if is_immune_to_control():
+		return
+	if slow_timer <= 0.0:
+		slow_mult = mult
+	else:
+		slow_mult = minf(slow_mult, mult)
+	slow_timer = maxf(slow_timer, duration)
+
+
+## How fast this enemy actually walks, as a fraction of its own speed. Frost and the soft
+## slow do not multiply - the strongest one wins - so no combination of them can stop an
+## enemy dead. Only movement reads this; frost's attack-speed half stays frost's alone.
+func movement_speed_mult() -> float:
+	var mult: float = 1.0
+	if frost_slow_timer > 0.0:
+		mult = GameSettings.enemy_frost_slow_mult
+	if slow_timer > 0.0:
+		mult = minf(mult, slow_mult)
+	return mult
 
 
 # --- Skill-tree status effects -------------------------------------------------
@@ -1201,7 +1520,7 @@ func _flee(delta: float) -> void:
 	if away.length_squared() < 0.01:
 		away = -transform.basis.z
 	away = away.normalized()
-	var speed_mult: float = GameSettings.enemy_frost_slow_mult if frost_slow_timer > 0.0 else 1.0
+	var speed_mult: float = movement_speed_mult()
 	velocity.x = away.x * enemy_data.speed * GameSettings.enemy_flee_speed_mult * speed_mult
 	velocity.z = away.z * enemy_data.speed * GameSettings.enemy_flee_speed_mult * speed_mult
 	rotation.y = lerp_angle(rotation.y, atan2(away.x, away.z), GameSettings.enemy_turn_speed * delta)
@@ -1226,6 +1545,23 @@ func apply_taunt(source: Node3D, duration: float) -> void:
 ## duration it carried away with it.
 func suppress_damage(duration: float) -> void:
 	damage_suppress_timer = maxf(damage_suppress_timer, duration)
+
+
+## Fog's feedback. Suppressed damage is the only effect in the game with NO observable
+## consequence - the player sees enemies swinging and nothing happening, which reads as the
+## spell having failed rather than as the spell working, and made green's best defensive
+## cooldown feel like a dud in solo play. Every swing the cloud eats now says so over the
+## enemy that threw it, in the same floating-number language everything else uses.
+##
+## Shown over the ENEMY rather than over what it was aiming at: the crystal is often off
+## screen, and what the player wants to see is which attackers the cloud is holding.
+func _report_fog_prevented(amount: float) -> void:
+	var spawn_pos: Vector3 = global_position + Vector3(randf_range(-0.3, 0.3), 1.9, randf_range(-0.3, 0.3))
+	var fog_color := Color(0.72, 0.92, 0.82)
+	if amount <= 0.0:
+		NetFx.damage_number(spawn_pos, 0.0, fog_color, "Fogged")
+		return
+	NetFx.damage_number(spawn_pos, 0.0, fog_color, "-%d" % roundi(amount))
 
 
 ## Burn. Refreshing re-arms the duration and takes the HIGHER damage of the two, so a
@@ -1253,7 +1589,7 @@ func exile() -> void:
 	queue_free()
 
 
-## True for a wave boss. Several skills treat bosses as a special case - Frostwave slows
+## True for a wave boss. Several skills treat bosses as a special case - Frost Breath slows
 ## rather than freezes them, Kill only executes them below a threshold - and every one of
 ## those clauses is what stops the skill trivialising the boss fights.
 func is_boss() -> bool:

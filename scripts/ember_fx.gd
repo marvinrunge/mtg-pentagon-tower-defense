@@ -1,7 +1,7 @@
 class_name EmberFx
 extends RefCounted
 ## Builds the fire effects the red and green spells are made of, so Fireball, Rain of
-## Ember and Titanic Leap are recognisably the same element rather than three
+## Ember and Titanic Brawl are recognisably the same element rather than three
 ## unrelated orange things.
 ##
 ## Two textures do all the work, and both are WHITE on transparent on purpose - every

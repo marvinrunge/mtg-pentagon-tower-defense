@@ -9,10 +9,10 @@ const IconStyle := preload("res://scripts/icon_style.gd")
 ## lengthens the player's light attack chain by a stage.
 const CENTER_KEY: String = "center"
 const CENTER_BRANCH: int = -1
-## The two capstone nodes sit past the end of a colour's branch, splayed either side of
+## The two aura nodes sit past the end of a colour's branch, splayed either side of
 ## it - the fork in docs/SKILL_DESIGN.md drawn as a fork. 6 is the Attunement (the stat
 ## line), 7 the Manifestation (the visible one).
-const CAPSTONE_BRANCHES: Array[int] = [6, 7]
+const AURA_BRANCHES: Array[int] = [6, 7]
 ## The guild passive's index in the radial navigation. It is DRAWN on the bisector
 ## between two colour spokes rather than on either, but the colour x branch grid needs
 ## a home for it, so it files under the gap's counterclockwise colour, past the fork.
@@ -108,12 +108,14 @@ const BRANCH_LAYOUT: Dictionary = {
 ## The middle of the outer row is fed by BOTH openers rather than by one of them: three
 ## children over two parents has no symmetric strict-tree answer, and the diamond that
 ## makes reads as a lattice rather than as an arbitrary choice about which opener owns it.
-## The capstone fork then hangs off that same middle node, which is the colour's tip.
+## The two outer aura choices hang off neighbouring finisher skills. Each has two routes
+## in, but the two choices do not connect directly to each other.
 const BRANCH_EDGES: Array = [
 	[CENTER_BRANCH, 0],
 	[0, 1], [0, 2],
 	[1, 3], [1, 4], [2, 4], [2, 5],
-	[4, CAPSTONE_BRANCHES[0]], [4, CAPSTONE_BRANCHES[1]],
+	[3, AURA_BRANCHES[0]], [4, AURA_BRANCHES[0]],
+	[4, AURA_BRANCHES[1]], [5, AURA_BRANCHES[1]],
 ]
 
 ## Bigger nearer the trunk, so the eye reads the hierarchy before it reads the icons.
@@ -154,21 +156,32 @@ func _ready() -> void:
 	# The hub shows the team level now, so the board has to follow it.
 	SignalBus.team_level_changed.connect(func(_level: int, _gained: int): update_ui())
 	_build_ui()
+	# The way out that is not a keystroke. See CloseButton.
+	CloseButton.attach($Control, $Control, func() -> void: set_open(false))
 	update_ui()
+
+
+## Opening and closing, in one place because there are two ways in now - the key and the
+## button in the corner - and they have to leave the mouse in the same state. A menu that
+## closes without restoring MOUSE_MODE_CAPTURED leaves the player unable to look around.
+func set_open(open: bool) -> void:
+	if visible == open:
+		return
+	visible = open
+	SignalBus.menu_opened.emit("skill_tree", visible)
+	if visible:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		update_ui()
+		_select_node(_selected_color_index, _selected_branch_index)
+	else:
+		_hide_details()
+		if is_instance_valid(_selection_ring):
+			_selection_ring.hide()
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("skill_tree") or (visible and event.is_action_pressed("ui_cancel")):
-		visible = not visible
-		SignalBus.menu_opened.emit("skill_tree", visible)
-		if visible:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-			update_ui()
-			_select_node(_selected_color_index, _selected_branch_index)
-		else:
-			_hide_details()
-			if is_instance_valid(_selection_ring):
-				_selection_ring.hide()
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		set_open(not visible)
 		get_viewport().set_input_as_handled()
 		return
 
@@ -341,16 +354,27 @@ func _build_ui() -> void:
 			spell_info["rank_requirement"] = GameSettings.affinity_spell_rank_requirements[spell_index]
 			_create_icon_node(color, spell_index + 1, spell_info)
 
-		# The capstone fork. Both halves are built even though only one can ever be
-		# taken: seeing the road not travelled is what makes the choice a choice.
-		var capstones: Array[Dictionary] = SpellDatabase.get_capstones(color)
-		for half: int in range(capstones.size()):
-			var capstone_info: Dictionary = capstones[half].duplicate()
-			capstone_info["is_affinity"] = false
-			capstone_info["is_capstone"] = true
-			capstone_info["cost"] = GameSettings.capstone_skill_point_cost
-			capstone_info["rank_requirement"] = GameSettings.capstone_rank_requirement
-			_create_icon_node(color, CAPSTONE_BRANCHES[half], capstone_info)
+		# The outer aura pair. Both are visible, rankable choices, but buying one side
+		# locks the other side for this colour.
+		var auras: Array[Dictionary] = SpellDatabase.get_auras(color)
+		for half: int in range(auras.size()):
+			var aura_info: Dictionary = auras[half].duplicate()
+			aura_info["is_affinity"] = false
+			# Still true, and it is a TYPE marker rather than a rule: it is what tells the
+			# purchase path to call grant_aura_rank instead of grant_spell_rank, because these
+			# two nodes grant an aura and the other five grant a castable spell. Setting it
+			# false to "remove auras" routed them down the spell path, where there is no
+			# spell by that id, and they silently stopped being buyable at all.
+			#
+			# What removing auras actually meant is three rules, all gone above: the
+			# one-or-the-other exclusivity, the 20-rank gate, and the exemption from being
+			# hidden until a neighbour is owned.
+			aura_info["is_aura"] = true
+			aura_info["cost"] = GameSettings.spell_rank_point_cost
+			# No special gate: reached by connecting to a neighbour, like everything else on the
+			# board. These two used to sit behind 20 owned ranks and refuse each other, which
+			# made them an end-of-run reward rather than a skill.
+			_create_icon_node(color, AURA_BRANCHES[half], aura_info)
 
 	# The five guild passives, one per gap between adjacent colours. Filed under the
 	# gap's counterclockwise colour at PASSIVE_BRANCH so the radial grid can reach them;
@@ -412,7 +436,7 @@ func _create_icon_node(color: String, branch_index: int, info: Dictionary) -> vo
 	})
 
 ## Binds whatever node the player is pointing at to a hotbar slot. Silent on anything
-## that is not an owned spell - a capstone or an affinity node has nothing to cast.
+## that is not an owned spell - a aura or an affinity node has nothing to cast.
 func _bind_hovered_to_slot(slot_index: int) -> void:
 	var record: Dictionary = _hovered_record
 	if record.is_empty():
@@ -420,7 +444,7 @@ func _bind_hovered_to_slot(slot_index: int) -> void:
 	if record.is_empty():
 		return
 	var info: Dictionary = record["info"]
-	if bool(info.get("is_affinity", false)) or bool(info.get("is_capstone", false)) or bool(info.get("is_center", false)) or bool(info.get("is_passive", false)):
+	if bool(info.get("is_affinity", false)) or bool(info.get("is_aura", false)) or bool(info.get("is_center", false)) or bool(info.get("is_passive", false)):
 		return
 	var player = PlayerRegistry.get_local()
 	if player == null or not player.has_method("assign_quick_slot"):
@@ -500,7 +524,7 @@ func _layout_nodes() -> void:
 		_level_label.size = Vector2(120.0, 48.0)
 		_level_label.position = center - _level_label.size * 0.5
 	if is_instance_valid(_level_badge):
-		_level_badge.size = Vector2(76.0, 76.0) * icon_scale
+		_level_badge.size = Vector2(58.0, 58.0) * icon_scale
 		_level_badge.position = center - _level_badge.size * 0.5
 
 	for color_index: int in range(COLOR_NAMES.size()):
@@ -529,15 +553,15 @@ func _layout_nodes() -> void:
 		# The fork: past the end of the branch and splayed to either side of it, so the
 		# two halves read as alternatives to each other rather than as two more steps.
 		var fork_radius: float = outer_radius
-		for half: int in range(CAPSTONE_BRANCHES.size()):
+		for half: int in range(AURA_BRANCHES.size()):
 			# Splayed narrowly, INSIDE the outer row's own spread: the fork is the tip of
 			# the colour, and a fork wider than the row it grows out of reads as a sixth
 			# and seventh spell rather than as a choice between two endings.
 			var splay: float = deg_to_rad(-11.0 if half == 0 else 11.0)
 			var fork_direction := Vector2(cos(angle + splay), sin(angle + splay))
 			var fork_point: Vector2 = center + fork_direction * fork_radius
-			points[CAPSTONE_BRANCHES[half]] = fork_point
-			var fork_record: Dictionary = _find_record(color, CAPSTONE_BRANCHES[half])
+			points[AURA_BRANCHES[half]] = fork_point
+			var fork_record: Dictionary = _find_record(color, AURA_BRANCHES[half])
 			if fork_record.is_empty():
 				continue
 			var fork_button: TextureButton = fork_record["button"]
@@ -655,25 +679,28 @@ func update_ui() -> void:
 		var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
 		var state: String = "available"
 
-		if bool(info.get("is_capstone", false)):
-			# Four states, and the fourth is the point: a capstone the player can no
-			# longer take because they already took a different one. It stays on the
-			# board, dimmed, so the fork remains legible for the rest of the run.
-			var capstone_id: String = String(info["id"])
-			if player.unlocked_capstone_aura == capstone_id:
+		# One if/elif/else over the three kinds of node, all of them falling through to the
+		# shared drawing below. The aura branch used to draw itself and `continue` past that
+		# block, which is why an unreachable aura still wore its own icon at three quarters
+		# brightness while every other undiscovered node showed the colour's mana pip: it
+		# never reached the code that swaps the texture. Back when these were capstones the
+		# fork was meant to be visible from the start, so it was deliberate - it just outlived
+		# the reason.
+		if bool(info.get("is_aura", false)):
+			var aura_id: String = String(info["id"])
+			var aura_rank: int = _aura_rank_of(player, aura_id)
+			if aura_rank > 0:
 				state = "unlocked"
-			elif player.unlocked_capstone_aura != "":
-				state = "locked"
+			elif not _is_reachable(player, color, branch_index):
+				state = "unreachable"
 			elif not _gate_met(player, color, info) or not _affordable(available_mana, int(info["cost"])):
 				state = "locked"
-			var taken_elsewhere: bool = player.unlocked_capstone_aura != "" and player.unlocked_capstone_aura != capstone_id
-			button.texture_normal = _get_icon_texture(info, color) if state == "unlocked" else _mana_pip_texture(color)
-			button.texture_hover = button.texture_normal
-			button.material = IconStyle.rounded_material(state == "unlocked")
-			button.modulate = Color(0.25, 0.27, 0.3) if taken_elsewhere else _icon_modulate(state)
-			continue
-
-		if bool(info.get("is_passive", false)):
+			if aura_rank > 0:
+				_set_badge(record, "%d/%d" % [aura_rank, GameSettings.spell_max_rank],
+					Color(1.0, 0.85, 0.35) if aura_rank >= GameSettings.spell_max_rank else Color(0.88, 0.92, 0.96))
+			else:
+				_set_badge(record, "", Color.WHITE)
+		elif bool(info.get("is_passive", false)):
 			var passive_id: String = String(info["id"])
 			var passive_rank: int = player.get_passive_rank(passive_id)
 			var passive_reachable: bool = _passive_reachable(player, color)
@@ -773,6 +800,10 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	# Withheld, not dimmed. A node with no owned neighbour shows its colour's mana symbol on
 	# the board and says nothing here - no name, no description, no cost. Reaching it is the
 	# thing that reveals what it is.
+	#
+	# The two outer nodes used to be exempt, back when they were capstones and the fork
+	# between them was meant to be visible from the start. They are ordinary skills now, so
+	# they are withheld like every other one.
 	if not bool(info.get("is_passive", false)) and not bool(info["is_affinity"]) \
 			and not _is_reachable(player, color, branch_index):
 		_detail_title.text = "%s - Undiscovered" % COLOR_DISPLAY[color]
@@ -785,15 +816,18 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	_detail_title.text = "%s - %s" % [COLOR_DISPLAY[color], info["name"]]
 	_detail_title.add_theme_color_override("font_color", COLOR_HEX[color])
 
-	if bool(info.get("is_capstone", false)):
-		var capstone_id: String = String(info["id"])
+	if bool(info.get("is_aura", false)):
+		var aura_id: String = String(info["id"])
+		var rank: int = _aura_rank_of(player, aura_id)
 		var status: String = ""
-		if player.unlocked_capstone_aura == capstone_id:
-			status = "YOUR CAPSTONE"
-		elif player.unlocked_capstone_aura != "":
-			status = "Locked - you already chose %s" % SpellDatabase.get_capstone_name(player.unlocked_capstone_aura)
+		if rank >= GameSettings.spell_max_rank:
+			status = "Rank %d/%d - MAX" % [rank, GameSettings.spell_max_rank]
+		elif rank <= 0 and not _is_reachable(player, color, branch_index):
+			status = "Unlock a connected skill first"
+		elif rank <= 0:
+			status = "Unlock for %d point" % GameSettings.spell_rank_point_cost
 		else:
-			status = "Costs %d skill points - PERMANENT for the run" % int(info["cost"])
+			status = "Rank %d/%d  -  next rank %d point" % [rank, GameSettings.spell_max_rank, GameSettings.spell_rank_point_cost]
 		_detail_status.text = "%s  %s  Points %d" % [COLOR_SYMBOL[color], status, _skill_points(player)]
 		_detail_body.text = info["desc"]
 		return
@@ -865,17 +899,14 @@ func _on_node_pressed(color: String, branch_index: int, info: Dictionary) -> voi
 		# Nothing to buy: the hub shows the team level, and Blade Dance is granted at 10.
 		return
 
-	# One capstone per run, and taking it is irreversible - so the check that another is
-	# not already owned happens here, before anything is charged.
-	if bool(info.get("is_capstone", false)):
-		if player.unlocked_capstone_aura != "":
+	if bool(info.get("is_aura", false)):
+		var aura_id: String = String(info["id"])
+		if _aura_rank_of(player, aura_id) >= GameSettings.spell_max_rank:
 			return
-		# The fork hangs off the middle finisher, so a capstone asks the player to have
-		# finished the colour rather than to have reached a team level.
 		if not _is_reachable(player, color, branch_index):
 			return
-		if _pay(player, int(info["cost"])):
-			player.unlock_capstone(String(info["id"]))
+		if _pay(player, GameSettings.spell_rank_point_cost) and player.has_method("grant_aura_rank"):
+			player.grant_aura_rank(aura_id)
 			update_ui()
 			SoundBank.play(&"skill_unlock")
 		return
@@ -970,8 +1001,8 @@ func _pay(player: Node, points: int) -> bool:
 ## rather than a second set of numbers to keep in step with the picture.
 ##
 ## The affinity is joined to the hub, so it is always reachable and every colour still opens
-## the same way. The capstone fork hangs off the middle finisher, which is why taking a
-## capstone means finishing a colour rather than rushing it.
+## the same way. The aura fork hangs off the middle finisher, which is why taking a
+## aura means finishing a colour rather than rushing it.
 func _is_reachable(player: Node, color: String, branch_index: int) -> bool:
 	if GameSettings.debug_free_skills:
 		return true
@@ -1010,9 +1041,26 @@ func _branch_owned(player: Node, color: String, branch_index: int) -> bool:
 		return true
 	if branch_index == 0:
 		return player.get_affinity_rank(color) > 0
-	if branch_index in CAPSTONE_BRANCHES:
-		return player.unlocked_capstone_aura != ""
+	if branch_index in AURA_BRANCHES:
+		var aura_id: String = _aura_id_for_branch(color, branch_index)
+		return aura_id != "" and _aura_rank_of(player, aura_id) > 0
 	return player.get_spell_rank("%s_%d" % [color, branch_index]) > 0
+
+
+func _aura_rank_of(player: Node, aura_id: String) -> int:
+	if player != null and player.has_method("get_aura_rank"):
+		return int(player.get_aura_rank(aura_id))
+	return 0
+
+
+func _aura_id_for_branch(color: String, branch_index: int) -> String:
+	var half: int = AURA_BRANCHES.find(branch_index)
+	if half < 0:
+		return ""
+	var auras: Array[Dictionary] = SpellDatabase.get_auras(color)
+	if half >= auras.size():
+		return ""
+	return String(auras[half]["id"])
 
 
 ## What the colour-investment ladder asks of this node, and whether it has been paid.
@@ -1156,6 +1204,7 @@ func _icon_modulate(state: String) -> Color:
 	if state == "unlocked":
 		return Color.WHITE
 	return Color(0.42, 0.44, 0.48)
+
 
 func _is_placeholder_mark(offset: Vector2, branch_index: int) -> bool:
 	var abs_x: float = absf(offset.x)

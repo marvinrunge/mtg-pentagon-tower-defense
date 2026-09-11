@@ -29,62 +29,164 @@ const MODEL_SCALES := {
 	"Black": 2.3,
 }
 
-## Telegraphed, dodgeable special attacks.
+## Telegraphed, dodgeable special attacks. Every boss has TWO, and between them they are the
+## boss's whole offence - bosses no longer have an ordinary swing at all.
 ##
-## `impact_fraction` is where in the clip the hit lands, as a fraction of the
-## clip's own length. Expressing it that way rather than in seconds means the
-## windup automatically stretches for bigger bosses (whose clips play slower),
-## so the tell stays readable instead of the damage arriving before the swing.
+## The plain `attack` clip used to drive an undodgeable melee hit on a 1.8s timer, which is the
+## one thing in the game a player could not answer: stand in front of a boss and you simply
+## took it. Now that clip drives a SECOND special - short range, short cooldown, still
+## telegraphed - so the boss attacks about as often as it used to and every hit can be walked
+## out of. What a boss does is now entirely made of things the player is given a tell for.
 ##
-## `shape` is "circle" (centred on the boss) or "cone" (a `angle`-degree arc
-## opening along the boss's facing, so it can be dodged by getting behind it).
+## Per-special keys:
+##   clip             which animation drives it. "special" for the big one, "attack" for the
+##                    melee one, which is why bosses losing their ordinary swing freed exactly
+##                    the clip the melee special needed.
+##   min_range        held back below this, so the two do not compete for the same distance
+##   cooldown         its own, so the melee one can come round far more often than the big one
+##   hits_crystal     whether it damages the objective. TRUE only for the melee special: the
+##                    crystal cannot dodge, so giving the big area attack a free hit on it
+##                    would be undodgeable damage by another name - but a boss with no
+##                    ordinary attack still has to be able to break the thing it came for.
+##   impact_fraction  where in the clip the hit lands, as a fraction of the clip's own length.
+##                    Expressed that way rather than in seconds so the windup stretches for
+##                    bigger bosses (whose clips play slower) and the tell stays readable.
+##   shape            "circle" (centred on the boss) or "cone" (an `angle`-degree arc opening
+##                    along its facing, so it can be dodged by getting behind it).
 const SPECIALS := {
-	"Red": {
-		"display_name": "Whirlwind",
-		"shape": "circle",
-		"radius": 6.5,
-		"angle": 360.0,
-		"impact_fraction": 0.45,
-		"damage_mult": 2.0,
-		"tint": Color(1.0, 0.35, 0.08),
-	},
-	"Blue": {
-		"display_name": "Glacial Sweep",
-		"shape": "circle",
-		"radius": 7.0,
-		"angle": 360.0,
-		"impact_fraction": 0.48,
-		"damage_mult": 1.9,
-		"tint": Color(0.35, 0.75, 1.0),
-	},
-	"Green": {
-		"display_name": "Rooted Slam",
-		"shape": "circle",
-		"radius": 5.5,
-		# Lands late: the clip is a leap, so the impact is the landing.
-		"impact_fraction": 0.62,
-		"angle": 360.0,
-		"damage_mult": 2.6,
-		"tint": Color(0.35, 0.9, 0.3),
-	},
-	"White": {
-		"display_name": "Radiant Slash",
-		"shape": "cone",
-		"radius": 7.5,
-		"angle": 130.0,
-		"impact_fraction": 0.40,
-		"damage_mult": 2.2,
-		"tint": Color(1.0, 0.92, 0.55),
-	},
-	"Black": {
-		"display_name": "Charging Headbutt",
-		"shape": "cone",
-		"radius": 6.0,
-		"angle": 70.0,
-		"impact_fraction": 0.50,
-		"damage_mult": 1.7,
-		"tint": Color(0.72, 0.35, 0.95),
-	},
+	"Red": [
+		{
+			"display_name": "Whirlwind",
+			"clip": "special",
+			"shape": "circle",
+			"radius": 6.5,
+			"angle": 360.0,
+			"impact_fraction": 0.45,
+			"damage_mult": 2.0,
+			"min_range": 3.0,
+			"tint": Color(1.0, 0.35, 0.08),
+		},
+		{
+			"display_name": "Cleaving Blow",
+			"clip": "attack",
+			"shape": "cone",
+			"radius": 4.2,
+			"angle": 120.0,
+			"impact_fraction": 0.45,
+			"damage_mult": 1.25,
+			"min_range": 0.0,
+			"cooldown": 2.2,
+			"hits_crystal": true,
+			"tint": Color(1.0, 0.5, 0.2),
+		},
+	],
+	"Blue": [
+		{
+			"display_name": "Glacial Sweep",
+			"clip": "special",
+			"shape": "circle",
+			"radius": 7.0,
+			"angle": 360.0,
+			"impact_fraction": 0.48,
+			"damage_mult": 1.9,
+			"min_range": 3.0,
+			"tint": Color(0.35, 0.75, 1.0),
+		},
+		{
+			"display_name": "Rime Cleave",
+			"clip": "attack",
+			"shape": "cone",
+			"radius": 4.6,
+			"angle": 120.0,
+			"impact_fraction": 0.45,
+			"damage_mult": 1.25,
+			"min_range": 0.0,
+			"cooldown": 2.2,
+			"hits_crystal": true,
+			"tint": Color(0.55, 0.85, 1.0),
+		},
+	],
+	"Green": [
+		{
+			"display_name": "Rooted Slam",
+			"clip": "special",
+			"shape": "circle",
+			"radius": 5.5,
+			# Lands late: the clip is a leap, so the impact is the landing.
+			"impact_fraction": 0.62,
+			"angle": 360.0,
+			"damage_mult": 2.6,
+			"min_range": 3.0,
+			"tint": Color(0.35, 0.9, 0.3),
+		},
+		{
+			"display_name": "Bough Smash",
+			"clip": "attack",
+			"shape": "cone",
+			"radius": 4.4,
+			"angle": 140.0,
+			"impact_fraction": 0.5,
+			"damage_mult": 1.25,
+			"min_range": 0.0,
+			"cooldown": 2.4,
+			"hits_crystal": true,
+			"tint": Color(0.5, 0.95, 0.45),
+		},
+	],
+	"White": [
+		{
+			"display_name": "Radiant Slash",
+			"clip": "special",
+			"shape": "cone",
+			"radius": 7.5,
+			"angle": 130.0,
+			"impact_fraction": 0.40,
+			"damage_mult": 2.2,
+			"min_range": 3.0,
+			"tint": Color(1.0, 0.92, 0.55),
+		},
+		{
+			"display_name": "Consecrated Thrust",
+			"clip": "attack",
+			"shape": "cone",
+			# The narrowest of the five melee specials, because a thrust is a line - and it is
+			# the one a player can most reliably sidestep rather than back out of.
+			"radius": 4.5,
+			"angle": 80.0,
+			"impact_fraction": 0.45,
+			"damage_mult": 1.35,
+			"min_range": 0.0,
+			"cooldown": 2.0,
+			"hits_crystal": true,
+			"tint": Color(1.0, 0.95, 0.7),
+		},
+	],
+	"Black": [
+		{
+			"display_name": "Charging Headbutt",
+			"clip": "special",
+			"shape": "cone",
+			"radius": 6.0,
+			"angle": 70.0,
+			"impact_fraction": 0.50,
+			"damage_mult": 1.7,
+			"min_range": 3.0,
+			"tint": Color(0.72, 0.35, 0.95),
+		},
+		{
+			"display_name": "Grave Maul",
+			"clip": "attack",
+			"shape": "cone",
+			"radius": 4.2,
+			"angle": 130.0,
+			"impact_fraction": 0.5,
+			"damage_mult": 1.25,
+			"min_range": 0.0,
+			"cooldown": 2.3,
+			"hits_crystal": true,
+			"tint": Color(0.8, 0.5, 1.0),
+		},
+	],
 }
 
 
@@ -101,5 +203,7 @@ static func get_model_scale(color_identity: String, fallback: float) -> float:
 	return MODEL_SCALES.get(color_identity, fallback)
 
 
-static func get_special(color_identity: String) -> Dictionary:
-	return SPECIALS.get(color_identity, {})
+## Every special this colour's boss has, in the order they should be considered - the big one
+## first, so a boss at a distance where both are legal reaches for the one worth watching.
+static func get_specials(color_identity: String) -> Array:
+	return SPECIALS.get(color_identity, [])

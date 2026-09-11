@@ -38,6 +38,15 @@ var owner_player: Node3D = null
 ## `get_meta(name, null)` is an ERROR rather than a fallback, so the null case - which is
 ## every single decoy - printed a stack trace on spawn.
 var visual_source: EnemyData = null
+## The same two facts as `visual_source`, as plain strings.
+##
+## An EnemyData is a Resource, and a Resource cannot travel through a MultiplayerSpawner's
+## spawn argument - it arrives on the client as null, and the raised corpse comes back as
+## an untextured box while the host sees the model it died in. These are what the visual
+## is actually chosen from, so they are what is sent instead. Ignored when `visual_source`
+## is set, which is the single-player and server-side path.
+var visual_color: String = ""
+var visual_class: String = ""
 
 var _life_timer: float = 0.0
 var _attack_timer: float = 0.0
@@ -94,14 +103,17 @@ func _ready() -> void:
 ## material laid over them.
 func _build_visual() -> void:
 	var source: EnemyData = visual_source
+	# The resource when there is one, the two replicated strings when there is not.
+	var color: String = source.color_identity if source != null else visual_color
+	var kind: String = source.enemy_class if source != null else visual_class
 	var scene: PackedScene = null
-	if source != null:
-		if source.enemy_class == "Ranged" and EnemyBase.RANGED_VISUAL_SCENES.has(source.color_identity):
-			scene = EnemyBase.RANGED_VISUAL_SCENES[source.color_identity]
-		elif source.enemy_class == "Mage" and EnemyBase.MAGE_VISUAL_SCENES.has(source.color_identity):
-			scene = EnemyBase.MAGE_VISUAL_SCENES[source.color_identity]
-		elif EnemyBase.MELEE_VISUAL_SCENES.has(source.color_identity):
-			scene = EnemyBase.MELEE_VISUAL_SCENES[source.color_identity]
+	if color != "":
+		if kind == "Ranged" and EnemyBase.RANGED_VISUAL_SCENES.has(color):
+			scene = EnemyBase.RANGED_VISUAL_SCENES[color]
+		elif kind == "Mage" and EnemyBase.MAGE_VISUAL_SCENES.has(color):
+			scene = EnemyBase.MAGE_VISUAL_SCENES[color]
+		elif EnemyBase.MELEE_VISUAL_SCENES.has(color):
+			scene = EnemyBase.MELEE_VISUAL_SCENES[color]
 
 	if scene != null:
 		_visual = scene.instantiate()
@@ -255,8 +267,8 @@ func _acquire_target() -> void:
 
 func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false) -> void:
 	health -= amount
-	SignalBus.damage_number_requested.emit(
-		global_position + Vector3(0.0, 1.6, 0.0), amount, Color(0.8, 0.9, 1.0)
+	NetFx.damage_number(
+		global_position + Vector3(0.0, 1.6, 0.0), amount, Color(0.8, 0.9, 1.0), ""
 	)
 	if health <= 0.0:
 		_expire()

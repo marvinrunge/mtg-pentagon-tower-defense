@@ -10,6 +10,9 @@ var main_controller: Node3D
 func _ready() -> void:
 	hide()
 	build_btn.pressed.connect(_on_build_pressed)
+	# Built once with the panel. It used to be built in open(), which meant the panel had
+	# no way out until it had been opened - and then a fresh button every time after.
+	_build_close_button()
 
 
 func open(main_ref: Node3D) -> void:
@@ -22,6 +25,10 @@ func open(main_ref: Node3D) -> void:
 func close() -> void:
 	hide()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _build_close_button() -> void:
+	CloseButton.attach(self, $Panel, close)
 
 func _input(event: InputEvent) -> void:
 	if visible and event.is_action_pressed("ui_cancel"):

@@ -117,6 +117,103 @@ correctly.
 
 **Ends at:** a full wave, boss included, plays identically for every client.
 
+### Phase 2b — Spell effects reach the other four screens ✅ DONE
+
+Items 5 and 6 above were marked done and were not. Enemies, waves, the crystal and
+attack animations all replicated; the effect layer did not. `Player.execute_spell`
+hands a client's cast to the host and returns, so every visual inside
+`_run_spell_effect` — ring, beam, decal, flash, sound, shake, zone, wall, summon,
+telegraph, projectile — existed on the host and nowhere else. The client cast a spell,
+the damage happened, and their own screen showed the arm animation and nothing more.
+
+Closed by three mechanisms, one per kind of effect:
+
+- **`NetFx` (`scripts/net_fx.gd`, autoload).** One-shot cosmetics. The shapes stay in
+  `SpellFx`/`EmberFx`; what crosses the wire is which shape, where, what colour and how
+  big, and each peer rebuilds it locally. Server → everyone for spell effects;
+  client → server → everyone else for a client's own melee impacts, which stay
+  immediate on the machine that swung. Camera shake is full strength for whoever caused
+  it and distance-gated for everybody else.
+- **`EffectNetSpawner` (`MainController._spawn_effect`).** The persistent half — DoT
+  zones, both walls, Zombify's undead, Lightning Bolt's telegraph. A real
+  `MultiplayerSpawner` alongside the enemy and myr ones, so the arguments travel and
+  every peer builds its own copy. Gameplay inside them is server-only; the client
+  copies exist to be looked at and to run their own lifetime.
+- **`ProjectilePool.fire()`.** Broadcasts the activation parameters and lets each peer
+  draw its own bolt from its own pool. `Projectile._on_body_entered` already refused to
+  damage on a client — that guard was written for this and had nothing to guard.
+
+Two things the same pass had to fix to make the above true:
+
+- **A second synchroniser on `Player` (`VitalsSync`), authored by the host.** `hp`,
+  `max_hp` and the three shields were on nothing. Enemies only think on the server, so
+  the host was the only machine that knew a client had been hurt.
+- **Fire Cone worked on the host alone.** The channel was started inside
+  `_run_spell_effect` (server) but ticked in `_physics_process` under `is_local`
+  (caster), so for a client neither machine ever ran it. The state is now server-side
+  and ticked there, `_channel_id` replicates, every peer builds its own flames from it,
+  and the caster's own keyboard reports the button coming up — the host cannot read it.
+
+**Verified by** `tools/tests/net_effects.tscn`, which is cross-process on purpose: a
+single-process test takes the `Net.is_server()` branch and passes with all of this
+reverted. The client casts, looks at its own scene, and reports what it saw.
+
+### Phase 2c — The skill build reaches the host ✅ DONE
+
+Making a client's spells visible exposed the next layer down: they were visible and
+**wrong**. `spell_ranks`, `aura_ranks`, `affinity_ranks` and `passive_ranks` were never
+sent anywhere, so the host — which is where every spell is resolved — resolved a
+client's cast against a freshly spawned, empty build. `_casting_rank` fell back to 1,
+`has_aura()` answered false for everything, `get_spell_damage_multiplier()` found no
+affinity, and `_update_shields()` had no Glorious Anthem to recharge. A client with a
+maxed tree cast rank-1 spells with nothing behind them.
+
+`Player.build_snapshot()` / `_apply_build()` carry it, broadcast by the owner rather
+than sent to the host alone, because the aura ORBS come out of the same state and a
+teammate's orbiting frost orb is theirs to show. `_publish_build()` is a dirty check
+against the last JSON sent rather than a notification from each of the six places that
+can change a build — a notification is something a future skill-tree change can forget
+to send. `MainController._on_peer_entered_match` forwards every build to a player who
+joins mid-match, since by then all the changes have already happened.
+
+One thing had to be fixed alongside it: `SignalBus.player_health_changed` was emitted
+unguarded from ten places in `Player`, so any avatar's health moved the local bar. It
+goes through `_emit_health_changed()` now, which checks `is_local` the way
+`emit_shield_changed()` always has.
+
+### Phase 2d — What the first real two-player session found ✅ DONE
+
+The first session with two people on one machine turned up four things no test had been
+able to see, all of the same shape: something that only ever runs on the server, whose
+RESULT nobody else was told about.
+
+- **A teammate walked the map in a mid-air pose.** `CharacterBody3D.is_on_floor()` is
+  only updated inside `move_and_slide()`, and a puppet never calls it — its position
+  arrives over the wire — so on anyone else's avatar it is false forever.
+  `PlayerAnimator.update_locomotion` checks it before anything else and plays the jump
+  clip, returning before it ever reaches a gait. Attacks looked fine throughout, because
+  `_net_play_action` drives the action layer and skips locomotion entirely. Fixed with a
+  replicated `is_grounded` (and `is_blocking`, which had never travelled either).
+- **Enemies slid down the lanes without animating.** `_update_visual_animation` picks
+  walk-or-stand off `velocity`, and the enemy synchroniser carried `position`, `rotation`
+  and `health` only. The comment claimed clients animate "from the replicated transform";
+  the transform was replicated and the velocity the decision is made from was not.
+- **A client could not visibly hurt anything.** Three holes behind one symptom: the health
+  BAR is only updated from inside `take_damage`/`heal` (server-only) though `health`
+  itself replicated; damage numbers were emitted from server-only code in five scripts;
+  and `is_dying` never crossed, so an enemy stood at full health until the host freed it
+  and it blinked out mid-stride. The damage had been landing the whole time.
+
+`EnemyBase._update_puppet()` now owns all three of the client's jobs, and damage numbers
+go through `NetFx.damage_number()` like every other cosmetic.
+
+`tools/tests/net_effects.tscn` grew a section for each. The host drives an enemy through
+spawn, damage and death one step at a time over RPC, and the client reports what it saw
+at each; motion is compared against the host's own copy rather than a fixed number, since
+whether an enemy happens to be walking depends on the navigation mesh. With the fixes
+reverted the failures read `host 3.25, client 0.00` and `loco 'jump'` — the playtest
+report, reproduced.
+
 ## Phase 3 — RunState becomes server-authoritative ✅ DONE
 
 The economy was rebuilt since this plan was written, so this phase replaces the old

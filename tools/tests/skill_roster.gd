@@ -1,7 +1,7 @@
 extends Node
 ## Regression test: does every skill in the roster actually DO something?
 ##
-## Twenty-five spells and ten capstones, each cast for real against real enemies, each
+## Twenty-five spells and ten auras, each cast for real against real enemies, each
 ## with one assertion about an observable consequence. Not "does it parse" and not "does
 ## it run without an error" - a spell that silently does nothing passes both of those,
 ## which is exactly how the skill tree managed to refuse every purchase for a whole
@@ -23,7 +23,7 @@ var _scene: Node = null
 ## of false green this whole file exists to prevent.
 var _completed: Array[String] = []
 
-const SECTIONS: Array[String] = ["white", "blue", "black", "red", "green", "capstones", "ranks", "multicolour", "sounds"]
+const SECTIONS: Array[String] = ["white", "blue", "black", "red", "green", "auras", "aura_ranks", "ranks", "multicolour", "sounds"]
 
 ## Every skill that should be audible, and the event it plays. Hand-written on purpose:
 ## deriving it from SoundBank would only prove SoundBank agrees with itself, and the
@@ -36,9 +36,9 @@ const EXPECTED_SPELL_SOUNDS: Dictionary = {
 	"white_5": &"spell_rally_fallen",
 	"blue_1": &"spell_unsummon",
 	"blue_2": &"spell_frostwave",
-	"blue_3": &"spell_frost_globe",
-	"blue_4": &"spell_suction",
-	"blue_5": &"spell_decoy",
+	"blue_3": &"spell_suction",
+	"blue_4": &"spell_frost_globe",
+	"blue_5": &"spell_cast",
 	"black_1": &"spell_doom_blade",
 	"black_2": &"spell_fear",
 	"black_3": &"spell_kill",
@@ -90,16 +90,27 @@ func _clear_enemies() -> void:
 		enemy.free()
 
 
+## Where a spell's zones, walls and summons live now.
+##
+## They used to be add_child()ed straight onto the scene root. They go through
+## MainController's EffectNetSpawner instead, so that every peer gets one rather than only
+## the machine that ran the spell, and a MultiplayerSpawner puts what it makes under its
+## own spawn_path. Falls back to the root for a stripped scene that has no Effects node.
+func _effects_root() -> Node:
+	var effects: Node = _scene.get_node_or_null("Effects")
+	return effects if effects != null else _scene
+
+
 func _nodes_of(type: String) -> Array[Node]:
 	var found: Array[Node] = []
-	for child: Node in _scene.get_children():
+	for child: Node in _effects_root().get_children():
 		if child.get_class() == type or (child.get_script() != null and child.get_script().get_global_name() == type):
 			found.append(child)
 	return found
 
 
 func _clear_spawned() -> void:
-	for type: String in ["FrostGlobe", "SoulWall", "DoTZone", "TemporaryAlly", "SuctionZone"]:
+	for type: String in ["FrostGlobe", "WallOfFrost", "SoulWall", "DoTZone", "TemporaryAlly", "SuctionZone"]:
 		for node: Node in _nodes_of(type):
 			node.free()
 
@@ -133,7 +144,8 @@ func _run() -> void:
 	_check_black()
 	_check_red()
 	_check_green()
-	_check_capstones()
+	_check_auras()
+	_check_aura_ranks()
 	_check_ranks()
 	_check_multicolour()
 	_check_sounds()
@@ -143,7 +155,7 @@ func _run() -> void:
 			_failures.append("section '%s' did not finish - look for a SCRIPT ERROR above" % section)
 
 	if _failures.is_empty():
-		print("TEST RESULT: PASS (25 spells, 10 capstones, ranks, multicolour)")
+		print("TEST RESULT: PASS (25 spells, 10 auras, ranks, multicolour)")
 	else:
 		print("TEST RESULT: FAIL - %d failed: %s" % [_failures.size(), ", ".join(_failures)])
 
@@ -160,8 +172,28 @@ func _check_white() -> void:
 	_check("white_1 Exalted Strike", _player.exalted_charges > 0, "no charge granted")
 
 	_player.protection_shield = 0.0
+	# The HUD draws the shield from a signal, not from a poll, so a cast that raises the field
+	# without announcing it is a shield the player never sees. Both halves are checked.
+	var announced: Array[float] = []
+	var shield_probe: Callable = func(amount: float) -> void: announced.append(amount)
+	SignalBus.player_shield_changed.connect(shield_probe)
 	_cast("white_2")
 	_check("white_2 Circle of Protection", _player.protection_shield > 0.0, "no shield")
+	_check("white_2 tells the HUD about it", not announced.is_empty() and announced[-1] > 0.0,
+		"emissions=%d" % announced.size())
+	SignalBus.player_shield_changed.disconnect(shield_probe)
+	# It has to EXPIRE. Uncapped and permanent, the correct play was to stand in the base
+	# recasting it until the pool was arbitrarily large, and the bar happily drew all of it.
+	_check("white_2 shield is temporary", _player._protection_shield_timer > 0.0,
+		"%.1fs" % _player._protection_shield_timer)
+	# ...and recasting refreshes rather than stacks, so two white players covering the same
+	# ally cannot multiply it.
+	var single: float = _player.protection_shield
+	_cast("white_2")
+	_check("white_2 refreshes rather than stacks", is_equal_approx(_player.protection_shield, single),
+		"%.0f -> %.0f" % [single, _player.protection_shield])
+	_player.protection_shield = 0.0
+	_player._protection_shield_timer = 0.0
 
 	_player._reprisal_timer = 0.0
 	_cast("white_3")
@@ -195,13 +227,8 @@ func _check_blue() -> void:
 
 	var frozen: EnemyBase = _spawn_enemy(Vector3(3.0, 0.0, 0.0))
 	_cast("blue_2")
-	_check("blue_2 Frostwave", frozen.freeze_timer > 0.0, "not frozen")
+	_check("blue_2 Frost Breath", frozen.freeze_timer > 0.0, "not frozen")
 	_clear_enemies()
-
-	_clear_spawned()
-	_cast("blue_3")
-	_check("blue_3 Frost Globe", not _nodes_of("FrostGlobe").is_empty(), "no globe placed")
-	_clear_spawned()
 
 	# Suction is a lingering zone now, not a single shove: the check is the zone being
 	# placed and an enemy inside it being marked for the drag. In front of the camera,
@@ -210,14 +237,14 @@ func _check_blue() -> void:
 	pull_dir.y = 0.0
 	var pulled: EnemyBase = _spawn_enemy(pull_dir.normalized() * 6.0)
 	pulled._suction_timer = 0.0
-	_cast("blue_4")
+	_cast("blue_3")
 	# Duration is asserted alongside the pull, because Suction's whole identity is how LONG
 	# it drags: "a zone exists and it pulls" was already true when the zone lasted two and a
 	# half seconds, so it would not have noticed the vortex curve being wrong.
 	var zones: Array[Node] = _nodes_of("SuctionZone")
 	var vortex_life: float = zones[0]._life_timer if not zones.is_empty() else 0.0
 	_check(
-		"blue_4 Suction",
+		"blue_3 Suction",
 		not zones.is_empty()
 			and pulled._suction_timer > 0.0
 			and vortex_life >= GameSettings.spell_blue_suction_duration - 0.5,
@@ -225,9 +252,14 @@ func _check_blue() -> void:
 	_clear_spawned()
 	_clear_enemies()
 
+	_clear_spawned()
+	_cast("blue_4")
+	_check("blue_4 Wall of Frost", not _nodes_of("WallOfFrost").is_empty(), "no wall placed")
+	_clear_spawned()
+
+	var before_displace: Vector3 = _player.global_position
 	_cast("blue_5")
-	var decoys: Array[Node] = _nodes_of("TemporaryAlly")
-	_check("blue_5 Phantasmal Decoy", decoys.size() == 1 and decoys[0].kind == "decoy", "no decoy")
+	_check("blue_5 Displace", _player.global_position.distance_to(before_displace) > 1.0, "did not blink")
 	_clear_spawned()
 	_done_with("blue")
 
@@ -247,7 +279,12 @@ func _check_black() -> void:
 
 	var scared: EnemyBase = _spawn_enemy(Vector3(3.0, 0.0, 0.0))
 	_cast("black_2")
+	# Both halves. Scattering the pack costs the player every area skill they own, so the
+	# vulnerability is not decoration - a Fear that only made enemies run would be a spell
+	# whose whole effect is to make the rest of the roster worse.
 	_check("black_2 Fear", scared.flee_timer > 0.0, "not fleeing")
+	_check("black_2 Fear marks what it scatters", scared.curse_timer > 0.0 and scared.curse_mult > 1.0,
+		"curse=%.1fs x%.2f" % [scared.curse_timer, scared.curse_mult])
 	_clear_enemies()
 
 	# Kill picks whatever the CAMERA is pointing at, so the victim goes there.
@@ -302,12 +339,14 @@ func _check_red() -> void:
 	_check("red_2 Fire Dash (launch)", _player._dash_timer > 0.0, "no dash")
 	_clear_spawned()
 	_cast("red_2")
-	_check("red_2 Fire Dash (trail)", not _nodes_of("DoTZone").is_empty(), "no trail")
+	var dash_zones: Array[Node] = _nodes_of("DoTZone")
+	_check("red_2 Fire Dash (trail)", not dash_zones.is_empty() and dash_zones[0].zone_type == "fire_patch", "no fire patch")
 	_player._dash_timer = 0.0
 	_clear_spawned()
 
 	_cast("red_3")
-	_check("red_3 Rain of Ember", not _nodes_of("DoTZone").is_empty(), "no zone")
+	var rain_zones: Array[Node] = _nodes_of("DoTZone")
+	_check("red_3 Rain of Ember", not rain_zones.is_empty() and rain_zones[0].zone_type == "fire_rain", "no rain zone")
 	_clear_spawned()
 
 	_cast("red_4")
@@ -318,10 +357,22 @@ func _check_red() -> void:
 	_cast("red_5")
 	# The bolt is telegraphed, so what exists immediately is the warning, not the damage.
 	var telegraphs: int = 0
-	for child: Node in _scene.get_children():
+	for child: Node in _effects_root().get_children():
 		if child.name.begins_with("BoltTelegraph"):
 			telegraphs += 1
 	_check("red_5 Lightning Bolt", telegraphs > 0, "no telegraph")
+
+	# The bolt's whole reason to exist beside four area skills: it is the one red answer to
+	# a single big target. Measured on the multiplier rather than on a delayed strike, which
+	# lands a telegraph later than this test runs.
+	var elite: EnemyBase = _spawn_enemy(Vector3(3.0, 0.0, 0.0))
+	elite.apply_elite_modifier("Juggernaut")
+	var trash: EnemyBase = _spawn_enemy(Vector3(5.0, 0.0, 0.0))
+	var elite_share: float = _player._bolt_target_multiplier(elite, 2.0)
+	var trash_share: float = _player._bolt_target_multiplier(trash, 2.0)
+	_check("red_5 hits elites harder than trash", elite_share > trash_share and is_equal_approx(trash_share, 1.0),
+		"elite x%.2f vs trash x%.2f" % [elite_share, trash_share])
+	_clear_enemies()
 	_done_with("red")
 
 
@@ -330,7 +381,7 @@ func _check_green() -> void:
 	var victim: EnemyBase = _spawn_enemy(Vector3(2.0, 0.0, 0.0))
 	var before: float = victim.health
 	_cast("green_1")
-	_check("green_1 Titanic Leap", victim.health < before, "slam missed")
+	_check("green_1 Titanic Brawl", victim.health < before, "slam missed")
 	_clear_enemies()
 
 	var max_before: float = _player.max_hp
@@ -342,6 +393,15 @@ func _check_green() -> void:
 	_clear_spawned()
 	_cast("green_3")
 	_check("green_3 Fog", not _nodes_of("DoTZone").is_empty(), "no fog")
+	# Suppressed damage is invisible, so the cloud also slows what stands in it - the half a
+	# player can actually see. Driven directly rather than by waiting for the zone's own tick,
+	# which is half a second away and this test does not run frames.
+	var fogged: EnemyBase = _spawn_enemy(Vector3(2.0, 0.0, 0.0))
+	fogged.suppress_damage(1.0)
+	fogged.apply_slow(1.0, GameSettings.spell_green_fog_slow_mult)
+	_check("green_3 Fog slows what stands in it", fogged.movement_speed_mult() < 1.0,
+		"x%.2f" % fogged.movement_speed_mult())
+	_clear_enemies()
 	_clear_spawned()
 
 	var taunted: EnemyBase = _spawn_enemy(Vector3(4.0, 0.0, 0.0))
@@ -357,30 +417,112 @@ func _check_green() -> void:
 	_done_with("green")
 
 
-func _check_capstones() -> void:
-	print("CAPSTONES")
+func _check_auras() -> void:
+	print("AURAS")
 	for color: String in SpellDatabase.COLORS:
-		for entry: Dictionary in SpellDatabase.get_capstones(color):
-			var capstone_id: String = String(entry["id"])
-			# The field holds one string, so clearing it is what "start a fresh run"
-			# means here - the exclusivity itself is checked separately below.
-			_player.unlocked_capstone_aura = ""
-			_player.unlock_capstone(capstone_id)
-			var took_it: bool = _player.unlocked_capstone_aura == capstone_id
-			var wants_orb: bool = capstone_id in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb"]
-			var has_orb: bool = _player.get_node_or_null("CapstoneOrb") != null
+		for entry: Dictionary in SpellDatabase.get_auras(color):
+			var aura_id: String = String(entry["id"])
+			# Aura choices are rankable now, but a fresh branch still starts with no
+			# outer choice owned.
+			_player.aura_ranks.clear()
+			_player._sync_auras()
+			_player.grant_aura_rank(aura_id)
+			var took_it: bool = _player.get_aura_rank(aura_id) == 1
+			var wants_orb: bool = aura_id in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb"]
+			var has_orb: bool = _player._aura_orbs.size() > 0
 			_check("%s %s" % [color, entry["name"]], took_it and has_orb == wants_orb,
 				"took=%s orb=%s wanted=%s" % [took_it, has_orb, wants_orb])
 
-	# The fork is only a fork if the second choice is refused.
-	_player.unlocked_capstone_aura = ""
-	_player.unlock_capstone("aura_fervor")
-	_player.unlock_capstone("aura_orb_of_fire")
-	_check("capstone stays exclusive", _player.unlocked_capstone_aura == "aura_fervor",
-		"replaced by %s" % _player.unlocked_capstone_aura)
-	_player.unlocked_capstone_aura = ""
-	_player._sync_capstone_aura()
-	_done_with("capstones")
+	# Each colour's outer pair is still a real choice: one side can rank up, but the
+	# other side stays refused.
+	_player.aura_ranks.clear()
+	_player.grant_aura_rank("aura_fervor")
+	_player.grant_aura_rank("aura_fervor")
+	_player.grant_aura_rank("aura_orb_of_fire")
+	# The INVERSE of what this asserted until auras were removed. A colour's two auras used
+	# to be a fork - taking one refused the other for the rest of the run - and this checked
+	# that the refusal held. They are ordinary skills now, so both are buyable and each ranks
+	# on its own; a player who spends the points gets both.
+	_check("both of a colour's auras can be owned",
+		_player.get_aura_rank("aura_fervor") == 2 and _player.get_aura_rank("aura_orb_of_fire") == 1,
+		"fervor=%d orb=%d" % [_player.get_aura_rank("aura_fervor"), _player.get_aura_rank("aura_orb_of_fire")])
+	_player.aura_ranks.clear()
+	_player._sync_auras()
+	_done_with("auras")
+
+# --- aura ranks ----------------------------------------------------------------
+
+## Does ranking an AURA up actually change anything?
+##
+## _check_auras proves a aura can be bought and that the right ones grow an orb.
+## It says nothing about what the ranks are worth, which is how five auras shipped whose
+## rank 1 granted literally nothing: they were written as
+##
+##     lerpf(1.0, ceiling, get_aura_rank_mult(id) - 1.0)
+##
+## and get_aura_rank_mult(1) is 1.0, so the lerp weight at rank 1 was zero. Phyrexian
+## Arena rank 1 drained the player's health for a damage and speed bonus of exactly x1.0.
+## Every check here is the same shape: rank 1 must already beat no aura at all, and rank 5
+## must land on the number the aura is documented as giving.
+func _check_aura_ranks() -> void:
+	print("AURA RANKS")
+
+	for entry: Array in [
+		["aura_fervor", GameSettings.aura_fervor_speed_boost, "speed"],
+		["aura_glorious_anthem", GameSettings.aura_glorious_anthem_damage_mult, "damage"],
+		["aura_phyrexian_arena", GameSettings.aura_phyrexian_arena_damage_mult, "damage"],
+		["aura_sylvan_library", GameSettings.aura_sylvan_library_hp_mult, "max hp"],
+		["aura_rhystic_study", GameSettings.aura_rhystic_study_cdr_mult, "cooldown"],
+	]:
+		var aura_id: String = entry[0]
+		var ceiling: float = entry[1]
+		var low: float = GameSettings.aura_bonus_mult(ceiling, 1)
+		var high: float = GameSettings.aura_bonus_mult(ceiling, GameSettings.spell_max_rank)
+		# Rhystic Study's ceiling is BELOW 1.0 - it is a cooldown multiplier, so its bonus
+		# gets smaller as it improves. Measured as distance from 1.0, both directions read
+		# the same way: rank 1 off neutral, rank 5 all the way to the listed number.
+		_check("%s rank 1 already pays (%s)" % [aura_id, entry[2]],
+			not is_equal_approx(low, 1.0) and absf(low - 1.0) > absf(ceiling - 1.0) * 0.2,
+			"x%.3f vs neutral 1.0" % low)
+		_check("%s rank 5 beats rank 1" % aura_id, absf(high - 1.0) > absf(low - 1.0) * 1.5,
+			"x%.3f -> x%.3f" % [low, high])
+		_check("%s rank 5 reaches its listed value" % aura_id, is_equal_approx(high, ceiling),
+			"x%.3f (listed x%.3f)" % [high, ceiling])
+
+	# --- and the same thing measured through the PLAYER, not the curve ----------
+	# The curve being right is worth nothing if a call site still passes it through the old
+	# lerp. These read the real accessors at both ranks, with the aura genuinely owned.
+	_player.aura_ranks.clear()
+	_player._sync_auras()
+	var no_aura_damage: float = _player.get_spell_damage_multiplier()
+
+	_player.grant_aura_rank("aura_phyrexian_arena")
+	var arena_1: float = _player.get_spell_damage_multiplier()
+	for _i: int in range(GameSettings.spell_max_rank - 1):
+		_player.grant_aura_rank("aura_phyrexian_arena")
+	var arena_5: float = _player.get_spell_damage_multiplier()
+	_check("Phyrexian Arena rank 1 is better than no aura", arena_1 > no_aura_damage * 1.01,
+		"%.3f vs %.3f" % [arena_1, no_aura_damage])
+	_check("Phyrexian Arena rank 5 beats rank 1", arena_5 > arena_1 * 1.05,
+		"%.3f -> %.3f" % [arena_1, arena_5])
+
+	_player.aura_ranks.clear()
+	_player._sync_auras()
+	var no_aura_hp: float = _player.max_hp
+	_player.grant_aura_rank("aura_sylvan_library")
+	var library_1: float = _player.max_hp
+	for _i: int in range(GameSettings.spell_max_rank - 1):
+		_player.grant_aura_rank("aura_sylvan_library")
+	var library_5: float = _player.max_hp
+	_check("Sylvan Library rank 1 grants health", library_1 > no_aura_hp * 1.01,
+		"%.0f vs %.0f" % [library_1, no_aura_hp])
+	_check("Sylvan Library rank 5 beats rank 1", library_5 > library_1 * 1.05,
+		"%.0f -> %.0f" % [library_1, library_5])
+
+	_player.aura_ranks.clear()
+	_player._sync_auras()
+	_done_with("aura_ranks")
+
 
 # --- ranks ---------------------------------------------------------------------
 

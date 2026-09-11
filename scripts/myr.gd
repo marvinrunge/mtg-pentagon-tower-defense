@@ -67,7 +67,7 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 func _ready() -> void:
 	# Add to group so enemies can find Myrs
 	add_to_group("myrs")
-	SignalBus.player_capstone_aura_changed.connect(_refresh_fervor_state)
+	SignalBus.player_auras_changed.connect(_refresh_fervor_state)
 	_refresh_fervor_state()
 	
 	# Set collision layer and mask
@@ -185,17 +185,21 @@ func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false)
 	if is_dying:
 		return
 	health = maxf(0.0, health - amount)
-	SignalBus.damage_number_requested.emit(global_position + Vector3(0, 1.2, 0), amount, Color(1.0, 0.25, 0.25))
+	NetFx.damage_number(global_position + Vector3(0, 1.2, 0), amount, Color(1.0, 0.25, 0.25), "")
 	if health <= 0.0:
 		die()
 	elif visual_anim_player and visual_anim_player.has_animation("hit"):
 		visual_anim_player.play("hit")
 
-func heal(amount: float) -> void:
+## Returns the health actually restored, matching Player.heal - the white skills that heal
+## myrs credit that number to the caster's scoreboard, and a myr already at full health should
+## not pay out for a heal it could not use.
+func heal(amount: float) -> float:
 	var previous_health: float = health
 	health = minf(max_health, health + amount)
 	if health > previous_health:
-		SignalBus.damage_number_requested.emit(global_position + Vector3(0, 1.2, 0), previous_health - health, Color(0.2, 1.0, 0.4))
+		NetFx.damage_number(global_position + Vector3(0, 1.2, 0), previous_health - health, Color(0.2, 1.0, 0.4), "")
+	return health - previous_health
 
 func die() -> void:
 	if is_dying:
@@ -216,7 +220,7 @@ func die() -> void:
 func _refresh_fervor_state() -> void:
 	fervor_active = false
 	for player in get_tree().get_nodes_in_group("player"):
-		if is_instance_valid(player) and "unlocked_capstone_aura" in player and player.unlocked_capstone_aura == "aura_fervor":
+		if is_instance_valid(player) and player.has_method("has_aura") and player.has_aura("aura_fervor"):
 			fervor_active = true
 			return
 

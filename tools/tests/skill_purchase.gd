@@ -91,21 +91,65 @@ func _run() -> void:
 	if not player.melee_combo_extended:
 		failures.append("Blade Dance was not granted at team level %d" % Player.BLADE_DANCE_LEVEL)
 
-	# --- F: the capstone fork, through the BOARD rather than through the API ------
-	# The roster test proves unlock_capstone works; this proves the node on the tree is
-	# wired to it, which is a different failure and the one that actually bit before.
-	player.unlocked_capstone_aura = ""
-	var attunement: Dictionary = _record(st, "red", SkillTree.CAPSTONE_BRANCHES[0])
-	st._on_node_pressed("red", SkillTree.CAPSTONE_BRANCHES[0], attunement["info"])
-	print("TEST F capstone = %s" % player.unlocked_capstone_aura)
-	if player.unlocked_capstone_aura != "aura_fervor":
-		failures.append("the capstone node bought nothing")
+	# --- F: the two outer auras, through the BOARD rather than through the API ------
+	# They were capstones: a one-or-the-other fork, visible from the start, gated behind 20
+	# owned ranks. They are ordinary skills now - hidden until a neighbour is owned, ranked to
+	# five, and BOTH buyable. All three of those are checked here, and the first is why this
+	# block has to own a connected skill before it can buy anything at all.
+	player.aura_ranks.clear()
+	# Red has to be genuinely EMPTY for the reachability check below to mean anything: earlier
+	# blocks in this file buy red skills, and branch 6 is adjacent to 3 and 4, so leaving those
+	# owned makes the node legitimately reachable and the assertion passes for the wrong reason.
+	# (That is what it did on the first run of this rewrite.)
+	GameSettings.debug_free_skills = false
+	for branch: int in range(1, 6):
+		player.spell_ranks.erase("red_%d" % branch)
+		player.unlocked_spells_in_path.erase("red_%d" % branch)
+	player.skill_points = 40
 
-	# And that the other half of the fork is now refused, from the board as well.
-	var manifestation: Dictionary = _record(st, "red", SkillTree.CAPSTONE_BRANCHES[1])
-	st._on_node_pressed("red", SkillTree.CAPSTONE_BRANCHES[1], manifestation["info"])
-	if player.unlocked_capstone_aura != "aura_fervor":
-		failures.append("the fork let a second capstone be bought")
+	var unreachable: Dictionary = _record(st, "red", SkillTree.AURA_BRANCHES[0])
+	st._on_node_pressed("red", SkillTree.AURA_BRANCHES[0], unreachable["info"])
+	if player.get_aura_rank("aura_fervor") > 0:
+		failures.append("an outer aura was buyable with no connected skill owned")
+
+	# ...and it must LOOK undiscovered too, not merely refuse the click. An unreachable node
+	# wears its colour's mana pip instead of its own icon; the aura branch used to draw itself
+	# and skip past the code that does the swap, so it sat on the board fully legible while
+	# every other undiscovered node was a pip.
+	st.update_ui()
+	var pip: Texture2D = st._mana_pip_texture("red")
+	var drawn: Texture2D = (_record(st, "red", SkillTree.AURA_BRANCHES[0])["button"] as TextureButton).texture_normal
+	if drawn != pip:
+		failures.append("an unreachable aura showed its own icon instead of the mana pip")
+
+	# Branch 6 connects to 3 and 4, branch 7 to 4 and 5 (SkillTree.BRANCH_EDGES), so owning
+	# red_4 reaches both at once.
+	player.spell_ranks["red_4"] = 1
+	if not player.unlocked_spells_in_path.has("red_4"):
+		player.unlocked_spells_in_path.append("red_4")
+
+	var attunement: Dictionary = _record(st, "red", SkillTree.AURA_BRANCHES[0])
+	for _rank in range(GameSettings.spell_max_rank):
+		st._on_node_pressed("red", SkillTree.AURA_BRANCHES[0], attunement["info"])
+	print("TEST F aura rank = %d" % player.get_aura_rank("aura_fervor"))
+	if player.get_aura_rank("aura_fervor") != GameSettings.spell_max_rank:
+		failures.append("the aura did not rank to max")
+
+	# ...and the other one is NOT refused any more. This assertion is the inverse of the one
+	# it replaces, which is the whole point of removing the capstone fork.
+	var manifestation: Dictionary = _record(st, "red", SkillTree.AURA_BRANCHES[1])
+	st._on_node_pressed("red", SkillTree.AURA_BRANCHES[1], manifestation["info"])
+	if player.get_aura_rank("aura_orb_of_fire") <= 0:
+		failures.append("the colour's second aura was still refused")
+
+	# Put red back. Stripping it above is only a precondition for the reachability check, and
+	# the blocks that follow buy and cast red spells - leaving it empty made three of them fail
+	# for reasons that had nothing to do with what they test.
+	for branch: int in range(1, 6):
+		var spell_id: String = "red_%d" % branch
+		player.spell_ranks[spell_id] = 1
+		if not player.unlocked_spells_in_path.has(spell_id):
+			player.unlocked_spells_in_path.append(spell_id)
 
 	_check_heavy_retrigger_guard(player, failures)
 	_check_spell_charge(player, failures)

@@ -61,8 +61,15 @@ const ANIM_SETS := {
 		"hit": ANIM_ROOT + "sword_shield/hit.fbx",
 		"death": ANIM_ROOT + "sword_shield/death.fbx",
 	},
+	# The zombie set's OWN walk reads badly on the zombie lord - it is a shambling, near-static
+	# shuffle that barely moves the legs, which on a boss-sized body looks like a stuck pose
+	# rather than a walk. It borrows the mutant set's instead, the same one the treant uses:
+	# a heavy, wide-legged stride that suits a body this size. Every clip in this file is
+	# Mixamo-rigged and therefore interchangeable between these rigs (see the header) - the
+	# swap is one path, and tools/tests/boss_animations.gd checks the borrowed clip's bones all
+	# exist on the zombie lord's own skeleton.
 	"zombie": {
-		"walk": ANIM_ROOT + "zombie/walk.fbx",
+		"walk": ANIM_ROOT + "mutant/walk.fbx",
 		"attack": ANIM_ROOT + "zombie/attack.fbx",
 		"special": ANIM_ROOT + "zombie/special_headbutt.fbx",
 		"hit": ANIM_ROOT + "zombie/hit.fbx",

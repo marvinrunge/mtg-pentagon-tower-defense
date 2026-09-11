@@ -74,9 +74,10 @@ func start_next_wave() -> void:
 	for group in wave_config:
 		var initial_delay: float = GameSettings.wave_initial_warning_time if is_first_group else GameSettings.wave_delay_between_colors
 		is_first_group = false
+		var cluster_size: int = maxi(1, GameSettings.wave_spawn_cluster_size)
 		
 		for i in range(group["count"]):
-			var spawn_delay: float = initial_delay if i == 0 else max(GameSettings.wave_spawn_delay_min, GameSettings.wave_spawn_delay_base - (current_wave * GameSettings.wave_spawn_delay_scaling))
+			var spawn_delay: float = _spawn_delay_for_group_index(i, initial_delay, cluster_size)
 			var spawn_info: Dictionary = {
 				"color": group["color"],
 				"type": group["type"],
@@ -84,6 +85,7 @@ func start_next_wave() -> void:
 				"group_start": i == 0,
 				"elite": "",
 				"index": i,
+				"cluster_slot": i % cluster_size,
 				"total": group["count"]
 			}
 			enemies_to_spawn.append(spawn_info)
@@ -121,17 +123,7 @@ func spawn_next_enemy() -> void:
 	if main_controller and main_controller.enemy_spawners.size() > lane_idx:
 		var spawner = main_controller.enemy_spawners[lane_idx]
 		
-		# V-shape formation logic
-		var idx = info["index"]
-		var row = floor(float(idx) / 2.0)
-		var side = 1.0 if (idx % 2 == 1) else -1.0
-		if idx == 0: side = 0.0 # Center point
-		
-		# Spawner local axes: basis.z points backward (away from crystal), basis.x points right
-		var offset = (spawner.global_transform.basis.z * row * 3.0) + (spawner.global_transform.basis.x * side * 3.0)
-		
-		# Add a tiny bit of random jitter so they aren't completely rigid
-		offset += Vector3(randf_range(-0.5, 0.5), 0, randf_range(-0.5, 0.5))
+		var offset: Vector3 = _cluster_spawn_offset(spawner, int(info.get("cluster_slot", info["index"])))
 
 		var desired_spawn_position: Vector3 = spawner.global_position + offset
 		var navigation_map: RID = main_controller.nav_region.get_navigation_map()
@@ -162,6 +154,25 @@ func spawn_next_enemy() -> void:
 			_trigger_next_wave()
 
 	_emit_wave_state()
+
+func _spawn_delay_for_group_index(index: int, initial_delay: float, cluster_size: int) -> float:
+	if index == 0:
+		return initial_delay
+	if index % cluster_size != 0:
+		return maxf(GameSettings.wave_spawn_delay_min, GameSettings.wave_spawn_cluster_delay)
+	return maxf(GameSettings.wave_spawn_delay_min, GameSettings.wave_spawn_delay_base - (current_wave * GameSettings.wave_spawn_delay_scaling))
+
+func _cluster_spawn_offset(spawner: Node3D, slot: int) -> Vector3:
+	var row: int = slot / 2
+	var side: float = 1.0 if (slot % 2 == 1) else -1.0
+	if slot == 0:
+		side = 0.0
+	var offset: Vector3 = spawner.global_transform.basis.z * float(row) * GameSettings.wave_spawn_cluster_depth_spacing
+	offset += spawner.global_transform.basis.x * side * GameSettings.wave_spawn_cluster_lateral_spacing
+	var jitter: float = GameSettings.wave_spawn_cluster_jitter
+	if jitter > 0.0:
+		offset += Vector3(randf_range(-jitter, jitter), 0.0, randf_range(-jitter, jitter))
+	return offset
 
 func _color_to_lane_index(color: String) -> int:
 	match color:
@@ -243,7 +254,14 @@ func _pick_elite_modifier() -> String:
 func _emit_lane_warning(spawn_info: Dictionary) -> void:
 	var lane_name: String = spawn_info["color"]
 	var enemy_type: String = spawn_info["type"]
-	var message: String = "%s LANE - %s ASSAULT" % [lane_name.to_upper(), enemy_type.to_upper()]
+	# A boss gets its own wording rather than "RED LANE - BOSS ASSAULT". It is the one arrival
+	# the player has to stop what they are doing for, and it reads back in the Tab log as an
+	# event rather than as one more lane warning among fifty.
+	var message: String = ""
+	if enemy_type == "Boss":
+		message = "%s BOSS HAS ARRIVED" % lane_name.to_upper()
+	else:
+		message = "%s LANE - %s ASSAULT" % [lane_name.to_upper(), enemy_type.to_upper()]
 	if spawn_info["elite"] != "":
 		message += " - ELITE %s" % String(spawn_info["elite"]).to_upper()
 	SignalBus.lane_warning_requested.emit(lane_name, message, _get_lane_color(lane_name))

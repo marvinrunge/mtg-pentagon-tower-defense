@@ -64,6 +64,14 @@ func _ready() -> void:
 	_build_ui()
 	hide()
 	SignalBus.upkeep_started.connect(_on_upkeep_started)
+	# The panel closes on the SIGNAL, not only on the local decision to close it. Both
+	# ways Upkeep ends - the clock running out and everybody pressing ready - are judged
+	# by the server, which then called _finish() on itself alone; every client was left
+	# staring at a panel that would not go away while the next wave walked in behind it.
+	# WaveManager already relays `upkeep_finished` to every peer, so listening to it is
+	# the whole fix. Re-entry is harmless: _finish() returns immediately once _active is
+	# false, which it sets before emitting.
+	SignalBus.upkeep_finished.connect(_finish)
 	SignalBus.mana_changed.connect(func(_pool: Dictionary): _refresh())
 	SignalBus.enchantment_changed.connect(func(_c: String, _s: int): _refresh())
 
@@ -223,6 +231,9 @@ func _request_skill_point() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _grant_point_to_all() -> void:
+	# Counted as well as handed out, so a player who is not here to receive it still gets
+	# it when they come back. See RunState.points_awarded.
+	RunState.points_awarded += 1
 	for player: Node in get_tree().get_nodes_in_group("player"):
 		if player.has_method("grant_skill_points"):
 			player.grant_skill_points(1)

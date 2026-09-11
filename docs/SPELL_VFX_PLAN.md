@@ -87,12 +87,22 @@ read as hobby VFX. `ember_fx.gd`'s header already argues this for fire; the rule
 **Status: done, bar polish.** `scripts/spell_fx.gd` exists with `shockwave`, `beam`,
 `sparks`, `impact`, `cast_glow` and `ground_decal`; the three old helpers are forwarders
 into it, so all 21 call sites moved at once. The settle beat is wired for four spells
-(Fireball scorch, Frostwave frost, Fear blight, Wall of Souls footprint). The five dialect
+(Fireball scorch, Frost Breath frost, Fear blight, Wall of Souls footprint). The five dialect
 colours are constants in `Player` (`FX_WHITE` … `FX_GREEN`) rather than literals typed per
 call site, which is how white had ended up with four different whites.
 
+**The aura orbs were the last holdout** and were caught on 2026-09-10. `OrbitingOrb`
+predates the effect layer and never moved onto it: its bolts were still built as emissive
+CYLINDERS, the exact thing `energy_beam.gdshader`'s own header says it exists to replace,
+which is why the orbs' shots looked untouched while every spell's beam had been redone. They
+go through `SpellFx.beam` now, and each shot LANDS - a flash and a scatter of points, in the
+mode's own texture slot (shard / spark / mote). Two of the three orb BODIES were in the same
+state: only the Winter Orb had a real material, a shell and orbiting particles, while Orb of
+Fire and Healing Orb were unshaded emissive spheres - flat circles with no rim and no light
+falling across them, which is the whole reason they read as placeholder next to the blue one.
+
 **Every one of the 25 now draws something**, which was not true before: Giant Growth had no
-effect of any kind, and Fireball, Rain of Ember, Fire Dash and Titanic Leap had no moment
+effect of any kind, and Fireball, Rain of Ember, Fire Dash and Titanic Brawl had no moment
 at the CASTER — their visuals lived entirely in the projectile, zone or trail they created,
 so the caster played a full cast animation with nothing happening near them.
 

@@ -28,6 +28,18 @@ const COLORS: Array[String] = ["White", "Blue", "Black", "Red", "Green"]
 # --- XP and levels ------------------------------------------------------------
 
 var team_xp: float = 0.0
+## Every skill point this run has handed to EVERY player: one per team level, plus one
+## for each time the Upkeep panel bought the party a point.
+##
+## Kept as a running total rather than left implicit in the level, because the Upkeep
+## purchases are not derivable from anything else - and because a total is the only form
+## a player who was disconnected while it grew can act on. Skill points used to be paid
+## out by iterating the avatars in the tree at the moment of the level-up, so a player who
+## dropped out for five minutes came back with exactly what they left with while the rest
+## of the party had levelled twice.
+var points_awarded: int = 0
+
+
 var team_level: int = 1
 
 # --- mana ---------------------------------------------------------------------
@@ -60,18 +72,30 @@ func _process(delta: float) -> void:
 		return
 	_flush_timer = GameSettings.run_state_sync_interval
 	_dirty = false
-	_apply_state.rpc(team_xp, team_level, mana_pool, enchantments)
+	_apply_state.rpc(team_xp, team_level, mana_pool, enchantments, points_awarded)
 
 
 ## The whole economy in one message. Small enough that sending it entire is cheaper than
 ## working out which field moved, and it cannot drift the way incremental updates can.
 @rpc("authority", "call_remote", "reliable")
-func _apply_state(xp: float, level: int, pool: Dictionary, ench: Dictionary) -> void:
+func _apply_state(xp: float, level: int, pool: Dictionary, ench: Dictionary, awarded: int = 0) -> void:
 	team_xp = xp
 	team_level = level
 	mana_pool = pool
 	enchantments = ench
+	points_awarded = awarded
 	SignalBus.mana_changed.emit(mana_pool)
+	# Emitted with levels_gained ZERO, which is what makes this a statement of where the
+	# run is rather than a level-up: Player._on_team_level_changed returns early on a zero
+	# gain, so nothing is paid out twice - but it still sets Blade Dance, which is
+	# otherwise granted only at the instant of the level-up that reached BLADE_DANCE_LEVEL
+	# and so was lost by anyone who arrived or reconnected afterwards.
+	SignalBus.team_level_changed.emit(team_level, 0)
+	# ...and whatever levels were missed while away are settled here, from the total rather
+	# than from the events, because the events happened to nobody.
+	var local: Node = PlayerRegistry.get_local()
+	if local != null and local.has_method("reconcile_skill_points"):
+		local.reconcile_skill_points()
 
 
 ## The whole economy, to ONE peer. The periodic flush only fires when something has
@@ -80,12 +104,13 @@ func _apply_state(xp: float, level: int, pool: Dictionary, ench: Dictionary) -> 
 func push_state_to(peer_id: int) -> void:
 	if not Net.is_active() or not Net.is_server():
 		return
-	_apply_state.rpc_id(peer_id, team_xp, team_level, mana_pool, enchantments)
+	_apply_state.rpc_id(peer_id, team_xp, team_level, mana_pool, enchantments, points_awarded)
 
 
 func reset() -> void:
 	team_xp = 0.0
 	team_level = 1
+	points_awarded = 0
 	for color: String in COLORS:
 		mana_pool[color] = 0
 		_mana_fraction[color] = 0.0
@@ -138,6 +163,7 @@ func add_xp(amount: float) -> void:
 func _apply_level(xp: float, level: int, levels_gained: int) -> void:
 	team_xp = xp
 	team_level = level
+	points_awarded += levels_gained
 	for player: Node in get_tree().get_nodes_in_group("player"):
 		if player.has_method("grant_skill_points"):
 			player.grant_skill_points(levels_gained)

@@ -6,6 +6,11 @@ signal mana_deposited(color: String, amount: int)
 
 signal health_changed(current: float, max_health: float)
 signal player_health_changed(current_health: float, max_health: float)
+## Absorption the local player is currently carrying, from all three sources at once -
+## Circle of Protection, Glorious Anthem and Rhystic Study. One number rather than one signal
+## per source: they are spent as one pool (see Player.take_damage) and the bar draws them as
+## one segment, so splitting them here would only make two places reassemble the same total.
+signal player_shield_changed(amount: float)
 signal mana_changed(mana_pool: Dictionary)
 signal game_over()
 
@@ -29,7 +34,7 @@ signal quick_slots_changed()
 signal spell_charge_changed(current_charge: float, max_charge: float, is_charging: bool)
 signal status_effect_applied(target: Node3D, effect_type: String, duration: float)
 signal active_spell_changed(spell_name: String)
-signal player_capstone_aura_changed()
+signal player_auras_changed()
 signal at_base_changed(is_at_base: bool)
 signal wave_started(wave_number: int)
 signal wave_completed(wave_number: int)
@@ -51,7 +56,15 @@ signal players_changed(count: int)
 ## hotbar and a minimap is a skill tree nobody can read.
 signal menu_opened(menu: String, is_open: bool)
 signal interact_prompt_changed(text: String, visible: bool)
-signal damage_number_requested(pos: Vector3, amount: float, color: Color)
+## The run's objective, announced once at the start. A signal rather than the HUD reading it
+## from somewhere: WHAT the mission is belongs to the game mode that set it up, and what the
+## announcement looks like belongs to the HUD, the same split every other readout here uses.
+signal mission_announced(objective: String)
+## `label` overrides the formatted number when it is not empty - "Fogged", "Warded". The
+## floating number is how this game says "something happened here", and a few effects have
+## something to say that is not a quantity. One signal rather than a second parallel one, so
+## everything that floats over the world keeps sharing a pool and a settings toggle.
+signal damage_number_requested(pos: Vector3, amount: float, color: Color, label: String)
 signal enemy_health_bars_visibility_changed(is_enabled: bool)
 
 # strength is in world units of camera offset; the player applies it to its own
