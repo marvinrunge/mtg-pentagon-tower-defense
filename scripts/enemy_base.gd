@@ -148,6 +148,28 @@ var elite_regeneration_per_second: float = 0.0
 var elite_crystal_damage_multiplier: float = 1.0
 var has_green_mage_buff: bool = false
 
+# --- Squad formation ---------------------------------------------------------------
+#
+# A wave now arrives as whole formations rather than as a queue of individuals (see
+# EnemySquad), and while an enemy is IN one it walks to a slot measured off the squad's
+# moving anchor instead of straight at the crystal, capped to the squad's march speed so
+# the melee cannot outrun the mages they are supposed to be screening.
+#
+# Untyped on purpose: EnemySquad has to name EnemyBase and this would have to name
+# EnemySquad, and a pair of class_name scripts annotating each other is the cycle GDScript
+# resolves badly. Everything here goes through duck typing instead.
+#
+# `leave_formation()` is the single exit, and it is deliberately one-way - an enemy that
+# has broken ranks never re-joins. Re-forming mid-fight would mean walking back out of a
+# fight it is already in.
+var squad = null
+## Cached off the squad at join time so the per-frame leash check costs no calls.
+var _formation_leash: float = 0.0
+## Charge bonus from the squad, kept on the ENEMY rather than read off the squad so it
+## survives the squad dissolving at the moment of contact.
+var charge_timer: float = 0.0
+var charge_mult: float = 1.0
+
 func _ready() -> void:
 	# Spawned through MultiplayerSpawner, so the colour/class pair arrives as metadata
 	# that _spawn_enemy set identically on every peer - setup() then rebuilds the same
@@ -260,7 +282,12 @@ func update_path(force_update: bool = false) -> void:
 		return
 	
 	var target_pos: Vector3 = Vector3.ZERO
-	if current_target and is_instance_valid(current_target):
+	if is_in_formation():
+		# The slot, not the objective. The squad's anchor is already walking towards the
+		# crystal, so this still converges on it - just in rank, and at the formation's
+		# pace rather than this enemy's own.
+		target_pos = squad.formation_target(self)
+	elif current_target and is_instance_valid(current_target):
 		target_pos = current_target.global_position
 	elif target_crystal and is_instance_valid(target_crystal):
 		target_pos = target_crystal.global_position
@@ -268,6 +295,45 @@ func update_path(force_update: bool = false) -> void:
 	if force_update or target_pos.distance_squared_to(last_target_position) > 0.1:
 		nav_agent.target_position = target_pos
 		last_target_position = target_pos
+
+## Whether this enemy is currently walking to a formation slot rather than fighting.
+##
+## Every condition here is a reason the slot has stopped being the right place to be: the
+## squad dissolved, something worth attacking came into view, or the enemy is being moved
+## by an effect that overrides its own intentions entirely.
+func is_in_formation() -> bool:
+	if squad == null or not is_instance_valid(squad) or not squad.holds_formation():
+		return false
+	if flee_timer > 0.0 or taunt_timer > 0.0:
+		return false
+	return current_target == target_crystal or current_target == null
+
+
+func join_squad(new_squad) -> void:
+	squad = new_squad
+	_formation_leash = new_squad.leash()
+	update_path(true)
+
+
+## Breaking ranks. One-way, and safe to call more than once - disband() calls it for every
+## member at the same moment a member may be calling it for itself.
+func leave_formation() -> void:
+	if squad == null:
+		return
+	var former = squad
+	squad = null
+	if is_instance_valid(former):
+		former.release(self)
+	update_path(true)
+
+
+## The squad's charge. Lives on the enemy rather than on the squad so it outlasts the
+## formation dissolving - the charge is most of the point at exactly the moment the ranks
+## come apart on the crystal.
+func apply_squad_charge(duration: float, multiplier: float) -> void:
+	charge_timer = maxf(charge_timer, duration)
+	charge_mult = maxf(charge_mult, multiplier)
+
 
 ## Position, rotation, health, motion and dying, authored by the server. An enemy's AI is
 ## expensive and must reach the same answer everywhere, so only the server runs it; clients
@@ -435,6 +501,10 @@ func _physics_process(delta: float) -> void:
 		slow_timer -= delta
 		if slow_timer <= 0.0:
 			slow_mult = 1.0
+	if charge_timer > 0.0:
+		charge_timer -= delta
+		if charge_timer <= 0.0:
+			charge_mult = 1.0
 	if taunt_timer > 0.0:
 		taunt_timer -= delta
 		if taunt_timer <= 0.0:
@@ -499,11 +569,46 @@ func _physics_process(delta: float) -> void:
 		_update_visual_animation()
 		return
 
+	# The leash. A member that has been shoved further from its slot than its colour
+	# tolerates gives up on the formation rather than walking back through whoever shoved
+	# it to stand in a rank. Re-pathing is not needed here: the ordinary path_update_timer
+	# above already refreshes the target every enemy_path_update_interval, and for a member
+	# in formation update_path() resolves that target to the live slot.
+	var holding_formation: bool = is_in_formation()
+	if holding_formation and global_position.distance_to(squad.formation_target(self)) > _formation_leash:
+		leave_formation()
+		holding_formation = false
+
+	# A formation slot MOVES, which breaks every assumption the ordinary movement block
+	# makes about arriving somewhere. The navigation agent calls itself finished within 1.5
+	# units of its target - further than a slot travels in a frame - so an enemy that used
+	# that as its stop condition would halt, be left behind, walk, halt again, and flicker
+	# between its walk and idle clips the whole way down the lane. Instead a member in
+	# formation never stops navigating and moves at exactly the speed needed to stay on its
+	# slot, which in steady state IS the squad's march speed.
+	var formation_pull: float = -1.0
+	if holding_formation:
+		var slot_gap: Vector3 = squad.formation_target(self) - global_position
+		slot_gap.y = 0.0
+		formation_pull = slot_gap.length() / maxf(delta, 0.0001)
+
 	# Movement
 	var is_in_attack_range: bool = dist_to_target <= enemy_data.attack_range
-	if not is_in_attack_range and root_timer <= 0 and not nav_agent.is_navigation_finished():
+	if not is_in_attack_range and root_timer <= 0 and (holding_formation or not nav_agent.is_navigation_finished()):
 		var next_path_position = nav_agent.get_next_path_position()
-		var new_velocity: Vector3 = (next_path_position - global_position).normalized() * enemy_data.speed * movement_speed_mult()
+		# Close to its slot, a member steers at the LIVE slot rather than at the path's end
+		# point, which is up to one repath interval out of date and would drag the whole
+		# formation a step backwards every time it refreshed.
+		if holding_formation and nav_agent.is_navigation_finished():
+			next_path_position = squad.formation_target(self)
+		var move_speed: float = enemy_data.speed * movement_speed_mult()
+		# The cap is what makes a formation a formation: everyone moves at the anchor's
+		# pace (plus a little, so stragglers can close up) instead of at their own, so a
+		# 2.5-speed melee cannot leave the 1.5-speed mage it is screening behind.
+		if holding_formation:
+			move_speed = minf(move_speed, squad.member_speed_limit())
+			move_speed = minf(move_speed, formation_pull)
+		var new_velocity: Vector3 = (next_path_position - global_position).normalized() * move_speed
 		velocity.x = new_velocity.x
 		velocity.z = new_velocity.z
 		
@@ -1167,6 +1272,12 @@ func evaluate_target() -> void:
 		current_target = best_target
 		update_path(true)
 
+	# Seeing something worth attacking is the ordinary way out of a formation: the slot was
+	# only ever a way of getting here. The squad is told so it can stop counting this one,
+	# and so a squad that has lost most of its members can stand itself down.
+	if squad != null and current_target != target_crystal:
+		leave_formation()
+
 func _on_aggro_body_entered(body: Node3D) -> void:
 	evaluate_target()
 
@@ -1197,6 +1308,11 @@ func request_damage(amount: float, attacker_peer: int, is_melee: bool, exile_on_
 func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false, exile_on_kill: bool = false) -> void:
 	if is_dying:
 		return
+	# Some colours hold their formation under fire and some do not (SquadDoctrine's
+	# break_on_damage - Red's goblins scatter the moment anything touches them). The squad
+	# owns that decision, so it is asked rather than told.
+	if squad != null and is_instance_valid(squad):
+		squad.on_member_damaged(self)
 	if exile_on_kill:
 		_exile_on_death = true
 	if curse_timer > 0:
@@ -1240,6 +1356,10 @@ func _react_to_hit(damage_dealt: float) -> void:
 		_impact_timer = -1.0
 
 func die() -> void:
+	# The slot goes back before anything else happens: a corpse holds one for the couple of
+	# seconds its death animation runs, and a squad measuring its march speed off a dead
+	# mage would keep walking at the dead mage's pace.
+	leave_formation()
 	# Exiled rather than killed: same rewards, no body left behind. See exile().
 	if _exile_on_death:
 		exile()
@@ -1488,6 +1608,11 @@ func movement_speed_mult() -> float:
 		mult = GameSettings.enemy_frost_slow_mult
 	if slow_timer > 0.0:
 		mult = minf(mult, slow_mult)
+	# Applied on TOP of the slows rather than clamped against them: a charge that a single
+	# frost stack could cancel outright would not read as a charge at all, and a charging
+	# enemy that has been slowed should still be visibly faster than a walking one.
+	if charge_timer > 0.0:
+		mult *= charge_mult
 	return mult
 
 
@@ -1508,6 +1633,7 @@ func apply_fear(duration: float, origin: Vector3) -> void:
 	flee_timer = maxf(flee_timer, duration)
 	flee_from = origin
 	current_target = null
+	leave_formation()
 
 
 ## Runs directly away from whatever caused the fear. Deliberately NOT navigated: the
@@ -1537,6 +1663,10 @@ func apply_taunt(source: Node3D, duration: float) -> void:
 	taunt_source = source
 	flee_timer = 0.0
 	pacified_timer = 0.0
+	# Roar is meant to pull an enemy OUT of whatever it was doing, and standing in a rank
+	# is something to be pulled out of. Left in the squad it would keep being counted as a
+	# member and would walk straight back to its slot the moment the taunt expired.
+	leave_formation()
 	evaluate_target()
 
 

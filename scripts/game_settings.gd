@@ -842,18 +842,68 @@ func rank_level_requirement(rank: int) -> int:
 # ============================================================
 # WAVES
 # ============================================================
+## Pause before the first battle group of a wave lands, which is also how long the player
+## has to read its warning banner.
 @export var wave_initial_warning_time: float = 2.5
-@export var wave_delay_between_colors: float = 3.5
 ## Superseded by upkeep_duration - kept only as the pause before the very first wave.
 @export var wave_rest_period: float = 3.0
-@export var wave_spawn_delay_base: float = 1.0
-@export var wave_spawn_delay_scaling: float = 0.05
-@export var wave_spawn_delay_min: float = 0.1
-@export var wave_spawn_cluster_size: int = 3
-@export var wave_spawn_cluster_delay: float = 0.18
-@export var wave_spawn_cluster_lateral_spacing: float = 2.4
-@export var wave_spawn_cluster_depth_spacing: float = 2.0
-@export var wave_spawn_cluster_jitter: float = 0.45
+
+# --- Battle groups ---------------------------------------------------------------------
+#
+# A wave is a handful of BATTLE GROUPS, not a spawn queue. Each group is a run of adjacent
+# (which on the colour wheel means ALLIED) colours whose squads spawn simultaneously, in
+# formation, converge on a hold line short of the crystal, wait for each other and charge
+# together. The per-enemy spawn delays and cluster spacing that used to live here are gone
+# with the queue: spacing is now the formation's own business (SquadDoctrine) and a squad
+# arrives all at once.
+
+## Gap between one battle group landing and the next. Long enough that two groups are two
+## distinct pushes rather than one shapeless mass, short enough that they overlap by the
+## time they reach the crystal - a lane is ~180 units and a melee walks it in about a
+## minute, so everything deployed inside a wave is fighting at the same time regardless.
+##
+## This replaces a per-COLOUR delay that was applied after the previous colour had finished
+## trickling in, which is how a wave of ten spawn groups ended up spread over more than a
+## minute of deployment and was fought colour by colour. A late wave is now two or three
+## groups, all on the map inside twenty seconds - the same enemies, arriving as an army.
+@export var wave_delay_between_groups: float = 10.0
+## From this wave on, ALLIED NEIGHBOURS pair up: two adjacent lanes arrive together, form
+## up between their lanes and charge as one. Before it, every colour comes in on its own.
+@export var wave_alliance_start_wave: int = 4
+## From this wave on, groups can be three adjacent colours - a shard of the wheel.
+@export var wave_shard_start_wave: int = 9
+## From this wave on, all five colours can arrive in a single push.
+@export var wave_grand_alliance_start_wave: int = 16
+## How far from the crystal a warband forms up before charging. The lane spawners sit at
+## ~180 and the mana wells at ~112, so this puts the hold line just inside the wells -
+## close enough that the player can see it happening and go and break it up.
+@export var wave_rally_radius: float = 100.0
+## How far towards its battle group's centre a squad converges to form up, as a fraction of
+## the way from its own lane. 1.0 would be a single shared point on the arc between the
+## lanes, which costs each squad a sideways detour about as long as the lane itself - ground
+## with nothing on it. At 0.75 two neighbours end up about thirty units apart, which reads
+## as one army massing, and the lanes close the rest of the gap during the charge.
+@export var wave_rally_convergence: float = 0.75
+## Longest a squad will stand at the rendezvous waiting for the rest of its warband. A
+## safety net against a partner that is alive but pinned, not a pacing knob.
+@export var wave_rally_timeout: float = 12.0
+## How fast a formation wheels onto a new heading, in radians per second of blend. Low
+## enough that turning towards a rendezvous off the lane's axis reads as a manoeuvre rather
+## than as the whole squad's slots teleporting around its anchor.
+@export var wave_squad_turn_speed: float = 1.2
+## How close a squad's anchor has to get to a waypoint to count as having arrived.
+@export var wave_squad_arrive_radius: float = 4.0
+## How much faster than the formation's march speed a member may move while catching up to
+## its slot. 1.0 would mean anyone who fell behind stays behind forever.
+@export var wave_squad_catchup_mult: float = 1.35
+## How far short of its break radius a squad starts running. A formation that walked into
+## contact at marching pace would make the charge invisible on the one colour that has no
+## warband to charge out of a rendezvous with.
+@export var wave_squad_charge_lead: float = 18.0
+## Below this share of its original size a squad stops being a formation and its survivors
+## go and fight. Three enemies walking in rank towards a crystal they cannot threaten only
+## makes the wave take longer to finish.
+@export var wave_squad_disband_fraction: float = 0.35
 ## How much bigger a wave gets per player beyond the first. Enemy DAMAGE already scales
 ## with head count (get_player_scaling_factor), but wave SIZE never did - five players
 ## against a solo-sized wave shred it without the crystal ever being threatened, and earn
