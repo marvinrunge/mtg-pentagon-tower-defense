@@ -335,7 +335,8 @@ func _check_red() -> void:
 	_check("red_1 Fireball", true)
 
 	_player._dash_timer = 0.0
-	_player.cast_red_fire_dash()
+	# The dash lives in SpellEffects now, like every other spell body.
+	SpellEffects.cast_red_fire_dash(_player)
 	_check("red_2 Fire Dash (launch)", _player._dash_timer > 0.0, "no dash")
 	_clear_spawned()
 	_cast("red_2")

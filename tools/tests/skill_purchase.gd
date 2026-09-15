@@ -41,6 +41,14 @@ func _run() -> void:
 		print("TEST RESULT: FAIL (no tree or no player)")
 		return
 
+	# Opened for the whole run, because half of what is checked below is what the board
+	# DRAWS - which icon a node wears, what a badge says, whether anything sits off
+	# screen. update_ui() does nothing while the tree is hidden (it is driven by eight
+	# signals, one of them every enemy death, and restyling forty nodes behind a closed
+	# panel was pure waste), so a test that reads those visuals has to have it open. A
+	# player pressing these buttons is looking at them.
+	st.set_open(true)
+
 	var failures: Array[String] = []
 
 	# --- A: debug free skills buys an affinity with zero points -------------------
@@ -159,6 +167,53 @@ func _run() -> void:
 	_check_ranks(st, player, failures)
 	_check_connectivity(st, player, failures)
 	_check_layout(st, failures)
+
+	# --- every kind of owned node says how far in it is --------------------------
+	#
+	# Four kinds sit on this board and all four rank up, but only spells were showing it.
+	# The aura branch of update_ui set its badge and then fell into the SPELL branch,
+	# which looked the aura's id up as a spell, got rank 0 and wiped it - the two were
+	# separate `if` statements rather than one chain. The colour's own affinity node never
+	# set a badge at all, which made the node everything else is gated behind the one node
+	# that would not tell you how far in you were.
+	st.set_open(true)
+	GameSettings.debug_free_skills = true
+	player.skill_points = 60
+	for branch: int in range(0, 6):
+		var rec: Dictionary = _record(st, "red", branch)
+		if not rec.is_empty():
+			for _n: int in range(2):
+				st._on_node_pressed("red", branch, rec["info"])
+	for aura_branch: int in SkillTree.AURA_BRANCHES:
+		var aura_rec: Dictionary = _record(st, "red", aura_branch)
+		if not aura_rec.is_empty():
+			for _n: int in range(2):
+				st._on_node_pressed("red", aura_branch, aura_rec["info"])
+	player.passive_ranks["trample_strike"] = 2
+	st.update_ui()
+
+	for rec: Dictionary in st._button_records:
+		if String(rec["color"]) != "red":
+			continue
+		var info: Dictionary = rec["info"]
+		var id: String = String(info.get("id", ""))
+		var owned_rank: int = 0
+		if bool(info.get("is_affinity", false)):
+			owned_rank = player.get_affinity_rank("red")
+		elif bool(info.get("is_aura", false)):
+			owned_rank = player.get_aura_rank(id)
+		elif bool(info.get("is_passive", false)):
+			owned_rank = player.get_passive_rank(id)
+		else:
+			owned_rank = player.get_spell_rank(id)
+		if owned_rank <= 0:
+			continue
+		var badge: Label = rec["badge"]
+		if badge.text == "" or not badge.visible:
+			failures.append("%s is at rank %d and shows no progress" % [id, owned_rank])
+	print("TEST W badges: affinity=%d fervor=%d trample=%d red_1=%d" % [
+		player.get_affinity_rank("red"), player.get_aura_rank("aura_fervor"),
+		player.get_passive_rank("trample_strike"), player.get_spell_rank("red_1")])
 
 	if failures.is_empty():
 		print("TEST RESULT: PASS")

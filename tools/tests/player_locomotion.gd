@@ -40,6 +40,50 @@ func _check(label: String, condition: bool, detail: String = "") -> void:
 		_failures.append(label)
 
 
+## Blocking while moving: the legs walk and the arms hold the block.
+##
+## Walking under guard used to be an ordinary walk with the shield down - the block was a
+## LOCOMOTION state, so the moment the legs needed the walk instead, the guard had nowhere
+## left to live. It is a filtered layer of its own now, above the legs and below the
+## action one-shot.
+func _check_guard() -> void:
+	print("GUARD")
+	var root: AnimationNodeBlendTree = _animator._tree.tree_root as AnimationNodeBlendTree
+	_check("the tree has a guard layer", root.has_node(PlayerAnimator.GUARD_NODE))
+	if not _animator._has_guard:
+		return
+
+	# Standing still keeps the full-body block pose it has always used.
+	for _i: int in range(40):
+		_animator.update_locomotion(1.0 / 60.0, Vector3.ZERO, false, true, true, false)
+	_check("standing under guard still uses the whole-body block",
+		_animator._current_loco == PlayerAnimator.BLOCK_CLIP, _animator._current_loco)
+
+	# ...and walking under it drives the legs AND raises the arms.
+	var velocity: Vector3 = _player.global_transform.basis * Vector3.FORWARD * 1.2
+	for _i: int in range(40):
+		_animator.update_locomotion(1.0 / 60.0, velocity, false, true, true, false)
+	_check("walking under guard keeps the legs walking",
+		_animator._current_loco == PlayerAnimator.WALK_SPACE, _animator._current_loco)
+	var raised: float = float(_animator._tree.get(PlayerAnimator.PARAM_GUARD_AMOUNT))
+	_check("...and puts the block on the arms", raised > 0.99, "guard %.2f" % raised)
+
+	# THE one that was reported: a parried hit plays block_react through the one-shot, and
+	# when it finishes the arms have to still be up. With the guard as a locomotion state
+	# the flinch replaced it and the character stood there with their shield down.
+	_animator.play_reaction("block_react", 0.3)
+	for _i: int in range(40):
+		_animator.update_locomotion(1.0 / 60.0, velocity, false, true, true, false)
+	var after: float = float(_animator._tree.get(PlayerAnimator.PARAM_GUARD_AMOUNT))
+	_check("a parry reaction does not drop the guard", after > 0.99, "guard %.2f" % after)
+
+	# Letting go lowers them again, on every path out - this one via plain walking.
+	for _i: int in range(40):
+		_animator.update_locomotion(1.0 / 60.0, velocity, false, true, false, false)
+	var lowered: float = float(_animator._tree.get(PlayerAnimator.PARAM_GUARD_AMOUNT))
+	_check("letting go of block lowers them", lowered < 0.01, "guard %.2f" % lowered)
+
+
 ## Drives the animator the way Player does, for `steps` physics frames, and reports which
 ## locomotion state it settled on and where its blend point ended up.
 func _walk(direction: Vector3, speed: float, steps: int = 40,
@@ -151,6 +195,8 @@ func _run() -> void:
 	var diagonal: Dictionary = _walk(Vector3.FORWARD + Vector3.RIGHT, 1.03, 60)
 	_check("a diagonal plays at about 1.0x", absf(float(diagonal["speed_scale"]) - 1.0) < 0.08,
 		"%.3f" % diagonal["speed_scale"])
+
+	_check_guard()
 
 	if _failures.is_empty():
 		print("TEST RESULT: PASS")

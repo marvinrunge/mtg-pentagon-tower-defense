@@ -386,6 +386,27 @@ static func get_color(spell_id: String) -> String:
 	return spell_id.get_slice("_", 0)
 
 
+## Icon textures, kept after the first load.
+##
+## `get_icon_path` below probes the filesystem with ResourceLoader.exists() on every call,
+## up to twice, and every caller then load()s whatever came back. Neither is expensive on
+## its own and neither is free at the rate the skill tree asks for them: one full
+## update_ui() pass wants an icon for each of forty nodes. The texture behind an id never
+## changes, so the first answer is the only one worth working out.
+static var _icon_cache: Dictionary = {}
+
+
+## The texture for `icon_id`, or null when neither it nor its colour has one.
+static func get_icon(icon_id: String, fallback_color: String = "") -> Texture2D:
+	var key: String = icon_id + "|" + fallback_color
+	if _icon_cache.has(key):
+		return _icon_cache[key]
+	var path: String = get_icon_path(icon_id, fallback_color)
+	var texture: Texture2D = load(path) as Texture2D if path != "" else null
+	_icon_cache[key] = texture
+	return texture
+
+
 static func get_icon_path(icon_id: String, fallback_color: String = "") -> String:
 	if ICON_FILES.has(icon_id):
 		var icon_path: String = ICON_ROOT + String(ICON_FILES[icon_id])

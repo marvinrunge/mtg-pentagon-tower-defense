@@ -291,6 +291,34 @@ func _run_cast_and_death_checks() -> void:
 		_client_cast_seen.rpc_id(1, {"mate": false})
 		return
 
+	# --- the guard, as a teammate sees it ------------------------------------
+	#
+	# In two halves, because the end-to-end version cannot run here: Player._update_block
+	# refuses to raise a guard unless `Input.mouse_mode == MOUSE_MODE_CAPTURED`, and a
+	# headless run has no display server to capture into - the host physically cannot
+	# block. So what is checked is the two things that make it work.
+	#
+	# One: the flag is on the wire at all. The pose itself is never sent; every peer
+	# rebuilds it from this one bool, so if it is missing from the replication set the
+	# guard can never appear on anyone else's screen.
+	var sync: MultiplayerSynchronizer = mate.get_node_or_null("Sync") as MultiplayerSynchronizer
+	var replicated: Array[String] = []
+	if sync != null and sync.replication_config != null:
+		for path: NodePath in sync.replication_config.get_properties():
+			replicated.append(String(path))
+
+	# Two: the puppet's own animator raises the guard when it is told to. This is the
+	# exact call Player._physics_process makes for a remote avatar, with the flag the
+	# wire would have delivered.
+	var forward: Vector3 = -mate.global_transform.basis.z * 1.2
+	for _i: int in range(40):
+		mate.animator.update_locomotion(1.0 / 60.0, forward, false, true, true, false)
+	_client_guard_seen.rpc_id(1, {
+		"replicated": replicated.has(":is_blocking"),
+		"guard": float(mate.animator._tree.get(PlayerAnimator.PARAM_GUARD_AMOUNT)),
+	})
+	await _wait(0.2)
+
 	_host_cast.rpc_id(1)
 	# Inside the cast's own duration: an action that has already finished is
 	# indistinguishable from one that never arrived.
@@ -349,6 +377,17 @@ func _host_revive_client() -> void:
 	var them: Node3D = _client_avatar()
 	if them != null and them.is_downed:
 		them.revive()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _client_guard_seen(view: Dictionary) -> void:
+	if not Net.is_server():
+		return
+	print("WHAT THE CLIENT SEES OF A TEAMMATE'S GUARD")
+	_check("a teammate's guard is on the wire", view.get("replicated", false),
+		"is_blocking missing from the replication set")
+	_check("and their body holds the block when it says so",
+		float(view.get("guard", 0.0)) > 0.99, "guard %.2f" % float(view.get("guard", 0.0)))
 
 
 @rpc("any_peer", "call_remote", "reliable")

@@ -651,6 +651,13 @@ func _find_record(color: String, branch_index: int) -> Dictionary:
 	return {}
 
 func update_ui() -> void:
+	# Nothing to draw while the board is closed, and this is called from eight signals -
+	# one of them `mana_changed`, which fires on every enemy that dies. A full pass
+	# restyles forty nodes and loads an icon for each, so a wave was rebuilding the whole
+	# tree once per kill behind a hidden panel. set_open() refreshes on the way in, so
+	# skipping here costs nothing.
+	if not visible:
+		return
 	var player = PlayerRegistry.get_local()
 	if player == null:
 		return
@@ -677,73 +684,13 @@ func update_ui() -> void:
 			continue
 
 		var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
-		var state: String = "available"
+		var rank: int = _node_rank(player, color, info)
+		var state: String = _node_state(player, color, branch_index, info, rank, available_mana)
+		_apply_badge(record, player, color, info, rank)
 
-		# One if/elif/else over the three kinds of node, all of them falling through to the
-		# shared drawing below. The aura branch used to draw itself and `continue` past that
-		# block, which is why an unreachable aura still wore its own icon at three quarters
-		# brightness while every other undiscovered node showed the colour's mana pip: it
-		# never reached the code that swaps the texture. Back when these were capstones the
-		# fork was meant to be visible from the start, so it was deliberate - it just outlived
-		# the reason.
-		if bool(info.get("is_aura", false)):
-			var aura_id: String = String(info["id"])
-			var aura_rank: int = _aura_rank_of(player, aura_id)
-			if aura_rank > 0:
-				state = "unlocked"
-			elif not _is_reachable(player, color, branch_index):
-				state = "unreachable"
-			elif not _gate_met(player, color, info) or not _affordable(available_mana, int(info["cost"])):
-				state = "locked"
-			if aura_rank > 0:
-				_set_badge(record, "%d/%d" % [aura_rank, GameSettings.spell_max_rank],
-					Color(1.0, 0.85, 0.35) if aura_rank >= GameSettings.spell_max_rank else Color(0.88, 0.92, 0.96))
-			else:
-				_set_badge(record, "", Color.WHITE)
-		elif bool(info.get("is_passive", false)):
-			var passive_id: String = String(info["id"])
-			var passive_rank: int = player.get_passive_rank(passive_id)
-			var passive_reachable: bool = _passive_reachable(player, color)
-			if passive_rank > 0:
-				state = "unlocked"
-			elif not passive_reachable:
-				state = "unreachable"
-			elif not _passive_gate_met(player, passive_rank + 1) or not _affordable(available_mana, GameSettings.spell_rank_point_cost):
-				state = "locked"
-			if passive_rank > 0:
-				_set_badge(record, "%d/%d" % [passive_rank, GameSettings.spell_max_rank],
-					Color(1.0, 0.85, 0.35) if passive_rank >= GameSettings.spell_max_rank else Color(0.88, 0.92, 0.96))
-			else:
-				_set_badge(record, "", Color.WHITE)
-			button.texture_normal = _get_icon_texture(info, color) if state == "unlocked" else _mana_pip_texture(color)
-			button.texture_hover = button.texture_normal
-			button.material = IconStyle.rounded_material(state == "unlocked")
-			button.modulate = _icon_modulate(state)
-			continue
-
-		if bool(info["is_affinity"]):
-			if player.get_affinity_rank(color) > 0:
-				state = "unlocked"
-			elif not _affordable(available_mana, int(info["cost"])):
-				state = "locked"
-			_set_badge(record, "", Color.WHITE)
-		else:
-			var rank: int = int(player.get_spell_rank(info["id"]))
-			if rank > 0:
-				state = "unlocked"
-			elif not _is_reachable(player, color, branch_index):
-				# Not merely unaffordable - unreachable. The node keeps its place on the
-				# board, so the shape of the colour is always legible, but it shows the
-				# colour's mana symbol instead of the spell's icon and _show_details will
-				# not name it. What is behind it is something to go and find.
-				state = "unreachable"
-			elif rank > 0 and not _investment_met(player, color, branch_index) \
-					or not _affordable(available_mana, int(info["cost"])):
-				state = "locked"
-			_set_spell_badge(record, player, String(info["id"]), rank)
-
-		if state == "unreachable":
+		if _shows_mana_pip(info, state, rank):
 			button.texture_normal = _mana_pip_texture(color)
+			# Nothing to say about a node whose name _show_details will not give either.
 			_set_badge(record, "", Color.WHITE)
 		else:
 			button.texture_normal = _get_icon_texture(info, color)
@@ -754,29 +701,178 @@ func update_ui() -> void:
 	if not _hovered_record.is_empty():
 		_show_details(_hovered_record["color"], _hovered_record["branch_index"], _hovered_record["info"])
 
+# --- what one node is worth, whatever kind it is -----------------------------
+#
+# Four kinds sit on this board and they differ in exactly four places: where the rank
+# comes from, what makes them reachable, what gates the next rank, and what the badge
+# reads. Everything else - the state ladder, the icon, the tint, the material - is the
+# same for all of them.
+#
+# They used to be four arms of one branch, each repeating that ladder with one word
+# changed. That is how the aura arm came to set a rank badge which the arm below it then
+# looked up as a spell, found at rank 0, and wiped: the duplication hid a fall-through
+# nobody could see by reading one arm. Splitting the four differences out means a fifth
+# kind is four small answers rather than a fifth arm that has to remember five things.
+
+const KIND_AURA := "aura"
+const KIND_PASSIVE := "passive"
+const KIND_AFFINITY := "affinity"
+const KIND_SPELL := "spell"
+
+
+func _node_kind(info: Dictionary) -> String:
+	if bool(info.get("is_aura", false)):
+		return KIND_AURA
+	if bool(info.get("is_passive", false)):
+		return KIND_PASSIVE
+	if bool(info.get("is_affinity", false)):
+		return KIND_AFFINITY
+	return KIND_SPELL
+
+
+## How many ranks of this node the player owns. Zero means undiscovered or merely unbought.
+func _node_rank(player: Node, color: String, info: Dictionary) -> int:
+	match _node_kind(info):
+		KIND_AURA:
+			return _aura_rank_of(player, String(info["id"]))
+		KIND_PASSIVE:
+			return player.get_passive_rank(String(info["id"]))
+		KIND_AFFINITY:
+			return player.get_affinity_rank(color)
+		_:
+			return int(player.get_spell_rank(info["id"]))
+
+
+## Whether something joined to this node is already owned, so it can be bought at all.
+func _node_reachable(player: Node, color: String, branch_index: int, info: Dictionary) -> bool:
+	match _node_kind(info):
+		KIND_PASSIVE:
+			return _passive_reachable(player, color)
+		KIND_AFFINITY:
+			# Joined to the hub, so every colour opens the same way and always can.
+			return true
+		_:
+			return _is_reachable(player, color, branch_index)
+
+
+## What the next rank costs in skill points.
+func _node_cost(info: Dictionary) -> int:
+	if _node_kind(info) == KIND_PASSIVE:
+		return GameSettings.spell_rank_point_cost
+	return int(info["cost"])
+
+
+## Whether anything OTHER than the price is holding the next rank back.
+##
+## A spell asks the colour how much has been invested in it. That requirement has always
+## been enforced on the way IN - clicking an under-invested node is refused with "Needs 5
+## invested in Red" - but the board never showed it: the old spell arm read
+## `rank > 0 and not _investment_met(...)` inside a branch only reachable at rank 0, so
+## precedence made the whole term unreachable and the node sat there looking available
+## until you clicked it. Now it reads locked, like anything else you cannot buy yet.
+func _node_gate_met(player: Node, color: String, branch_index: int, info: Dictionary, rank: int) -> bool:
+	match _node_kind(info):
+		KIND_AURA:
+			return _gate_met(player, color, info)
+		KIND_PASSIVE:
+			return _passive_gate_met(player, rank + 1)
+		KIND_AFFINITY:
+			# Joined to the hub: the price is the only thing in the way.
+			return true
+		_:
+			return _investment_met(player, color, branch_index)
+
+
+## Owned, out of reach, affordable, or merely wanted.
+func _node_state(player: Node, color: String, branch_index: int, info: Dictionary,
+		rank: int, available_mana: int) -> String:
+	if rank > 0:
+		return "unlocked"
+	if not _node_reachable(player, color, branch_index, info):
+		# Not merely unaffordable - unreachable. The node keeps its place on the board, so
+		# the shape of the colour is always legible, but it shows the colour's mana symbol
+		# instead of its own art and _show_details will not name it. What is behind it is
+		# something to go and find.
+		return "unreachable"
+	if not _node_gate_met(player, color, branch_index, info, rank) or not _affordable(available_mana, _node_cost(info)):
+		return "locked"
+	return "available"
+
+
+## Which nodes wear the colour's mana symbol instead of their own art.
+##
+## Undiscovered ones everywhere - except a between-colour passive, which keeps the pip
+## until it is OWNED rather than until it is merely reachable. Those sit in the open where
+## every colour can see them, and the whole point of them is that what they are stays
+## hidden until somebody buys one.
+func _shows_mana_pip(info: Dictionary, state: String, rank: int) -> bool:
+	if _node_kind(info) == KIND_PASSIVE:
+		return rank <= 0
+	return state == "unreachable"
+
+
+## The rank readout on the node itself.
+func _apply_badge(record: Dictionary, player: Node, color: String, info: Dictionary, rank: int) -> void:
+	if rank <= 0:
+		_set_badge(record, "", Color.WHITE)
+		return
+	match _node_kind(info):
+		KIND_AFFINITY:
+			# A bare number rather than "n/5": affinity has no cap, and borrowing the
+			# spells' five ranks would misread the board. This node is what every other
+			# one in the colour is gated behind, and it used to show nothing at all.
+			_set_badge(record, "%d" % rank, _rank_tint(rank))
+		KIND_SPELL:
+			_set_spell_badge(record, player, String(info["id"]), rank)
+		_:
+			_set_badge(record, _rank_text(rank), _rank_tint(rank))
+
+
+func _rank_text(rank: int) -> String:
+	return "%d/%d" % [rank, GameSettings.spell_max_rank]
+
+
+## Maxed reads gold, still-rankable reads plain, so a board full of ranks still shows
+## where there is room left.
+func _rank_tint(rank: int) -> Color:
+	if rank >= GameSettings.spell_max_rank:
+		return Color(1.0, 0.85, 0.35)
+	return Color(0.88, 0.92, 0.96)
+
+
 ## What a spell node says about itself without being hovered: its rank, and which key
 ## casts it. "3/5 [2]" is a whole build decision read at a glance.
 func _set_spell_badge(record: Dictionary, player: Node, spell_id: String, rank: int) -> void:
 	if rank <= 0:
 		_set_badge(record, "", Color.WHITE)
 		return
-	var text: String = "%d/%d" % [rank, GameSettings.spell_max_rank]
+	var text: String = _rank_text(rank)
 	var slot: int = _slot_of(player, spell_id)
 	if slot > 0:
 		text += "  [%d]" % slot
-	# Maxed reads gold, still-rankable reads plain, so a board full of ranks still shows
-	# where there is room left.
-	var tint: Color = Color(1.0, 0.85, 0.35) if rank >= GameSettings.spell_max_rank else Color(0.88, 0.92, 0.96)
-	_set_badge(record, text, tint)
+	_set_badge(record, text, _rank_tint(rank))
 
 
 func _set_badge(record: Dictionary, text: String, tint: Color) -> void:
 	if not record.has("badge"):
 		return
 	var badge: Label = record["badge"]
-	badge.text = text
-	badge.add_theme_color_override("font_color", tint)
-	badge.visible = text != ""
+	# Only on a real change. Each of these three is a notification, not an assignment:
+	# `text` queues a re-layout, `visible` propagates through the subtree, and a theme
+	# override invalidates the control's cached theme and walks its children. update_ui()
+	# calls this for all forty-six nodes and on almost all of them nothing has moved -
+	# which made it the single most expensive part of a pass.
+	#
+	# The tint is remembered on the record rather than read back off the control, because
+	# get_theme_color() is itself a cache miss the first time and a lookup every time.
+	if badge.text != text:
+		badge.text = text
+	var wanted: bool = text != ""
+	if badge.visible != wanted:
+		badge.visible = wanted
+	if record.get("badge_tint") != tint:
+		record["badge_tint"] = tint
+		badge.add_theme_color_override("font_color", tint)
 
 
 func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
@@ -1174,22 +1270,17 @@ func _get_placeholder_texture(color: String, branch_index: int, state: String) -
 
 
 func _get_icon_texture(info: Dictionary, fallback_color: String) -> Texture2D:
-	var icon_path: String = SpellDatabase.get_icon_path(String(info.get("id", "")), fallback_color)
-	if icon_path != "":
-		return load(icon_path) as Texture2D
+	var texture: Texture2D = SpellDatabase.get_icon(String(info.get("id", "")), fallback_color)
+	if texture != null:
+		return texture
 	return _get_placeholder_texture(fallback_color, 0, "available")
 
 
-## The mana symbol a colour's undiscovered nodes wear. Cached through the same texture cache
-## the placeholder art uses, because five colours of pip serve the whole board.
+## The mana symbol a colour's undiscovered nodes wear. Five colours of pip serve the whole
+## board, and SpellDatabase keeps them alongside every other icon - this used to hold a
+## second cache of its own for the same five textures.
 func _mana_pip_texture(color: String) -> Texture2D:
-	var key: String = "pip_" + color
-	if _texture_cache.has(key):
-		return _texture_cache[key]
-	var path: String = SpellDatabase.get_icon_path(color)
-	var texture: Texture2D = load(path) as Texture2D if path != "" else null
-	_texture_cache[key] = texture
-	return texture
+	return SpellDatabase.get_icon(color)
 
 
 func _icon_modulate(state: String) -> Color:

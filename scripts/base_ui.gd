@@ -111,7 +111,7 @@ func refresh_ui() -> void:
 		# icon.
 		for lane: int in range(LANE_COLORS.size()):
 			var button := Button.new()
-			button.icon = load(SpellDatabase.get_icon_path(LANE_COLORS[lane])) as Texture2D
+			button.icon = SpellDatabase.get_icon(LANE_COLORS[lane])
 			# Scaled to the button rather than drawn at its own size, which for these
 			# symbols is far larger than a row of five of them can be.
 			button.expand_icon = true

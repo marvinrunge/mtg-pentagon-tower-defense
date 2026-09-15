@@ -116,6 +116,9 @@ const LOCO_SPEED_NODE := "loco_speed"
 const ACTION_NODE := "action"
 const ACTION_SPEED_NODE := "action_speed"
 const SHOT_NODE := "shot"
+## The guard, as a layer of its own between locomotion and the action one-shot.
+const GUARD_NODE := "guard"
+const GUARD_POSE_NODE := "guard_pose"
 
 const PARAM_WALK_POINT := "parameters/%s/blend_position" % WALK_SPACE
 const PARAM_RUN_POINT := "parameters/%s/blend_position" % RUN_SPACE
@@ -124,6 +127,12 @@ const PARAM_LOCO_REQUEST := "parameters/%s/transition_request" % LOCO_NODE
 const PARAM_LOCO_SPEED := "parameters/%s/scale" % LOCO_SPEED_NODE
 const PARAM_ACTION_SPEED := "parameters/%s/scale" % ACTION_SPEED_NODE
 const PARAM_SHOT_REQUEST := "parameters/%s/request" % SHOT_NODE
+const PARAM_GUARD_AMOUNT := "parameters/%s/blend_amount" % GUARD_NODE
+
+## How long the arms take to come up into the guard and back down. Short, because this
+## follows a button being held rather than an animation being played - anything slower
+## reads as the character being late to raise their shield.
+const GUARD_BLEND_SECONDS := 0.12
 
 ## Below this planar speed the player counts as standing still.
 const MOVING_SPEED_EPSILON := 0.15
@@ -134,6 +143,12 @@ var _skeleton: Skeleton3D
 var _tree: AnimationTree
 var _action_anim: AnimationNodeAnimation
 var _shot: AnimationNodeOneShot
+## False when the library has no block clip to hold, in which case the layer is not
+## built at all and everything below is inert.
+var _has_guard: bool = false
+## Where the guard blend currently sits, 0 to 1. Held here rather than read back off the
+## tree because it is driven towards a target every frame.
+var _guard_amount: float = 0.0
 
 ## Only used to keep an idle variation from starting under a swing; gameplay's own
 ## commitment timers live in Player.
@@ -231,6 +246,18 @@ func _build_tree() -> void:
 	graph.add_node(ACTION_SPEED_NODE, action_speed, Vector2(480.0, 240.0))
 	graph.connect_node(ACTION_SPEED_NODE, 0, ACTION_NODE)
 
+	# The guard sits BETWEEN locomotion and the action one-shot, so that the three layers
+	# stack in the order the player experiences them: the legs do whatever they are doing,
+	# the arms hold the block on top of that, and a swing or a flinch plays over both and
+	# hands the arms back to the guard when it finishes.
+	#
+	# That last part is the reason it is a layer at all rather than another locomotion
+	# state. `block_react` is fired through the one-shot like any other action, so with the
+	# guard living in the locomotion transition a parried hit played its flinch and left
+	# the character standing with their arms down - the hit was blocked, and they had
+	# visibly stopped blocking.
+	_build_guard_layer(graph, library)
+
 	_shot = AnimationNodeOneShot.new()
 	_shot.mix_mode = AnimationNodeOneShot.MIX_MODE_BLEND
 	_shot.fadein_time = GameSettings.player_anim_blend_action
@@ -238,8 +265,8 @@ func _build_tree() -> void:
 	_shot.autorestart = false
 	for bone_name in _upper_body_bones():
 		_shot.set_filter_path(NodePath("%s:%s" % [_visual.get_path_to(_skeleton), bone_name]), true)
-	graph.add_node(SHOT_NODE, _shot, Vector2(700.0, 0.0))
-	graph.connect_node(SHOT_NODE, 0, LOCO_SPEED_NODE)
+	graph.add_node(SHOT_NODE, _shot, Vector2(880.0, 0.0))
+	graph.connect_node(SHOT_NODE, 0, GUARD_NODE if _has_guard else LOCO_SPEED_NODE)
 	graph.connect_node(SHOT_NODE, 1, ACTION_SPEED_NODE)
 	graph.connect_node("output", 0, SHOT_NODE)
 
@@ -290,6 +317,42 @@ func _build_gait_space(graph: AnimationNodeBlendTree, library: AnimationLibrary,
 
 ## Every bone that is not hips-or-below. Derived from the skeleton rather than
 ## listed, so a rig change cannot silently leave a bone unmasked.
+## The guard overlay: `block_idle` on the upper body only, over whatever the legs are
+## doing underneath.
+##
+## A Blend2 filtered to the same bones the action one-shot uses, so "upper body" means one
+## thing in this file. Filtered paths take input 1; everything else passes input 0 through
+## untouched, which is what leaves the walk driving the legs.
+func _build_guard_layer(graph: AnimationNodeBlendTree, library: AnimationLibrary) -> void:
+	_has_guard = library.has_animation(BLOCK_CLIP)
+	if not _has_guard:
+		push_warning("No '%s' clip: the guard will not be held while moving" % BLOCK_CLIP)
+		return
+	var pose := AnimationNodeAnimation.new()
+	pose.animation = BLOCK_CLIP
+	graph.add_node(GUARD_POSE_NODE, pose, Vector2(480.0, 140.0))
+
+	var guard := AnimationNodeBlend2.new()
+	guard.filter_enabled = true
+	for bone_name in _upper_body_bones():
+		guard.set_filter_path(NodePath("%s:%s" % [_visual.get_path_to(_skeleton), bone_name]), true)
+	graph.add_node(GUARD_NODE, guard, Vector2(700.0, 0.0))
+	graph.connect_node(GUARD_NODE, 0, LOCO_SPEED_NODE)
+	graph.connect_node(GUARD_NODE, 1, GUARD_POSE_NODE)
+
+
+## Moves the guard towards `wanted` rather than snapping it, so the arms come up over
+## GUARD_BLEND_SECONDS instead of popping into place on the frame the button went down.
+func _drive_guard(wanted: bool, delta: float) -> void:
+	if not _has_guard:
+		return
+	var target: float = 1.0 if wanted else 0.0
+	if is_equal_approx(_guard_amount, target):
+		return
+	_guard_amount = move_toward(_guard_amount, target, delta / GUARD_BLEND_SECONDS)
+	_tree.set(PARAM_GUARD_AMOUNT, _guard_amount)
+
+
 func _upper_body_bones() -> Array[String]:
 	var out: Array[String] = []
 	for i in _skeleton.get_bone_count():
@@ -628,14 +691,24 @@ func update_locomotion(
 
 	var speed := planar_velocity.length()
 
+	# Driven here, above every branch below, so that the arms come back DOWN on any path
+	# out of blocking - jumping, dying, letting go, being staggered - without each of
+	# those having to remember to lower them.
+	#
+	# Only while MOVING. Standing still under guard stays on the full-body `block_idle`
+	# state: it is the pose the whole thing is modelled on, and overlaying it on an idle
+	# lower body would be the same arms over a slightly different stance for no gain.
+	var moving: bool = speed > MOVING_SPEED_EPSILON
+	_drive_guard(blocking and moving, delta)
+
 	if blocking:
 		_cancel_idle_variation()
 		# block_idle has no travel of its own (travel_speed 0), so holding it while the
 		# player is actually moving plants both feet and slides the whole character
-		# across the ground. Walking under guard keeps the legs driving; standing still
-		# under guard is what block_idle is for.
-		if speed > MOVING_SPEED_EPSILON:
-			# Guard up is a fight by definition, so the legs stay on the armed walk.
+		# across the ground. Walking under guard keeps the legs driving and the guard
+		# layer above puts the block back on the arms - which is what was missing:
+		# blocking on the move used to be an ordinary walk with the shield down.
+		if moving:
 			_drive_gait(WALK_SPACE, planar_velocity, speed, delta)
 		else:
 			_request_loco(BLOCK_CLIP)
