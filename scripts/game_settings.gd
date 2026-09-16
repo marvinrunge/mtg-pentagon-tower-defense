@@ -1045,6 +1045,62 @@ func rank_level_requirement(rank: int) -> int:
 # telegraph stays readable instead of the hit landing before the animation reads.
 @export var boss_special_windup_scale_with_anim: bool = true
 
+# --- Boss modifiers ----------------------------------------------------------------------
+#
+# A named, MTG-flavoured trait a boss can spawn with - Elite's own equivalent
+# (apply_elite_modifier) never touches bosses at all (_assign_elites excludes them), and a
+# boss's whole kit is its two telegraphed specials rather than ordinary stats, so a boss
+# modifier reshapes THAT: how often each special comes round, how hard it hits, how wide it
+# reaches, whether it wins out over its partner. At most one per boss, same as Elite - see
+# EnemyBase.apply_boss_modifier for what each one actually does.
+@export var boss_modifier_chance: float = 0.4
+## The boss at wave_boss_interval (wave 5) is always plain; modifiers start from the one
+## after it, the same one-quiet-example-first pattern wave_elite_start_wave and
+## wave_miniboss_start_wave already use.
+@export var boss_modifier_start_wave: int = 10
+
+## Riot: both specials recycle much faster and the clip itself plays faster - shorter
+## windups as well as shorter cooldowns - traded against noticeably less damage per hit.
+## Frantic rather than dangerous.
+@export var boss_modifier_riot_cooldown_mult: float = 0.65
+@export var boss_modifier_riot_damage_mult: float = 0.8
+@export var boss_modifier_riot_anim_speed_mult: float = 1.3
+
+## Annihilator: the opposite trade. Long waits between specials, but each one hits far
+## harder and reaches further - patience is rewarded, standing in it is not.
+@export var boss_modifier_annihilator_cooldown_mult: float = 1.5
+@export var boss_modifier_annihilator_damage_mult: float = 1.9
+@export var boss_modifier_annihilator_radius_mult: float = 1.15
+
+## Cataclysm: the big area special comes round much faster and the short-range melee one
+## much slower - a boss that would rather control space than get close.
+@export var boss_modifier_cataclysm_big_cooldown_mult: float = 0.6
+@export var boss_modifier_cataclysm_melee_cooldown_mult: float = 1.6
+
+## Bloodthirst: the inverse of Cataclysm - the melee special (the one that can actually
+## damage the crystal) comes round much faster, the big one much slower. An aggressive
+## boss that would rather close the distance and go for the objective.
+@export var boss_modifier_bloodthirst_melee_cooldown_mult: float = 0.55
+@export var boss_modifier_bloodthirst_big_cooldown_mult: float = 1.4
+
+## Enrage: latches on permanently the first time the boss drops below this fraction of its
+## max health, then both specials recycle faster and hit harder for the rest of the fight -
+## the classic "phase 2." One-way, like a squad breaking ranks - flickering in and out at
+## the threshold would read as a bug, not a mechanic.
+@export var boss_modifier_enrage_health_threshold: float = 0.3
+@export var boss_modifier_enrage_cooldown_mult: float = 0.7
+@export var boss_modifier_enrage_damage_mult: float = 1.4
+
+## Lifelink: heals a share of a special's nominal damage back whenever that special lands
+## on at least one player. Flat per resolve rather than per player hit, so it does not
+## scale up against a bigger team the way a per-target heal would.
+@export var boss_modifier_lifelink_pct: float = 0.35
+
+## Absolute floor under every special's windup, regardless of how much a modifier or the
+## boss's own size shrinks it - the one number this whole system is not allowed to push a
+## telegraph below, so "faster" never quietly becomes "undodgeable."
+@export var boss_modifier_min_windup_seconds: float = 0.6
+
 # ============================================================
 # COMBAT FEEDBACK
 # ============================================================

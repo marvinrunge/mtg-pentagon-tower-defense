@@ -492,6 +492,8 @@ func _spawn_enemy(data: Variant) -> Node:
 		enemy.set_meta("elite_modifier", String(info["elite"]))
 	if bool(info.get("miniboss", false)):
 		enemy.set_meta("miniboss", true)
+	if String(info.get("boss_modifier", "")) != "":
+		enemy.set_meta("boss_modifier", String(info["boss_modifier"]))
 	# setup() has to wait for _ready, and the client reaches this the same way, so the
 	# colour/class pair travels in the spawn argument rather than as a pre-applied
 	# resource that could not replicate.

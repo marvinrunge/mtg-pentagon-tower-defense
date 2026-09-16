@@ -73,6 +73,12 @@ var _special_total_timer: float = 0.0
 var _is_special_active: bool = false
 var _special_resolved: bool = false
 var _special_indicator: AttackIndicator
+## Named, MTG-flavoured trait - see GameSettings' Boss modifiers block and
+## apply_boss_modifier(). Empty for an ordinary boss and for every non-boss enemy.
+var boss_modifier: String = ""
+## One-way latch for Enrage: true from the moment health first drops under the threshold,
+## never reverts. See _check_boss_enrage().
+var _enrage_active: bool = false
 
 # --- Miniboss special (Mage only, telegraphed and dodgeable) ---
 ## Deliberately separate state from the boss special block above rather than reusing it: a
@@ -292,6 +298,8 @@ func setup(data: EnemyData) -> void:
 		_special_cooldowns.clear()
 		for _entry in _specials:
 			_special_cooldowns.append(GameSettings.boss_special_first_delay)
+		if has_meta("boss_modifier"):
+			apply_boss_modifier(String(get_meta("boss_modifier")))
 
 	if has_meta("elite_modifier"):
 		apply_elite_modifier(String(get_meta("elite_modifier")))
@@ -854,7 +862,16 @@ func _special_eligible(config: Dictionary, dist_to_target: float) -> bool:
 
 func _begin_special(index: int) -> void:
 	_special_index = index
-	_special_config = _specials[index]
+	# Duplicated rather than the shared reference _specials[index] itself: BossDatabase.
+	# SPECIALS is one Dictionary per colour, reused by every boss of that colour, and a
+	# modifier's radius bump below mutates THIS boss's copy for THIS cast only. Mutating
+	# the shared one in place would widen the special for every other boss of the same
+	# colour, in every other match, permanently.
+	_special_config = (_specials[index] as Dictionary).duplicate()
+	if boss_modifier != "":
+		var radius_mult: float = _boss_modifier_radius_mult()
+		if radius_mult != 1.0:
+			_special_config["radius"] = float(_special_config.get("radius", 5.0)) * radius_mult
 	var clip: String = String(_special_config.get("clip", "special"))
 	var anim: Animation = visual_anim_player.get_animation(clip)
 	var clip_length: float = anim.length if anim else 1.5
@@ -865,6 +882,12 @@ func _begin_special(index: int) -> void:
 	_special_resolved = false
 	_special_total_timer = clip_length / playback_speed
 	_special_windup_timer = _special_total_timer * impact_fraction
+	if boss_modifier != "":
+		# The one thing no modifier may do: make a telegraph effectively undodgeable. A
+		# small boss (short clip) combined with a speed-up modifier is exactly the
+		# combination that could otherwise push this under reflex range.
+		_special_windup_timer = maxf(_special_windup_timer, GameSettings.boss_modifier_min_windup_seconds)
+		_special_total_timer = maxf(_special_total_timer, _special_windup_timer)
 
 	if is_dying:
 		return
@@ -911,9 +934,10 @@ func _process_special(delta: float) -> void:
 func _resolve_special() -> void:
 	_special_resolved = true
 	if _special_index >= 0 and _special_index < _special_cooldowns.size():
-		_special_cooldowns[_special_index] = float(
-			_special_config.get("cooldown", GameSettings.boss_special_cooldown)
-		)
+		var cooldown: float = float(_special_config.get("cooldown", GameSettings.boss_special_cooldown))
+		if boss_modifier != "":
+			cooldown *= _boss_modifier_cooldown_mult(_special_index)
+		_special_cooldowns[_special_index] = cooldown
 	# Sounded from the boss's own feet rather than from whatever it caught: every
 	# special is a slam, a sweep or a landing centred on the boss, and it makes that
 	# noise whether or not anyone was still standing in the circle.
@@ -926,6 +950,8 @@ func _resolve_special() -> void:
 	var damage: float = enemy_data.attack_damage
 	damage *= float(_special_config.get("damage_mult", GameSettings.boss_special_damage_mult))
 	damage *= GameSettings.get_player_scaling_factor(get_tree())
+	if boss_modifier == "Enrage":
+		damage *= _boss_modifier_enrage_damage_mult()
 
 	var hit_player: bool = false
 	for target in _special_targets_in_shape():
@@ -933,6 +959,12 @@ func _resolve_special() -> void:
 			target.take_damage(damage, self, true)
 			if target.is_in_group("player"):
 				hit_player = true
+
+	# Lifelink: a share of the nominal damage back, once per resolve rather than once per
+	# player it actually caught - a per-target heal would make this scale up for free
+	# against a bigger team, which is not the trade the keyword promises.
+	if boss_modifier == "Lifelink" and hit_player:
+		heal(damage * GameSettings.boss_modifier_lifelink_pct)
 
 	# The crystal is not in _special_targets_in_shape - that set is players and myrs, the
 	# things that can move out of the way. It is hit here instead, and only by a special
@@ -1458,6 +1490,96 @@ func _apply_miniboss_glow() -> void:
 		fallback_material.emission_energy_multiplier = 2.0
 		fallback.material = fallback_material
 
+# ============================================================
+# BOSS MODIFIERS
+#
+# A named, MTG-flavoured trait a boss can spawn with - Elite's own system never reaches
+# bosses at all (_assign_elites excludes them), and a boss's whole kit is its two
+# telegraphed specials rather than ordinary stats, so these reshape THAT rather than
+# reusing Elite's stat-multiplier shape. At most one per boss. See GameSettings' Boss
+# modifiers block for every number.
+# ============================================================
+
+## Whatever a modifier changes about the specials THEMSELVES (cooldown weighting, reach,
+## Enrage's damage step) is applied per-cast in _begin_special, on a duplicated config - see
+## that function's own comment for why a shared BossDatabase dict may never be mutated in
+## place. Only the two flat, permanent changes live here: Riot's damage cut (applies from
+## the very first cast) and the anim-speed bump that shortens every future windup.
+func apply_boss_modifier(modifier: String) -> void:
+	boss_modifier = modifier
+	match modifier:
+		"Riot":
+			enemy_data.attack_damage *= GameSettings.boss_modifier_riot_damage_mult
+			_anim_speed_scale *= GameSettings.boss_modifier_riot_anim_speed_mult
+		"Annihilator":
+			enemy_data.attack_damage *= GameSettings.boss_modifier_annihilator_damage_mult
+	_apply_boss_modifier_tag()
+
+
+## The per-special-INDEX cooldown multiplier for whichever modifier is active. Index 0 is
+## always the big area special and index 1 the short-range melee one across every colour's
+## BossDatabase.SPECIALS entry (boss_specials.gd's "has exactly one crystal-breaker" check
+## is what keeps that true) - Cataclysm and Bloodthirst read that ordering directly rather
+## than searching for hits_crystal themselves.
+func _boss_modifier_cooldown_mult(index: int) -> float:
+	match boss_modifier:
+		"Riot":
+			return GameSettings.boss_modifier_riot_cooldown_mult
+		"Annihilator":
+			return GameSettings.boss_modifier_annihilator_cooldown_mult
+		"Cataclysm":
+			return GameSettings.boss_modifier_cataclysm_big_cooldown_mult if index == 0 else GameSettings.boss_modifier_cataclysm_melee_cooldown_mult
+		"Bloodthirst":
+			return GameSettings.boss_modifier_bloodthirst_big_cooldown_mult if index == 0 else GameSettings.boss_modifier_bloodthirst_melee_cooldown_mult
+		"Enrage":
+			return GameSettings.boss_modifier_enrage_cooldown_mult if _enrage_active else 1.0
+	return 1.0
+
+
+func _boss_modifier_radius_mult() -> float:
+	if boss_modifier == "Annihilator":
+		return GameSettings.boss_modifier_annihilator_radius_mult
+	return 1.0
+
+
+## Enrage's damage step, applied once the first time it latches - see _check_boss_enrage.
+## Kept separate from apply_boss_modifier because it fires mid-fight, not at spawn.
+func _boss_modifier_enrage_damage_mult() -> float:
+	return GameSettings.boss_modifier_enrage_damage_mult if boss_modifier == "Enrage" and _enrage_active else 1.0
+
+
+## The classic "phase 2": latches the FIRST time health crosses the threshold and never
+## reverts, same one-way philosophy the squad system already uses for breaking ranks -
+## flickering in and out at the threshold would read as a bug, not a mechanic. Called from
+## take_damage() right after health drops, rather than polled every frame, since that is
+## the one moment the answer can actually change.
+func _check_boss_enrage() -> void:
+	if boss_modifier != "Enrage" or _enrage_active or enemy_data == null:
+		return
+	if health <= enemy_data.health * GameSettings.boss_modifier_enrage_health_threshold:
+		_enrage_active = true
+		enemy_data.attack_damage *= GameSettings.boss_modifier_enrage_damage_mult
+
+
+## Shows the modifier's name over the boss's health bar, in the tint its own telegraph
+## already uses - the same colour a player learns to read as "get out of this" during the
+## fight now also tells them what they walked up to before the first hit even lands.
+func _apply_boss_modifier_tag() -> void:
+	if health_bar == null or boss_modifier == "":
+		return
+	health_bar.set_modifier_tag(boss_modifier.to_upper(), _boss_modifier_tint())
+
+
+func _boss_modifier_tint() -> Color:
+	match boss_modifier:
+		"Riot": return Color(1.0, 0.55, 0.15)
+		"Annihilator": return Color(0.55, 0.15, 0.65)
+		"Cataclysm": return Color(0.85, 0.2, 0.75)
+		"Bloodthirst": return Color(0.75, 0.05, 0.1)
+		"Enrage": return Color(1.0, 0.85, 0.1)
+		"Lifelink": return Color(0.15, 0.85, 0.4)
+	return Color.WHITE
+
 func _get_detection_range() -> float:
 	if enemy_data and (enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged"):
 		return GameSettings.enemy_ranged_detection_range
@@ -1551,6 +1673,8 @@ func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false, 
 		amount *= curse_mult
 	var damage_dealt: float = minf(maxf(amount, 0.0), maxf(health, 0.0))
 	health -= amount
+	if boss_modifier == "Enrage":
+		_check_boss_enrage()
 	if damage_dealt > 0.0 and is_instance_valid(source) and source.has_method("on_damage_dealt"):
 		source.on_damage_dealt(damage_dealt)
 	if health_bar and enemy_data:

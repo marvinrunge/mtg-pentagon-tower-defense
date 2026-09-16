@@ -171,7 +171,7 @@ func _deploy_squad(plan: Dictionary, group: Dictionary) -> Node:
 		var slot_index: int = int(taken.get(unit_type, 0))
 		taken[unit_type] = slot_index + 1
 		var offset: Vector3 = slot_list[slot_index] if slot_index < slot_list.size() else Vector3.ZERO
-		var enemy: Node3D = _spawn_unit(color, unit_type, String(unit.get("elite", "")), bool(unit.get("miniboss", false)), origin, forward, offset)
+		var enemy: Node3D = _spawn_unit(color, unit_type, String(unit.get("elite", "")), bool(unit.get("miniboss", false)), String(unit.get("boss_modifier", "")), origin, forward, offset)
 		if enemy == null:
 			continue
 		if unit_type == "Boss":
@@ -192,7 +192,7 @@ func _create_squad(color: String, lane_index: int, origin: Vector3, forward: Vec
 	return squad
 
 
-func _spawn_unit(color: String, unit_type: String, elite: String, miniboss: bool, origin: Vector3, forward: Vector3, offset: Vector3) -> Node3D:
+func _spawn_unit(color: String, unit_type: String, elite: String, miniboss: bool, boss_modifier: String, origin: Vector3, forward: Vector3, offset: Vector3) -> Node3D:
 	var desired: Vector3 = SquadDoctrine.to_world(origin, forward, offset)
 	var navigation_map: RID = main_controller.nav_region.get_navigation_map()
 	var navigable: Vector3 = NavigationServer3D.map_get_closest_point(navigation_map, desired)
@@ -204,6 +204,7 @@ func _spawn_unit(color: String, unit_type: String, elite: String, miniboss: bool
 		"type": unit_type,
 		"elite": elite,
 		"miniboss": miniboss,
+		"boss_modifier": boss_modifier,
 	})
 	if enemy != null:
 		active_enemies += 1
@@ -243,13 +244,19 @@ func _plan_wave(wave_idx: int) -> Array:
 	# it inside a warband's rally would hide it behind thirty goblins.
 	var boss_color: String = String(per_color.get("__boss__", ""))
 	if boss_color != "":
+		var boss_units: Array = _units_of({"Boss": int(per_color["__boss_count__"])})
+		# Independent per boss rather than one roll for the whole group: wave_boss_interval
+		# lets more than one Boss unit share a wave in the late game, and each is its own
+		# creature - there is no reason a second boss should be forced to match the first.
+		for unit: Dictionary in boss_units:
+			unit["boss_modifier"] = _roll_boss_modifier(wave_idx, rng)
 		groups.append({
 			"delay": GameSettings.wave_boss_delay,
 			"colors": PackedStringArray([boss_color]),
 			"squads": [{
 				"color": boss_color,
 				"lane": _color_to_lane_index(boss_color),
-				"units": _units_of({"Boss": int(per_color["__boss_count__"])}),
+				"units": boss_units,
 			}],
 		})
 		per_color.erase("__boss__")
@@ -453,8 +460,22 @@ func _units_of(counts: Dictionary) -> Array:
 	var units: Array = []
 	for unit_type: String in ["Boss", "Melee", "Ranged", "Mage"]:
 		for _i: int in range(int(counts.get(unit_type, 0))):
-			units.append({"type": unit_type, "elite": "", "miniboss": false})
+			units.append({"type": unit_type, "elite": "", "miniboss": false, "boss_modifier": ""})
 	return units
+
+
+## At most one modifier per boss, same one-at-a-time shape as Elite. Boss units never pass
+## through _assign_elites (it excludes them) or _assign_miniboss (that only ever touches
+## Melee/Ranged/Mage), so this is the one place a Boss unit's dictionary gets its own
+## flavour - rolled here, during composition, with the wave's own seeded rng rather than
+## global randomness, so a wave plan stays reproducible end to end.
+func _roll_boss_modifier(wave_idx: int, rng: RandomNumberGenerator) -> String:
+	if wave_idx + 1 < GameSettings.boss_modifier_start_wave:
+		return ""
+	if rng.randf() >= GameSettings.boss_modifier_chance:
+		return ""
+	const MODIFIERS: Array[String] = ["Riot", "Annihilator", "Cataclysm", "Bloodthirst", "Enrage", "Lifelink"]
+	return MODIFIERS[rng.randi() % MODIFIERS.size()]
 
 
 func _composition_of(plan: Dictionary) -> Dictionary:
