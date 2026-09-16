@@ -171,7 +171,7 @@ func _deploy_squad(plan: Dictionary, group: Dictionary) -> Node:
 		var slot_index: int = int(taken.get(unit_type, 0))
 		taken[unit_type] = slot_index + 1
 		var offset: Vector3 = slot_list[slot_index] if slot_index < slot_list.size() else Vector3.ZERO
-		var enemy: Node3D = _spawn_unit(color, unit_type, String(unit.get("elite", "")), origin, forward, offset)
+		var enemy: Node3D = _spawn_unit(color, unit_type, String(unit.get("elite", "")), bool(unit.get("miniboss", false)), origin, forward, offset)
 		if enemy == null:
 			continue
 		if unit_type == "Boss":
@@ -192,7 +192,7 @@ func _create_squad(color: String, lane_index: int, origin: Vector3, forward: Vec
 	return squad
 
 
-func _spawn_unit(color: String, unit_type: String, elite: String, origin: Vector3, forward: Vector3, offset: Vector3) -> Node3D:
+func _spawn_unit(color: String, unit_type: String, elite: String, miniboss: bool, origin: Vector3, forward: Vector3, offset: Vector3) -> Node3D:
 	var desired: Vector3 = SquadDoctrine.to_world(origin, forward, offset)
 	var navigation_map: RID = main_controller.nav_region.get_navigation_map()
 	var navigable: Vector3 = NavigationServer3D.map_get_closest_point(navigation_map, desired)
@@ -203,6 +203,7 @@ func _spawn_unit(color: String, unit_type: String, elite: String, origin: Vector
 		"color": color,
 		"type": unit_type,
 		"elite": elite,
+		"miniboss": miniboss,
 	})
 	if enemy != null:
 		active_enemies += 1
@@ -254,6 +255,11 @@ func _plan_wave(wave_idx: int) -> Array:
 		per_color.erase("__boss__")
 		per_color.erase("__boss_count__")
 
+	var miniboss_color: String = String(per_color.get("__miniboss_color__", ""))
+	var miniboss_class: String = String(per_color.get("__miniboss_class__", ""))
+	per_color.erase("__miniboss_color__")
+	per_color.erase("__miniboss_class__")
+
 	var first: bool = groups.is_empty()
 	for colors: PackedStringArray in _partition_colors(wave_idx, rng):
 		var squads: Array = []
@@ -275,6 +281,10 @@ func _plan_wave(wave_idx: int) -> Array:
 		})
 		first = false
 
+	# Miniboss first, elites second: _assign_elites skips whatever unit this flags, so a
+	# rare miniboss can never also roll Haste or Juggernaut on top by pure coincidence and
+	# quietly become a second boss in the same wave.
+	_assign_miniboss(groups, miniboss_color, miniboss_class)
 	_assign_elites(groups)
 	return groups
 
@@ -312,7 +322,42 @@ func _compose_wave(wave_idx: int, rng: RandomNumberGenerator) -> Dictionary:
 			var counts: Dictionary = per_color[color]
 			counts[unit_type] = int(counts.get(unit_type, 0)) + count
 			difficulty -= 2
+
+	_roll_miniboss(wave_idx, per_color, rng)
 	return per_color
+
+
+## At most one miniboss per wave (see GameSettings' Minibosses block), so a hit is a
+## genuinely notable arrival rather than a stat roll a player has learned to tune out.
+## Picked here, in composition, rather than later alongside the elites: the escort bonus
+## has to land BEFORE the wave is partitioned into squads, or the extra melee it adds would
+## never get formation slots.
+func _roll_miniboss(wave_idx: int, per_color: Dictionary, rng: RandomNumberGenerator) -> void:
+	if wave_idx + 1 < GameSettings.wave_miniboss_start_wave:
+		return
+	if rng.randf() >= GameSettings.wave_miniboss_chance:
+		return
+
+	var candidates: Array = []
+	for color: String in LANE_COLORS:
+		var counts: Dictionary = per_color[color]
+		for unit_type: String in UNIT_TYPES:
+			if int(counts.get(unit_type, 0)) > 0:
+				candidates.append([color, unit_type])
+	if candidates.is_empty():
+		return
+
+	var picked: Array = candidates[rng.randi() % candidates.size()]
+	per_color["__miniboss_color__"] = picked[0]
+	per_color["__miniboss_class__"] = picked[1]
+
+	# The escort: more melee for the SQUAD the miniboss stands in, regardless of which
+	# class it actually is. The formation itself (melee screen in front - see
+	# SquadDoctrine) turns that into a denser guard for free, no new formation geometry
+	# required - a mage miniboss ends up with more bodies between it and the player exactly
+	# the way an ordinary mage core does, just more of them.
+	var escort_counts: Dictionary = per_color[picked[0]]
+	escort_counts["Melee"] = int(escort_counts.get("Melee", 0)) + GameSettings.wave_miniboss_escort_bonus
 
 
 ## Splits the five colours into runs of NEIGHBOURS, each run one battle group.
@@ -408,7 +453,7 @@ func _units_of(counts: Dictionary) -> Array:
 	var units: Array = []
 	for unit_type: String in ["Boss", "Melee", "Ranged", "Mage"]:
 		for _i: int in range(int(counts.get(unit_type, 0))):
-			units.append({"type": unit_type, "elite": ""})
+			units.append({"type": unit_type, "elite": "", "miniboss": false})
 	return units
 
 
@@ -435,6 +480,26 @@ func _count_units(groups: Array) -> int:
 	return total
 
 
+## Flags the single unit _roll_miniboss chose, back when it still had to pick from raw
+## class COUNTS rather than individual units - _units_of() had not been called yet at that
+## point, so the actual Dictionary to flag only exists now that squads are built. Flags the
+## FIRST unit of the chosen class in its squad: _units_of orders a squad's units class by
+## class, and _deploy_squad hands out formation slots in that same list order, so "first of
+## its class" is also the formation's front-and-centre slot for that class - the miniboss
+## lands exactly where it should stand out, with no SquadDoctrine changes required.
+func _assign_miniboss(groups: Array, color: String, unit_class: String) -> void:
+	if color == "":
+		return
+	for group: Dictionary in groups:
+		for plan: Dictionary in group["squads"]:
+			if String(plan["color"]) != color:
+				continue
+			for unit: Dictionary in plan["units"]:
+				if String(unit["type"]) == unit_class:
+					unit["miniboss"] = true
+					return
+
+
 ## Elites are drawn across the WHOLE wave rather than per squad, so a wave's elites can all
 ## land in one colour - which is a more interesting thing to run into than one guaranteed
 ## elite per lane.
@@ -445,7 +510,9 @@ func _assign_elites(groups: Array) -> void:
 	for group: Dictionary in groups:
 		for plan: Dictionary in group["squads"]:
 			for unit: Dictionary in plan["units"]:
-				if String(unit["type"]) != "Boss":
+				# Never the miniboss - see _assign_miniboss's own comment on why the two
+				# are kept mutually exclusive rather than merely unrelated.
+				if String(unit["type"]) != "Boss" and not bool(unit.get("miniboss", false)):
 					candidates.append(unit)
 	var elite_count: int = mini(GameSettings.wave_elite_count_base + current_wave / 5, candidates.size())
 	for _elite_index in range(elite_count):
@@ -568,25 +635,35 @@ func _announce_group(group: Dictionary) -> void:
 	var lane_name: String = String(colors[0]) if not colors.is_empty() else ""
 	var strength: int = 0
 	var has_boss: bool = false
+	var has_miniboss: bool = false
 	for plan: Dictionary in group["squads"]:
 		for unit: Dictionary in plan["units"]:
 			strength += 1
 			if String(unit["type"]) == "Boss":
 				has_boss = true
+			elif bool(unit.get("miniboss", false)):
+				has_miniboss = true
 
 	if has_boss:
 		# A boss gets its own wording rather than "RED LANE - BOSS ASSAULT". It is the one
 		# arrival the player has to stop what they are doing for, and it reads back in the
-		# Tab log as an event rather than as one more lane warning among fifty.
+		# Tab log as an event rather than as one more lane warning among fifty. A miniboss
+		# can never coincide with this - a Boss occupies its own dedicated group, never an
+		# ordinary squad's unit list.
 		_announce(lane_name, "%s BOSS HAS ARRIVED" % lane_name.to_upper())
 		return
 
+	# Appended to whichever wording follows rather than given its own branch - a miniboss
+	# can land inside either a solo colour's warband or an alliance, and it is worth
+	# calling out in both without duplicating the rest of the message.
+	var miniboss_suffix: String = " - MINIBOSS SIGHTED" if has_miniboss else ""
+
 	if colors.size() > 1:
-		_announce(lane_name, "%s ALLIANCE MASSING - %d STRONG" % [_color_list(colors), strength])
+		_announce(lane_name, "%s ALLIANCE MASSING - %d STRONG%s" % [_color_list(colors), strength, miniboss_suffix])
 		return
 
 	var banner: String = String(SquadDoctrine.get_doctrine(lane_name).get("banner", "WARBAND"))
-	_announce(lane_name, "%s %s - %d STRONG" % [lane_name.to_upper(), banner, strength])
+	_announce(lane_name, "%s %s - %d STRONG%s" % [lane_name.to_upper(), banner, strength, miniboss_suffix])
 
 
 func _on_warband_charged(colors: PackedStringArray) -> void:

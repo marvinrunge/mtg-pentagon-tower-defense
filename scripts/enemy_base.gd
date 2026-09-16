@@ -6,6 +6,7 @@ var current_target: Node3D
 var last_target_position: Vector3 = Vector3.INF
 
 var _health_bar_scene: PackedScene = preload("res://scenes/ui/enemy_health_bar.tscn")
+var _miniboss_glow_shader: Shader = preload("res://assets/shaders/miniboss_glow.gdshader")
 
 const MELEE_VISUAL_SCENES := {
 	"White": preload("res://scenes/melee/human_melee.tscn"),
@@ -72,6 +73,14 @@ var _special_total_timer: float = 0.0
 var _is_special_active: bool = false
 var _special_resolved: bool = false
 var _special_indicator: AttackIndicator
+
+# --- Miniboss special (Mage only, telegraphed and dodgeable) ---
+## Deliberately separate state from the boss special block above rather than reusing it: a
+## Mage miniboss has exactly ONE special, not a pair with its own cooldown array and shape
+## choice, and it never roots the mage's ordinary spellcasting loop the way a boss's specials
+## replace its whole attack pattern. -1 means no windup is in progress.
+var _miniboss_special_windup: float = -1.0
+var _miniboss_special_indicator: AttackIndicator
 var damage_penalty: float = 0.0
 var penalty_timer: float = 0.0
 var attack_cooldown: float = 0.0
@@ -147,6 +156,16 @@ var elite_modifier: String = ""
 var elite_regeneration_per_second: float = 0.0
 var elite_crystal_damage_multiplier: float = 1.0
 var has_green_mage_buff: bool = false
+
+# --- Minibosses ------------------------------------------------------------------------
+#
+# A separate, higher tier from Elite (see GameSettings' Minibosses block for the reasoning)
+# - bigger, glowing in its colour, and for a Mage the one enemy in the wave that throws a
+# real telegraphed spell instead of the quiet single-target cast every ordinary mage of its
+# colour uses. See apply_miniboss() and _perform_miniboss_special().
+var is_miniboss: bool = false
+## Only ever set for a Mage miniboss; every other class leaves this at 0 and never reads it.
+var _miniboss_special_timer: float = 0.0
 
 # --- Squad formation ---------------------------------------------------------------
 #
@@ -276,6 +295,9 @@ func setup(data: EnemyData) -> void:
 
 	if has_meta("elite_modifier"):
 		apply_elite_modifier(String(get_meta("elite_modifier")))
+
+	if has_meta("miniboss"):
+		apply_miniboss()
 
 func update_path(force_update: bool = false) -> void:
 	if not nav_agent:
@@ -439,7 +461,14 @@ func _physics_process(delta: float) -> void:
 			perform_mage_spell()
 			# Spells have a longer cooldown than regular attacks
 			cast_timer = enemy_data.attack_speed * GameSettings.enemy_mage_spell_cooldown_mult
-			
+		# The special runs on its OWN clock, entirely separate from the ordinary cast
+		# above - it does not consume or reset cast_timer, so a miniboss keeps throwing its
+		# normal spell on schedule and the special is purely additional.
+		if is_miniboss and _miniboss_special_windup < 0.0:
+			_miniboss_special_timer -= delta
+			if _miniboss_special_timer <= 0.0:
+				_begin_miniboss_special()
+
 	var dist_to_target = 999.0
 	if is_instance_valid(current_target):
 		dist_to_target = global_position.distance_to(current_target.global_position)
@@ -540,6 +569,14 @@ func _physics_process(delta: float) -> void:
 	if ready_special >= 0:
 		_begin_special(ready_special)
 		_process_special(0.0)
+		return
+
+	# A Mage miniboss's special, same idea as a boss's but on its own separate state - see
+	# the block above _miniboss_special_windup's declaration. Rooted for the windup so the
+	# indicator's ground position stays where the special was actually cast, exactly the
+	# reason a boss special roots too.
+	if _miniboss_special_windup >= 0.0:
+		_process_miniboss_special(delta)
 		return
 
 	# Disable movement if frozen, stunned, or mid-attack-swing (the swing has no
@@ -992,6 +1029,128 @@ func _cancel_special() -> void:
 	_special_indicator = null
 	_is_special_active = false
 
+# ============================================================
+# MINIBOSS SPECIAL (Mage only, telegraphed and dodgeable)
+#
+# One special, on its own long cooldown, running entirely alongside the ordinary cast loop
+# in perform_mage_spell() rather than replacing it - a miniboss keeps throwing its normal
+# spell on schedule, and the special is purely a periodic, more dramatic extra. See
+# apply_miniboss() for how a Mage gets flagged into this at all.
+# ============================================================
+
+## Starts the windup: draws the ground telegraph and roots the caster until it resolves.
+## The radius is exactly what the special will reach - see _miniboss_special_radius - the
+## same discipline boss specials already keep between what is drawn and what actually hits.
+func _begin_miniboss_special() -> void:
+	if damage_suppress_timer > 0.0:
+		# Fog silences this the same way it silences the ordinary cast (see
+		# perform_mage_spell) - still pays the cooldown, so a silenced special does not
+		# simply retry next frame.
+		_report_fog_prevented(0.0)
+		_miniboss_special_timer = enemy_data.attack_speed * GameSettings.wave_miniboss_special_cooldown_mult
+		return
+
+	_miniboss_special_windup = GameSettings.wave_miniboss_special_windup
+	_miniboss_special_indicator = AttackIndicator.spawn(
+		self,
+		AttackIndicator.Shape.CIRCLE,
+		_miniboss_special_radius(),
+		360.0,
+		_miniboss_special_windup,
+		enemy_data.visual_color,
+		enemy_data.model_scale
+	)
+
+func _process_miniboss_special(delta: float) -> void:
+	# Rooted for the whole windup, same reasoning as a boss special: the indicator is drawn
+	# where the mage stood when it committed, and a mage that kept walking would drag the
+	# danger zone somewhere the player never actually saw telegraphed.
+	velocity.x = 0.0
+	velocity.z = 0.0
+	move_and_slide()
+
+	_miniboss_special_windup -= delta
+	if _miniboss_special_windup <= 0.0:
+		_resolve_miniboss_special()
+
+## Reuses the SAME per-colour range perform_mage_spell() already casts at, scaled up by
+## wave_miniboss_special_power_mult. Black has no range of its own to scale - its ordinary
+## cast raises something at its own feet rather than reaching out - so the indicator
+## borrows Green's footprint as a sane default size for the telegraph.
+func _miniboss_special_radius() -> float:
+	var base_range: float = GameSettings.enemy_white_mage_range
+	match enemy_data.color_identity:
+		"Red": base_range = GameSettings.enemy_red_mage_range
+		"Blue": base_range = GameSettings.enemy_blue_mage_range
+		"Green": base_range = GameSettings.enemy_green_mage_range
+		"Black": base_range = GameSettings.enemy_green_mage_range
+	return base_range * GameSettings.wave_miniboss_special_power_mult
+
+## The payoff: a bigger version of the SAME effect this colour's ordinary cast already
+## throws (see perform_mage_spell), never a new mechanic per colour - just the signature
+## spell turned up. Red and Blue additionally reach every player in range rather than only
+## the first one found the way the ordinary single-target cast does - a telegraphed special
+## a second player could simply stand next to and ignore would not read as a threat to them
+## at all.
+func _resolve_miniboss_special() -> void:
+	_miniboss_special_windup = -1.0
+	if _miniboss_special_indicator and is_instance_valid(_miniboss_special_indicator):
+		_miniboss_special_indicator.resolve()
+	_miniboss_special_indicator = null
+	_miniboss_special_timer = enemy_data.attack_speed * GameSettings.wave_miniboss_special_cooldown_mult
+
+	if is_dying or enemy_data == null:
+		return
+
+	var power: float = GameSettings.wave_miniboss_special_power_mult
+	var radius: float = _miniboss_special_radius()
+
+	match enemy_data.color_identity:
+		"White":
+			for e: Node3D in _bodies_in_range(radius, 4):
+				if e.has_method("heal"):
+					e.heal(GameSettings.enemy_white_mage_heal * power)
+		"Red":
+			var scaled_damage: float = enemy_data.attack_damage * power * GameSettings.get_player_scaling_factor(get_tree())
+			for player: Node3D in get_tree().get_nodes_in_group("player"):
+				if is_instance_valid(player) and global_position.distance_to(player.global_position) < radius and player.has_method("take_damage"):
+					player.take_damage(scaled_damage, self)
+		"Blue":
+			for player: Node3D in get_tree().get_nodes_in_group("player"):
+				if is_instance_valid(player) and global_position.distance_to(player.global_position) < radius and player.has_method("apply_slow"):
+					player.apply_slow(GameSettings.enemy_blue_mage_slow_duration * power)
+		"Black":
+			# The signature raise, upgraded from a lone weak melee to a real Ranged unit -
+			# a body that can actually threaten the crystal from where it lands, rather
+			# than one more goblin walking in from the back of the fight.
+			var revived_data: EnemyData = EnemyDatabase.get_enemy_data("Black", "Ranged")
+			var enemy_scene: PackedScene = load("res://scenes/misc/enemy.tscn") as PackedScene
+			var new_enemy: Node3D = enemy_scene.instantiate()
+			new_enemy.position = global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
+			new_enemy.set_meta("target_crystal", target_crystal)
+			get_parent().add_child(new_enemy)
+			new_enemy.setup(revived_data)
+			new_enemy.health = revived_data.health * GameSettings.enemy_black_mage_revive_hp_mult * power
+			var wm: Node = get_tree().current_scene.get_node_or_null("WaveManager")
+			if wm:
+				wm.register_enemy()
+		"Green":
+			# Every ally in range rather than breaking on the first - the ordinary cast is
+			# one Giant Growth, the special is a whole rally.
+			for e: Node3D in get_tree().get_nodes_in_group("enemies"):
+				if e != self and is_instance_valid(e) and global_position.distance_to(e.global_position) < radius:
+					if e.has_method("apply_green_mage_buff"):
+						e.apply_green_mage_buff()
+
+## Dying or being exiled mid-windup drops the telegraph without resolving it - the same
+## treatment a boss special gets from _cancel_special(), called alongside this one from
+## die() and exile().
+func _cancel_miniboss_special() -> void:
+	if _miniboss_special_indicator and is_instance_valid(_miniboss_special_indicator):
+		_miniboss_special_indicator.cancel()
+	_miniboss_special_indicator = null
+	_miniboss_special_windup = -1.0
+
 func perform_attack() -> void:
 	if not is_instance_valid(current_target):
 		evaluate_target()
@@ -1226,6 +1385,79 @@ func apply_elite_modifier(modifier: String) -> void:
 	if health_bar:
 		health_bar.set_health(health, enemy_data.health)
 
+## The step up from Elite: bigger, tankier, harder-hitting, and visibly so - see
+## GameSettings' Minibosses block for every multiplier. Runs at the very end of setup(), same
+## as apply_elite_modifier, so it reapplies scale/health/health_bar on top of whatever the
+## rest of setup() already put there rather than needing setup() itself restructured.
+##
+## Only a Mage gets a special (see _perform_miniboss_special) - a Melee or Ranged miniboss
+## is simply a stat-scaled version of the ordinary attack it already throws, same swing,
+## same bow, nothing new to build for those two classes.
+func apply_miniboss() -> void:
+	is_miniboss = true
+	enemy_data.health *= GameSettings.wave_miniboss_health_mult
+	enemy_data.attack_damage *= GameSettings.wave_miniboss_damage_mult
+	enemy_data.speed *= GameSettings.wave_miniboss_speed_mult
+	enemy_data.model_scale *= GameSettings.wave_miniboss_scale_mult
+	enemy_data.display_name = "Miniboss " + enemy_data.display_name
+
+	health = enemy_data.health
+	if health_bar:
+		health_bar.set_health(health, enemy_data.health)
+	scale = Vector3(enemy_data.model_scale, enemy_data.model_scale, enemy_data.model_scale)
+	aggro_area.scale = Vector3.ONE / maxf(enemy_data.model_scale, 0.01)
+
+	_apply_miniboss_glow()
+
+	if enemy_data.enemy_class == "Mage":
+		# Its own long cooldown, ON TOP of the ordinary cast loop in perform_mage_spell() -
+		# the special is the payoff for finding a mage miniboss, not a replacement for its
+		# normal casting.
+		_miniboss_special_timer = enemy_data.attack_speed * GameSettings.wave_miniboss_special_cooldown_mult
+
+## The size and health bump alone are easy to miss across a battlefield full of goblins -
+## the glow is what actually catches the eye from across the lane, in the enemy's own lane
+## colour (see EnemyDatabase.get_enemy_data's visual_color per colour).
+##
+## Layered on as a NEXT_PASS on a DUPLICATE of the mesh's own material, never as
+## material_override: the base material is a shared resource used by every ordinary enemy
+## wearing this same model, and touching it in place would glow every goblin in the game,
+## not just this one.
+func _apply_miniboss_glow() -> void:
+	var glow_material := ShaderMaterial.new()
+	glow_material.shader = _miniboss_glow_shader
+	glow_material.set_shader_parameter("glow_color", enemy_data.visual_color)
+
+	# find_child by name rather than a stored reference: the visual was added a few lines
+	# up in setup(), by name "Skeleton3D" for a real model or the CSGBox3D fallback's own
+	# default node name otherwise - the same trick _ground_visual already relies on for the
+	# skeleton lookup.
+	var skeleton: Skeleton3D = find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton != null:
+		for child: Node in skeleton.get_children():
+			if not (child is MeshInstance3D):
+				continue
+			var mesh_instance: MeshInstance3D = child as MeshInstance3D
+			for surface: int in range(mesh_instance.get_surface_override_material_count()):
+				var base_material: Material = mesh_instance.get_active_material(surface)
+				if base_material == null:
+					continue
+				var duplicated_material: Material = base_material.duplicate()
+				duplicated_material.next_pass = glow_material
+				mesh_instance.set_surface_override_material(surface, duplicated_material)
+			return
+
+	# No skinned model - the CSGBox3D fallback used when a colour/class has no imported mesh
+	# yet. It already carries its own plain material, so the glow becomes emission on that
+	# instead of a second render pass; there is no skeleton mesh here for next_pass to sit on.
+	var fallback: CSGBox3D = find_child("CSGBox3D", true, false) as CSGBox3D
+	if fallback != null and fallback.material is StandardMaterial3D:
+		var fallback_material: StandardMaterial3D = (fallback.material as StandardMaterial3D).duplicate()
+		fallback_material.emission_enabled = true
+		fallback_material.emission = enemy_data.visual_color
+		fallback_material.emission_energy_multiplier = 2.0
+		fallback.material = fallback_material
+
 func _get_detection_range() -> float:
 	if enemy_data and (enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged"):
 		return GameSettings.enemy_ranged_detection_range
@@ -1376,6 +1608,7 @@ func die() -> void:
 	# Dying mid-windup drops the telegraph without dealing its damage - and the same
 	# goes for an ordinary swing whose impact frame has not arrived yet.
 	_cancel_special()
+	_cancel_miniboss_special()
 	_impact_timer = -1.0
 	_hit_react_timer = 0.0
 
@@ -1716,6 +1949,7 @@ func exile() -> void:
 		SignalBus.enemy_died_at.emit(global_position)
 		RunState.on_enemy_killed(enemy_data, elite_modifier != "")
 	_cancel_special()
+	_cancel_miniboss_special()
 	queue_free()
 
 

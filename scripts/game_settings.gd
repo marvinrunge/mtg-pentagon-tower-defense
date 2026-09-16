@@ -921,6 +921,49 @@ func rank_level_requirement(rank: int) -> int:
 @export var wave_elite_start_wave: int = 2
 @export var wave_elite_count_base: int = 1
 
+# --- Minibosses -------------------------------------------------------------------------
+#
+# A rung above Elite, and deliberately its own separate system rather than a bigger Elite
+# tier: Elites only ever change numbers (see EnemyBase.apply_elite_modifier), and a miniboss
+# is meant to be SEEN before it's felt - visibly larger, glowing in its colour, and the one
+# thing in its squad the melee screen is actually built around. At most one per wave, so it
+# reads as a notable arrival rather than a stat roll.
+#
+## First wave a miniboss may appear. Held back past the opening so the player has already
+## seen a plain formation before meeting a reinforced one.
+@export var wave_miniboss_start_wave: int = 6
+## Chance per wave, from wave_miniboss_start_wave on, that one appears at all.
+@export var wave_miniboss_chance: float = 0.35
+## Extra melee units added to a miniboss's own squad, on top of the wave's normal
+## composition. The formation itself (melee screen in front, see SquadDoctrine) does the
+## rest - a denser screen in front of a miniboss reads as an honour guard for free, no new
+## formation geometry required.
+@export var wave_miniboss_escort_bonus: int = 3
+@export var wave_miniboss_health_mult: float = 4.0
+@export var wave_miniboss_damage_mult: float = 1.6
+## Traded down a little against the health and damage bump, the same bargain Elite's own
+## Juggernaut modifier makes - a miniboss that also outran its screen would leave the
+## escort behind immediately.
+@export var wave_miniboss_speed_mult: float = 0.9
+## Visibly larger than its rank-and-file, but well short of a real boss (model_scale 2.1-2.9)
+## - a miniboss is still a member of its squad, not a second boss in the same wave.
+@export var wave_miniboss_scale_mult: float = 1.35
+## Only a Mage miniboss gets a special (see EnemyBase._perform_miniboss_special) - a melee
+## or ranged one is a stat-scaled version of the ordinary attack it already has, same swing,
+## same bow. A caster gets a telegraphed signature spell instead, on its own long cooldown
+## on top of its normal casting - the payoff for finding one in the mage core.
+@export var wave_miniboss_special_cooldown_mult: float = 2.6
+## Radius/strength multiplier applied to whichever of the five per-colour mage effects the
+## special reuses (see perform_mage_spell) - the special is a bigger version of the same
+## spell its ordinary cast already throws, not a new mechanic per colour.
+@export var wave_miniboss_special_power_mult: float = 2.2
+## How long the ground telegraph stands before the special resolves. Not driven off an
+## animation clip length the way a real boss's is (BossDatabase.SPECIALS) - the ordinary
+## Melee/Ranged/Mage models were never built with a dedicated cast clip to time against, so
+## this is a fixed, tunable window instead. Long enough to react to, short enough that the
+## mage is not standing rooted through half the fight.
+@export var wave_miniboss_special_windup: float = 1.8
+
 # ============================================================
 # ENEMIES
 # ============================================================

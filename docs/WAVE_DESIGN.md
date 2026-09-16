@@ -123,6 +123,47 @@ several separate spawn entries. Waves 1 and 2 are the exact head counts they alw
 Wave 3 was re-authored - it used to be four lone mages plus ten Black melee, which was both
 *smaller* than wave 2 and impossible to read as a formation.
 
+## Minibosses
+
+A rung above Elite, and deliberately its own separate system rather than a bigger Elite tier
+(see `GameSettings`' Minibosses block): Elite only ever changes numbers, and a miniboss is
+meant to be *seen* before it's felt - visibly larger, glowing in its colour, and the one
+member of its squad the melee screen is actually built around.
+
+**At most one per wave** (`wave_miniboss_chance`, from `wave_miniboss_start_wave`), so it
+reads as a notable arrival rather than a stat roll. `WaveManager._roll_miniboss` picks a
+colour and class during composition - before the wave is partitioned into squads - and bumps
+that colour's own Melee count by `wave_miniboss_escort_bonus`. Nothing new was needed in
+`SquadDoctrine` for the escort itself: a denser melee screen in front of the mage core (or
+in front of the miniboss itself, if it's the melee) falls out of the formation everyone
+already stands in.
+
+The unit gets flagged later, once squads exist (`WaveManager._assign_miniboss`) - specifically
+the **first** unit of the chosen class in its squad's list, which `_deploy_squad` also hands
+the first formation slot for that class. That's what puts the miniboss front-and-centre in its
+own rank without any geometry change: `_units_of` already orders a squad class-by-class, so
+"first of its class" and "the formation's most prominent slot for that class" are the same
+unit. It is deliberately excluded from `_assign_elites`'s candidate pool - the two are
+*independent* systems, and a miniboss that also rolled Juggernaut by coincidence would quietly
+become a second boss in the same wave.
+
+`EnemyBase.apply_miniboss()` does the rest: health, damage and model scale multiplied, speed
+traded down a little (the same bargain Elite's own Juggernaut makes), and a rim-light glow in
+the enemy's lane colour layered onto its mesh as a `next_pass` on a *duplicated* surface
+material - never `material_override`, which would replace the base skin's real texture with a
+flat colour, and never the shared material in place, which would glow every ordinary enemy
+wearing that model.
+
+**Only a Mage miniboss gets a special.** A Melee or Ranged one is a stat-scaled version of the
+attack it already throws - same swing, same bow, nothing new to build. A Mage's special
+(`EnemyBase._perform_miniboss_special` and friends) runs on its own long cooldown *alongside*
+its ordinary casting in `perform_mage_spell`, telegraphed with the same `AttackIndicator`
+bosses use, and reuses the exact effect its colour's ordinary cast already throws - just
+bigger, and for Red/Blue, reaching every player in range rather than only the first one found.
+It is not driven off an animation clip length the way a boss's is: the ordinary Melee/Ranged/
+Mage rigs were never built with a dedicated cast clip to time against, so the windup is a
+fixed, tunable duration (`wave_miniboss_special_windup`) instead.
+
 ## Where to change things
 
 | I want to change | Look in |
@@ -134,6 +175,9 @@ Wave 3 was re-authored - it used to be four lone mages plus ten Black melee, whi
 | the authored opening (waves 1-3) | `WaveManager.OPENING_WAVES` |
 | pacing, rally distance, escalation thresholds | `GameSettings`, the `WAVES` block |
 | what a member does once it has broken ranks | `EnemyBase`, ordinary AI - nothing squad-specific |
+| miniboss stats, cadence, or the escort bonus | `GameSettings`' Minibosses block |
+| which colour/class gets picked as the miniboss | `WaveManager._roll_miniboss` / `_assign_miniboss` |
+| the glow, or a Mage miniboss's special | `EnemyBase.apply_miniboss` / `_perform_miniboss_special` |
 
 ## Multiplayer
 
@@ -172,7 +216,17 @@ physics still steps at its fixed rate, so a frame counter samples a couple of se
 march that takes a minute. `Engine.time_scale` buys that back: about forty seconds on the
 wall.
 
+`tools/tests/minibosses.tscn` covers both halves for the miniboss layer specifically: the
+planning claims (never before the start wave, at most one per wave, never also an Elite, the
+escort bonus lands on the right colour, the flagged unit is the front-of-its-class slot) and
+the live ones (a spawned miniboss is bigger and tankier by exactly the configured multipliers,
+carries the glow, and - for a Mage - actually fires its special and its effect lands). The
+special's own timers are advanced by calling the spawned enemy's `_physics_process` directly
+rather than through the engine's own tick or `Engine.time_scale`: unlike the march test, this
+one only needs a single enemy's internal state to advance, not the whole scene's physics.
+
 ```
 godot --headless --path . res://tools/tests/wave_formations.tscn
 godot --headless --path . res://tools/tests/wave_squads.tscn
+godot --headless --path . res://tools/tests/minibosses.tscn
 ```
