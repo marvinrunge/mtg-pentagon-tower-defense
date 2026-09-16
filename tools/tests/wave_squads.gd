@@ -5,8 +5,8 @@ extends Node
 ##
 ## This is the live half of the wave rework - tools/tests/wave_formations.tscn covers the
 ## geometry and the planning on their own, and this one boots the actual map and watches a
-## wave walk down a lane. Four things have to still be true a long way into the march, and
-## every one of them was false in the old trickle:
+## wave walk down a lane. Five things have to still be true, and every one of them was
+## false at some point in this system's life:
 ##
 ##   1. The whole squad spawned AT ONCE. Counted on the frame the first battle group lands:
 ##      a colour's mages used to arrive long after the melee meant to be screening them.
@@ -16,6 +16,9 @@ extends Node
 ##      for all of it, and it only holds because the squad marches at its slowest member's
 ##      pace rather than at each member's own.
 ##   4. Allied neighbours reach their rendezvous and charge together.
+##   5. Every formation slot in wave 3's exact composition lands within reach of the baked
+##      navmesh, for every colour - see _check_formation_reachability for the real bug
+##      this pins down: Blue's caster_setback once shoved a mage clean off the map.
 ##
 ## Measured in GAME SECONDS, not frames. Headless renders as fast as the CPU allows while
 ## physics still steps at its fixed rate, so a frame counter here would sample a couple of
@@ -35,6 +38,15 @@ const MARCH_SECONDS: float = 25.0
 ## units to its hold line at a mage's pace.
 const RALLY_SECONDS: float = 150.0
 
+## WaveManager existing is not the same moment its navmesh queries start answering
+## correctly: NavigationServer3D syncs a freshly baked region into its queryable map over
+## a few physics frames of its own, AFTER bake_navigation_mesh() has already returned and
+## AFTER main.gd's own two-frame wait for collision shapes. Measured empirically at 12-13
+## frames for the last lane to settle; this waits comfortably past that before trusting
+## map_get_closest_point for the reachability check below. Nothing else in this file reads
+## the navmesh this early, which is why only this one check needed it.
+const NAV_SETTLE_FRAMES: int = 20
+
 var _elapsed: float = 0.0
 var _started: bool = false
 var _done: bool = false
@@ -45,6 +57,7 @@ var _manager: Node = null
 var _spawned_at_deploy: int = -1
 var _saw_rendezvous: bool = false
 var _saw_charge: bool = false
+var _settle_frames: int = 0
 
 
 func _ready() -> void:
@@ -60,6 +73,9 @@ func _physics_process(delta: float) -> void:
 		# Giving up on the first step left the test watching wave 1 - five solo melee
 		# screens, no casters and no warbands - and quietly checking nothing.
 		if not _resolve():
+			return
+		_settle_frames += 1
+		if _settle_frames < NAV_SETTLE_FRAMES:
 			return
 		_started = true
 		_start_test_wave()
@@ -100,8 +116,56 @@ func _resolve() -> bool:
 func _start_test_wave() -> void:
 	if not _resolve():
 		return
+	_check_formation_reachability()
 	_manager.current_wave = TEST_WAVE_INDEX
 	_manager.start_next_wave()
+
+
+## Regression guard for a real bug: Blue's caster_setback used to shove its mage and
+## archer BEHIND the spawner, off the far edge of the baked navmesh - the mage's slot then
+## snapped over 4 units sideways onto whatever walkable point was nearest, the squad could
+## never close that gap, and the wave the bug first showed up in (wave 3 - the last
+## authored OPENING_WAVES entry, and the first to field a Mage in every colour) never
+## finished, because that one enemy could never be reached or killed.
+##
+## Checked against wave 3's OWN exact composition specifically, on every colour, rather
+## than folding it into the TEST_WAVE_INDEX=3 scenario above - that wave is chosen for
+## alliances, not for this, and OPENING_WAVES[2] (wave number 3) is a fixed, known
+## composition worth pinning down by name.
+##
+## The tolerance is relative to the SPAWNER'S OWN baseline snap distance rather than a bare
+## number: NavigationMesh baking insets the walkable surface from the raw lane polygon by
+## its own agent_radius, so even the spawner marker itself does not sit exactly ON the
+## mesh - only a slot that lands meaningfully FURTHER off than the spawner already is
+## signals a real problem.
+func _check_formation_reachability() -> void:
+	if _scene == null or _scene.nav_region == null:
+		return
+	var nav_map: RID = _scene.nav_region.get_navigation_map()
+	var wave_three: Dictionary = WaveManager.OPENING_WAVES[2]
+
+	for color: String in wave_three:
+		var lane_index: int = _manager._color_to_lane_index(color)
+		if _scene.enemy_spawners.size() <= lane_index:
+			continue
+		var spawner: Node3D = _scene.enemy_spawners[lane_index] as Node3D
+		var origin: Vector3 = spawner.global_position
+		var forward: Vector3 = Vector3(spawner.global_transform.basis.z.x, 0.0, spawner.global_transform.basis.z.z).normalized()
+		var baseline: float = origin.distance_to(NavigationServer3D.map_get_closest_point(nav_map, origin))
+		var tolerance: float = baseline + 1.5
+
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash("reachability:%s" % color)
+		var slots: Dictionary = SquadDoctrine.build_formation(color, wave_three[color], rng)
+		var worst: float = 0.0
+		for unit_type: String in slots:
+			for offset: Vector3 in (slots[unit_type] as Array):
+				var world: Vector3 = SquadDoctrine.to_world(origin, forward, offset)
+				var snapped: Vector3 = NavigationServer3D.map_get_closest_point(nav_map, world)
+				worst = maxf(worst, world.distance_to(snapped))
+		_check("%s's wave-3 formation stays within reach of the navmesh" % color,
+			worst <= tolerance,
+			"worst snap %.2f, spawner baseline %.2f (tolerance %.2f)" % [worst, baseline, tolerance])
 
 
 ## A battle group lands in ONE step, so the enemy count on the first step anything exists is

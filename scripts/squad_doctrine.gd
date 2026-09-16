@@ -32,9 +32,15 @@ class_name SquadDoctrine
 ##   front_width       how many melee stand in one rank before a new one forms behind it
 ##   shell_gap         gap between the mage core and the archer ring around it
 ##   screen_gap        gap between the archer ring and the first melee rank
-##   caster_setback    extra distance the archers AND mages hang back, applied after the
-##                     melee screen is placed - so the shell keeps its shape and only the
-##                     whole caster block slides away from the fighting
+##   caster_setback    extra distance between the melee screen and the caster shell,
+##                     applied by pushing the melee screen further FORWARD rather than
+##                     pulling the casters back - the mage core sits at squad-local z=0,
+##                     at or just ahead of the spawner, and never behind it: the walkable
+##                     lane runs forward from the spawner toward the crystal, not behind
+##                     it, and a caster shoved past the spawner lands off the baked navmesh
+##                     with no path back onto its own formation. (This used to shift the
+##                     casters backward instead, which is exactly how it put a Blue mage
+##                     off the map - see WAVE_DESIGN.md.)
 ##   jitter            random scatter applied to every slot, so a rank is not a ruler line
 ##   march_mult        squad march speed as a fraction of its SLOWEST member's speed,
 ##                     clamped to the fastest member so the formation cannot run away from
@@ -204,19 +210,15 @@ static func build_formation(color: String, counts: Dictionary, rng: RandomNumber
 		var core_radius: float = _outer_radius(mages)
 		var ring_radius: float = maxf(core_radius, file * 0.5) + float(doctrine["shell_gap"])
 		var ranged: Array[Vector3] = _rings(ranged_count, ring_radius, file)
-		# Melee are placed off the UNSET-BACK ring, so caster_setback moves the casters
-		# away from the melee screen rather than dragging the screen back with them.
-		var screen_z: float = _forward_extent(ranged, ring_radius) + float(doctrine["screen_gap"])
+		# caster_setback widens the melee-to-caster gap by pushing the SCREEN further
+		# forward rather than pulling the casters back behind the spawner - see this
+		# function's own doc comment on caster_setback for why the direction matters.
+		var screen_z: float = _forward_extent(ranged, ring_radius) + float(doctrine["screen_gap"]) + float(doctrine["caster_setback"])
 		var melee: Array[Vector3] = []
 		if String(doctrine["shape"]) == "wedge":
 			melee = _wedge(melee_count, screen_z, file, rank)
 		else:
 			melee = _ranks(melee_count, screen_z, int(doctrine["front_width"]), file, rank)
-
-		var setback: float = float(doctrine["caster_setback"])
-		if setback > 0.0:
-			_shift_back(ranged, setback)
-			_shift_back(mages, setback)
 
 		slots["Melee"] = melee
 		slots["Ranged"] = ranged
@@ -347,8 +349,3 @@ static func _forward_extent(positions: Array[Vector3], fallback: float) -> float
 	for position: Vector3 in positions:
 		extent = maxf(extent, position.z)
 	return maxf(extent, fallback)
-
-
-static func _shift_back(positions: Array[Vector3], distance: float) -> void:
-	for i: int in range(positions.size()):
-		positions[i] -= Vector3(0.0, 0.0, distance)
