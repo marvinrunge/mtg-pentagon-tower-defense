@@ -842,18 +842,68 @@ func rank_level_requirement(rank: int) -> int:
 # ============================================================
 # WAVES
 # ============================================================
+## Pause before the first battle group of a wave lands, which is also how long the player
+## has to read its warning banner.
 @export var wave_initial_warning_time: float = 2.5
-@export var wave_delay_between_colors: float = 3.5
 ## Superseded by upkeep_duration - kept only as the pause before the very first wave.
 @export var wave_rest_period: float = 3.0
-@export var wave_spawn_delay_base: float = 1.0
-@export var wave_spawn_delay_scaling: float = 0.05
-@export var wave_spawn_delay_min: float = 0.1
-@export var wave_spawn_cluster_size: int = 3
-@export var wave_spawn_cluster_delay: float = 0.18
-@export var wave_spawn_cluster_lateral_spacing: float = 2.4
-@export var wave_spawn_cluster_depth_spacing: float = 2.0
-@export var wave_spawn_cluster_jitter: float = 0.45
+
+# --- Battle groups ---------------------------------------------------------------------
+#
+# A wave is a handful of BATTLE GROUPS, not a spawn queue. Each group is a run of adjacent
+# (which on the colour wheel means ALLIED) colours whose squads spawn simultaneously, in
+# formation, converge on a hold line short of the crystal, wait for each other and charge
+# together. The per-enemy spawn delays and cluster spacing that used to live here are gone
+# with the queue: spacing is now the formation's own business (SquadDoctrine) and a squad
+# arrives all at once.
+
+## Gap between one battle group landing and the next. Long enough that two groups are two
+## distinct pushes rather than one shapeless mass, short enough that they overlap by the
+## time they reach the crystal - a lane is ~180 units and a melee walks it in about a
+## minute, so everything deployed inside a wave is fighting at the same time regardless.
+##
+## This replaces a per-COLOUR delay that was applied after the previous colour had finished
+## trickling in, which is how a wave of ten spawn groups ended up spread over more than a
+## minute of deployment and was fought colour by colour. A late wave is now two or three
+## groups, all on the map inside twenty seconds - the same enemies, arriving as an army.
+@export var wave_delay_between_groups: float = 10.0
+## From this wave on, ALLIED NEIGHBOURS pair up: two adjacent lanes arrive together, form
+## up between their lanes and charge as one. Before it, every colour comes in on its own.
+@export var wave_alliance_start_wave: int = 4
+## From this wave on, groups can be three adjacent colours - a shard of the wheel.
+@export var wave_shard_start_wave: int = 9
+## From this wave on, all five colours can arrive in a single push.
+@export var wave_grand_alliance_start_wave: int = 16
+## How far from the crystal a warband forms up before charging. The lane spawners sit at
+## ~180 and the mana wells at ~112, so this puts the hold line just inside the wells -
+## close enough that the player can see it happening and go and break it up.
+@export var wave_rally_radius: float = 100.0
+## How far towards its battle group's centre a squad converges to form up, as a fraction of
+## the way from its own lane. 1.0 would be a single shared point on the arc between the
+## lanes, which costs each squad a sideways detour about as long as the lane itself - ground
+## with nothing on it. At 0.75 two neighbours end up about thirty units apart, which reads
+## as one army massing, and the lanes close the rest of the gap during the charge.
+@export var wave_rally_convergence: float = 0.75
+## Longest a squad will stand at the rendezvous waiting for the rest of its warband. A
+## safety net against a partner that is alive but pinned, not a pacing knob.
+@export var wave_rally_timeout: float = 12.0
+## How fast a formation wheels onto a new heading, in radians per second of blend. Low
+## enough that turning towards a rendezvous off the lane's axis reads as a manoeuvre rather
+## than as the whole squad's slots teleporting around its anchor.
+@export var wave_squad_turn_speed: float = 1.2
+## How close a squad's anchor has to get to a waypoint to count as having arrived.
+@export var wave_squad_arrive_radius: float = 4.0
+## How much faster than the formation's march speed a member may move while catching up to
+## its slot. 1.0 would mean anyone who fell behind stays behind forever.
+@export var wave_squad_catchup_mult: float = 1.35
+## How far short of its break radius a squad starts running. A formation that walked into
+## contact at marching pace would make the charge invisible on the one colour that has no
+## warband to charge out of a rendezvous with.
+@export var wave_squad_charge_lead: float = 18.0
+## Below this share of its original size a squad stops being a formation and its survivors
+## go and fight. Three enemies walking in rank towards a crystal they cannot threaten only
+## makes the wave take longer to finish.
+@export var wave_squad_disband_fraction: float = 0.35
 ## How much bigger a wave gets per player beyond the first. Enemy DAMAGE already scales
 ## with head count (get_player_scaling_factor), but wave SIZE never did - five players
 ## against a solo-sized wave shred it without the crystal ever being threatened, and earn
@@ -870,6 +920,49 @@ func rank_level_requirement(rank: int) -> int:
 @export var wave_boss_delay: float = 2.0
 @export var wave_elite_start_wave: int = 2
 @export var wave_elite_count_base: int = 1
+
+# --- Minibosses -------------------------------------------------------------------------
+#
+# A rung above Elite, and deliberately its own separate system rather than a bigger Elite
+# tier: Elites only ever change numbers (see EnemyBase.apply_elite_modifier), and a miniboss
+# is meant to be SEEN before it's felt - visibly larger, glowing in its colour, and the one
+# thing in its squad the melee screen is actually built around. At most one per wave, so it
+# reads as a notable arrival rather than a stat roll.
+#
+## First wave a miniboss may appear. Held back past the opening so the player has already
+## seen a plain formation before meeting a reinforced one.
+@export var wave_miniboss_start_wave: int = 6
+## Chance per wave, from wave_miniboss_start_wave on, that one appears at all.
+@export var wave_miniboss_chance: float = 0.35
+## Extra melee units added to a miniboss's own squad, on top of the wave's normal
+## composition. The formation itself (melee screen in front, see SquadDoctrine) does the
+## rest - a denser screen in front of a miniboss reads as an honour guard for free, no new
+## formation geometry required.
+@export var wave_miniboss_escort_bonus: int = 3
+@export var wave_miniboss_health_mult: float = 4.0
+@export var wave_miniboss_damage_mult: float = 1.6
+## Traded down a little against the health and damage bump, the same bargain Elite's own
+## Juggernaut modifier makes - a miniboss that also outran its screen would leave the
+## escort behind immediately.
+@export var wave_miniboss_speed_mult: float = 0.9
+## Visibly larger than its rank-and-file, but well short of a real boss (model_scale 2.1-2.9)
+## - a miniboss is still a member of its squad, not a second boss in the same wave.
+@export var wave_miniboss_scale_mult: float = 1.35
+## Only a Mage miniboss gets a special (see EnemyBase._perform_miniboss_special) - a melee
+## or ranged one is a stat-scaled version of the ordinary attack it already has, same swing,
+## same bow. A caster gets a telegraphed signature spell instead, on its own long cooldown
+## on top of its normal casting - the payoff for finding one in the mage core.
+@export var wave_miniboss_special_cooldown_mult: float = 2.6
+## Radius/strength multiplier applied to whichever of the five per-colour mage effects the
+## special reuses (see perform_mage_spell) - the special is a bigger version of the same
+## spell its ordinary cast already throws, not a new mechanic per colour.
+@export var wave_miniboss_special_power_mult: float = 2.2
+## How long the ground telegraph stands before the special resolves. Not driven off an
+## animation clip length the way a real boss's is (BossDatabase.SPECIALS) - the ordinary
+## Melee/Ranged/Mage models were never built with a dedicated cast clip to time against, so
+## this is a fixed, tunable window instead. Long enough to react to, short enough that the
+## mage is not standing rooted through half the fight.
+@export var wave_miniboss_special_windup: float = 1.8
 
 # ============================================================
 # ENEMIES
@@ -951,6 +1044,62 @@ func rank_level_requirement(rank: int) -> int:
 # Bigger bosses wind up proportionally longer (they also animate slower), so the
 # telegraph stays readable instead of the hit landing before the animation reads.
 @export var boss_special_windup_scale_with_anim: bool = true
+
+# --- Boss modifiers ----------------------------------------------------------------------
+#
+# A named, MTG-flavoured trait a boss can spawn with - Elite's own equivalent
+# (apply_elite_modifier) never touches bosses at all (_assign_elites excludes them), and a
+# boss's whole kit is its two telegraphed specials rather than ordinary stats, so a boss
+# modifier reshapes THAT: how often each special comes round, how hard it hits, how wide it
+# reaches, whether it wins out over its partner. At most one per boss, same as Elite - see
+# EnemyBase.apply_boss_modifier for what each one actually does.
+@export var boss_modifier_chance: float = 0.4
+## The boss at wave_boss_interval (wave 5) is always plain; modifiers start from the one
+## after it, the same one-quiet-example-first pattern wave_elite_start_wave and
+## wave_miniboss_start_wave already use.
+@export var boss_modifier_start_wave: int = 10
+
+## Riot: both specials recycle much faster and the clip itself plays faster - shorter
+## windups as well as shorter cooldowns - traded against noticeably less damage per hit.
+## Frantic rather than dangerous.
+@export var boss_modifier_riot_cooldown_mult: float = 0.65
+@export var boss_modifier_riot_damage_mult: float = 0.8
+@export var boss_modifier_riot_anim_speed_mult: float = 1.3
+
+## Annihilator: the opposite trade. Long waits between specials, but each one hits far
+## harder and reaches further - patience is rewarded, standing in it is not.
+@export var boss_modifier_annihilator_cooldown_mult: float = 1.5
+@export var boss_modifier_annihilator_damage_mult: float = 1.9
+@export var boss_modifier_annihilator_radius_mult: float = 1.15
+
+## Cataclysm: the big area special comes round much faster and the short-range melee one
+## much slower - a boss that would rather control space than get close.
+@export var boss_modifier_cataclysm_big_cooldown_mult: float = 0.6
+@export var boss_modifier_cataclysm_melee_cooldown_mult: float = 1.6
+
+## Bloodthirst: the inverse of Cataclysm - the melee special (the one that can actually
+## damage the crystal) comes round much faster, the big one much slower. An aggressive
+## boss that would rather close the distance and go for the objective.
+@export var boss_modifier_bloodthirst_melee_cooldown_mult: float = 0.55
+@export var boss_modifier_bloodthirst_big_cooldown_mult: float = 1.4
+
+## Enrage: latches on permanently the first time the boss drops below this fraction of its
+## max health, then both specials recycle faster and hit harder for the rest of the fight -
+## the classic "phase 2." One-way, like a squad breaking ranks - flickering in and out at
+## the threshold would read as a bug, not a mechanic.
+@export var boss_modifier_enrage_health_threshold: float = 0.3
+@export var boss_modifier_enrage_cooldown_mult: float = 0.7
+@export var boss_modifier_enrage_damage_mult: float = 1.4
+
+## Lifelink: heals a share of a special's nominal damage back whenever that special lands
+## on at least one player. Flat per resolve rather than per player hit, so it does not
+## scale up against a bigger team the way a per-target heal would.
+@export var boss_modifier_lifelink_pct: float = 0.35
+
+## Absolute floor under every special's windup, regardless of how much a modifier or the
+## boss's own size shrinks it - the one number this whole system is not allowed to push a
+## telegraph below, so "faster" never quietly becomes "undodgeable."
+@export var boss_modifier_min_windup_seconds: float = 0.6
 
 # ============================================================
 # COMBAT FEEDBACK

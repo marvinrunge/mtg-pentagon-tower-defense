@@ -7,6 +7,14 @@ class_name BossDatabase
 ## tools/boss_character_builder.gd and are all normalized to 1.7 units tall, so
 ## `model_scale` here is the single knob controlling how physically large a boss
 ## is - and, through GameSettings.get_boss_anim_speed(), how slowly it animates.
+##
+## A spawned boss can additionally carry a named, MTG-flavoured MODIFIER (Riot,
+## Annihilator, Cataclysm, Bloodthirst, Enrage, Lifelink) that reshapes how the two
+## SPECIALS below are used, without ever touching this Dictionary itself - see
+## GameSettings' Boss modifiers block for every number and EnemyBase.apply_boss_modifier /
+## _begin_special for how they're applied to a DUPLICATE of a special's config. This
+## Dictionary is shared by every boss of a colour across every match; nothing may mutate it
+## in place.
 
 ## Boss visual scenes are looked up by path rather than preload()ed so a missing
 ## or not-yet-built scene degrades to the melee fallback in EnemyBase instead of

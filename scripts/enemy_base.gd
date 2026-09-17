@@ -6,6 +6,7 @@ var current_target: Node3D
 var last_target_position: Vector3 = Vector3.INF
 
 var _health_bar_scene: PackedScene = preload("res://scenes/ui/enemy_health_bar.tscn")
+var _miniboss_glow_shader: Shader = preload("res://assets/shaders/miniboss_glow.gdshader")
 
 const MELEE_VISUAL_SCENES := {
 	"White": preload("res://scenes/melee/human_melee.tscn"),
@@ -72,6 +73,20 @@ var _special_total_timer: float = 0.0
 var _is_special_active: bool = false
 var _special_resolved: bool = false
 var _special_indicator: AttackIndicator
+## Named, MTG-flavoured trait - see GameSettings' Boss modifiers block and
+## apply_boss_modifier(). Empty for an ordinary boss and for every non-boss enemy.
+var boss_modifier: String = ""
+## One-way latch for Enrage: true from the moment health first drops under the threshold,
+## never reverts. See _check_boss_enrage().
+var _enrage_active: bool = false
+
+# --- Miniboss special (Mage only, telegraphed and dodgeable) ---
+## Deliberately separate state from the boss special block above rather than reusing it: a
+## Mage miniboss has exactly ONE special, not a pair with its own cooldown array and shape
+## choice, and it never roots the mage's ordinary spellcasting loop the way a boss's specials
+## replace its whole attack pattern. -1 means no windup is in progress.
+var _miniboss_special_windup: float = -1.0
+var _miniboss_special_indicator: AttackIndicator
 var damage_penalty: float = 0.0
 var penalty_timer: float = 0.0
 var attack_cooldown: float = 0.0
@@ -147,6 +162,38 @@ var elite_modifier: String = ""
 var elite_regeneration_per_second: float = 0.0
 var elite_crystal_damage_multiplier: float = 1.0
 var has_green_mage_buff: bool = false
+
+# --- Minibosses ------------------------------------------------------------------------
+#
+# A separate, higher tier from Elite (see GameSettings' Minibosses block for the reasoning)
+# - bigger, glowing in its colour, and for a Mage the one enemy in the wave that throws a
+# real telegraphed spell instead of the quiet single-target cast every ordinary mage of its
+# colour uses. See apply_miniboss() and _perform_miniboss_special().
+var is_miniboss: bool = false
+## Only ever set for a Mage miniboss; every other class leaves this at 0 and never reads it.
+var _miniboss_special_timer: float = 0.0
+
+# --- Squad formation ---------------------------------------------------------------
+#
+# A wave now arrives as whole formations rather than as a queue of individuals (see
+# EnemySquad), and while an enemy is IN one it walks to a slot measured off the squad's
+# moving anchor instead of straight at the crystal, capped to the squad's march speed so
+# the melee cannot outrun the mages they are supposed to be screening.
+#
+# Untyped on purpose: EnemySquad has to name EnemyBase and this would have to name
+# EnemySquad, and a pair of class_name scripts annotating each other is the cycle GDScript
+# resolves badly. Everything here goes through duck typing instead.
+#
+# `leave_formation()` is the single exit, and it is deliberately one-way - an enemy that
+# has broken ranks never re-joins. Re-forming mid-fight would mean walking back out of a
+# fight it is already in.
+var squad = null
+## Cached off the squad at join time so the per-frame leash check costs no calls.
+var _formation_leash: float = 0.0
+## Charge bonus from the squad, kept on the ENEMY rather than read off the squad so it
+## survives the squad dissolving at the moment of contact.
+var charge_timer: float = 0.0
+var charge_mult: float = 1.0
 
 func _ready() -> void:
 	# Spawned through MultiplayerSpawner, so the colour/class pair arrives as metadata
@@ -251,16 +298,26 @@ func setup(data: EnemyData) -> void:
 		_special_cooldowns.clear()
 		for _entry in _specials:
 			_special_cooldowns.append(GameSettings.boss_special_first_delay)
+		if has_meta("boss_modifier"):
+			apply_boss_modifier(String(get_meta("boss_modifier")))
 
 	if has_meta("elite_modifier"):
 		apply_elite_modifier(String(get_meta("elite_modifier")))
+
+	if has_meta("miniboss"):
+		apply_miniboss()
 
 func update_path(force_update: bool = false) -> void:
 	if not nav_agent:
 		return
 	
 	var target_pos: Vector3 = Vector3.ZERO
-	if current_target and is_instance_valid(current_target):
+	if is_in_formation():
+		# The slot, not the objective. The squad's anchor is already walking towards the
+		# crystal, so this still converges on it - just in rank, and at the formation's
+		# pace rather than this enemy's own.
+		target_pos = squad.formation_target(self)
+	elif current_target and is_instance_valid(current_target):
 		target_pos = current_target.global_position
 	elif target_crystal and is_instance_valid(target_crystal):
 		target_pos = target_crystal.global_position
@@ -268,6 +325,45 @@ func update_path(force_update: bool = false) -> void:
 	if force_update or target_pos.distance_squared_to(last_target_position) > 0.1:
 		nav_agent.target_position = target_pos
 		last_target_position = target_pos
+
+## Whether this enemy is currently walking to a formation slot rather than fighting.
+##
+## Every condition here is a reason the slot has stopped being the right place to be: the
+## squad dissolved, something worth attacking came into view, or the enemy is being moved
+## by an effect that overrides its own intentions entirely.
+func is_in_formation() -> bool:
+	if squad == null or not is_instance_valid(squad) or not squad.holds_formation():
+		return false
+	if flee_timer > 0.0 or taunt_timer > 0.0:
+		return false
+	return current_target == target_crystal or current_target == null
+
+
+func join_squad(new_squad) -> void:
+	squad = new_squad
+	_formation_leash = new_squad.leash()
+	update_path(true)
+
+
+## Breaking ranks. One-way, and safe to call more than once - disband() calls it for every
+## member at the same moment a member may be calling it for itself.
+func leave_formation() -> void:
+	if squad == null:
+		return
+	var former = squad
+	squad = null
+	if is_instance_valid(former):
+		former.release(self)
+	update_path(true)
+
+
+## The squad's charge. Lives on the enemy rather than on the squad so it outlasts the
+## formation dissolving - the charge is most of the point at exactly the moment the ranks
+## come apart on the crystal.
+func apply_squad_charge(duration: float, multiplier: float) -> void:
+	charge_timer = maxf(charge_timer, duration)
+	charge_mult = maxf(charge_mult, multiplier)
+
 
 ## Position, rotation, health, motion and dying, authored by the server. An enemy's AI is
 ## expensive and must reach the same answer everywhere, so only the server runs it; clients
@@ -373,7 +469,14 @@ func _physics_process(delta: float) -> void:
 			perform_mage_spell()
 			# Spells have a longer cooldown than regular attacks
 			cast_timer = enemy_data.attack_speed * GameSettings.enemy_mage_spell_cooldown_mult
-			
+		# The special runs on its OWN clock, entirely separate from the ordinary cast
+		# above - it does not consume or reset cast_timer, so a miniboss keeps throwing its
+		# normal spell on schedule and the special is purely additional.
+		if is_miniboss and _miniboss_special_windup < 0.0:
+			_miniboss_special_timer -= delta
+			if _miniboss_special_timer <= 0.0:
+				_begin_miniboss_special()
+
 	var dist_to_target = 999.0
 	if is_instance_valid(current_target):
 		dist_to_target = global_position.distance_to(current_target.global_position)
@@ -435,6 +538,10 @@ func _physics_process(delta: float) -> void:
 		slow_timer -= delta
 		if slow_timer <= 0.0:
 			slow_mult = 1.0
+	if charge_timer > 0.0:
+		charge_timer -= delta
+		if charge_timer <= 0.0:
+			charge_mult = 1.0
 	if taunt_timer > 0.0:
 		taunt_timer -= delta
 		if taunt_timer <= 0.0:
@@ -472,6 +579,14 @@ func _physics_process(delta: float) -> void:
 		_process_special(0.0)
 		return
 
+	# A Mage miniboss's special, same idea as a boss's but on its own separate state - see
+	# the block above _miniboss_special_windup's declaration. Rooted for the windup so the
+	# indicator's ground position stays where the special was actually cast, exactly the
+	# reason a boss special roots too.
+	if _miniboss_special_windup >= 0.0:
+		_process_miniboss_special(delta)
+		return
+
 	# Disable movement if frozen, stunned, or mid-attack-swing (the swing has no
 	# root motion of its own - moving the body while it plays would make the legs
 	# look planted while the character visibly slides).
@@ -499,11 +614,46 @@ func _physics_process(delta: float) -> void:
 		_update_visual_animation()
 		return
 
+	# The leash. A member that has been shoved further from its slot than its colour
+	# tolerates gives up on the formation rather than walking back through whoever shoved
+	# it to stand in a rank. Re-pathing is not needed here: the ordinary path_update_timer
+	# above already refreshes the target every enemy_path_update_interval, and for a member
+	# in formation update_path() resolves that target to the live slot.
+	var holding_formation: bool = is_in_formation()
+	if holding_formation and global_position.distance_to(squad.formation_target(self)) > _formation_leash:
+		leave_formation()
+		holding_formation = false
+
+	# A formation slot MOVES, which breaks every assumption the ordinary movement block
+	# makes about arriving somewhere. The navigation agent calls itself finished within 1.5
+	# units of its target - further than a slot travels in a frame - so an enemy that used
+	# that as its stop condition would halt, be left behind, walk, halt again, and flicker
+	# between its walk and idle clips the whole way down the lane. Instead a member in
+	# formation never stops navigating and moves at exactly the speed needed to stay on its
+	# slot, which in steady state IS the squad's march speed.
+	var formation_pull: float = -1.0
+	if holding_formation:
+		var slot_gap: Vector3 = squad.formation_target(self) - global_position
+		slot_gap.y = 0.0
+		formation_pull = slot_gap.length() / maxf(delta, 0.0001)
+
 	# Movement
 	var is_in_attack_range: bool = dist_to_target <= enemy_data.attack_range
-	if not is_in_attack_range and root_timer <= 0 and not nav_agent.is_navigation_finished():
+	if not is_in_attack_range and root_timer <= 0 and (holding_formation or not nav_agent.is_navigation_finished()):
 		var next_path_position = nav_agent.get_next_path_position()
-		var new_velocity: Vector3 = (next_path_position - global_position).normalized() * enemy_data.speed * movement_speed_mult()
+		# Close to its slot, a member steers at the LIVE slot rather than at the path's end
+		# point, which is up to one repath interval out of date and would drag the whole
+		# formation a step backwards every time it refreshed.
+		if holding_formation and nav_agent.is_navigation_finished():
+			next_path_position = squad.formation_target(self)
+		var move_speed: float = enemy_data.speed * movement_speed_mult()
+		# The cap is what makes a formation a formation: everyone moves at the anchor's
+		# pace (plus a little, so stragglers can close up) instead of at their own, so a
+		# 2.5-speed melee cannot leave the 1.5-speed mage it is screening behind.
+		if holding_formation:
+			move_speed = minf(move_speed, squad.member_speed_limit())
+			move_speed = minf(move_speed, formation_pull)
+		var new_velocity: Vector3 = (next_path_position - global_position).normalized() * move_speed
 		velocity.x = new_velocity.x
 		velocity.z = new_velocity.z
 		
@@ -712,7 +862,16 @@ func _special_eligible(config: Dictionary, dist_to_target: float) -> bool:
 
 func _begin_special(index: int) -> void:
 	_special_index = index
-	_special_config = _specials[index]
+	# Duplicated rather than the shared reference _specials[index] itself: BossDatabase.
+	# SPECIALS is one Dictionary per colour, reused by every boss of that colour, and a
+	# modifier's radius bump below mutates THIS boss's copy for THIS cast only. Mutating
+	# the shared one in place would widen the special for every other boss of the same
+	# colour, in every other match, permanently.
+	_special_config = (_specials[index] as Dictionary).duplicate()
+	if boss_modifier != "":
+		var radius_mult: float = _boss_modifier_radius_mult()
+		if radius_mult != 1.0:
+			_special_config["radius"] = float(_special_config.get("radius", 5.0)) * radius_mult
 	var clip: String = String(_special_config.get("clip", "special"))
 	var anim: Animation = visual_anim_player.get_animation(clip)
 	var clip_length: float = anim.length if anim else 1.5
@@ -723,6 +882,12 @@ func _begin_special(index: int) -> void:
 	_special_resolved = false
 	_special_total_timer = clip_length / playback_speed
 	_special_windup_timer = _special_total_timer * impact_fraction
+	if boss_modifier != "":
+		# The one thing no modifier may do: make a telegraph effectively undodgeable. A
+		# small boss (short clip) combined with a speed-up modifier is exactly the
+		# combination that could otherwise push this under reflex range.
+		_special_windup_timer = maxf(_special_windup_timer, GameSettings.boss_modifier_min_windup_seconds)
+		_special_total_timer = maxf(_special_total_timer, _special_windup_timer)
 
 	if is_dying:
 		return
@@ -769,9 +934,10 @@ func _process_special(delta: float) -> void:
 func _resolve_special() -> void:
 	_special_resolved = true
 	if _special_index >= 0 and _special_index < _special_cooldowns.size():
-		_special_cooldowns[_special_index] = float(
-			_special_config.get("cooldown", GameSettings.boss_special_cooldown)
-		)
+		var cooldown: float = float(_special_config.get("cooldown", GameSettings.boss_special_cooldown))
+		if boss_modifier != "":
+			cooldown *= _boss_modifier_cooldown_mult(_special_index)
+		_special_cooldowns[_special_index] = cooldown
 	# Sounded from the boss's own feet rather than from whatever it caught: every
 	# special is a slam, a sweep or a landing centred on the boss, and it makes that
 	# noise whether or not anyone was still standing in the circle.
@@ -784,6 +950,8 @@ func _resolve_special() -> void:
 	var damage: float = enemy_data.attack_damage
 	damage *= float(_special_config.get("damage_mult", GameSettings.boss_special_damage_mult))
 	damage *= GameSettings.get_player_scaling_factor(get_tree())
+	if boss_modifier == "Enrage":
+		damage *= _boss_modifier_enrage_damage_mult()
 
 	var hit_player: bool = false
 	for target in _special_targets_in_shape():
@@ -791,6 +959,12 @@ func _resolve_special() -> void:
 			target.take_damage(damage, self, true)
 			if target.is_in_group("player"):
 				hit_player = true
+
+	# Lifelink: a share of the nominal damage back, once per resolve rather than once per
+	# player it actually caught - a per-target heal would make this scale up for free
+	# against a bigger team, which is not the trade the keyword promises.
+	if boss_modifier == "Lifelink" and hit_player:
+		heal(damage * GameSettings.boss_modifier_lifelink_pct)
 
 	# The crystal is not in _special_targets_in_shape - that set is players and myrs, the
 	# things that can move out of the way. It is hit here instead, and only by a special
@@ -886,6 +1060,128 @@ func _cancel_special() -> void:
 		_special_indicator.cancel()
 	_special_indicator = null
 	_is_special_active = false
+
+# ============================================================
+# MINIBOSS SPECIAL (Mage only, telegraphed and dodgeable)
+#
+# One special, on its own long cooldown, running entirely alongside the ordinary cast loop
+# in perform_mage_spell() rather than replacing it - a miniboss keeps throwing its normal
+# spell on schedule, and the special is purely a periodic, more dramatic extra. See
+# apply_miniboss() for how a Mage gets flagged into this at all.
+# ============================================================
+
+## Starts the windup: draws the ground telegraph and roots the caster until it resolves.
+## The radius is exactly what the special will reach - see _miniboss_special_radius - the
+## same discipline boss specials already keep between what is drawn and what actually hits.
+func _begin_miniboss_special() -> void:
+	if damage_suppress_timer > 0.0:
+		# Fog silences this the same way it silences the ordinary cast (see
+		# perform_mage_spell) - still pays the cooldown, so a silenced special does not
+		# simply retry next frame.
+		_report_fog_prevented(0.0)
+		_miniboss_special_timer = enemy_data.attack_speed * GameSettings.wave_miniboss_special_cooldown_mult
+		return
+
+	_miniboss_special_windup = GameSettings.wave_miniboss_special_windup
+	_miniboss_special_indicator = AttackIndicator.spawn(
+		self,
+		AttackIndicator.Shape.CIRCLE,
+		_miniboss_special_radius(),
+		360.0,
+		_miniboss_special_windup,
+		enemy_data.visual_color,
+		enemy_data.model_scale
+	)
+
+func _process_miniboss_special(delta: float) -> void:
+	# Rooted for the whole windup, same reasoning as a boss special: the indicator is drawn
+	# where the mage stood when it committed, and a mage that kept walking would drag the
+	# danger zone somewhere the player never actually saw telegraphed.
+	velocity.x = 0.0
+	velocity.z = 0.0
+	move_and_slide()
+
+	_miniboss_special_windup -= delta
+	if _miniboss_special_windup <= 0.0:
+		_resolve_miniboss_special()
+
+## Reuses the SAME per-colour range perform_mage_spell() already casts at, scaled up by
+## wave_miniboss_special_power_mult. Black has no range of its own to scale - its ordinary
+## cast raises something at its own feet rather than reaching out - so the indicator
+## borrows Green's footprint as a sane default size for the telegraph.
+func _miniboss_special_radius() -> float:
+	var base_range: float = GameSettings.enemy_white_mage_range
+	match enemy_data.color_identity:
+		"Red": base_range = GameSettings.enemy_red_mage_range
+		"Blue": base_range = GameSettings.enemy_blue_mage_range
+		"Green": base_range = GameSettings.enemy_green_mage_range
+		"Black": base_range = GameSettings.enemy_green_mage_range
+	return base_range * GameSettings.wave_miniboss_special_power_mult
+
+## The payoff: a bigger version of the SAME effect this colour's ordinary cast already
+## throws (see perform_mage_spell), never a new mechanic per colour - just the signature
+## spell turned up. Red and Blue additionally reach every player in range rather than only
+## the first one found the way the ordinary single-target cast does - a telegraphed special
+## a second player could simply stand next to and ignore would not read as a threat to them
+## at all.
+func _resolve_miniboss_special() -> void:
+	_miniboss_special_windup = -1.0
+	if _miniboss_special_indicator and is_instance_valid(_miniboss_special_indicator):
+		_miniboss_special_indicator.resolve()
+	_miniboss_special_indicator = null
+	_miniboss_special_timer = enemy_data.attack_speed * GameSettings.wave_miniboss_special_cooldown_mult
+
+	if is_dying or enemy_data == null:
+		return
+
+	var power: float = GameSettings.wave_miniboss_special_power_mult
+	var radius: float = _miniboss_special_radius()
+
+	match enemy_data.color_identity:
+		"White":
+			for e: Node3D in _bodies_in_range(radius, 4):
+				if e.has_method("heal"):
+					e.heal(GameSettings.enemy_white_mage_heal * power)
+		"Red":
+			var scaled_damage: float = enemy_data.attack_damage * power * GameSettings.get_player_scaling_factor(get_tree())
+			for player: Node3D in get_tree().get_nodes_in_group("player"):
+				if is_instance_valid(player) and global_position.distance_to(player.global_position) < radius and player.has_method("take_damage"):
+					player.take_damage(scaled_damage, self)
+		"Blue":
+			for player: Node3D in get_tree().get_nodes_in_group("player"):
+				if is_instance_valid(player) and global_position.distance_to(player.global_position) < radius and player.has_method("apply_slow"):
+					player.apply_slow(GameSettings.enemy_blue_mage_slow_duration * power)
+		"Black":
+			# The signature raise, upgraded from a lone weak melee to a real Ranged unit -
+			# a body that can actually threaten the crystal from where it lands, rather
+			# than one more goblin walking in from the back of the fight.
+			var revived_data: EnemyData = EnemyDatabase.get_enemy_data("Black", "Ranged")
+			var enemy_scene: PackedScene = load("res://scenes/misc/enemy.tscn") as PackedScene
+			var new_enemy: Node3D = enemy_scene.instantiate()
+			new_enemy.position = global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
+			new_enemy.set_meta("target_crystal", target_crystal)
+			get_parent().add_child(new_enemy)
+			new_enemy.setup(revived_data)
+			new_enemy.health = revived_data.health * GameSettings.enemy_black_mage_revive_hp_mult * power
+			var wm: Node = get_tree().current_scene.get_node_or_null("WaveManager")
+			if wm:
+				wm.register_enemy()
+		"Green":
+			# Every ally in range rather than breaking on the first - the ordinary cast is
+			# one Giant Growth, the special is a whole rally.
+			for e: Node3D in get_tree().get_nodes_in_group("enemies"):
+				if e != self and is_instance_valid(e) and global_position.distance_to(e.global_position) < radius:
+					if e.has_method("apply_green_mage_buff"):
+						e.apply_green_mage_buff()
+
+## Dying or being exiled mid-windup drops the telegraph without resolving it - the same
+## treatment a boss special gets from _cancel_special(), called alongside this one from
+## die() and exile().
+func _cancel_miniboss_special() -> void:
+	if _miniboss_special_indicator and is_instance_valid(_miniboss_special_indicator):
+		_miniboss_special_indicator.cancel()
+	_miniboss_special_indicator = null
+	_miniboss_special_windup = -1.0
 
 func perform_attack() -> void:
 	if not is_instance_valid(current_target):
@@ -1121,6 +1417,169 @@ func apply_elite_modifier(modifier: String) -> void:
 	if health_bar:
 		health_bar.set_health(health, enemy_data.health)
 
+## The step up from Elite: bigger, tankier, harder-hitting, and visibly so - see
+## GameSettings' Minibosses block for every multiplier. Runs at the very end of setup(), same
+## as apply_elite_modifier, so it reapplies scale/health/health_bar on top of whatever the
+## rest of setup() already put there rather than needing setup() itself restructured.
+##
+## Only a Mage gets a special (see _perform_miniboss_special) - a Melee or Ranged miniboss
+## is simply a stat-scaled version of the ordinary attack it already throws, same swing,
+## same bow, nothing new to build for those two classes.
+func apply_miniboss() -> void:
+	is_miniboss = true
+	enemy_data.health *= GameSettings.wave_miniboss_health_mult
+	enemy_data.attack_damage *= GameSettings.wave_miniboss_damage_mult
+	enemy_data.speed *= GameSettings.wave_miniboss_speed_mult
+	enemy_data.model_scale *= GameSettings.wave_miniboss_scale_mult
+	enemy_data.display_name = "Miniboss " + enemy_data.display_name
+
+	health = enemy_data.health
+	if health_bar:
+		health_bar.set_health(health, enemy_data.health)
+	scale = Vector3(enemy_data.model_scale, enemy_data.model_scale, enemy_data.model_scale)
+	aggro_area.scale = Vector3.ONE / maxf(enemy_data.model_scale, 0.01)
+
+	_apply_miniboss_glow()
+
+	if enemy_data.enemy_class == "Mage":
+		# Its own long cooldown, ON TOP of the ordinary cast loop in perform_mage_spell() -
+		# the special is the payoff for finding a mage miniboss, not a replacement for its
+		# normal casting.
+		_miniboss_special_timer = enemy_data.attack_speed * GameSettings.wave_miniboss_special_cooldown_mult
+
+## The size and health bump alone are easy to miss across a battlefield full of goblins -
+## the glow is what actually catches the eye from across the lane, in the enemy's own lane
+## colour (see EnemyDatabase.get_enemy_data's visual_color per colour).
+##
+## Layered on as a NEXT_PASS on a DUPLICATE of the mesh's own material, never as
+## material_override: the base material is a shared resource used by every ordinary enemy
+## wearing this same model, and touching it in place would glow every goblin in the game,
+## not just this one.
+func _apply_miniboss_glow() -> void:
+	var glow_material := ShaderMaterial.new()
+	glow_material.shader = _miniboss_glow_shader
+	glow_material.set_shader_parameter("glow_color", enemy_data.visual_color)
+
+	# find_child by name rather than a stored reference: the visual was added a few lines
+	# up in setup(), by name "Skeleton3D" for a real model or the CSGBox3D fallback's own
+	# default node name otherwise - the same trick _ground_visual already relies on for the
+	# skeleton lookup.
+	var skeleton: Skeleton3D = find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton != null:
+		for child: Node in skeleton.get_children():
+			if not (child is MeshInstance3D):
+				continue
+			var mesh_instance: MeshInstance3D = child as MeshInstance3D
+			for surface: int in range(mesh_instance.get_surface_override_material_count()):
+				var base_material: Material = mesh_instance.get_active_material(surface)
+				if base_material == null:
+					continue
+				var duplicated_material: Material = base_material.duplicate()
+				duplicated_material.next_pass = glow_material
+				mesh_instance.set_surface_override_material(surface, duplicated_material)
+			return
+
+	# No skinned model - the CSGBox3D fallback used when a colour/class has no imported mesh
+	# yet. It already carries its own plain material, so the glow becomes emission on that
+	# instead of a second render pass; there is no skeleton mesh here for next_pass to sit on.
+	var fallback: CSGBox3D = find_child("CSGBox3D", true, false) as CSGBox3D
+	if fallback != null and fallback.material is StandardMaterial3D:
+		var fallback_material: StandardMaterial3D = (fallback.material as StandardMaterial3D).duplicate()
+		fallback_material.emission_enabled = true
+		fallback_material.emission = enemy_data.visual_color
+		fallback_material.emission_energy_multiplier = 2.0
+		fallback.material = fallback_material
+
+# ============================================================
+# BOSS MODIFIERS
+#
+# A named, MTG-flavoured trait a boss can spawn with - Elite's own system never reaches
+# bosses at all (_assign_elites excludes them), and a boss's whole kit is its two
+# telegraphed specials rather than ordinary stats, so these reshape THAT rather than
+# reusing Elite's stat-multiplier shape. At most one per boss. See GameSettings' Boss
+# modifiers block for every number.
+# ============================================================
+
+## Whatever a modifier changes about the specials THEMSELVES (cooldown weighting, reach,
+## Enrage's damage step) is applied per-cast in _begin_special, on a duplicated config - see
+## that function's own comment for why a shared BossDatabase dict may never be mutated in
+## place. Only the two flat, permanent changes live here: Riot's damage cut (applies from
+## the very first cast) and the anim-speed bump that shortens every future windup.
+func apply_boss_modifier(modifier: String) -> void:
+	boss_modifier = modifier
+	match modifier:
+		"Riot":
+			enemy_data.attack_damage *= GameSettings.boss_modifier_riot_damage_mult
+			_anim_speed_scale *= GameSettings.boss_modifier_riot_anim_speed_mult
+		"Annihilator":
+			enemy_data.attack_damage *= GameSettings.boss_modifier_annihilator_damage_mult
+	_apply_boss_modifier_tag()
+
+
+## The per-special-INDEX cooldown multiplier for whichever modifier is active. Index 0 is
+## always the big area special and index 1 the short-range melee one across every colour's
+## BossDatabase.SPECIALS entry (boss_specials.gd's "has exactly one crystal-breaker" check
+## is what keeps that true) - Cataclysm and Bloodthirst read that ordering directly rather
+## than searching for hits_crystal themselves.
+func _boss_modifier_cooldown_mult(index: int) -> float:
+	match boss_modifier:
+		"Riot":
+			return GameSettings.boss_modifier_riot_cooldown_mult
+		"Annihilator":
+			return GameSettings.boss_modifier_annihilator_cooldown_mult
+		"Cataclysm":
+			return GameSettings.boss_modifier_cataclysm_big_cooldown_mult if index == 0 else GameSettings.boss_modifier_cataclysm_melee_cooldown_mult
+		"Bloodthirst":
+			return GameSettings.boss_modifier_bloodthirst_big_cooldown_mult if index == 0 else GameSettings.boss_modifier_bloodthirst_melee_cooldown_mult
+		"Enrage":
+			return GameSettings.boss_modifier_enrage_cooldown_mult if _enrage_active else 1.0
+	return 1.0
+
+
+func _boss_modifier_radius_mult() -> float:
+	if boss_modifier == "Annihilator":
+		return GameSettings.boss_modifier_annihilator_radius_mult
+	return 1.0
+
+
+## Enrage's damage step, applied once the first time it latches - see _check_boss_enrage.
+## Kept separate from apply_boss_modifier because it fires mid-fight, not at spawn.
+func _boss_modifier_enrage_damage_mult() -> float:
+	return GameSettings.boss_modifier_enrage_damage_mult if boss_modifier == "Enrage" and _enrage_active else 1.0
+
+
+## The classic "phase 2": latches the FIRST time health crosses the threshold and never
+## reverts, same one-way philosophy the squad system already uses for breaking ranks -
+## flickering in and out at the threshold would read as a bug, not a mechanic. Called from
+## take_damage() right after health drops, rather than polled every frame, since that is
+## the one moment the answer can actually change.
+func _check_boss_enrage() -> void:
+	if boss_modifier != "Enrage" or _enrage_active or enemy_data == null:
+		return
+	if health <= enemy_data.health * GameSettings.boss_modifier_enrage_health_threshold:
+		_enrage_active = true
+		enemy_data.attack_damage *= GameSettings.boss_modifier_enrage_damage_mult
+
+
+## Shows the modifier's name over the boss's health bar, in the tint its own telegraph
+## already uses - the same colour a player learns to read as "get out of this" during the
+## fight now also tells them what they walked up to before the first hit even lands.
+func _apply_boss_modifier_tag() -> void:
+	if health_bar == null or boss_modifier == "":
+		return
+	health_bar.set_modifier_tag(boss_modifier.to_upper(), _boss_modifier_tint())
+
+
+func _boss_modifier_tint() -> Color:
+	match boss_modifier:
+		"Riot": return Color(1.0, 0.55, 0.15)
+		"Annihilator": return Color(0.55, 0.15, 0.65)
+		"Cataclysm": return Color(0.85, 0.2, 0.75)
+		"Bloodthirst": return Color(0.75, 0.05, 0.1)
+		"Enrage": return Color(1.0, 0.85, 0.1)
+		"Lifelink": return Color(0.15, 0.85, 0.4)
+	return Color.WHITE
+
 func _get_detection_range() -> float:
 	if enemy_data and (enemy_data.enemy_class == "Mage" or enemy_data.enemy_class == "Ranged"):
 		return GameSettings.enemy_ranged_detection_range
@@ -1167,6 +1626,12 @@ func evaluate_target() -> void:
 		current_target = best_target
 		update_path(true)
 
+	# Seeing something worth attacking is the ordinary way out of a formation: the slot was
+	# only ever a way of getting here. The squad is told so it can stop counting this one,
+	# and so a squad that has lost most of its members can stand itself down.
+	if squad != null and current_target != target_crystal:
+		leave_formation()
+
 func _on_aggro_body_entered(body: Node3D) -> void:
 	evaluate_target()
 
@@ -1197,12 +1662,19 @@ func request_damage(amount: float, attacker_peer: int, is_melee: bool, exile_on_
 func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false, exile_on_kill: bool = false) -> void:
 	if is_dying:
 		return
+	# Some colours hold their formation under fire and some do not (SquadDoctrine's
+	# break_on_damage - Red's goblins scatter the moment anything touches them). The squad
+	# owns that decision, so it is asked rather than told.
+	if squad != null and is_instance_valid(squad):
+		squad.on_member_damaged(self)
 	if exile_on_kill:
 		_exile_on_death = true
 	if curse_timer > 0:
 		amount *= curse_mult
 	var damage_dealt: float = minf(maxf(amount, 0.0), maxf(health, 0.0))
 	health -= amount
+	if boss_modifier == "Enrage":
+		_check_boss_enrage()
 	if damage_dealt > 0.0 and is_instance_valid(source) and source.has_method("on_damage_dealt"):
 		source.on_damage_dealt(damage_dealt)
 	if health_bar and enemy_data:
@@ -1240,6 +1712,10 @@ func _react_to_hit(damage_dealt: float) -> void:
 		_impact_timer = -1.0
 
 func die() -> void:
+	# The slot goes back before anything else happens: a corpse holds one for the couple of
+	# seconds its death animation runs, and a squad measuring its march speed off a dead
+	# mage would keep walking at the dead mage's pace.
+	leave_formation()
 	# Exiled rather than killed: same rewards, no body left behind. See exile().
 	if _exile_on_death:
 		exile()
@@ -1256,6 +1732,7 @@ func die() -> void:
 	# Dying mid-windup drops the telegraph without dealing its damage - and the same
 	# goes for an ordinary swing whose impact frame has not arrived yet.
 	_cancel_special()
+	_cancel_miniboss_special()
 	_impact_timer = -1.0
 	_hit_react_timer = 0.0
 
@@ -1488,6 +1965,11 @@ func movement_speed_mult() -> float:
 		mult = GameSettings.enemy_frost_slow_mult
 	if slow_timer > 0.0:
 		mult = minf(mult, slow_mult)
+	# Applied on TOP of the slows rather than clamped against them: a charge that a single
+	# frost stack could cancel outright would not read as a charge at all, and a charging
+	# enemy that has been slowed should still be visibly faster than a walking one.
+	if charge_timer > 0.0:
+		mult *= charge_mult
 	return mult
 
 
@@ -1508,6 +1990,7 @@ func apply_fear(duration: float, origin: Vector3) -> void:
 	flee_timer = maxf(flee_timer, duration)
 	flee_from = origin
 	current_target = null
+	leave_formation()
 
 
 ## Runs directly away from whatever caused the fear. Deliberately NOT navigated: the
@@ -1537,6 +2020,10 @@ func apply_taunt(source: Node3D, duration: float) -> void:
 	taunt_source = source
 	flee_timer = 0.0
 	pacified_timer = 0.0
+	# Roar is meant to pull an enemy OUT of whatever it was doing, and standing in a rank
+	# is something to be pulled out of. Left in the squad it would keep being counted as a
+	# member and would walk straight back to its slot the moment the taunt expired.
+	leave_formation()
 	evaluate_target()
 
 
@@ -1586,6 +2073,7 @@ func exile() -> void:
 		SignalBus.enemy_died_at.emit(global_position)
 		RunState.on_enemy_killed(enemy_data, elite_modifier != "")
 	_cancel_special()
+	_cancel_miniboss_special()
 	queue_free()
 
 
