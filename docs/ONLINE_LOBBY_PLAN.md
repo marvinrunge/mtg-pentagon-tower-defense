@@ -266,7 +266,25 @@ The `.gdextension` file carries its own platform libraries into an export, but o
 adding it, and confirm the exported build still shows the online switches — an export
 that silently dropped the extension looks exactly like a build with no config.
 
-## 5. Two real machines on two real networks
+## 5a. The one-machine self-check first
+
+```
+godot --headless --path . res://tools/tests/online_selfcheck.tscn
+```
+
+Everything that can be answered without a second machine, in the order the risk sits:
+the scripts parse and the autoloads exist; the WebRTC extension is really installed
+(the classes resolve either way, so this is the only honest test); a **real handshake**
+between two connections in this process — offer, answer, candidates, an open channel and
+a packet through it, which is the part written against the documented API and never run;
+the shape of `WebRTCMultiplayerPeer.get_peers()` that `net_online.gd` depends on; and
+Firebase end to end — sign in, write a lobby, read it back, write a ticket, delete both,
+which exercises the REST client *and* the security rules.
+
+It prints `TEST RESULT: PASS` or a FAIL naming what did not happen. Anything it reports
+as SKIP is a missing piece of setup, not a passing check.
+
+## 5b. Two real machines on two real networks
 
 Two windows on one desk cannot test this. Both would sit behind the same NAT and would
 connect through a local candidate, which is the one case that was never in doubt. It
