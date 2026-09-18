@@ -53,8 +53,24 @@ var match_seats: int = 1
 var _reserved_seats: Dictionary = {}
 
 ## What the last join attempt used, so the menu can offer to try it again after a drop
-## without making the player find the host in the browser a second time.
+## without making the player find the host in the browser a second time. Carries the
+## TRANSPORT as well as the address, because reconnecting to an online game means going
+## back through the signalling handshake rather than reopening a socket.
 var last_join: Dictionary = {}
+
+## True when this session is carried by WebRTC over a Firebase-listed lobby rather than
+## by ENet on a local network. It changes three things and nothing else: which peer is
+## installed, whether the lobby is advertised on the LAN as well, and how a refused
+## client is cut loose. Everything downstream - the peer list, seats, ready checks,
+## every RPC, every spawner - cannot tell the difference and is not asked to.
+var online_session: bool = false
+
+## Why the last connection attempt failed, when there is something more useful to say
+## than "could not connect". The online path has failure modes the LAN path does not -
+## a database that refuses the write, a handshake that never completed - and telling a
+## player to check their router when the real answer is a missing config file wastes an
+## evening.
+var last_error: String = ""
 
 ## Set between "the player chose to join a running match" and the peer actually being
 ## created. The map is loaded FIRST and the connection opened only once it is standing,
@@ -105,6 +121,7 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	NetOnline.handshake_failed.connect(_on_online_handshake_failed)
 
 
 ## Discovery is plain UDP with no engine plumbing behind it, so both sides have to be
@@ -155,15 +172,44 @@ func host(port: int = DEFAULT_PORT, player_name: String = "Host", label: String 
 		push_error("Could not host on port %d: %d" % [port, result])
 		return result
 	multiplayer.multiplayer_peer = peer
+	_begin_hosting(player_name, label, password)
+	_start_advertising(port)
+	peer_list_changed.emit(peers)
+	return OK
+
+
+## Host a game that is listed online and joined over WebRTC. No port is opened and
+## nothing is forwarded: the players' machines find a route to each other through the
+## signalling channel, and Firebase never carries a packet of the game itself.
+##
+## Not advertised on the LAN, deliberately. A discovery reply names a port, and this
+## host has none - a player on the same network would find it and then fail to connect
+## to a socket that does not exist.
+func host_online(player_name: String = "Host", label: String = "", password: String = "") -> Error:
+	if not NetOnline.is_available():
+		push_error(NetOnline.unavailable_reason())
+		return ERR_UNAVAILABLE
+	var peer: WebRTCMultiplayerPeer = NetOnline.create_host_peer()
+	if peer == null:
+		return ERR_CANT_CREATE
+	multiplayer.multiplayer_peer = peer
+	online_session = true
+	_begin_hosting(player_name, label, password)
+	peer_list_changed.emit(peers)
+	NetOnline.publish(_describe_server())
+	return OK
+
+
+## The bookkeeping both kinds of host share, so the two paths cannot drift apart in the
+## one place where they must agree: what the lobby is called, who is in it, and whose
+## seat is whose.
+func _begin_hosting(player_name: String, label: String, password: String) -> void:
 	local_name = player_name
 	server_name = label.strip_edges() if not label.strip_edges().is_empty() else "%s's game" % player_name
 	_password = password
 	match_in_progress = false
 	_reserved_seats.clear()
 	peers = {1: {"name": player_name, "ready": false, "seat": 0}}
-	_start_advertising(port)
-	peer_list_changed.emit(peers)
-	return OK
 
 
 func join(address: String, port: int = DEFAULT_PORT, player_name: String = "Player", password: String = "") -> Error:
@@ -176,7 +222,38 @@ func join(address: String, port: int = DEFAULT_PORT, player_name: String = "Play
 	local_name = player_name
 	_pending_password = password
 	_pending_join.clear()
-	last_join = {"address": address, "port": port, "name": player_name, "password": password}
+	last_join = {
+		"transport": "enet",
+		"address": address, "port": port, "name": player_name, "password": password,
+	}
+	return OK
+
+
+## Join a game found in the online browser. `lobby` is a row out of
+## `NetOnline.found_servers()`; what identifies the host is its lobby id, not an address,
+## because neither machine knows its own address until the handshake has run.
+##
+## Returns as soon as the handshake is UNDER WAY. The peer reports CONNECTING until the
+## two machines have found a route to each other, which is the same state the menu
+## already waits in for an ENet connection - so the waiting screen and the failure path
+## are the ones that were already there.
+func join_online(lobby: Dictionary, player_name: String = "Player", password: String = "") -> Error:
+	if not NetOnline.is_available():
+		push_error(NetOnline.unavailable_reason())
+		return ERR_UNAVAILABLE
+	var peer: WebRTCMultiplayerPeer = NetOnline.create_client_peer(lobby)
+	if peer == null:
+		return ERR_CANT_CONNECT
+	last_error = ""
+	multiplayer.multiplayer_peer = peer
+	online_session = true
+	local_name = player_name
+	_pending_password = password
+	_pending_join.clear()
+	last_join = {
+		"transport": "online",
+		"lobby": lobby, "name": player_name, "password": password,
+	}
 	return OK
 
 
@@ -191,7 +268,22 @@ func join(address: String, port: int = DEFAULT_PORT, player_name: String = "Play
 func begin_join(address: String, port: int, player_name: String, password: String) -> void:
 	local_name = player_name
 	match_in_progress = true
-	last_join = {"address": address, "port": port, "name": player_name, "password": password}
+	last_join = {
+		"transport": "enet",
+		"address": address, "port": port, "name": player_name, "password": password,
+	}
+	_pending_join = last_join.duplicate()
+
+
+## The same deferred join for a game found online. Identical reasoning, identical order:
+## the map is built first and the connection opened from inside it.
+func begin_join_online(lobby: Dictionary, player_name: String, password: String) -> void:
+	local_name = player_name
+	match_in_progress = true
+	last_join = {
+		"transport": "online",
+		"lobby": lobby, "name": player_name, "password": password,
+	}
 	_pending_join = last_join.duplicate()
 
 
@@ -206,6 +298,12 @@ func complete_pending_join() -> Error:
 		return OK
 	var details: Dictionary = _pending_join
 	_pending_join = {}
+	if String(details.get("transport", "enet")) == "online":
+		return join_online(
+			details["lobby"],
+			String(details["name"]),
+			String(details["password"]),
+		)
 	return join(
 		String(details["address"]),
 		int(details["port"]),
@@ -229,6 +327,11 @@ func leave() -> void:
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
+	# Takes the lobby off the browser now rather than letting it time out, so nobody
+	# spends the next minute trying to join a game that has closed.
+	if online_session:
+		NetOnline.close()
+	online_session = false
 	peers.clear()
 	_password = ""
 	_pending_password = ""
@@ -326,6 +429,7 @@ func _apply_ready(peer_id: int, value: bool) -> void:
 	peers[peer_id] = entry
 	_publish_peers.rpc(peers)
 	peer_list_changed.emit(peers)
+	_announce_online()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -333,6 +437,13 @@ func _submit_ready(value: bool) -> void:
 	if not multiplayer.is_server():
 		return
 	_apply_ready(multiplayer.get_remote_sender_id(), value)
+
+
+## Pushes the current head count and match state to the online listing. A no-op for a
+## LAN host and for every client, so the call sites do not have to ask.
+func _announce_online() -> void:
+	if online_session and multiplayer.is_server():
+		NetOnline.update_lobby(_describe_server())
 
 
 # --- LAN discovery ------------------------------------------------------------
@@ -488,6 +599,7 @@ func _on_peer_disconnected(id: int) -> void:
 	if multiplayer.is_server():
 		_publish_peers.rpc(peers)
 		peer_left_match.emit(id)
+		_announce_online()
 	peer_list_changed.emit(peers)
 
 
@@ -498,6 +610,24 @@ func _on_connected_to_server() -> void:
 func _on_connection_failed() -> void:
 	multiplayer.multiplayer_peer = null
 	connection_failed.emit()
+
+
+## A WebRTC connection that never opened. Godot's own `connection_failed` cannot fire
+## for it - that signal belongs to a peer that tried and was refused, and this one never
+## got as far as trying - so it is translated into the two signals the rest of the game
+## already handles, picked apart the same way `_on_server_disconnected` picks them apart:
+## in the lobby it is a join that did not work, in a match it is a map on screen with
+## nothing behind it.
+func _on_online_handshake_failed(reason: String) -> void:
+	if not online_session:
+		return
+	var was_in_match: bool = match_in_progress
+	last_error = reason
+	leave()
+	if was_in_match:
+		match_connection_lost.emit()
+	else:
+		connection_failed.emit()
 
 
 func _on_server_disconnected() -> void:
@@ -540,6 +670,7 @@ func _submit_identity(player_name: String, password: String) -> void:
 	peers[sender] = {"name": player_name, "ready": match_in_progress, "seat": seat}
 	_publish_peers.rpc(peers)
 	peer_list_changed.emit(peers)
+	_announce_online()
 	if match_in_progress:
 		_set_match_seats.rpc_id(sender, match_seats)
 		# Tells the newcomer's own machine nothing it does not already know - it loaded
@@ -579,8 +710,16 @@ func _kick_later(peer_id: int) -> void:
 	await get_tree().create_timer(1.0).timeout
 	if not is_active() or not multiplayer.is_server():
 		return
-	if peer_id in multiplayer.get_peers():
-		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+	if not peer_id in multiplayer.get_peers():
+		return
+	# ENet cuts a peer loose with disconnect_peer; the WebRTC peer holds a connection
+	# object per player and takes it away with remove_peer. Asking which one is in use
+	# beats branching on the transport, since the answer is a property of the peer.
+	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+	if peer.has_method("disconnect_peer"):
+		peer.disconnect_peer(peer_id)
+	elif peer.has_method("remove_peer"):
+		peer.remove_peer(peer_id)
 
 
 ## The server is the only writer of the peer list; clients take what they are given.
@@ -599,6 +738,9 @@ func start_match() -> void:
 	match_seats = peers.size()
 	_begin_match.rpc()
 	_begin_match()
+	# The browser has to say "in progress" from here, because that is what tells a
+	# player who dropped out that the run they were in is still there to come back to.
+	_announce_online()
 
 
 ## The host keeps answering the browser after this, deliberately: a running match is

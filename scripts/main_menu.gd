@@ -22,6 +22,16 @@ var _server_name_field: LineEdit
 var _host_port_field: LineEdit
 var _host_password_field: LineEdit
 
+## Listing this game online rather than only on the local network. Hidden entirely on a
+## build with no Firebase settings, rather than shown and refused.
+var _online_host_check: CheckButton
+var _online_browse_check: CheckButton
+var _browse_heading: Label
+## Which source the browser is showing. The rows from both look the same by design -
+## `NetOnline.found_servers()` answers the dictionaries `Net.found_servers()` answers -
+## so this decides where they are fetched from and nothing about how they are drawn.
+var _online_mode: bool = false
+
 var _server_list: ItemList
 var _scan_button: Button
 var _join_password_field: LineEdit
@@ -58,6 +68,10 @@ func _ready() -> void:
 	Net.lan_servers_updated.connect(_on_lan_servers_updated)
 	Net.lan_scan_finished.connect(_on_lan_scan_finished)
 	Net.match_started.connect(_on_match_started)
+
+	NetOnline.servers_updated.connect(_on_online_servers_updated)
+	NetOnline.browse_failed.connect(_on_browse_failed)
+	NetOnline.status_changed.connect(_set_status)
 
 	# Two windows on one desk, skipping the lobby. See _apply_autostart.
 	_apply_autostart.call_deferred()
@@ -155,6 +169,20 @@ func _on_solo_pressed() -> void:
 
 
 func _on_create_pressed() -> void:
+	if _hosting_online():
+		var online: Error = Net.host_online(
+			_player_name(), _server_name_field.text, _host_password_field.text
+		)
+		if online != OK:
+			_set_status(NetOnline.unavailable_reason())
+			return
+		PlayerRegistry.clear_saved_build()
+		# No port and nothing to forward: the status line says so, because "hosting on
+		# port 27015" is the one thing a player will otherwise go looking for in their
+		# router.
+		_set_status("Listing the game online. No port forwarding needed.")
+		_show_page(Page.LOBBY)
+		return
 	var port: int = _host_port()
 	var result: Error = Net.host(port, _player_name(), _server_name_field.text, _host_password_field.text)
 	if result != OK:
@@ -165,12 +193,45 @@ func _on_create_pressed() -> void:
 	_show_page(Page.LOBBY)
 
 
+func _hosting_online() -> bool:
+	return is_instance_valid(_online_host_check) and _online_host_check.button_pressed
+
+
 func _on_scan_pressed() -> void:
 	_servers = []
 	_server_list.clear()
+	if _online_mode:
+		# Nothing to disable: the online browser keeps refreshing on its own while this
+		# page is open, so there is no scan window to wait out.
+		NetOnline.set_browsing(true)
+		NetOnline.refresh_now()
+		_set_status("Looking for games online...")
+		return
 	_scan_button.disabled = true
 	_set_status("Scanning the local network...")
 	Net.scan_lan()
+
+
+## Flips the browser between the local network and the online list. The two never merge:
+## a LAN game is joined by address and an online game through the handshake, and a list
+## that mixed them would have to explain which row is which.
+func _on_browse_source_toggled(online: bool) -> void:
+	_online_mode = online
+	_servers = []
+	_server_list.clear()
+	_browse_heading.text = "GAMES ONLINE" if online else "GAMES ON THIS NETWORK"
+	_scan_button.text = "REFRESH" if online else "SCAN"
+	_scan_button.disabled = false
+	# There is no address to type for an online game - the host does not know its own
+	# until the handshake has run.
+	_direct_address_field.editable = not online
+	_direct_address_field.placeholder_text = "" if online else "127.0.0.1"
+	NetOnline.set_browsing(online)
+	if online:
+		NetOnline.refresh_now()
+		_set_status("Looking for games online...")
+	else:
+		_set_status("")
 
 
 func _on_join_pressed() -> void:
@@ -178,11 +239,15 @@ func _on_join_pressed() -> void:
 	var port: int = Net.DEFAULT_PORT
 	var in_progress: bool = false
 	var selected: PackedInt32Array = _server_list.get_selected_items()
+	var chosen: Dictionary = {}
 	if selected.size() > 0 and selected[0] < _servers.size():
-		var server: Dictionary = _servers[selected[0]]
-		address = String(server.get("address", ""))
-		port = int(server.get("port", Net.DEFAULT_PORT))
-		in_progress = bool(server.get("in_progress", false))
+		chosen = _servers[selected[0]]
+		address = String(chosen.get("address", ""))
+		port = int(chosen.get("port", Net.DEFAULT_PORT))
+		in_progress = bool(chosen.get("in_progress", false))
+	if bool(chosen.get("online", false)):
+		_join_online(chosen, in_progress)
+		return
 	if address.is_empty():
 		_set_status("Pick a server from the list, or type an address.")
 		return
@@ -200,6 +265,22 @@ func _on_join_pressed() -> void:
 		_set_status("Could not reach %s:%d." % [address, port])
 		return
 	_set_status("Connecting to %s:%d..." % [address, port])
+	_show_page(Page.LOBBY)
+
+
+## The online half of JOIN. Same two cases as the LAN one and for the same reasons: a
+## lobby is joined straight away, a match already running is joined from inside the map
+## so that nothing is spawned before the map exists to spawn it into.
+func _join_online(lobby: Dictionary, in_progress: bool) -> void:
+	PlayerRegistry.clear_saved_build()
+	NetOnline.set_browsing(false)
+	if in_progress:
+		Net.begin_join_online(lobby, _player_name(), _join_password_field.text)
+		_enter_map()
+		return
+	if Net.join_online(lobby, _player_name(), _join_password_field.text) != OK:
+		_set_status(NetOnline.unavailable_reason())
+		return
 	_show_page(Page.LOBBY)
 
 
@@ -226,12 +307,19 @@ func _on_reconnect_pressed() -> void:
 	var details: Dictionary = Net.last_join
 	if details.is_empty():
 		return
-	Net.begin_join(
-		String(details["address"]),
-		int(details["port"]),
-		String(details["name"]),
-		String(details["password"]),
-	)
+	# An online run is rejoined through the handshake, not by dialling the address it
+	# was never reached at in the first place.
+	if String(details.get("transport", "enet")) == "online":
+		Net.begin_join_online(
+			details["lobby"], String(details["name"]), String(details["password"])
+		)
+	else:
+		Net.begin_join(
+			String(details["address"]),
+			int(details["port"]),
+			String(details["name"]),
+			String(details["password"]),
+		)
 	_enter_map()
 
 
@@ -251,8 +339,12 @@ func _on_peer_list_changed(_peers: Dictionary) -> void:
 	_refresh_lobby()
 
 
+## Covers both transports. `Net.last_error` is set only when there is something more
+## specific to say than "could not reach it" - which, for an online join, there usually
+## is: a handshake that timed out is a very different problem from a database that was
+## never configured.
 func _on_connection_failed() -> void:
-	_set_status("Could not reach that host.")
+	_set_status(Net.last_error if not Net.last_error.is_empty() else "Could not reach that host.")
 	_show_page(Page.BROWSE)
 
 
@@ -270,6 +362,28 @@ func _on_join_rejected(reason: String) -> void:
 
 
 func _on_lan_servers_updated(servers: Array) -> void:
+	if _online_mode:
+		return
+	_render_servers(servers)
+
+
+func _on_online_servers_updated(servers: Array) -> void:
+	if not _online_mode:
+		return
+	_render_servers(servers)
+	if servers.is_empty():
+		_set_status("No games listed online right now.")
+
+
+func _on_browse_failed(reason: String) -> void:
+	if _online_mode:
+		_set_status(reason)
+
+
+## One renderer for both sources. An online row has no address to show - it is reached
+## through the handshake, not by dialling anything - so it says where it came from
+## instead.
+func _render_servers(servers: Array) -> void:
 	_servers = servers
 	_server_list.clear()
 	for server in servers:
@@ -277,18 +391,23 @@ func _on_lan_servers_updated(servers: Array) -> void:
 		var lock: String = " [locked]" if bool(entry.get("password", false)) else ""
 		if bool(entry.get("in_progress", false)):
 			lock += " [in progress]"
-		_server_list.add_item("%s  -  %d/%d  -  %s:%d%s" % [
-			String(entry.get("name", "LAN Game")),
-			int(entry.get("players", 1)),
-			int(entry.get("max", Net.MAX_PLAYERS)),
+		var where: String = "online" if bool(entry.get("online", false)) else "%s:%d" % [
 			String(entry.get("address", "")),
 			int(entry.get("port", Net.DEFAULT_PORT)),
+		]
+		_server_list.add_item("%s  -  %d/%d  -  %s%s" % [
+			String(entry.get("name", "Game")),
+			int(entry.get("players", 1)),
+			int(entry.get("max", Net.MAX_PLAYERS)),
+			where,
 			lock,
 		])
 
 
 func _on_lan_scan_finished(servers: Array) -> void:
 	_scan_button.disabled = false
+	if _online_mode:
+		return
 	if servers.is_empty():
 		_set_status("No games found on this network. You can still type an address.")
 	else:
@@ -328,6 +447,14 @@ func _set_status(text: String) -> void:
 func _show_page(page: Page) -> void:
 	for key in _pages:
 		(_pages[key] as Control).visible = key == page
+	# The online browser polls, so it is switched off the moment it is not being looked
+	# at. Nothing in this game talks to Firebase unless a list or a handshake is on
+	# screen.
+	if page != Page.BROWSE:
+		NetOnline.set_browsing(false)
+	elif _online_mode:
+		NetOnline.set_browsing(true)
+		NetOnline.refresh_now()
 	if page == Page.LOBBY:
 		_refresh_lobby()
 
@@ -454,7 +581,7 @@ func _build_main_page() -> Control:
 func _build_host_page() -> Control:
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 8)
-	page.add_child(_section_label("HOST A LAN GAME"))
+	page.add_child(_section_label("HOST A GAME"))
 
 	_server_name_field = LineEdit.new()
 	_server_name_field.placeholder_text = "Server name"
@@ -469,16 +596,43 @@ func _build_host_page() -> Control:
 	_host_password_field.placeholder_text = "Leave empty for no password"
 	page.add_child(_field_row("Password", _host_password_field))
 
+	# Offered only on a build that has both halves of online play - the Firebase
+	# settings and the WebRTC extension. Without them the game is what it always was,
+	# and a switch that cannot work is worse than no switch.
+	_online_host_check = CheckButton.new()
+	_online_host_check.text = "List this game online"
+	_online_host_check.tooltip_text = "Players find the game through the online browser and connect straight to you. No port forwarding."
+	_online_host_check.visible = NetOnline.is_available()
+	_online_host_check.toggled.connect(_on_host_online_toggled)
+	page.add_child(_online_host_check)
+
 	page.add_child(_spacer())
 	page.add_child(_menu_button("CREATE LOBBY", _on_create_pressed))
 	page.add_child(_menu_button("BACK", func() -> void: _show_page(Page.MAIN)))
 	return page
 
 
+## An online host opens no port, so the port field has nothing to say. Greying it out
+## rather than hiding it keeps the page from jumping about as the switch is flipped.
+func _on_host_online_toggled(online: bool) -> void:
+	_host_port_field.editable = not online
+	_set_status(
+		"Online: players connect directly to you, found through the browser."
+		if online else ""
+	)
+
+
 func _build_browse_page() -> Control:
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 8)
-	page.add_child(_section_label("GAMES ON THIS NETWORK"))
+	_browse_heading = _section_label("GAMES ON THIS NETWORK")
+	page.add_child(_browse_heading)
+
+	_online_browse_check = CheckButton.new()
+	_online_browse_check.text = "Search online"
+	_online_browse_check.visible = NetOnline.is_available()
+	_online_browse_check.toggled.connect(_on_browse_source_toggled)
+	page.add_child(_online_browse_check)
 
 	_server_list = ItemList.new()
 	_server_list.size_flags_vertical = Control.SIZE_EXPAND_FILL

@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to online_config.json (gitignored) and fill in from the Firebase console. See docs/ONLINE_LOBBY_PLAN.md.",
+  "api_key": "AIzaSy...your-web-api-key...",
+  "database_url": "https://your-project-default-rtdb.europe-west1.firebasedatabase.app",
+  "ice_servers": []
+}

@@ -55,3 +55,6 @@ assets/player/*_texture_fbx.zip
 # and downloaded from the run's artifacts, never committed.
 build/
 *.exe
+
+# Firebase project coordinates for online play - see docs/ONLINE_LOBBY_PLAN.md
+online_config.json

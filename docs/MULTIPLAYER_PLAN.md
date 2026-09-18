@@ -285,6 +285,21 @@ Entirely new work — the old plan had no vote to network.
 5. A ping or marker system. In a five-lane map, "help, blue lane" needs to be one
    keypress.
 
+## Phase 6 — Online, without renting a server — CODE WRITTEN, UNTESTED
+
+Five-player co-op that works between houses rather than only between rooms, without a
+dedicated server and without asking anybody to forward a port.
+
+Firebase's Realtime Database lists the lobbies and passes the handshake; WebRTC carries
+the game directly between the players. `WebRTCMultiplayerPeer` has a server/client mode,
+so the host is still peer 1 and every RPC, spawner and synchroniser from Phases 1-5 is
+untouched - what changes is which peer object is installed and nothing else.
+
+Written, never run: there was no Godot binary, no Firebase project and no WebRTC
+extension in the environment it was written in. See **docs/ONLINE_LOBBY_PLAN.md**, which
+also carries the console setup, the database security rules and what to watch on the
+first two-machine test.
+
 ---
 
 ## The hard parts, honestly
