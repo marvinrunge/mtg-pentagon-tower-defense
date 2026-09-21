@@ -76,6 +76,7 @@ After generation:
 - `docs/MULTIPLAYER_PLAN.md`: phased plan for five-player co-op, and the single-player assumptions it has to undo
 - `docs/SKILL_UNLOCK_PLAN.md`: phased plan for replacing the tree's level gates with connectivity - what unlocks what, and how a node that cannot be reached yet is drawn
 - `docs/SPELL_VFX_PLAN.md`: phased plan for the spell visuals - what the 25 spells are drawn with today and the effect layer, shaders and budget that replace it
+- `docs/BOSS_LORDS_DESIGN.md`: the second boss per colour - tribal lords whose aura buffs the wave around them, the MTG cards behind them, the phased implementation plan and the asset prompts
 - `scripts/sound_bank.gd`: which file every game event sounds like, and the pooled voices that play it
 - `scripts/run_state.gd`: the run's three currencies - shared XP/levels, the team mana pool, enchantment stacks
 - `scripts/player_registry.gd`: who is playing, and which one is local to this machine
