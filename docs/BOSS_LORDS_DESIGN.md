@@ -29,13 +29,15 @@ A lord inverts that:
 | Arrives | alone, own battle group | inside its colour's squad, with an oversized escort |
 | Threat | its own two specials | what it does to the 25 units around it |
 | Model scale | 2.1-2.9 | 1.7-2.0 (a warchief among troops, not a colossus) |
-| Health | `800 * colour` | `~0.7x` of that |
+| Health | `800 * colour` | `~1.5x` of that - a lord takes full control, so health is what keeps it standing |
+| Control | immune to all of it | **fully controllable** - freeze, stun, root, fear, taunt, slow |
 | Counterplay | dodge the telegraphs | **decide** whether to dig it out first or clear the escort |
 | Failure state if ignored | takes crystal damage slowly | the lane's chaff becomes elite-grade and overruns you |
 
 That last row is the design goal. The player already has a target-priority decision for
 mages (heal/slow/revive/buff casters) - a lord is that decision at wave scale, with a
-visible radius, a visible banner and an obvious "the glow went out" moment when it dies.
+visible radius, a glow on everything inside it and an obvious "the light went out" moment
+when it dies.
 
 ## The MTG cards
 
@@ -155,7 +157,7 @@ goblin.
   hit for nothing.
 - **Command "Muster the Watch"** (cd 14s) - heals every buffed unit for **20% of max** and
   re-arms every shield at once.
-- **Specials** - `Banner Sweep` (cone r6.5, 120deg, 1.8x) / `Marshal's Thrust` (cone r4.2,
+- **Specials** - `Rallying Sweep` (cone r6.5, 120deg, 1.8x) / `Marshal's Thrust` (cone r4.2,
   90deg, 1.3x, crystal-breaker, cd 2.0)
 - **Counterplay** - the slowest fight of the five and the one that punishes chip damage.
   Burst beats it; sustained plinking never gets through a shield that re-arms.
@@ -189,13 +191,18 @@ goblin.
   exists) and **50% knockback/suction resistance**. Green is the colour that does not
   move when you push it.
 - **Command "Overrun"** (cd 16s, 1.8s windup) - for **5 seconds**, every buffed unit gets
-  **+50% damage and +50% speed**. This is the one command with a real telegraph on the
-  *player's* side: a rising roar, a green ring pulse, five seconds to get behind the myrs.
+  **+50% damage** and becomes **unstoppable**: knockback, suction and displacement do
+  nothing at all (the aura's 50% resistance goes to 100%). **No speed component** - green
+  never gets a speed boost from anything a lord does; it is the colour that does not move
+  when you push it, and making it fast as well would take its identity and red's in one
+  ability. This is the one command with a real telegraph on the *player's* side: a rising
+  roar, a green ring pulse, five seconds in which the line cannot be pushed back.
 - **Specials** - `Trampling Stomp` (circle r5.5, 2.0x, impact late in the leap) /
   `Antler Sweep` (cone r4.2, 140deg, 1.25x, crystal-breaker, cd 2.2)
 - **Counterplay** - regeneration means damage has to *out-pace* it, so green is the lord
-  that punishes splitting attention. Kill during Overrun's windup, or not during Overrun
-  at all.
+  that punishes splitting attention. Displacement is the one answer that stops working
+  during Overrun, so green is the fight where the player's *stuns* matter - including on
+  the lord itself, which can be interrupted mid-windup.
 
 ### Black - Undead Warchief
 
@@ -223,7 +230,7 @@ goblin.
 | Red | Goblin Warchief | haste + stats | Mob Call: 4 adds | 1.75 |
 | White | Field Marshal | health + 25 HP shield | Muster: heal 20%, re-shield | 1.7 |
 | Blue | Tidewarden Sovereign | 20% evasion | Tidal Command: mass charge + player slow | 1.8 |
-| Green | Krosan Warchief | regen + knockback resist | Overrun: +50%/+50% for 5s | 2.0 |
+| Green | Krosan Warchief | regen + knockback resist | Overrun: +50% dmg, unstoppable, 5s | 2.0 |
 | Black | Undead Warchief | +40% damage + Wither | Raise Dead: 3 corpses | 1.8 |
 
 ## Implementation
@@ -483,9 +490,14 @@ a blocker.
 - **no friendly fire on tribe lines**: a lord never buffs another colour, another boss, or
   itself
 - a unit that dies while buffed leaves no stale entry in `_aura_members`
+- **a lord is controllable**: freeze, stun, root, fear, taunt and slow all take on it, and
+  a stun landing during a command windup *cancels the command* rather than delaying it
+- a lord is still a boss where it should be: Kill's execute threshold and the bolt's boss
+  bonus both still see it
 - each command actually does its thing within `boss_lord_command_cooldown +
   boss_lord_command_windup`: red's add count rose, white's shields re-armed, black
-  consumed a corpse it was given, green's overrun window opened and *closed*
+  consumed a corpse it was given, green's overrun window opened and *closed* - and left
+  movement speed untouched at every point in it
 - the red add cap holds when the command fires repeatedly into a stalled lane
 
 ### Settings block (draft)
@@ -498,7 +510,7 @@ the existing `Boss modifiers` block - nothing below may be hardcoded in a featur
 @export var boss_lord_start_wave: int = 8
 @export var boss_lord_chance: float = 0.5
 @export var boss_lord_escort_bonus: int = 6
-@export var boss_lord_health_mult: float = 0.7
+@export var boss_lord_health_mult: float = 1.5   # tankier than a giant, because it can be controlled
 @export var boss_lord_damage_mult: float = 0.8
 @export var boss_lord_speed_mult: float = 1.15
 @export var boss_lord_xp_mult: float = 1.2
@@ -531,21 +543,44 @@ the existing `Boss modifiers` block - nothing below may be hardcoded in a featur
 @export var boss_lord_blue_charge_duration: float = 2.0
 @export var boss_lord_blue_player_slow: float = 1.5
 @export var boss_lord_green_overrun_duration: float = 5.0
-@export var boss_lord_green_overrun_mult: float = 1.5
+@export var boss_lord_green_overrun_damage_mult: float = 1.5   # damage only - green gets no speed
 @export var boss_lord_black_raise_count: int = 3
 @export var boss_lord_black_raise_hp_mult: float = 0.5
 ```
 
-### Two decisions worth making before writing code
+### Control: a lord is not immune, it is tough
 
-1. **Is a lord immune to control?** `is_immune_to_control()` returns `is_boss()`
-   (`enemy_base.gd:2089`), so a lord inherits full immunity to freeze, root, stun, fear and
-   pacifism. A lord's whole point is that it hides behind its escort - if it also cannot be
-   pulled, slowed or displaced, a melee player has no route to it at all and the answer
-   collapses to "have ranged damage". Recommendation: a lord is **immune to hard control
-   (freeze/stun) but not to displacement and taunt**, i.e. `is_immune_to_control()` gains a
-   lord exemption for the pull effects. This is a balance call, not a technical one.
-2. **Does the aura apply to elites and minibosses too?** It composes cleanly with both
+`is_immune_to_control()` returns `is_boss()` (`enemy_base.gd:2089`), so a boss today shrugs
+off freeze, stun, root, fear, taunt, pacifism and every slow. **A lord does not.** It is a
+warchief standing in a crowd, and the player's control kit is exactly the tool for digging
+one out of a crowd - taunt it off the escort, freeze it while the escort walks on without
+its aura, stun it out of a command. That is the fight.
+
+What it costs, and what pays for it:
+
+- `is_immune_to_control()` becomes `is_boss() and not is_boss_lord`. That one line hands a
+  lord over to `apply_slow` (`enemy_base.gd:1950`), `apply_fear` (`:1988`), `apply_taunt`
+  (`:2017`) and Titanic Leap's stun (`spell_effects.gd:220`) at once, since all four
+  already route through it.
+- Frost Breath's freeze/slow split (`spell_effects.gd:247`) is keyed on `is_boss()`, not on
+  `is_immune_to_control()`. **Re-key it**, or "not immune to control" means one thing for
+  stun and another for freeze. A lord should *freeze*.
+- `is_boss()` itself stays true, deliberately: Kill's execute window
+  (`spell_effects.gd:410`) and the bolt's anti-boss bonus (`player.gd:2421`) are damage
+  rules, not control rules, and a lord is still a boss for both. It also keeps the "bosses
+  have no ordinary swing" branch (`enemy_base.gd:682`), so a lord still fights entirely
+  through its telegraphed specials.
+- **Health is the compensation.** `boss_lord_health_mult` is **1.5** - a lord has *more*
+  raw health than the giant of its colour, not less. A boss that can be frozen and executed
+  needs the health to be worth freezing.
+- **Control has to actually interrupt.** `_cancel_special()` already exists for the boss
+  specials; the command needs the matching `_cancel_command()`, called from the same places,
+  or a stunned lord finishes its Overrun anyway and the interrupt was theatre. This is the
+  single most important line in phase 3.
+
+### One decision left
+
+1. **Does the aura apply to elites and minibosses too?** It composes cleanly with both
    (different channels), but an aura'd miniboss is 4.0 x 1.25 health and 1.6 x 1.25 damage.
    Recommendation: yes, allow it - a wave that stacks a miniboss and a lord in one lane
    *should* be the hardest thing the game does at that point - but the test must assert the
@@ -575,10 +610,17 @@ fused silhouettes and floating props:
 > chunky forms, no fine filigree. No motion blur, no depth of field, no glow, no particles,
 > no text, no logos, no cropping.
 
-Every lord additionally needs **one silhouette-defining rally element** - a banner, horn,
-standard or totem - because that is what tells the player at a glance that this boss is the
-one buffing the others. Keep it **attached to the body and inside the silhouette**: a
-free-flying flag will not survive auto-rigging.
+**No banners, standards, horns or totems** in any of these prompts. Those are props, they
+are added separately, and a generated one would be fused into the mesh where it cannot be
+moved, re-coloured or removed. Each lord therefore carries **exactly one weapon** - the one
+its animation set needs - and nothing else in its hands or on its back.
+
+That leaves "which one is buffing the others?" to the *game* rather than to the model, which
+is where it belonged anyway: the aura ring on the ground, the glow on every unit inside it
+and the name over the health bar are readable from anywhere in the lane at any camera angle,
+while a banner strapped to a back is visible from behind only. What the model has to carry
+instead is **rank read from the body**: a bigger frame, heavier armour, and a crown or helm
+the rank-and-file of that colour does not have.
 
 ### Red - Goblin Warchief (`goblin_warchief`, scale 1.75, set `standing_melee`)
 
@@ -587,11 +629,10 @@ free-flying flag will not survive auto-rigging.
 > underbite with iron-capped teeth, small furious yellow eyes. Scavenged plate scraps
 > riveted over boiled leather, a spiked iron warboss helmet with a crest of red-dyed hair,
 > one oversized pauldron made from a cooking pot. A short heavy cleaver held low in the
-> right hand, a crude war horn of blackened brass lashed across his back, and a small
-> tattered red banner on a stub pole strapped upright to his backpack bearing a crude
-> goblin skull daubed in soot - banner furled tight against the pole, inside the
-> silhouette. Bandoliers of nails, mismatched boots. Aggressive, fast, filthy, clearly the
-> one giving the orders. Full-body character concept, head to toe, centred, feet flat on an
+> right hand and nothing in the left. Bandoliers of nails, mismatched boots, a heavy studded
+> belt. Aggressive, fast, filthy, and a full head broader than an ordinary goblin - the
+> armour and the helmet crest are what mark him as the one giving the orders. No banner, no
+> flag, no pole, no standard, no horn, nothing strapped to his back. Full-body character concept, head to toe, centred, feet flat on an
 > invisible ground line. Standing symmetrical A-pose: arms held down and out at roughly 45
 > degrees, clearly separated from the torso with visible gaps at the armpits, legs
 > shoulder-width apart, both hands open and away from the body, nothing crossing or
@@ -618,10 +659,10 @@ lighting.
 > plate with gold filigree edges at the pauldrons and greaves, a long white tabard bearing
 > a stylized golden sun sigil, a plumed open-faced helm with a white crest. A straight
 > broadsword held point-down in the right hand and a tall kite-shaped tower shield on the
-> left arm, and a short command standard - a white pennant on a rigid gold-capped pole -
-> socketed into his backplate and held tight against the body, inside the silhouette.
-> Chain skirt, gauntlets, a horn at the belt. He looks like the reason the rank behind him
-> is holding. Full-body character concept, head to toe, centred, feet flat on an invisible
+> left arm, and nothing else carried. Chain skirt, gauntlets, a heavy belt. The bulkier plate
+> and the plumed helm are what separate him from the soldiers behind him; he looks like the
+> reason that rank is holding. No banner, no pennant, no flag, no pole, no standard, no horn,
+> nothing mounted on his back. Full-body character concept, head to toe, centred, feet flat on an invisible
 > ground line. Standing symmetrical A-pose: arms held down and out at roughly 45 degrees,
 > clearly separated from the torso with visible gaps at the armpits, legs shoulder-width
 > apart, nothing crossing or overlapping the silhouette. Straight-on orthographic front
@@ -647,10 +688,10 @@ High-key whites and golds, game-ready PBR, no baked lighting.
 > place of hair, large pale luminous eyes, gill slits at the neck. Armour of overlapping
 > nacre plates and lashed coral, a high collar of fanned pearl-white shell, a crown of
 > branching coral set with a single large pearl. A long ornate trident held upright in the
-> right hand, a round shield of fused abalone shell on the left arm, and a rigid ceremonial
-> standard of woven kelp and shell discs mounted on the back, held tight against the body
-> and inside the silhouette. Trailing fin membranes along the calves and elbows, kept close
-> to the limbs. Cold, imperious, unhurried. Full-body character concept, head to toe,
+> right hand, a round shield of fused abalone shell on the left arm, and nothing else
+> carried. Trailing fin membranes along the calves and elbows, kept close to the limbs.
+> Cold, imperious, unhurried - the coral crown and the fanned pearl collar are the whole rank
+> read. No banner, no flag, no pole, no standard, nothing mounted on the back. Full-body character concept, head to toe,
 > centred, feet flat on an invisible ground line. Standing symmetrical A-pose: arms held
 > down and out at roughly 45 degrees, clearly separated from the torso with visible gaps at
 > the armpits, legs shoulder-width apart, nothing crossing or overlapping the silhouette.
@@ -676,10 +717,10 @@ glow.
 > plating across the shoulders and forearms, enormous branching antlers hung with bone
 > charms and braided vine. A broad flat-nosed animal face with amber eyes and tusks, heavy
 > brows, moss growing in the hollows of the shoulders. Armour of lashed timber, hide straps
-> and river stones; a gnarled totem club in the right hand, its head a knot of living wood
-> sprouting real leaves; and a short totem standard of stacked animal skulls and antler
-> bound upright to his back, held tight against the body and inside the silhouette.
-> Immovable, territorial, overgrown - something the forest promoted. Full-body character
+> and river stones; a single gnarled club in the right hand, its head a knot of living wood
+> sprouting real leaves, and nothing in the left. Immovable, territorial, overgrown -
+> something the forest promoted, and the antlers alone carry the rank. No banner, no flag, no
+> pole, no standard, no totem pole, nothing bound to his back. Full-body character
 > concept, head to toe, centred, feet flat on an invisible ground line. Standing
 > symmetrical A-pose: arms held down and out at roughly 45 degrees, clearly separated from
 > the torso with visible gaps at the armpits, legs shoulder-width apart, nothing crossing
@@ -704,10 +745,10 @@ Saturated forest greens with warm brown support, game-ready PBR, no baked lighti
 > exposed through broken plate, a lower jaw wired shut with iron, sunken sockets lit with
 > cold pale light, patchy long black hair. Corroded funeral armour: a pitted blackened
 > breastplate, an asymmetric spiked pauldron, a crown of fused finger bones and rusted
-> iron. A heavy notched grave-cleaver in the right hand; a grim standard - a crossbar of
-> bone hung with three shrunken skulls and strips of burial shroud - bound upright to the
-> spine, held tight against the body and inside the silhouette. Dangling chains, dried
-> grave soil, shroud wrappings at the forearms. Slow, certain, in command of the dead.
+> iron. A heavy notched grave-cleaver in the right hand and nothing in the left. Short
+> dangling chains at the belt, dried grave soil, shroud wrappings at the forearms. Slow,
+> certain, in command of the dead - the bone crown and the ruined plate are the rank. No
+> banner, no flag, no pole, no standard, nothing bound to his spine or his back.
 > Full-body character concept, head to toe, centred, feet flat on an invisible ground line.
 > Standing symmetrical A-pose: arms held down and out at roughly 45 degrees, clearly
 > separated from the torso with visible gaps at the armpits, legs shoulder-width apart,
