@@ -20,6 +20,10 @@ extends Node
 ## The death-animation debug logging shows this as a `play_requested` line with no matching
 ## `confirmed` line. This drives the same paths directly and checks the clip that is actually
 ## playing afterwards.
+##
+## The same early return is also why a corpse used to hang in the air - it skipped GRAVITY
+## along with the AI - so _corpse_falls_to_the_ground lives here too, against the same
+## branch.
 
 var _frames: int = 0
 var _done: bool = false
@@ -69,6 +73,43 @@ func _clip_after_death(label: String, kill: Callable) -> void:
 		_failures.append("%s: the death clip is not playing" % label)
 	else:
 		print("  ok   %-28s clip=%s playing=%s" % [label, current, enemy.visual_anim_player.is_playing()])
+	enemy.free()
+
+
+## An enemy killed off the ground has to come DOWN. It used to play its whole death
+## animation at whatever height it was knocked to, because `if is_dying: return` sits above
+## the gravity in _physics_process - so the corpse kept its last altitude forever.
+##
+## die() drops collision_layer to 0 but must KEEP the Environment bit in collision_mask,
+## or the body has no floor to find and falls through the world instead. Both halves are
+## checked: that it fell, and that it stopped.
+func _corpse_falls_to_the_ground() -> void:
+	var enemy: EnemyBase = _spawn_enemy(Vector3(0.0, 4.0, 48.0))
+	var start_y: float = enemy.global_position.y
+	enemy.take_damage(enemy.health + 50.0)
+	if not enemy.is_dying:
+		_failures.append("corpse fall: the enemy did not die at all")
+		enemy.free()
+		return
+	if enemy.collision_mask & EnemyBase.ENVIRONMENT_LAYER == 0:
+		_failures.append("corpse fall: die() dropped the Environment bit, so there is no floor to land on")
+
+	# Driven by hand for the same reason as the checks above - what matters is the branch
+	# _physics_process takes for a body that is already dying.
+	for _step: int in range(180):
+		enemy._physics_process(0.016)
+		if enemy.is_on_floor():
+			break
+	var landed: bool = enemy.is_on_floor()
+	var dropped: float = start_y - enemy.global_position.y
+	if not landed:
+		_failures.append("corpse fall: never reached the floor (dropped %.2f of %.2f)" % [dropped, start_y])
+	elif dropped < 1.0:
+		_failures.append("corpse fall: barely moved (%.2f)" % dropped)
+	elif absf(enemy.velocity.x) > 0.01 or absf(enemy.velocity.z) > 0.01:
+		_failures.append("corpse fall: landed but is still sliding (%s)" % enemy.velocity)
+	else:
+		print("  ok   %-28s fell %.2f to y=%.2f" % ["corpse lands", dropped, enemy.global_position.y])
 	enemy.free()
 
 
@@ -148,6 +189,8 @@ func _run() -> void:
 	else:
 		print("  ok   %-28s clip=%s" % ["survives a later update", puppet_clip])
 	puppet.free()
+
+	_corpse_falls_to_the_ground()
 
 	if _failures.is_empty():
 		print("TEST RESULT: PASS")

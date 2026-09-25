@@ -13,6 +13,7 @@ extends RefCounted
 ## Source layout:
 ##   assets/enemies/<class>/<race>/<race>_<class>.fbx   mesh (+ own embedded clip)
 ##   assets/animations/character/<set>/{walk,attack,hit,death}.fbx   shared clips
+##   assets/animations/unused/<set>/<run>.fbx                        the run cycle
 ##   assets/animations/character/mage/attack_<color>.fbx             per-colour mage attack
 ##   assets/animations/character/common/{throw_object,death_fallback}.fbx
 ##
@@ -29,6 +30,10 @@ extends RefCounted
 const AnimationImpact = preload("res://tools/animation_impact.gd")
 
 const ANIM_ROOT := "res://assets/animations/character/"
+## Mixamo shipped a run cycle for every rig in the cast and nothing ever used one, so they
+## were filed here rather than alongside the clips the builder reads. They are sources like
+## any other now; the folder name is history, not a status.
+const UNUSED_ROOT := "res://assets/animations/unused/"
 const CHAR_ROOT := "res://assets/enemies/"
 const WEAPON_ROOT := "res://assets/weapons/"
 const SCENE_DIR := "res://scenes/"
@@ -36,6 +41,14 @@ const SCENE_DIR := "res://scenes/"
 ## Matches the 1.7-tall collision box in scenes/enemy.tscn, same as every other
 ## non-boss enemy visual this project has ever built.
 const TARGET_HEIGHT := 1.7
+
+## What the game actually renders these characters at. The builder normalises a character
+## to TARGET_HEIGHT at a root scale of 85, and then EnemyBase instantiates the finished
+## scene and OVERWRITES that with 100 (scripts/enemy_base.gd, the visual block) - so an
+## enemy on screen is 1.18x the size the builder aimed at. Weapons are sized against this
+## number rather than against the skeleton's build-time scale, so WEAPON_MODELS.length is
+## the length the weapon has in front of the player rather than on the workbench.
+const RUNTIME_VISUAL_SCALE := 100.0
 
 const FOOT_BONES := ["mixamorig_LeftToeBase", "mixamorig_RightToeBase"]
 const GROUND_SAMPLE_COUNT := 20
@@ -50,7 +63,20 @@ const RACE_BY_COLOR := {
 	"White": "human", "Blue": "merfolk", "Black": "zombie", "Red": "goblin", "Green": "elf",
 }
 
+## The clips a character plays to MOVE, as opposed to the one-shot attack/hit/death ones.
+## Both are looped here; both also need a measured `stride_speed`, which is what lets
+## EnemyBase pick between them and play the winner at the rate the enemy is really
+## travelling - but that measurement cannot be taken from inside this builder (it needs a
+## live scene tree) and is applied afterwards by tools/locomotion_pass.gd.
+const LOCOMOTION_CLIPS: Array[String] = ["walk", "run"]
+
 ## animation-set name -> clip slot -> source fbx (or OWN_MESH_CLIP).
+##
+## The "run" entries come out of assets/animations/unused/, which is where every rig's run
+## cycle had been sitting unused since the cast was built: enemies only ever had a walk, so
+## a Melee travelling at 2.5 units per second played a 1.04-unit walk cycle and skated.
+## Sets with no run of their own borrow the nearest rig's, exactly as they already borrow
+## walk and attack - noted per entry below.
 const CLIP_SETS := {
 	# Attack borrowed from standing_melee per the user's instruction (2026-09-02)
 	# that the human's own swing reads as too strange - it is a shield-bash-then-slash
@@ -58,6 +84,7 @@ const CLIP_SETS := {
 	# every other melee enemy uses. Walk/hit/death stay sword-and-shield's own.
 	"sword_and_shield": {
 		"walk": ANIM_ROOT + "sword_and_shield/walk.fbx",
+		"run": UNUSED_ROOT + "sword_and_shield/Sword And Shield Run.fbx",
 		"attack": ANIM_ROOT + "standing_melee/attack.fbx",
 		"hit": ANIM_ROOT + "sword_and_shield/hit.fbx",
 		"death": ANIM_ROOT + "sword_and_shield/death.fbx",
@@ -66,6 +93,7 @@ const CLIP_SETS := {
 	# for the fire/frost giant bosses) - borrows the shared fallback.
 	"standing_melee": {
 		"walk": ANIM_ROOT + "standing_melee/walk.fbx",
+		"run": UNUSED_ROOT + "standing_melee/standing run forward.fbx",
 		"attack": ANIM_ROOT + "standing_melee/attack.fbx",
 		"hit": ANIM_ROOT + "standing_melee/hit.fbx",
 		"death": ANIM_ROOT + "common/death_fallback.fbx",
@@ -74,31 +102,47 @@ const CLIP_SETS := {
 	# (2026-08-25) that melee zombies move/attack like goblin-melee; hit/death
 	# stay zombie-specific.
 	"zombie": {
+		# Melee zombies already borrow standing_melee's walk and attack; the zombie rig's
+		# own run is kept here, though, because a shambling sprint is the whole read.
 		"walk": ANIM_ROOT + "standing_melee/walk.fbx",
+		"run": UNUSED_ROOT + "zombie/zombie running.fbx",
 		"attack": ANIM_ROOT + "standing_melee/attack.fbx",
 		"hit": ANIM_ROOT + "zombie/hit.fbx",
 		"death": ANIM_ROOT + "common/death_fallback.fbx",
 	},
 	"bow": {
 		"walk": ANIM_ROOT + "bow/walk.fbx",
+		"run": UNUSED_ROOT + "bow/Standing Run Forward.fbx",
 		"attack": ANIM_ROOT + "bow/attack.fbx",
 		"hit": ANIM_ROOT + "bow/hit.fbx",
 		"death": ANIM_ROOT + "bow/death.fbx",
 	},
 	"crossbow": {
 		"walk": ANIM_ROOT + "crossbow/walk.fbx",
+		"run": UNUSED_ROOT + "crossbow/Rifle Run.fbx",
 		"attack": ANIM_ROOT + "crossbow/attack.fbx",
-		"hit": ANIM_ROOT + "crossbow/hit.fbx",
+		# Hit borrowed from the bow rig, because crossbow/hit.fbx is not a hit - it is a
+		# SECOND death. Measured on the human: over its 1.77s the head drops to 13% of the
+		# height it started at and stays down, against 5% for crossbow/death.fbx and 100%
+		# for every genuine flinch in the cast. Human and Merfolk Ranged were therefore
+		# dying every time they were grazed and standing back up afterwards.
+		# bow/hit is the other RANGED rig, so the upper body reads right, and at 1.0s it
+		# compresses far more kindly into enemy_hit_react_duration than 1.77s did.
+		"hit": ANIM_ROOT + "bow/hit.fbx",
 		"death": ANIM_ROOT + "crossbow/death.fbx",
 	},
 	"goblin_ranged": {
+		# No run of its own - the mesh came bundled with a walk only. Borrows the zombie
+		# rig's, which is the closest hunched silhouette in the set.
 		"walk": OWN_MESH_CLIP,
+		"run": UNUSED_ROOT + "zombie/zombie running.fbx",
 		"attack": ANIM_ROOT + "common/throw_object.fbx",
 		"hit": ANIM_ROOT + "zombie/hit.fbx",
 		"death": ANIM_ROOT + "common/death_fallback.fbx",
 	},
 	"zombie_ranged": {
 		"walk": ANIM_ROOT + "zombie/walk.fbx",
+		"run": UNUSED_ROOT + "zombie/zombie running.fbx",
 		"attack": ANIM_ROOT + "common/throw_object.fbx",
 		"hit": ANIM_ROOT + "zombie/hit.fbx",
 		"death": ANIM_ROOT + "common/death_fallback.fbx",
@@ -107,12 +151,101 @@ const CLIP_SETS := {
 	# per-character in _build_character (config.attack below).
 	"mage": {
 		"walk": ANIM_ROOT + "mage/walk.fbx",
+		"run": UNUSED_ROOT + "mage/Standing Run Forward.fbx",
 		"hit": ANIM_ROOT + "mage/hit.fbx",
 		"death": ANIM_ROOT + "mage/death.fbx",
 	},
 }
 
-enum Prop { NONE, WEAPON_GLB, BOW, CROSSBOW, STONE, BONE_SMALL }
+## WEAPON_GLB is the MELEE path (right hand, +Y-up model, the hand-tuned lean constants
+## below). WEAPON_MODEL is the ranged one: a real glb with its own orientation, described
+## per weapon in WEAPON_MODELS. BOW and CROSSBOW are the stand-in boxes those replaced and
+## are now unreferenced - kept only so _build_prop_mesh still reads as the history of what
+## was there, and safe to delete with them.
+enum Prop { NONE, WEAPON_GLB, BOW, CROSSBOW, STONE, BONE_SMALL, WEAPON_MODEL }
+
+
+## Where each ranged weapon model came from and how it is worn, one entry per weapon.
+##
+## Deliberately per weapon rather than one shared correction like the melee kit's
+## WEAPON_LEAN_DEGREES. Those three constants work because every melee weapon is the same
+## shape - a ~2m blade running up +Y, held in a fist. These three agree about nothing:
+## measured off the imported meshes, the bow runs along +X, the crossbow along +Z and the
+## harpoon along +X again, and all three are 1.0 long where a melee weapon is 2.0. A single
+## correction covering that would just be three magic numbers wearing a trenchcoat.
+##
+##   glb      the model
+##   bone     which hand wears it. The left, for all three: it is the bow hand, and the
+##            fore-end hand on a crossbow, which is also where the stand-ins hung.
+##   length   how long it should end up IN THE WORLD, in metres, measured along `axis`.
+##            The characters are normalised to 1.7m, so these are readable as real sizes.
+##   axis     the model's OWN long axis, as measured. Used both to scale it (see
+##            _attach_weapon_model) and to know what is being rotated where.
+##   aim      the direction, IN THE CHARACTER'S OWN SPACE, that `axis` should end up
+##            pointing while the character is standing in `pose`. Up is up; Vector3.BACK
+##            is the way the character faces. Converted into the skeleton's frame at build
+##            time, which is a quarter turn off the character's own. A bow stands upright across the bow hand; a crossbow and
+##            a harpoon point down-range. Stated in world terms and converted into the
+##            bone's frame at build time, so it does not have to be re-derived per rig.
+##   pose     the clip, and how far into it, that `aim` is measured against. NOT the rest
+##            pose: these rigs' walk and attack clips are authored for a character already
+##            holding this kind of weapon, so the hand is rolled well away from rest in
+##            exactly the poses the weapon is seen in. Aiming a bow upright in the rest
+##            pose puts it flat on its side for the whole march. "walk" is the default
+##            because it is what the player looks at for most of a wave.
+##   roll     degrees to spin the weapon about `aim`, which is the one thing aiming an
+##            axis cannot settle - a bow aligned upright can still be facing edge-on.
+##   grip     metres to shift it after rotating, so the part that should sit in the fist
+##            does. World units, divided down by the armature scale at build time.
+##
+## `roll` and `grip` are the only hand-found numbers here, and only because nothing in the
+## model says which way is front. Everything else is derived: see _attach_weapon_model.
+##
+## They are the STARTING point, not the last word. Anything further is adjusted with the
+## gizmo in the editor and then captured by tools/capture_weapon_fit.gd into
+## WEAPON_FIT_PATH, which this applies on top - see _weapon_fit. That indirection exists
+## because a rebuild rewrites these scenes from scratch, so an edit that lives only in the
+## .tscn is an edit that disappears the next time anything is rebuilt.
+## Hand adjustments captured out of the editor, laid on top of the derived placement.
+##
+## A separate data file rather than more numbers in WEAPON_MODELS below, because it is
+## WRITTEN by a tool: tools/capture_weapon_fit.gd rewrites it every time it runs, and a
+## tool that rewrites its own source file is a tool that can break the build it belongs
+## to. Missing or empty is the normal state for a weapon nobody has needed to nudge.
+const WEAPON_FIT_PATH := "res://assets/weapons/weapon_fit.json"
+
+const WEAPON_MODELS := {
+	"Ranged/Green": {
+		"glb": WEAPON_ROOT + "elf-bow.glb",
+		"bone": "mixamorig_LeftHand",
+		"length": 1.6,
+		"axis": Vector3.RIGHT,
+		"aim": Vector3.UP,
+		"pose": ["walk", 0.5],
+		"roll": 0.0,
+		"grip": Vector3(0.0, 0.0, 0.0),
+	},
+	"Ranged/White": {
+		"glb": WEAPON_ROOT + "human-crossbow.glb",
+		"bone": "mixamorig_LeftHand",
+		"length": 1.0,
+		"axis": Vector3.BACK,
+		"aim": Vector3.BACK,
+		"pose": ["walk", 0.5],
+		"roll": 0.0,
+		"grip": Vector3(0.0, 0.0, 0.0),
+	},
+	"Ranged/Blue": {
+		"glb": WEAPON_ROOT + "merfolk-harpoon.glb",
+		"bone": "mixamorig_LeftHand",
+		"length": 1.0,
+		"axis": Vector3.RIGHT,
+		"aim": Vector3.BACK,
+		"pose": ["walk", 0.5],
+		"roll": 0.0,
+		"grip": Vector3(0.0, 0.0, 0.0),
+	},
+}
 
 const CHARACTERS := {
 	"Melee": {
@@ -123,9 +256,9 @@ const CHARACTERS := {
 		"Red": {"mesh": CHAR_ROOT + "melee/goblin/goblin_melee.fbx", "set": "standing_melee", "prop": Prop.WEAPON_GLB, "weapon_glb": WEAPON_ROOT + "goblin/goblin_weapon.glb"},
 	},
 	"Ranged": {
-		"Green": {"mesh": CHAR_ROOT + "ranged/elf/elf_ranged.fbx", "set": "bow", "prop": Prop.BOW},
-		"White": {"mesh": CHAR_ROOT + "ranged/human/human_ranged.fbx", "set": "crossbow", "prop": Prop.CROSSBOW},
-		"Blue": {"mesh": CHAR_ROOT + "ranged/merfolk/merfolk_ranged.fbx", "set": "crossbow", "prop": Prop.CROSSBOW},
+		"Green": {"mesh": CHAR_ROOT + "ranged/elf/elf_ranged.fbx", "set": "bow", "prop": Prop.WEAPON_MODEL, "model": "Ranged/Green"},
+		"White": {"mesh": CHAR_ROOT + "ranged/human/human_ranged.fbx", "set": "crossbow", "prop": Prop.WEAPON_MODEL, "model": "Ranged/White"},
+		"Blue": {"mesh": CHAR_ROOT + "ranged/merfolk/merfolk_ranged.fbx", "set": "crossbow", "prop": Prop.WEAPON_MODEL, "model": "Ranged/Blue"},
 		"Red": {"mesh": CHAR_ROOT + "ranged/goblin/goblin_ranged.fbx", "set": "goblin_ranged", "prop": Prop.STONE},
 		"Black": {"mesh": CHAR_ROOT + "ranged/zombie/zombie_ranged.fbx", "set": "zombie_ranged", "prop": Prop.BONE_SMALL},
 	},
@@ -229,6 +362,8 @@ static func _build_character(color: String, race: String, class_suffix: String, 
 	var prop_type: int = config.get("prop", Prop.NONE)
 	if prop_type == Prop.WEAPON_GLB:
 		_attach_weapon(skeleton, config["weapon_glb"])
+	elif prop_type == Prop.WEAPON_MODEL:
+		_attach_weapon_model(skeleton, anim_player, root, config, WEAPON_MODELS[config["model"]])
 	elif prop_type != Prop.NONE:
 		_attach_prop(skeleton, prop_type)
 
@@ -260,10 +395,21 @@ static func _build_template_library(clip_set: Dictionary, mesh_fbx_path: String)
 		if anim == null:
 			push_error("Could not extract clip '%s' from %s" % [clip_name, source_path if source_path != OWN_MESH_CLIP else mesh_fbx_path])
 			return null
-		anim.loop_mode = Animation.LOOP_LINEAR if clip_name == "walk" else Animation.LOOP_NONE
+		anim.loop_mode = Animation.LOOP_LINEAR if clip_name in LOCOMOTION_CLIPS else Animation.LOOP_NONE
 		_strip_horizontal_root_motion(anim, "mixamorig_Hips")
 		library.add_animation(clip_name, anim)
 	return library
+
+
+## Where a given clip slot's source fbx lives for this character, resolving the
+## "use the mesh's own embedded clip" sentinel. "" when the set does not define the slot.
+## Shared with tools/add_run_clips.gd so the two cannot disagree about what a run is.
+static func _clip_source(config: Dictionary, clip_name: String) -> String:
+	var clip_set: Dictionary = CLIP_SETS[config["set"]]
+	if not clip_set.has(clip_name):
+		return ""
+	var source: String = String(clip_set[clip_name])
+	return String(config["mesh"]) if source == OWN_MESH_CLIP else source
 
 
 static func _extract_animation(source_fbx_path: String) -> Animation:
@@ -455,8 +601,202 @@ static func _attach_weapon(skeleton: Skeleton3D, weapon_glb_path: String) -> voi
 		weapon_array_mesh.surface_set_material(0, _build_weapon_material(weapon_glb_path))
 
 
-## Simple placeholder props (bow/crossbow stand-ins for weapons not delivered
-## yet, and procedurally-built stone/bone for the two throwing classes) - held
+## A real ranged weapon model, worn per its WEAPON_MODELS entry.
+##
+## Two things are done here that _attach_weapon (the melee path) does not:
+##
+## The scale is MEASURED, not assumed. _attach_weapon multiplies by a fixed
+## WEAPON_WORLD_SCALE, which only works because every melee weapon is authored 2m long; a
+## re-export at a different size would silently change how big the weapon looks. Here the
+## model's own extent along its long axis is measured and divided out, so `length` means
+## what it says in metres however the model is later re-exported.
+##
+## The material is LEFT ALONE. _attach_weapon rebuilds it from loose `_albedo.jpg` files
+## beside the glb, because the melee weapons shipped their textures that way and the glTF
+## importer ignores them. These three shipped with their textures embedded and import
+## fully bound already - running the melee path over them would look for a
+## `elf-bow_albedo.jpg` that does not exist and strip the texturing instead of fixing it.
+static func _attach_weapon_model(skeleton: Skeleton3D, anim_player: AnimationPlayer, root: Node3D, config: Dictionary, model: Dictionary) -> void:
+	if skeleton == null:
+		push_error("No Skeleton3D found for weapon attachment")
+		return
+	var bone_name: String = String(model["bone"])
+	if skeleton.find_bone(bone_name) == -1:
+		push_warning("No bone '%s'; falling back to %s" % [bone_name, WEAPON_GRIP_BONE])
+		bone_name = WEAPON_GRIP_BONE
+
+	var weapon_scene: PackedScene = ResourceLoader.load(String(model["glb"]), "", ResourceLoader.CACHE_MODE_REPLACE)
+	if weapon_scene == null:
+		push_error("Could not load weapon model %s" % model["glb"])
+		return
+	var weapon_root: Node3D = weapon_scene.instantiate()
+	weapon_root.name = "Weapon"
+
+	var attachment := BoneAttachment3D.new()
+	attachment.name = "WeaponAttachment"
+	attachment.bone_name = bone_name
+	skeleton.add_child(attachment)
+
+	var axis: Vector3 = model["axis"]
+	var extent: float = _model_extent(weapon_root, axis)
+	if extent <= 0.0001:
+		push_warning("Weapon %s measures nothing along %s; left unscaled" % [model["glb"], axis])
+		extent = 1.0
+	# PROVISIONAL. The pose this is aimed against is read off a skeleton that is not in a
+	# scene tree, and such a skeleton does not pose reliably - measured, the hand comes
+	# back up to forty degrees away from where the same frame puts it once the character is
+	# actually in a tree. tools/weapon_fit_pass.gd recomputes this from the live pose and
+	# rewrites it; that pass is part of a build, not an optional extra.
+	weapon_root.transform = weapon_transform(
+		String(config["model"]),
+		model,
+		_grip_basis(skeleton, anim_player, bone_name, model, String(config["model"])),
+		_transform_to_ancestor(skeleton, root).basis.orthonormalized(),
+		extent,
+		_get_node_global_scale(skeleton).y
+	)
+	attachment.add_child(weapon_root)
+
+
+## Grip bases measured in a live scene tree, keyed as WEAPON_MODELS is, handed back by
+## tools/weapon_fit_pass.gd between a build's two passes. Empty on a cold build, which is
+## precisely why a cold build's weapon placement is provisional - see _grip_basis.
+static var measured_grip_bases: Dictionary = {}
+
+
+## The hand adjustments captured out of the editor. See WEAPON_FIT_PATH.
+static func _weapon_fit(model_key: String) -> Dictionary:
+	if not FileAccess.file_exists(WEAPON_FIT_PATH):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(WEAPON_FIT_PATH))
+	if not (parsed is Dictionary):
+		push_warning("%s is not readable JSON; ignoring captured weapon fits" % WEAPON_FIT_PATH)
+		return {}
+	var entry: Variant = (parsed as Dictionary).get(model_key, {})
+	return entry if entry is Dictionary else {}
+
+
+## Where a weapon sits on its bone, given the orientation of the hand wearing it.
+##
+## Shared by the builder and tools/weapon_fit_pass.gd so there is exactly one formula.
+static func weapon_transform(model_key: String, model: Dictionary, grip_basis: Basis, skeleton_to_root: Basis, extent: float, armature_scale: float) -> Transform3D:
+	# `aim` is written in the CHARACTER's own space - "up", "the way it is facing" - but a
+	# bone pose is in SKELETON space, so it is converted before use.
+	var aim: Vector3 = (skeleton_to_root.inverse() * Vector3(model["aim"])).normalized()
+	var axis: Vector3 = Vector3(model["axis"]).normalized()
+	# The model's long axis is swung onto the direction it should point (Quaternion's arc
+	# constructor does exactly this), rolled about that direction to settle which face is
+	# front, and pulled back into the hand's frame - the same cancellation _attach_weapon
+	# does, and for the same reason: a hand bone's local axes are whatever the rig
+	# exported, so a rotation written in them only holds for one skeleton.
+	var to_aim := Basis(Quaternion(axis, aim))
+	var roll := Basis(aim, deg_to_rad(float(model.get("roll", 0.0))))
+	var correction: Basis = grip_basis.orthonormalized().inverse() * roll * to_aim
+	var origin: Vector3 = correction * (skeleton_to_root.inverse() * Vector3(model["grip"]) / armature_scale)
+
+	# The captured hand adjustment, applied at the END so it reads as "and then turn the
+	# weapon a bit in its own frame" - which is exactly what dragging its gizmo did.
+	var fit: Dictionary = _weapon_fit(model_key)
+	# Stored as a QUATERNION, not euler degrees. Euler is what a person wants to read, but
+	# get_euler() -> from_euler() does not round-trip exactly here: captured back and
+	# applied again it moved the three weapons by 1.3, 2.9 and 3.8 degrees, which is a
+	# rebuild quietly walking away from hand-tuned placement. A quaternion is the rotation
+	# itself, with no axis-order convention to disagree about.
+	if fit.has("rotation_quat"):
+		var q: Array = fit["rotation_quat"]
+		correction = correction * Basis(Quaternion(
+			float(q[0]), float(q[1]), float(q[2]), float(q[3])).normalized())
+	# Position is taken verbatim when captured: it is already the local offset the editor
+	# produced, and re-deriving it from `grip` would only undo the nudge.
+	if fit.has("origin"):
+		var captured: Array = fit["origin"]
+		origin = Vector3(float(captured[0]), float(captured[1]), float(captured[2]))
+
+	# Against RUNTIME_VISUAL_SCALE rather than the skeleton's own build-time scale, so
+	# `length` is the size the weapon really is in the game - see the constant. Scale stays
+	# DERIVED even when a fit is captured, so resizing a weapon is still one number in
+	# WEAPON_MODELS rather than something that has to be dragged again.
+	var local_scale: float = (float(model["length"]) / maxf(extent, 0.0001)) / RUNTIME_VISUAL_SCALE
+	return Transform3D(correction.scaled(Vector3.ONE * local_scale), origin)
+
+
+## The orientation `aim` is measured against: the grip bone as it sits in the middle of
+## the weapon's own reference clip, NOT in the rest pose.
+##
+## It has to be the animated pose. These rigs' walk and attack clips are authored for a
+## character already carrying this class of weapon, so the hand is rolled a long way from
+## rest in precisely the poses the weapon is ever seen in - a bow aimed upright against the
+## rest pose lies flat on its side for the entire march, which is what the first version of
+## this did.
+##
+## Falls back to the rest pose, with a warning, if the clip is missing or if posing turns
+## out not to have taken (an un-posed skeleton returns its rest basis, so the comparison is
+## also the check).
+static func _grip_basis(skeleton: Skeleton3D, anim_player: AnimationPlayer, bone_name: String, model: Dictionary, model_key: String = "") -> Basis:
+	# A basis measured in a LIVE TREE always wins; it is the only trustworthy one, and
+	# tools/weapon_fit_pass.gd hands it back between a build's two passes.
+	if measured_grip_bases.has(model_key):
+		return measured_grip_bases[model_key]
+	# Orthonormalised, always. A bone pose basis carries the rig's own bone scaling, and
+	# these Mixamo rigs do not scale their bones uniformly - inverting a sheared basis and
+	# multiplying a direction through it turns the weapon by tens of degrees. Only the
+	# ORIENTATION of the hand is wanted here; the size is handled by local_scale.
+	var rest: Basis = _get_bone_global_rest(skeleton, bone_name).basis.orthonormalized()
+	var pose: Array = model.get("pose", [])
+	if anim_player == null or pose.size() < 2:
+		return rest
+	var clip_name: String = String(pose[0])
+	if not anim_player.has_animation(clip_name):
+		push_warning("No clip '%s' to aim %s against; using the rest pose" % [clip_name, model["glb"]])
+		return rest
+	var bone_index: int = skeleton.find_bone(bone_name)
+	if bone_index == -1:
+		return rest
+
+	var previous: String = anim_player.current_animation
+	var clip: Animation = anim_player.get_animation(clip_name)
+	anim_player.play(clip_name)
+	anim_player.seek(clip.length * clampf(float(pose[1]), 0.0, 1.0), true)
+	var posed: Basis = skeleton.get_bone_global_pose(bone_index).basis.orthonormalized()
+	anim_player.stop()
+	if previous != "":
+		anim_player.play(previous)
+		anim_player.stop()
+
+	if posed.is_equal_approx(rest):
+		push_warning("Posing '%s' changed nothing for %s; using the rest pose" % [clip_name, model["glb"]])
+		return rest
+	return posed
+
+
+## How far the model reaches along one of its own axes, from the combined AABB of every
+## mesh in it. Read off the instantiated scene rather than the file, so anything the
+## import settings do to the geometry is already included.
+static func _model_extent(root: Node3D, axis: Vector3) -> float:
+	var bounds := AABB()
+	var found: bool = false
+	for mesh_instance: MeshInstance3D in _mesh_instances(root):
+		if mesh_instance.mesh == null:
+			continue
+		var local: AABB = mesh_instance.transform * mesh_instance.get_aabb()
+		bounds = local if not found else bounds.merge(local)
+		found = true
+	if not found:
+		return 0.0
+	return absf(bounds.size.x * axis.x) + absf(bounds.size.y * axis.y) + absf(bounds.size.z * axis.z)
+
+
+static func _mesh_instances(node: Node) -> Array[MeshInstance3D]:
+	var found: Array[MeshInstance3D] = []
+	if node is MeshInstance3D:
+		found.append(node as MeshInstance3D)
+	for child: Node in node.get_children():
+		found.append_array(_mesh_instances(child))
+	return found
+
+
+## Simple placeholder props (procedurally-built stone/bone for the two throwing classes,
+## and the bow/crossbow stand-ins that WEAPON_MODELS has since replaced) - held
 ## at the grip bone's own origin with no hand-rest cancellation, unlike
 ## _attach_weapon(). That correction exists to make a REAL weapon look right;
 ## it's not worth the complexity for shapes the user has already said are
@@ -576,7 +916,21 @@ static func _get_bone_global_rest(skeleton: Skeleton3D, bone_name: String) -> Tr
 	return accum
 
 
+## Gives `owner` every node that should be SAVED with the scene, which pack() uses to
+## decide what to write.
+##
+## Stops at an instanced sub-scene. Its root is owned - that is what makes it save as an
+## instance - but its internals belong to the scene it came from, and owning those makes
+## pack() write them out a SECOND time as siblings of the instance. The result is a weapon
+## whose mesh exists twice and renders twice, overlapping itself.
+##
+## This is not hypothetical and it is not new: every weapon this builder has ever produced
+## carries the duplicate. It is almost certainly the real cause of the doubled
+## human_melee weapon recorded on 2026-08-23, which was put down to load() caching at the
+## time. Already-built scenes keep the duplicate until they are rebuilt.
 static func _own_recursive(node: Node, owner: Node) -> void:
 	for child in node.get_children():
 		child.owner = owner
+		if child.scene_file_path != "":
+			continue
 		_own_recursive(child, owner)

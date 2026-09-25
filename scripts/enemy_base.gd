@@ -60,6 +60,25 @@ var _puppet_death_played: bool = false
 var _anim_speed_scale: float = 1.0
 var _reaction_clip: String = ""
 
+## Physics layer 5, the one the lanes and the base plateau are on (see project.godot's
+## 3d_physics/layer_5="Environment"). The only layer a corpse still needs.
+const ENVIRONMENT_LAYER: int = 1 << 4
+
+## The clips an enemy can MOVE on, in no particular order - _play_locomotion picks between
+## whichever of them this enemy's library actually has. Matches
+## CharacterBuilder.LOCOMOTION_CLIPS, which is what puts them there.
+const LOCOMOTION_CLIPS: Array[String] = ["walk", "run"]
+
+## Locomotion clip name -> how far that clip carries THIS enemy per second at playback 1.0,
+## at the size it is rendered but before model_scale (see _resolve_locomotion). Empty for
+## anything whose library was built before stride measuring - a boss, or a CSGBox
+## placeholder - and an empty dictionary is what puts _play_locomotion back on the old
+## "always walk, always at _anim_speed_scale" path.
+var _locomotion: Dictionary = {}
+## Playback rate currently applied to the locomotion clip, so the speed is only re-sent
+## when it actually changed.
+var _locomotion_speed: float = 0.0
+
 # --- Boss special attack (telegraphed and dodgeable) ---
 ## Every special this boss has, and a cooldown per entry. Two, for every boss: the big
 ## telegraphed area attack and a short-range melee one. See BossDatabase.SPECIALS.
@@ -266,6 +285,7 @@ func setup(data: EnemyData) -> void:
 		# is a direct child) and the imported boss scenes, without assuming depth.
 		visual_anim_player = visual_instance.find_child("AnimationPlayer", true, false)
 		_reaction_clip = _resolve_reaction_clip()
+		_resolve_locomotion(visual_instance)
 		_rest_visual_animation()
 	else:
 		var visual = CSGBox3D.new()
@@ -426,6 +446,7 @@ func _physics_process(delta: float) -> void:
 		_update_puppet()
 		return
 	if is_dying:
+		_settle_corpse(delta)
 		return
 
 	if elite_regeneration_per_second > 0.0 and health < enemy_data.health:
@@ -762,9 +783,97 @@ func _update_visual_animation() -> void:
 	elif visual_anim_player.current_animation == "attack" and visual_anim_player.is_playing():
 		pass # Let the attack swing finish before switching states.
 	elif Vector2(velocity.x, velocity.z).length_squared() > 0.01:
-		_play_visual_animation("walk")
+		_play_locomotion(Vector2(velocity.x, velocity.z).length())
 	else:
 		_rest_visual_animation()
+
+## Reads the stride measurement off this enemy's own clips, once, at spawn.
+##
+## `stride_speed` was measured on the built character at its own root scale, and EnemyBase
+## then instantiates that same character and OVERWRITES the scale with 100 - so the clip
+## carries the enemy proportionally further than it carried the model it was measured on.
+## `stride_scale` records what it was measured at, and the ratio is applied here rather
+## than assumed, because those two numbers live in different files and have drifted apart
+## once already.
+##
+## model_scale is deliberately NOT folded in here: a miniboss is rescaled after setup
+## (_apply_miniboss), so it is applied at use time from the live node scale instead.
+func _resolve_locomotion(visual_instance: Node3D) -> void:
+	_locomotion.clear()
+	if visual_anim_player == null:
+		return
+	var rendered_scale: float = visual_instance.scale.y
+	for clip_name: String in LOCOMOTION_CLIPS:
+		if not visual_anim_player.has_animation(clip_name):
+			continue
+		var clip: Animation = visual_anim_player.get_animation(clip_name)
+		if clip == null or not clip.has_meta("stride_speed"):
+			continue
+		var measured: float = float(clip.get_meta("stride_speed"))
+		var measured_at: float = float(clip.get_meta("stride_scale", rendered_scale))
+		if measured <= 0.0 or measured_at <= 0.0:
+			continue
+		_locomotion[clip_name] = measured * rendered_scale / measured_at
+
+
+## Walk or run, and at what rate, for an enemy actually travelling at `speed`.
+##
+## One rule does both halves of this. Each clip knows the speed it was authored to travel
+## at; the enemy picks the clip whose own speed is CLOSEST to its real one and then plays
+## it at exactly the ratio between them. Choosing and stretching are the same measurement,
+## so they can never disagree - the clip that gets picked is by definition the one that
+## needs the least stretching.
+##
+## Closest is measured as a RATIO, not a difference: a clip half as fast as the enemy and
+## one twice as fast are equally wrong, and a plain subtraction would call the fast one
+## much worse. That is what makes the switch fall where it looks right rather than at a
+## hand-picked speed - between a 1.04 walk and a 2.58 run, a Melee crosses over at 1.64
+## units per second, which is most of the way to its own 2.5 top speed.
+##
+## SIZE comes in through the same door, with no separate rule: the clip is played on a
+## body scaled by model_scale, so it covers model_scale times the ground per cycle. A
+## miniboss at 1.35x has a longer stride and stays walking where an ordinary enemy of the
+## same speed would break into a run, and a boss - scaled several times up, and slow -
+## never leaves its walk at all.
+func _play_locomotion(speed: float) -> void:
+	if _locomotion.is_empty():
+		# No measurement to go on: exactly the behaviour this enemy had before.
+		_play_visual_animation("walk")
+		return
+
+	var body_scale: float = maxf(scale.y, 0.01)
+	var best_clip: String = ""
+	var best_error: float = INF
+	var best_rate: float = 1.0
+	for clip_name: String in _locomotion:
+		var natural: float = float(_locomotion[clip_name]) * body_scale
+		if natural <= 0.0:
+			continue
+		var rate: float = speed / natural
+		var error: float = absf(log(rate))
+		if error < best_error:
+			best_error = error
+			best_clip = clip_name
+			best_rate = rate
+	if best_clip == "":
+		_play_visual_animation("walk")
+		return
+
+	var rate_clamped: float = clampf(best_rate, GameSettings.enemy_anim_match_min, GameSettings.enemy_anim_match_max)
+	# _anim_speed_scale is NOT applied on top. For a boss it is a size-derived slowdown,
+	# and size is already in body_scale above - multiplying both would slow a giant twice
+	# for being big once. Every other enemy leaves it at 1.0 anyway.
+	if best_clip != visual_anim_player.current_animation or not visual_anim_player.is_playing():
+		_play_visual_animation(best_clip, rate_clamped)
+		_locomotion_speed = rate_clamped
+		return
+	# Same clip, new pace. Re-issuing play() on a clip that is already playing updates its
+	# speed and keeps its position (verified against 4.7), so this does not pop the cycle
+	# back to frame zero every time the enemy accelerates.
+	if absf(rate_clamped - _locomotion_speed) > GameSettings.enemy_anim_match_epsilon * maxf(_locomotion_speed, 0.1):
+		_play_visual_animation(best_clip, rate_clamped, true)
+		_locomotion_speed = rate_clamped
+
 
 ## Every clip this enemy plays EXCEPT the death one goes through here, and the is_dying guard
 ## is the reason it is a funnel at all.
@@ -781,11 +890,15 @@ func _update_visual_animation() -> void:
 ## That is the "stuck in the last pose" report, and the debug logging shows it exactly: those
 ## enemies get a `play_requested` line and never a `confirmed` one, because by the time the
 ## deferred check runs the current animation is walk or hit rather than death.
-func _play_visual_animation(anim_name: String, speed_scale: float = -1.0) -> void:
+## `force_speed` re-issues play() even when this clip is already the one running, which is
+## the only way to change a playing clip's rate: the guard below otherwise treats "same
+## clip" as "nothing to do" and silently swallows the new speed. Only locomotion needs it -
+## a swing or a flinch is played once at a rate fixed when it starts.
+func _play_visual_animation(anim_name: String, speed_scale: float = -1.0, force_speed: bool = false) -> void:
 	if is_dying:
 		return
 	var speed: float = _anim_speed_scale if speed_scale <= 0.0 else speed_scale
-	if visual_anim_player.current_animation != anim_name or not visual_anim_player.is_playing():
+	if force_speed or visual_anim_player.current_animation != anim_name or not visual_anim_player.is_playing():
 		visual_anim_player.play(anim_name, -1, speed)
 
 
@@ -1008,6 +1121,9 @@ func _special_targets_in_shape() -> Array[Node3D]:
 		if not candidate is Node3D or not is_instance_valid(candidate):
 			continue
 		if candidate.is_in_group("player") and "is_downed" in candidate and candidate.is_downed:
+			continue
+		# A phased myr (Blue's Propaganda stack) is not there to be hit - see Myr.is_targetable.
+		if candidate.has_method("is_targetable") and not candidate.is_targetable():
 			continue
 		var offset: Vector3 = (candidate as Node3D).global_position - global_position
 		offset.y = 0.0
@@ -1617,6 +1733,10 @@ func evaluate_target() -> void:
 			continue
 		if candidate.is_in_group("player") and "is_downed" in candidate and candidate.is_downed:
 			continue
+		# A phased myr stops being a target mid-approach, and evaluate_target falls back to
+		# the crystal on this same pass - see Myr.is_targetable.
+		if candidate.has_method("is_targetable") and not candidate.is_targetable():
+			continue
 		var candidate_distance_squared: float = global_position.distance_squared_to(candidate.global_position)
 		if candidate_distance_squared <= detection_range_squared and candidate_distance_squared < best_distance_squared:
 			best_target = candidate
@@ -1727,7 +1847,7 @@ func die() -> void:
 		# The team is paid twice for one kill: XP towards a level everybody shares, and
 		# mana in this enemy's own colour. Banked here rather than dropped, because the
 		# pool is shared and there is nobody for a pickup to belong to.
-		RunState.on_enemy_killed(enemy_data, elite_modifier != "")
+		RunState.on_enemy_killed(enemy_data, elite_modifier != "", global_position)
 
 	# Dying mid-windup drops the telegraph without dealing its damage - and the same
 	# goes for an ordinary swing whose impact frame has not arrived yet.
@@ -1739,8 +1859,11 @@ func die() -> void:
 	if visual_anim_player and visual_anim_player.has_animation("death"):
 		_log_death_animation_debug("play_requested", death_debug_before)
 		is_dying = true
+		# Nothing collides with a corpse (layer 0), but the corpse still has to find the
+		# FLOOR, or one killed in mid-air plays its death clip hanging there. See
+		# _settle_corpse.
 		collision_layer = 0
-		collision_mask = 0
+		collision_mask = ENVIRONMENT_LAYER
 		remove_from_group("enemies")
 		if health_bar:
 			health_bar.visible = false
@@ -1754,6 +1877,27 @@ func die() -> void:
 	else:
 		push_warning("Enemy death animation unavailable: %s" % _format_death_animation_debug(death_debug_before))
 		queue_free()
+
+
+## A corpse still falls.
+##
+## Everything else about a dying enemy is deliberately frozen - it has left its formation,
+## it deals and takes nothing, and its death clip is already playing - but the early
+## return that freezes it skipped GRAVITY along with the AI, so anything killed off the
+## ground (knocked up by Unsummon, caught mid-slope, killed while a squad shoved it) held
+## whatever height it died at and played its whole death animation in the air.
+##
+## Horizontal velocity is dropped rather than kept: the body has no collision left to stop
+## it, so any speed it died carrying would slide it across the map for the length of the
+## clip. It falls straight down and stays where it lands.
+func _settle_corpse(delta: float) -> void:
+	if is_on_floor():
+		velocity = Vector3.ZERO
+		return
+	velocity.x = 0.0
+	velocity.z = 0.0
+	velocity.y -= gravity * delta
+	move_and_slide()
 
 
 func _death_animation_debug_state() -> Dictionary:
@@ -2071,7 +2215,9 @@ func exile() -> void:
 	if enemy_data:
 		SignalBus.enemy_died.emit()
 		SignalBus.enemy_died_at.emit(global_position)
-		RunState.on_enemy_killed(enemy_data, elite_modifier != "")
+		# Exiled, but still paid for - and the payout is still shown where the body would
+		# have fallen, or an exiled elite would be the one kill that banks in silence.
+		RunState.on_enemy_killed(enemy_data, elite_modifier != "", global_position)
 	_cancel_special()
 	_cancel_miniboss_special()
 	queue_free()
