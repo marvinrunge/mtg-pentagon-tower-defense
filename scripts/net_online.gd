@@ -116,6 +116,10 @@ var _browse_busy: bool = false
 var _servers: Array = []
 
 
+func _log(message: String) -> void:
+	print("[NetOnline] %s" % message)
+
+
 func _ready() -> void:
 	_config = OnlineConfig.load_config()
 	_db = FirebaseRtdb.new()
@@ -124,6 +128,10 @@ func _ready() -> void:
 	if _config.is_valid():
 		_db.configure(_config.api_key, _config.database_url)
 	_webrtc_ready = _probe_webrtc()
+	_log("config valid=%s webrtc_ready=%s database_url=%s" % [
+		_config.is_valid(), _webrtc_ready,
+		_config.database_url if _config.is_valid() else "(none)",
+	])
 
 
 ## True when online play can be offered at all. Both halves have to be there: the
@@ -173,6 +181,7 @@ func _process(delta: float) -> void:
 ## ENet's exactly: everyone talks to peer 1 and to nobody else.
 func create_host_peer() -> WebRTCMultiplayerPeer:
 	if not is_available():
+		_log("create_host_peer refused: not available (%s)" % unavailable_reason())
 		return null
 	_reset()
 	var peer := WebRTCMultiplayerPeer.new()
@@ -181,6 +190,7 @@ func create_host_peer() -> WebRTCMultiplayerPeer:
 		return null
 	_rtc = peer
 	_hosting = true
+	_log("host peer created, id=%d" % peer.get_unique_id())
 	return peer
 
 
@@ -196,12 +206,14 @@ func publish(info: Dictionary) -> void:
 	record["created_at"] = {".sv": "timestamp"}
 	var result: Dictionary = await _db.push_json(LOBBIES_PATH, record)
 	if not result["ok"]:
+		_log("publish FAILED: %s" % result["error"])
 		status_changed.emit("Could not list the game online: %s" % result["error"])
 		browse_failed.emit(String(result["error"]))
 		return
 	_lobby_id = String(result.get("key", ""))
 	_heartbeat_left = HEARTBEAT_SECONDS
 	_pump_left = 0.0
+	_log("published lobby id=%s" % _lobby_id)
 	status_changed.emit("Listed online. Waiting for players.")
 
 
@@ -259,8 +271,11 @@ func _tick_host_pump(delta: float) -> void:
 func _pump_tickets() -> void:
 	var result: Dictionary = await _db.get_json("%s/%s" % [TICKETS_PATH, _lobby_id])
 	if not result["ok"]:
+		_log("pump: could not read tickets: %s" % result["error"])
 		return
 	var tickets: Dictionary = result["data"] if result["data"] is Dictionary else {}
+	if not tickets.is_empty():
+		_log("pump: %d ticket(s) in the post box: %s" % [tickets.size(), tickets.keys()])
 	for ticket_id: String in tickets:
 		var ticket: Variant = tickets[ticket_id]
 		if ticket is Dictionary:
@@ -289,13 +304,16 @@ func _accept_ticket(ticket_id: String, ticket: Dictionary) -> void:
 	if offer.is_empty():
 		return  # still being written; it will be complete on the next pass
 	var peer_id: int = int(ticket.get("peer_id", 0))
+	_log("accept_ticket %s: peer_id=%d offer_len=%d" % [ticket_id, peer_id, offer.length()])
 	var refusal: String = _refuse_ticket(peer_id)
 	if not refusal.is_empty():
+		_log("accept_ticket %s REFUSED: %s" % [ticket_id, refusal])
 		await _db.patch_json("%s/%s/%s" % [TICKETS_PATH, _lobby_id, ticket_id], {"rejected": refusal})
 		return
 
 	var conn := WebRTCPeerConnection.new()
 	if conn.initialize(_ice_configuration()) != OK:
+		_log("accept_ticket %s: conn.initialize() FAILED" % ticket_id)
 		return
 	var state: Dictionary = {
 		"peer_id": peer_id,
@@ -311,16 +329,19 @@ func _accept_ticket(ticket_id: String, ticket: Dictionary) -> void:
 	conn.session_description_created.connect(
 		_on_host_description.bind(ticket_id, conn)
 	)
-	conn.ice_candidate_created.connect(_on_ice_candidate.bind(state))
+	conn.ice_candidate_created.connect(_on_ice_candidate.bind(state, ticket_id))
 	if _rtc.add_peer(conn, peer_id) != OK:
+		_log("accept_ticket %s: _rtc.add_peer(%d) FAILED" % [ticket_id, peer_id])
 		return
 	_tickets[ticket_id] = state
 	# The host never offers: Godot's convention is that the peer with the LOWER remote id
 	# waits, and the host's own id is 1, so every client offers and every host answers.
 	if conn.set_remote_description("offer", offer) != OK:
+		_log("accept_ticket %s: set_remote_description(offer) FAILED" % ticket_id)
 		_drop_ticket(ticket_id, "the offer could not be read")
 		return
 	state["remote_set"] = true
+	_log("accept_ticket %s: offer accepted, waiting on an answer from session_description_created" % ticket_id)
 	_apply_remote_ice(state, ticket.get("ice_client", []), conn)
 
 
@@ -338,15 +359,19 @@ func _refuse_ticket(peer_id: int) -> String:
 
 ## The host collects its own candidates per ticket, since each joining player gets its
 ## own connection and therefore its own list to publish.
-func _on_ice_candidate(media: String, index: int, name_: String, state: Dictionary) -> void:
+func _on_ice_candidate(media: String, index: int, name_: String, state: Dictionary, ticket_id: String) -> void:
 	(state["ice"] as Array).append({"media": media, "index": index, "name": name_})
+	_log("host gathered ICE candidate #%d for %s (media=%s)" % [(state["ice"] as Array).size(), ticket_id, media])
 
 
 func _on_host_description(type: String, sdp: String, ticket_id: String, conn: WebRTCPeerConnection) -> void:
+	_log("host session_description_created for %s: type=%s" % [ticket_id, type])
 	if conn.set_local_description(type, sdp) != OK:
+		_log("host %s: set_local_description(%s) FAILED" % [ticket_id, type])
 		return
 	if type != "answer":
 		return
+	_log("host %s: writing answer to Firebase" % ticket_id)
 	_db.patch_json("%s/%s/%s" % [TICKETS_PATH, _lobby_id, ticket_id], {"answer": sdp})
 
 
@@ -359,9 +384,14 @@ func _retire_tickets() -> void:
 		var state: Dictionary = _tickets[ticket_id]
 		var peer_id: int = int(state["peer_id"])
 		if peer_id in _rtc.get_peers() and _is_peer_connected(peer_id):
+			_log("ticket %s: peer %d is connected - retiring" % [ticket_id, peer_id])
 			_retire(ticket_id)
 			continue
 		if now - int(state["started"]) > int(TICKET_TIMEOUT * 1000.0):
+			var entry: Dictionary = _rtc.get_peer(peer_id) if peer_id in _rtc.get_peers() else {}
+			_log("ticket %s: TIMED OUT after %ds - last known peer entry: %s" % [
+				ticket_id, int(TICKET_TIMEOUT), entry,
+			])
 			_drop_ticket(ticket_id, "timed out")
 
 
@@ -399,42 +429,52 @@ func _retire(ticket_id: String) -> void:
 ## path are the ones that were already there.
 func create_client_peer(lobby: Dictionary) -> WebRTCMultiplayerPeer:
 	if not is_available():
+		_log("create_client_peer refused: not available (%s)" % unavailable_reason())
 		return null
 	_reset()
 	var lobby_id: String = String(lobby.get("lobby", ""))
 	if lobby_id.is_empty():
+		_log("create_client_peer refused: lobby dictionary had no lobby id (%s)" % lobby)
 		return null
 	# Godot's WebRTC peers need an id before they have a connection to be assigned one
 	# over, so the client picks its own and the host refuses a collision. With a 31-bit
 	# range and at most four other players, a collision is a formality.
 	_client_peer_id = randi_range(2, 2147483646)
+	_log("create_client_peer: lobby=%s own peer_id=%d" % [lobby_id, _client_peer_id])
 	var peer := WebRTCMultiplayerPeer.new()
 	if peer.create_client(_client_peer_id) != OK:
+		_log("create_client_peer: peer.create_client() FAILED")
 		return null
 	_rtc = peer
 	_lobby_id = lobby_id
 
 	var conn := WebRTCPeerConnection.new()
 	if conn.initialize(_ice_configuration()) != OK:
+		_log("create_client_peer: conn.initialize() FAILED, ice config=%s" % _ice_configuration())
 		return null
 	_client_conn = conn
 	conn.session_description_created.connect(_on_client_description)
 	conn.ice_candidate_created.connect(_on_client_ice_candidate)
 	if peer.add_peer(conn, 1) != OK:
+		_log("create_client_peer: peer.add_peer(host=1) FAILED")
 		return null
 	# The client is the one that offers - see the note in _accept_ticket.
 	if conn.create_offer() != OK:
+		_log("create_client_peer: conn.create_offer() FAILED")
 		return null
 	_client_deadline = Time.get_ticks_msec() + int(HANDSHAKE_TIMEOUT * 1000.0)
 	_client_poll_left = SIGNAL_SECONDS
+	_log("create_client_peer: offer requested, waiting on session_description_created")
 	status_changed.emit("Finding a route to the host...")
 	return peer
 
 
 func _on_client_description(type: String, sdp: String) -> void:
+	_log("client session_description_created: type=%s" % type)
 	if _client_conn == null:
 		return
 	if _client_conn.set_local_description(type, sdp) != OK:
+		_log("client: set_local_description(%s) FAILED" % type)
 		return
 	if type != "offer" or _client_offer_sent:
 		return
@@ -452,23 +492,32 @@ func _post_ticket(sdp: String) -> void:
 		"created_at": {".sv": "timestamp"},
 	})
 	if not result["ok"]:
+		_log("post_ticket FAILED: %s" % result["error"])
 		handshake_failed.emit(String(result["error"]))
 		return
 	_ticket_path = "%s/%s/%s" % [TICKETS_PATH, _lobby_id, String(result.get("key", ""))]
+	_log("post_ticket ok: %s" % _ticket_path)
 	status_changed.emit("Waiting for the host to answer...")
 
 
 func _on_client_ice_candidate(media: String, index: int, name_: String) -> void:
 	_client_ice.append({"media": media, "index": index, "name": name_})
+	_log("client gathered ICE candidate #%d (media=%s)" % [_client_ice.size(), media])
 
 
 func _tick_client(delta: float) -> void:
 	if _client_conn == null or _client_busy:
 		return
 	if _is_client_connected():
+		_log("client: WebRTCMultiplayerPeer reports CONNECTED")
 		_finish_client()
 		return
 	if Time.get_ticks_msec() > _client_deadline:
+		_log("client: HANDSHAKE TIMED OUT. connection_status=%d remote_set=%s ice_sent=%d ice_applied=%d peer_status=%s" % [
+			_rtc.get_connection_status() if _rtc != null else -1,
+			_client_remote_set, _client_ice_sent, _client_ice_applied,
+			_rtc.get_peer(1) if _rtc != null and 1 in _rtc.get_peers() else {},
+		])
 		_fail_client("Could not reach the host - the connection could not be opened.")
 		return
 	if _ticket_path.is_empty():
@@ -494,21 +543,28 @@ func _exchange_client() -> void:
 
 	var result: Dictionary = await _db.get_json(_ticket_path)
 	if not result["ok"] or _client_conn == null:
+		if not result["ok"]:
+			_log("client: could not read the ticket back: %s" % result["error"])
 		return
 	if not (result["data"] is Dictionary):
 		# The host deleted the ticket, which it only does once the peer is connected -
 		# or the lobby is gone. The connection check on the next tick settles which.
+		_log("client: ticket is gone (host deleted it, or the lobby is gone)")
 		return
 	var ticket: Dictionary = result["data"]
 	var rejected: String = String(ticket.get("rejected", ""))
 	if not rejected.is_empty():
+		_log("client: host REJECTED the ticket: %s" % rejected)
 		_fail_client(rejected)
 		return
 	if not _client_remote_set:
 		var answer: String = String(ticket.get("answer", ""))
 		if answer.is_empty():
+			_log("client: no answer from the host yet")
 			return
+		_log("client: got an answer, applying it")
 		if _client_conn.set_remote_description("answer", answer) != OK:
+			_log("client: set_remote_description(answer) FAILED")
 			_fail_client("The host's answer could not be read.")
 			return
 		_client_remote_set = true
@@ -516,6 +572,10 @@ func _exchange_client() -> void:
 	state["ice_applied"] = _client_ice_applied
 	_apply_remote_ice(state, ticket.get("ice_host", []), _client_conn)
 	_client_ice_applied = int(state["ice_applied"])
+	_log("client poll: connection_status=%d remote_set=%s ice_sent=%d ice_applied=%d" % [
+		_rtc.get_connection_status() if _rtc != null else -1,
+		_client_remote_set, _client_ice_sent, _client_ice_applied,
+	])
 
 
 func _is_client_connected() -> bool:
@@ -527,6 +587,7 @@ func _is_client_connected() -> bool:
 ## The handshake worked. The ticket is litter now, and the client's own poll stops: from
 ## here the connection is direct and Firebase has no further part in the session.
 func _finish_client() -> void:
+	_log("client: handshake finished, connection is live")
 	if not _ticket_path.is_empty():
 		_db.delete_json(_ticket_path)
 		_ticket_path = ""
@@ -536,6 +597,7 @@ func _finish_client() -> void:
 
 
 func _fail_client(reason: String) -> void:
+	_log("client: FAILED - %s" % reason)
 	if not _ticket_path.is_empty():
 		_db.delete_json(_ticket_path)
 		_ticket_path = ""
@@ -569,6 +631,8 @@ func _apply_remote_ice(state: Dictionary, remote: Variant, conn: WebRTCPeerConne
 		return
 	var list: Array = remote
 	var applied: int = int(state["ice_applied"])
+	if list.size() > applied:
+		_log("applying %d new remote ICE candidate(s) (%d -> %d)" % [list.size() - applied, applied, list.size()])
 	for index: int in range(applied, list.size()):
 		var candidate: Variant = list[index]
 		if candidate is Dictionary:

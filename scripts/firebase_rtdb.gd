@@ -92,14 +92,28 @@ func delete_json(path: String) -> Dictionary:
 	return await _request(HTTPClient.METHOD_DELETE, path, null, {})
 
 
+const _METHOD_NAMES: Dictionary = {
+	HTTPClient.METHOD_GET: "GET", HTTPClient.METHOD_PUT: "PUT",
+	HTTPClient.METHOD_PATCH: "PATCH", HTTPClient.METHOD_POST: "POST",
+	HTTPClient.METHOD_DELETE: "DELETE",
+}
+
+
 func _request(method: int, path: String, body: Variant, query: Dictionary) -> Dictionary:
 	if not await ensure_auth():
-		return {"ok": false, "code": 0, "data": null, "error": _auth_blocked if not _auth_blocked.is_empty() else "not signed in"}
+		var reason: String = _auth_blocked if not _auth_blocked.is_empty() else "not signed in"
+		print("[Firebase] %s %s refused: %s" % [_METHOD_NAMES.get(method, method), path, reason])
+		return {"ok": false, "code": 0, "data": null, "error": reason}
 	var url: String = "%s/%s.json?auth=%s" % [database_url, path, _id_token.uri_encode()]
 	for key: String in query:
 		url += "&%s=%s" % [key, String(query[key]).uri_encode()]
 	var payload: String = "" if body == null else JSON.stringify(body)
-	return await _http(url, method, payload, ["Content-Type: application/json"])
+	var result: Dictionary = await _http(url, method, payload, ["Content-Type: application/json"])
+	if result["ok"]:
+		print("[Firebase] %s %s -> %d ok" % [_METHOD_NAMES.get(method, method), path, result["code"]])
+	else:
+		print("[Firebase] %s %s -> %d FAILED: %s" % [_METHOD_NAMES.get(method, method), path, result["code"], result["error"]])
+	return result
 
 
 # --- authentication -----------------------------------------------------------
@@ -148,6 +162,7 @@ func _sign_up_anonymous() -> bool:
 	_uid = String(data.get("localId", ""))
 	_expires_at = Time.get_unix_time_from_system() + float(String(data.get("expiresIn", "3600")).to_int())
 	_save_cached_auth()
+	print("[Firebase] signed in anonymously, uid=%s..." % _uid.substr(0, 6))
 	return is_signed_in()
 
 
@@ -168,6 +183,7 @@ func _refresh() -> bool:
 	_uid = String(data.get("user_id", _uid))
 	_expires_at = Time.get_unix_time_from_system() + float(String(data.get("expires_in", "3600")).to_int())
 	_save_cached_auth()
+	print("[Firebase] refreshed cached sign-in, uid=%s..." % _uid.substr(0, 6))
 	return is_signed_in()
 
 
