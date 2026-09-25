@@ -88,16 +88,19 @@ func _ready() -> void:
 	# setting on it - see DayNightPacing.
 	var sky: Node = get_node_or_null("Sky3D")
 	if sky:
-		# The clock is set BEFORE the pacing node is attached, and the order is the point:
-		# DayNightPacing._ready reads current_time to decide which phase it is starting in and
-		# emits phase_changed accordingly. Attached first, it would read the scene's authored
-		# time, announce night, and start the night music - which the next frame would then
-		# correct, giving a run that opens on a stab of night music at dawn.
+		# The clock is set BEFORE the pacing node is attached, because DayNightPacing._ready
+		# reads current_time to decide which phase it is starting in and announces it;
+		# attached first it would read the scene's authored time and announce night at dawn.
+		#
+		# phase_changed used to drive the music too, swapping between day and night tracks
+		# and cutting whatever was playing off at every dawn and dusk. The music is one
+		# shuffled pool now (SoundBank.start_gameplay_music), so the phase has nothing to
+		# say about it.
 		sky.current_time = GameSettings.day_start_hour
 		var pacing := DayNightPacing.new()
 		pacing.name = "DayNightPacing"
-		pacing.phase_changed.connect(SoundBank.set_gameplay_music)
 		sky.add_child(pacing)
+	SoundBank.start_gameplay_music()
 
 	RunState.reset()
 	
@@ -626,7 +629,7 @@ func claim_well_slot(myr: Node3D, lane_index: int) -> bool:
 	holders = holders.filter(func(h: Node3D) -> bool: return is_instance_valid(h))
 	if holders.has(myr):
 		return true
-	if holders.size() >= GameSettings.myr_well_max_slots:
+	if holders.size() >= RunState.myr_well_slots():
 		return false
 	# Reserve the new well only after its capacity check succeeds. This preserves the
 	# old assignment when the target well is full, while reassignment cannot leave the
@@ -662,7 +665,7 @@ func well_slot_count(lane_index: int) -> int:
 ## Where slot `slot_index` of `lane_index`'s well stands, in world space relative to
 ## the well: an even ring around the centre, one slot straight ahead of it first.
 func _well_slot_offset(lane_index: int, slot_index: int) -> Vector3:
-	var angle: float = TAU * float(slot_index) / float(GameSettings.myr_well_max_slots)
+	var angle: float = TAU * float(slot_index) / float(maxi(RunState.myr_well_slots(), 1))
 	var offset := Vector3(sin(angle), 0.0, cos(angle)) * GameSettings.myr_well_slot_radius
 	if lane_index >= 0 and lane_index < mana_sources.size() and is_instance_valid(mana_sources[lane_index]):
 		# The ring is built in the lane's frame, so slot 0 faces down-lane rather than

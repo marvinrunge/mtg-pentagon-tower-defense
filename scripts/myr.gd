@@ -24,6 +24,11 @@ const VISUAL_SCENES := {
 
 @export var speed: float = GameSettings.myr_speed
 
+## Reused from the minibosses rather than written again - it is the same job (tint a rigged
+## model in a colour without touching the material every other copy of that model shares)
+## and the same answer.
+const CARRY_GLOW_SHADER: Shader = preload("res://assets/shaders/miniboss_glow.gdshader")
+
 var current_state: State = State.SPAWNING
 var target_mana_source: Node3D
 var target_crystal: Node3D
@@ -48,6 +53,13 @@ var _pending_lane_index: int = -1
 var _pending_mana_source: Node3D
 
 var visual_anim_player: AnimationPlayer
+## Surface materials swapped in to make a loaded myr glow, kept so the glow can be taken
+## off again on deposit. Empty whenever the myr is walking out empty-handed.
+var _carry_glow_surfaces: Array = []
+var _carrying: bool = false
+## Blue, Propaganda: seconds this myr is still phased out of reach. Only ever set while
+## carrying - see take_damage.
+var _phase_left: float = 0.0
 var _current_color: String = ""
 
 # The slot at the well this Myr stands in while harvesting, so five Myrs fan out
@@ -76,6 +88,9 @@ func _ready() -> void:
 	# Mask: Layer 3 (Enemies), Layer 5 (Environment/Static)
 	# Layer 3 = 4, Layer 5 = 16. Total mask = 4 + 16 = 20.
 	collision_mask = 20
+	# A myr spawned already levelled (loaded from a save, or replicated to a client that
+	# joined mid-run) never passes through set_level, so the size is applied here too.
+	_apply_level_scale()
 	
 	# Read metadata targets set by map generator
 	if has_meta("target_mana_source"):
@@ -173,6 +188,65 @@ func set_level(new_level: int) -> void:
 	level = clamped
 	max_health = GameSettings.myr_max_hp + float(level - 1) * GameSettings.myr_level_hp_bonus
 	health = minf(max_health, health + maxf(gained, 0.0))
+	_apply_level_scale()
+
+
+## A loaded myr glows in the colour of what it is carrying.
+##
+## The myr economy is the quietest thing in the game: a myr walks out, stands at a well for
+## ten seconds and walks back, and none of that reads at a glance as "this one is bringing
+## you mana". The glow is the tell - a myr coming home lit up in its lane's colour is one
+## the player can see working, and one an enemy killing it is visibly taking something off.
+##
+## Applied as a second render PASS on a duplicated material, exactly as EnemyBase does for
+## a miniboss: the mesh's own material is shared with every other myr wearing this model,
+## so tinting it in place would light up the whole fleet.
+func _set_carrying(carrying: bool) -> void:
+	if carrying == _carrying:
+		return
+	_carrying = carrying
+	if not carrying:
+		_clear_carry_glow()
+		return
+	var tint: Color = GameSettings.lane_tint(_lane_color())
+	var glow_material := ShaderMaterial.new()
+	glow_material.shader = CARRY_GLOW_SHADER
+	glow_material.set_shader_parameter("glow_color", tint)
+
+	var skeleton: Skeleton3D = find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton == null:
+		return
+	for child: Node in skeleton.get_children():
+		if not (child is MeshInstance3D):
+			continue
+		var mesh_instance: MeshInstance3D = child as MeshInstance3D
+		for surface: int in range(mesh_instance.get_surface_override_material_count()):
+			var base_material: Material = mesh_instance.get_active_material(surface)
+			if base_material == null:
+				continue
+			var duplicated: Material = base_material.duplicate()
+			duplicated.next_pass = glow_material
+			mesh_instance.set_surface_override_material(surface, duplicated)
+			_carry_glow_surfaces.append([mesh_instance, surface])
+
+
+## Puts every surface the glow touched back to the model's own material. Cleared by
+## reference rather than by re-duplicating, so a myr that changed colour mid-route (a lane
+## reassignment commits on deposit) cannot leave a stale tint behind.
+func _clear_carry_glow() -> void:
+	for entry: Array in _carry_glow_surfaces:
+		var mesh_instance: MeshInstance3D = entry[0]
+		if is_instance_valid(mesh_instance):
+			mesh_instance.set_surface_override_material(int(entry[1]), null)
+	_carry_glow_surfaces.clear()
+
+
+## Size, as a function of level. The whole node rather than just the visual, so the body a
+## bigger myr presents to the enemies chasing it grows with it - a level is supposed to
+## make it survive the walk, and half of surviving is being the thing that got noticed.
+func _apply_level_scale() -> void:
+	var factor: float = 1.0 + float(level - 1) * GameSettings.myr_level_scale_bonus
+	scale = Vector3.ONE * factor
 
 
 ## What the base screen calls this myr. `fallback_index` is its position in the list, used
@@ -181,9 +255,20 @@ func label(fallback_index: int) -> String:
 	return display_name if display_name.strip_edges() != "" else "Myr %d" % fallback_index
 
 
+## `amount` is what reached the myr; the two enchantments that protect it are applied here.
+##
+## White is flat armour and always applies. Blue is intermittent and only while LOADED: the
+## hit that starts the phase still lands, and the follow-ups inside the window do not, so
+## it buys a myr the seconds it needs to finish a delivery rather than making it tougher.
+## A myr walking out empty-handed gets nothing from Blue at all.
 func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false) -> void:
-	if is_dying:
+	if is_dying or _phase_left > 0.0:
 		return
+	amount *= 1.0 - RunState.myr_damage_reduction()
+	if _carrying:
+		var phase: float = RunState.myr_phase_duration()
+		if phase > 0.0:
+			_phase_left = phase
 	health = maxf(0.0, health - amount)
 	NetFx.damage_number(global_position + Vector3(0, 1.2, 0), amount, Color(1.0, 0.25, 0.25), "")
 	if health <= 0.0:
@@ -201,9 +286,18 @@ func heal(amount: float) -> float:
 		NetFx.damage_number(global_position + Vector3(0, 1.2, 0), previous_health - health, Color(0.2, 1.0, 0.4), "")
 	return health - previous_health
 
+## Whether anything may pick this myr as a target. Enemies check it in _acquire_target and
+## in their special targeting, so a phased myr is walked away from rather than swung at.
+func is_targetable() -> bool:
+	return not is_dying and _phase_left <= 0.0
+
+
 func die() -> void:
 	if is_dying:
 		return
+	_phase_left = 0.0
+	visible = true
+	_myr_death_blast()
 	is_dying = true
 	remove_from_group("myrs")
 	release_well_slot()
@@ -216,6 +310,29 @@ func die() -> void:
 		get_tree().create_timer(death_anim.length).timeout.connect(queue_free)
 	else:
 		queue_free()
+
+## Black, Exquisite Blood: a myr that dies takes the neighbourhood with it.
+##
+## Server-only. Myr._physics_process has no authority guard and every peer runs its own
+## copy of the state machine, so an unguarded blast would be dealt once per peer - and the
+## FX go out through NetFx from here for the same reason, so every peer sees one blast
+## rather than each spawning its own.
+func _myr_death_blast() -> void:
+	var damage: float = RunState.myr_blast_damage()
+	var radius: float = RunState.myr_blast_radius()
+	if damage <= 0.0 or radius <= 0.0 or not Net.is_server():
+		return
+	for enemy: Node in get_tree().get_nodes_in_group("enemies"):
+		if not (enemy is Node3D) or not is_instance_valid(enemy) or enemy.is_queued_for_deletion():
+			continue
+		if global_position.distance_to((enemy as Node3D).global_position) > radius:
+			continue
+		if enemy.has_method("take_damage"):
+			enemy.take_damage(damage, self, false)
+	var tint: Color = GameSettings.lane_tint(_lane_color())
+	NetFx.impact(global_position, tint, radius)
+	NetFx.ring(global_position, tint, radius)
+
 
 func _refresh_fervor_state() -> void:
 	fervor_active = false
@@ -237,6 +354,9 @@ func _apply_color_visual(color: String) -> void:
 		visual_anim_player.get_parent().queue_free()
 		visual_anim_player = null
 
+	# The old model's surfaces are about to be freed with it, so anything still pointing
+	# at them has to go first.
+	_carry_glow_surfaces.clear()
 	var visual_scene: PackedScene = load(VISUAL_SCENES[color])
 	var visual_instance: Node3D = visual_scene.instantiate()
 	# Scale correction: imported models are tiny (~0.016m). We scale them up 100x to match a 1-unit base.
@@ -321,6 +441,17 @@ func _physics_process(delta: float) -> void:
 	var current_speed: float = speed
 	if fervor_active:
 		current_speed *= GameSettings.aura_fervor_speed_boost
+	# Red, Furnace of Rath. Multiplied alongside Fervor rather than instead of it: they are
+	# different sources and a team that has bought both should get both.
+	current_speed *= RunState.myr_speed_multiplier()
+
+	if _phase_left > 0.0:
+		_phase_left -= delta
+		# Flickering IS the tell. There is no other way to see that a myr cannot be hit,
+		# and the alternative - tinting it - is already spoken for by the carry glow.
+		visible = int(_phase_left * 12.0) % 2 == 0
+		if _phase_left <= 0.0:
+			visible = true
 
 	# Apply gravity
 	if not is_on_floor():
@@ -357,6 +488,7 @@ func _physics_process(delta: float) -> void:
 		State.HARVESTING:
 			velocity.x = 0.0
 			velocity.z = 0.0
+			_set_carrying(false)
 			# move_and_slide() must still run every frame even while stationary -
 			# it's the only thing that applies the gravity integrated above and
 			# refreshes is_on_floor(). Skipping it let velocity.y fall unbounded
@@ -368,6 +500,8 @@ func _physics_process(delta: float) -> void:
 			state_timer -= delta
 			if state_timer <= 0.0:
 				current_state = State.WALKING_TO_CRYSTAL
+				# Full, and it should look it from across the lane - see _set_carrying.
+				_set_carrying(true)
 				update_navigation_target()
 
 		State.DEPOSITING:
@@ -391,6 +525,7 @@ func start_harvesting() -> void:
 func start_depositing() -> void:
 	current_state = State.DEPOSITING
 	state_timer = deposit_time
+	_set_carrying(false)
 
 	var color := _lane_color()
 	SignalBus.mana_deposited.emit(color if color != "" else "Colorless", carry_amount())

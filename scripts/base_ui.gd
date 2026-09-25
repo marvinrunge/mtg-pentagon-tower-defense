@@ -63,7 +63,7 @@ func refresh_ui() -> void:
 	# is visible before the click that would be refused.
 	var slot_suffixes: Array[String] = []
 	for lane: int in range(5):
-		slot_suffixes.append(" %d/%d" % [main_controller.well_slot_count(lane), GameSettings.myr_well_max_slots])
+		slot_suffixes.append(" %d/%d" % [main_controller.well_slot_count(lane), RunState.myr_well_slots()])
 		
 	# Create entries for each Myr
 	for i in range(active_myrs.size()):
@@ -145,7 +145,7 @@ func _assign(myr: Node3D, lane: int) -> void:
 	if main_controller:
 		# The well caps how many Myrs can work it at once; sending a sixth is what wedged
 		# them against the model, so the assignment is refused before it starts.
-		if myr.lane_index != lane and main_controller.well_slot_count(lane) >= GameSettings.myr_well_max_slots:
+		if myr.lane_index != lane and main_controller.well_slot_count(lane) >= RunState.myr_well_slots():
 			return
 		# A fresh Myr has lane_index == -1, so pass the requested lane explicitly. The
 		# previous call tried to claim lane -1 and rejected every first assignment.

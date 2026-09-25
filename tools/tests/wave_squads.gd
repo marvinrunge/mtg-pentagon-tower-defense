@@ -16,9 +16,9 @@ extends Node
 ##      for all of it, and it only holds because the squad marches at its slowest member's
 ##      pace rather than at each member's own.
 ##   4. Allied neighbours reach their rendezvous and charge together.
-##   5. Every formation slot in wave 3's exact composition lands within reach of the baked
-##      navmesh, for every colour - see _check_formation_reachability for the real bug
-##      this pins down: Blue's caster_setback once shoved a mage clean off the map.
+##   5. Every formation slot lands within reach of the baked navmesh, for every colour and
+##      at every head count the run reaches - see _check_formation_reachability for the
+##      two real bugs this pins down, one at wave 3 and one at wave 13.
 ##
 ## Measured in GAME SECONDS, not frames. Headless renders as fast as the CPU allows while
 ## physics still steps at its fixed rate, so a frame counter here would sample a couple of
@@ -46,6 +46,11 @@ const RALLY_SECONDS: float = 150.0
 ## map_get_closest_point for the reachability check below. Nothing else in this file reads
 ## the navmesh this early, which is why only this one check needed it.
 const NAV_SETTLE_FRAMES: int = 20
+
+## Wave INDICES (wave number minus one) the reachability check samples. Wave 3 is where
+## the first off-map bug showed up and wave 13 the second; the rest walk the curve out
+## past anything a run realistically reaches, because head count is what drives the reach.
+const REACHABILITY_WAVES: Array[int] = [2, 6, 12, 15, 19, 24, 29]
 
 var _elapsed: float = 0.0
 var _started: bool = false
@@ -121,17 +126,27 @@ func _start_test_wave() -> void:
 	_manager.start_next_wave()
 
 
-## Regression guard for a real bug: Blue's caster_setback used to shove its mage and
-## archer BEHIND the spawner, off the far edge of the baked navmesh - the mage's slot then
-## snapped over 4 units sideways onto whatever walkable point was nearest, the squad could
-## never close that gap, and the wave the bug first showed up in (wave 3 - the last
-## authored OPENING_WAVES entry, and the first to field a Mage in every colour) never
-## finished, because that one enemy could never be reached or killed.
+## Regression guard for two real bugs, both the same shape: a formation slot placed where
+## the map is not, on a squad that then spends its march walking at a place that does not
+## exist. Enemies are SPAWNED snapped onto the mesh (WaveManager._spawn_unit snaps the
+## position) but they path to their SLOT, so a slot off the mesh strands whoever holds it
+## - and a wave with a stranded enemy in it can never be finished.
 ##
-## Checked against wave 3's OWN exact composition specifically, on every colour, rather
-## than folding it into the TEST_WAVE_INDEX=3 scenario above - that wave is chosen for
-## alliances, not for this, and OPENING_WAVES[2] (wave number 3) is a fixed, known
-## composition worth pinning down by name.
+##   Wave 3   Blue's caster_setback shoved its mage and archer BEHIND the spawner, off the
+##            far edge of the mesh. Fixed by applying the setback forwards instead.
+##   Wave 13  The same failure from the other direction, and the reason this check is no
+##            longer wave 3 only: the mage core stacks its rows backward, the archer shell
+##            is a ring AROUND that core, and Red's mob biases its casters backward - so
+##            every colour reaches further behind its anchor the more it fields. At wave
+##            3's one mage and one archer nothing reached back at all, which is why the
+##            wave-3 fix looked complete; by wave 13 White, Blue and Red hung seven to
+##            nine units off the back of their lanes, against about four units of mesh.
+##            Fixed by SquadDoctrine._anchor_at_rear.
+##
+## Waves are sampled across the whole curve rather than at one authored composition, since
+## the reach is a function of head count: wave 3 for the original bug, then on through the
+## twenties where a colour fields thirty-odd units. Compositions come from the planner
+## itself, so this tracks any future retuning of the difficulty curve for free.
 ##
 ## The tolerance is relative to the SPAWNER'S OWN baseline snap distance rather than a bare
 ## number: NavigationMesh baking insets the walkable surface from the raw lane polygon by
@@ -142,30 +157,45 @@ func _check_formation_reachability() -> void:
 	if _scene == null or _scene.nav_region == null:
 		return
 	var nav_map: RID = _scene.nav_region.get_navigation_map()
-	var wave_three: Dictionary = WaveManager.OPENING_WAVES[2]
 
-	for color: String in wave_three:
-		var lane_index: int = _manager._color_to_lane_index(color)
-		if _scene.enemy_spawners.size() <= lane_index:
-			continue
-		var spawner: Node3D = _scene.enemy_spawners[lane_index] as Node3D
-		var origin: Vector3 = spawner.global_position
-		var forward: Vector3 = Vector3(spawner.global_transform.basis.z.x, 0.0, spawner.global_transform.basis.z.z).normalized()
-		var baseline: float = origin.distance_to(NavigationServer3D.map_get_closest_point(nav_map, origin))
-		var tolerance: float = baseline + 1.5
-
-		var rng := RandomNumberGenerator.new()
-		rng.seed = hash("reachability:%s" % color)
-		var slots: Dictionary = SquadDoctrine.build_formation(color, wave_three[color], rng)
+	for wave_idx: int in REACHABILITY_WAVES:
+		var plan_rng := RandomNumberGenerator.new()
+		plan_rng.seed = hash("wave:%d:%d" % [wave_idx, PlayerRegistry.count()])
+		var per_color: Dictionary = _manager._compose_wave(wave_idx, plan_rng)
 		var worst: float = 0.0
-		for unit_type: String in slots:
-			for offset: Vector3 in (slots[unit_type] as Array):
-				var world: Vector3 = SquadDoctrine.to_world(origin, forward, offset)
-				var snapped: Vector3 = NavigationServer3D.map_get_closest_point(nav_map, world)
-				worst = maxf(worst, world.distance_to(snapped))
-		_check("%s's wave-3 formation stays within reach of the navmesh" % color,
+		var worst_color: String = ""
+		var tolerance: float = INF
+		for color: String in WaveManager.LANE_COLORS:
+			var counts: Dictionary = per_color.get(color, {})
+			if counts.is_empty():
+				continue
+			var lane_index: int = _manager._color_to_lane_index(color)
+			if _scene.enemy_spawners.size() <= lane_index:
+				continue
+			var spawner: Node3D = _scene.enemy_spawners[lane_index] as Node3D
+			var origin: Vector3 = spawner.global_position
+			var forward: Vector3 = Vector3(spawner.global_transform.basis.z.x, 0.0, spawner.global_transform.basis.z.z).normalized()
+			var baseline: float = origin.distance_to(NavigationServer3D.map_get_closest_point(nav_map, origin))
+			tolerance = minf(tolerance, baseline + 1.5)
+
+			# The deploy's own seed, so this measures the formation the wave would really
+			# build rather than a differently jittered one.
+			var rng := RandomNumberGenerator.new()
+			rng.seed = hash("%s:%d:%d" % [color, wave_idx, lane_index])
+			var slots: Dictionary = SquadDoctrine.build_formation(color, counts, rng)
+			for unit_type: String in slots:
+				for offset: Vector3 in (slots[unit_type] as Array):
+					var world: Vector3 = SquadDoctrine.to_world(origin, forward, offset)
+					var snapped: Vector3 = NavigationServer3D.map_get_closest_point(nav_map, world)
+					var off_mesh: float = world.distance_to(snapped)
+					if off_mesh > worst:
+						worst = off_mesh
+						worst_color = color
+		if tolerance == INF:
+			continue
+		_check("wave %d's formations stay within reach of the navmesh" % (wave_idx + 1),
 			worst <= tolerance,
-			"worst snap %.2f, spawner baseline %.2f (tolerance %.2f)" % [worst, baseline, tolerance])
+			"%s was worst at %.2f off (tolerance %.2f)" % [worst_color, worst, tolerance])
 
 
 ## A battle group lands in ONE step, so the enemy count on the first step anything exists is

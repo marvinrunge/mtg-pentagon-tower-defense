@@ -60,6 +60,38 @@ moves numbers around cannot.
 | Red | no ranks at all, breaks at 90 units and on any damage | a mob that briefly left the lane together |
 | Green | an arrowhead with the casters in the pocket | a stampede that punches a hole |
 
+#### Nothing stands behind the anchor
+
+A formation is laid out around its squad's **anchor**, which at spawn time is the lane's
+`EnemySpawner` marker - and that marker sits at the very back of the map. There are about
+four units of baked navmesh behind it and a hundred and forty in front, so squad-local
+`z = 0` is a wall, not a centre line.
+
+The primitives do not respect that on their own, and cannot: a mage core stacks its rows
+*backward*, the archer shell is a ring *around* that core, and Red's mob biases its casters
+backward - which is the right shape, casters belong behind the screen, it just cannot be
+measured from a point with no map behind it. So `SquadDoctrine._anchor_at_rear` slides the
+whole finished formation forward until its rearmost slot sits on the anchor. Every slot
+moves by the same amount, so ranks, rings and gaps are untouched; the only cost is that a
+big squad starts its march a few units further down its own lane.
+
+This has bitten twice, the same way both times. An off-map slot is not an off-map *enemy* -
+`WaveManager._spawn_unit` snaps the spawn position onto the mesh - but members path to their
+**slot**, so whoever holds it walks backwards off the lane at a place that does not exist,
+can never be reached or killed, and the wave can never finish.
+
+- **Wave 3.** Blue's `caster_setback` pulled its casters back past the spawner. Fixed by
+  applying the setback forwards, pushing the melee screen out instead.
+- **Wave 13.** Head count, not one doctrine: the reach grows with the size of the squad.
+  Wave 3 fields one mage and one archer, where a one-point core and a single archer in
+  front of it reach nowhere backward at all - which is why the first fix looked complete.
+  By wave 13 a colour fields twenty-odd units, and White, Blue and Red hung seven to nine
+  units off the back of their lanes. Fixed by the guarantee above.
+
+The moral is in where the guarantee lives: over the *finished* formation, not as a rule each
+primitive has to remember, because the first fix was a rule and the next primitive to grow
+broke it anyway.
+
 ### Marching
 
 `EnemySquad` owns an invisible **anchor** that walks down the lane. Members navigate to
@@ -202,15 +234,19 @@ a client's own count could only ever drift upwards.
 ## Tests
 
 `tools/tests/wave_formations.tscn` is the offline half: formation geometry (mages inside the
-archer ring, archers actually *ringing* rather than queuing, melee ahead of both), the
-battle-group partition (contiguous runs of neighbours, every colour used exactly once, group
+archer ring, archers actually *ringing* rather than queuing, melee ahead of both), formation
+reach (no slot behind the anchor, at the real composition of every wave out to 40 - see
+*Nothing stands behind the anchor*), the battle-group partition (contiguous runs of neighbours, every colour used exactly once, group
 size within the wave's cap) and the wave plans (squads in their own lane, the authored
 opening intact, bosses leading alone, plans reproducible). It needs no map and finishes
 instantly.
 
 `tools/tests/wave_squads.tscn` boots the real map and watches a wave walk down a lane: the
 whole group landing in one step, members still in their slots half a minute later, casters
-still behind the melee screen, and an allied pair reaching its hold line and charging. It is
+still behind the melee screen, and an allied pair reaching its hold line and charging. It
+also re-checks formation reach against the **real baked navmesh** rather than against
+squad-local z, sampled across the wave curve, which is the check that reproduces the wave-13
+report exactly: green at 3, 7, then failing from 13 on. It is
 measured in **game seconds**, not frames - headless renders as fast as the CPU allows while
 physics still steps at its fixed rate, so a frame counter samples a couple of seconds into a
 march that takes a minute. `Engine.time_scale` buys that back: about forty seconds on the

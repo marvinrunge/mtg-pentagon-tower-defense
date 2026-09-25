@@ -34,13 +34,12 @@ class_name SquadDoctrine
 ##   screen_gap        gap between the archer ring and the first melee rank
 ##   caster_setback    extra distance between the melee screen and the caster shell,
 ##                     applied by pushing the melee screen further FORWARD rather than
-##                     pulling the casters back - the mage core sits at squad-local z=0,
-##                     at or just ahead of the spawner, and never behind it: the walkable
-##                     lane runs forward from the spawner toward the crystal, not behind
-##                     it, and a caster shoved past the spawner lands off the baked navmesh
-##                     with no path back onto its own formation. (This used to shift the
-##                     casters backward instead, which is exactly how it put a Blue mage
-##                     off the map - see WAVE_DESIGN.md.)
+##                     pulling the casters back. Nothing may end up behind the anchor -
+##                     see build_formation's own note on why, and _anchor_at_rear for the
+##                     guarantee that makes it true of the FINISHED formation rather than
+##                     of this one setting. (This used to shift the casters backward
+##                     instead, which is exactly how it put a Blue mage off the map - see
+##                     WAVE_DESIGN.md.)
 ##   jitter            random scatter applied to every slot, so a rank is not a ruler line
 ##   march_mult        squad march speed as a fraction of its SLOWEST member's speed,
 ##                     clamped to the fastest member so the formation cannot run away from
@@ -188,6 +187,15 @@ static func get_doctrine(color: String) -> Dictionary:
 ## `counts` is class name -> how many, e.g. {"Melee": 6, "Ranged": 4, "Mage": 2}. The
 ## return is the same keys mapped to one Array[Vector3] each, in the order the enemies of
 ## that class should be handed out.
+##
+## NO SLOT EVER HAS A NEGATIVE Z. The anchor a formation is built around is the lane's
+## spawner marker, which sits at the very back of the map - the walkable lane runs FORWARD
+## from it to the crystal, and only about four units of navmesh exist behind it. A slot
+## placed further back than that is off the map: the enemy spawns snapped onto the rim
+## (WaveManager._spawn_unit snaps the position) but its SLOT stays off, so it spends the
+## march walking backwards into the void trying to reach a place that does not exist.
+## _anchor_at_rear is what makes that impossible, and it is applied to the finished
+## formation rather than trusted to each primitive - see its own comment.
 static func build_formation(color: String, counts: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var doctrine: Dictionary = get_doctrine(color)
 	var melee_count: int = int(counts.get("Melee", 0))
@@ -235,6 +243,8 @@ static func build_formation(color: String, counts: Dictionary, rng: RandomNumber
 			var positions: Array = slots[key]
 			for i: int in range(positions.size()):
 				positions[i] += Vector3(rng.randf_range(-jitter, jitter), 0.0, rng.randf_range(-jitter, jitter))
+	# Last, so that jitter cannot put anything back behind the anchor afterwards.
+	_anchor_at_rear(slots)
 	return slots
 
 
@@ -349,3 +359,37 @@ static func _forward_extent(positions: Array[Vector3], fallback: float) -> float
 	for position: Vector3 in positions:
 		extent = maxf(extent, position.z)
 	return maxf(extent, fallback)
+
+
+## Slides the WHOLE formation forward until its rearmost slot sits on the anchor, so the
+## anchor is the back of the squad rather than a point somewhere inside it.
+##
+## Every primitive above is centred on, or grows backward from, squad-local z = 0: the
+## mage core stacks its rows backward, the archer shell is a ring AROUND the core so half
+## of it is behind the origin by construction, and Red's mob is a blob with its casters
+## biased backward. That is the right shape - the casters belong behind the screen - it
+## just cannot be measured from the spawner, because there is no map behind the spawner.
+##
+## None of it showed up while squads were small. A wave-3 colour fields one mage and one
+## archer: a one-mage core is a single point at the origin and a one-archer ring puts that
+## archer straight in front of it, so nothing reached backward at all and the earlier fix
+## to caster_setback looked like it had settled the question. The reach grows with the
+## head count, though - a four-mage core is already a row deep, and a shell around it is
+## its whole radius deep - and by wave 13 several colours field twenty-odd units and hang
+## seven to nine units off the back of the map.
+##
+## Hence a guarantee over the finished formation instead of a rule each primitive has to
+## remember: shape is preserved exactly (every slot moves by the same amount, so ranks,
+## rings and gaps are untouched), and the only cost is that a big squad starts its march a
+## few units further down its own lane.
+static func _anchor_at_rear(slots: Dictionary) -> void:
+	var rearmost: float = 0.0
+	for key: String in slots:
+		for position: Vector3 in (slots[key] as Array):
+			rearmost = minf(rearmost, position.z)
+	if rearmost >= 0.0:
+		return
+	for key: String in slots:
+		var positions: Array = slots[key]
+		for i: int in range(positions.size()):
+			positions[i] += Vector3(0.0, 0.0, -rearmost)

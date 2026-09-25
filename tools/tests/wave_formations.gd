@@ -16,6 +16,7 @@ extends Node
 ##      cover all five colours exactly once - a colour dropped by the partition is a lane
 ##      that silently sends nothing for a whole wave.
 ##   3. The escalation. Solo lanes, then allied pairs, then shards, then the whole wheel.
+##   4. Nothing stands behind the anchor, at any head count - see _test_formation_reach.
 ##
 ## Nothing here needs the map: SquadDoctrine is pure geometry and the planner only touches
 ## the map to place a rendezvous, which it declines to do without one.
@@ -49,6 +50,8 @@ func _check(label: String, condition: bool, detail: String = "") -> void:
 func _run() -> void:
 	print("Squad formations")
 	_test_formations()
+	print("Formation reach")
+	_test_formation_reach()
 	print("Battle groups")
 	_test_partitions()
 	print("Wave plans")
@@ -123,6 +126,72 @@ func _test_formations() -> void:
 	var turned: Vector3 = Vector3(1.0, 0.0, 0.0)
 	_check("to_world: the frame rotates with the squad",
 		SquadDoctrine.to_world(Vector3.ZERO, turned, Vector3(0, 0, 5)).is_equal_approx(Vector3(5, 0, 0)))
+
+
+# --- 4. Formation reach --------------------------------------------------------------
+
+## No slot may sit behind the anchor, whatever a colour is asked to field.
+##
+## The anchor is the lane's spawner, which sits at the very back of the map: about four
+## units of navmesh exist behind it and the rest of the lane runs the other way, toward
+## the crystal. A slot placed further back than that is off the map, and the enemy given
+## it spends its march walking backwards at a place that does not exist - which is exactly
+## how a Blue mage once stranded wave 3, and how wave 13 later put White, Blue and Red
+## seven to nine units off the back of their own lanes.
+##
+## Checked against the REAL compositions rather than an invented one, because the reach is
+## a function of head count and the head count is the wave planner's business: a colour
+## fields one mage and one archer in wave 3, where nothing reaches backward at all, and
+## twenty-odd units by wave 13, where a mage core is rows deep and the archer shell around
+## it is its whole radius deep. Wave 40 is well past anything a run reaches, deliberately -
+## the guarantee should not have a ceiling.
+func _test_formation_reach() -> void:
+	var manager: WaveManager = WaveManager.new()
+	add_child(manager)
+
+	var worst_wave: int = -1
+	var worst_color: String = ""
+	var worst_z: float = 0.0
+	for wave_idx: int in range(0, 40):
+		var plan_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+		plan_rng.seed = hash("wave:%d:%d" % [wave_idx, PlayerRegistry.count()])
+		var per_color: Dictionary = manager._compose_wave(wave_idx, plan_rng)
+		for color: String in COLORS:
+			var counts: Dictionary = per_color.get(color, {})
+			if counts.is_empty():
+				continue
+			# Jitter is part of the slot, so the seed has to be too - a formation is only
+			# safe if it is safe with the scatter the deploy will actually apply.
+			for seed_index: int in range(4):
+				var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+				rng.seed = hash("reach:%s:%d:%d" % [color, wave_idx, seed_index])
+				var slots: Dictionary = SquadDoctrine.build_formation(color, counts, rng)
+				for key: String in slots:
+					var behind: float = _min_z(slots[key])
+					if behind < worst_z:
+						worst_z = behind
+						worst_wave = wave_idx + 1
+						worst_color = color
+	_check("no formation slot ever sits behind the anchor, waves 1-40",
+		worst_z >= 0.0,
+		"%s reached %.2f behind its spawner in wave %d" % [worst_color, worst_z, worst_wave])
+
+	# The shift that guarantees it must be a TRANSLATION - if it squashed the formation
+	# instead, a big squad would quietly lose the shape the doctrine is written in.
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 909
+	var deep: Dictionary = SquadDoctrine.build_formation("Blue", {"Melee": 12, "Ranged": 10, "Mage": 9}, rng)
+	rng.seed = 909
+	var shallow: Dictionary = SquadDoctrine.build_formation("Blue", {"Melee": 12, "Ranged": 10, "Mage": 9}, rng)
+	_check("the same composition and seed still produce the same formation",
+		_min_z(deep["Mage"]) == _min_z(shallow["Mage"]))
+	_check("a deep squad keeps its melee ahead of its casters",
+		_min_z(deep["Melee"]) > _max_z(deep["Ranged"]),
+		"nearest melee %.2f, furthest archer %.2f" % [_min_z(deep["Melee"]), _max_z(deep["Ranged"])])
+	_check("a deep squad's rearmost slot sits ON the anchor, not far ahead of it",
+		_min_z(deep["Mage"]) < 1.0 or _min_z(deep["Ranged"]) < 1.0,
+		"rearmost mage %.2f, rearmost archer %.2f" % [_min_z(deep["Mage"]), _min_z(deep["Ranged"])])
+	manager.queue_free()
 
 
 # --- 2 & 3. Battle groups and escalation ---------------------------------------------

@@ -48,7 +48,6 @@ var mana_pool: Dictionary = {"White": 0, "Blue": 0, "Black": 0, "Red": 0, "Green
 ## Sub-unit mana carried between kills. Without it an Overgrowth multiplier is invisible
 ## on the commonest income there is: a basic enemy pays 1, and round(1 * 1.12) is 1, so
 ## the whole enchantment would do nothing until an elite died.
-var _mana_fraction: Dictionary = {"White": 0.0, "Blue": 0.0, "Black": 0.0, "Red": 0.0, "Green": 0.0}
 
 # --- enchantments -------------------------------------------------------------
 
@@ -113,7 +112,6 @@ func reset() -> void:
 	points_awarded = 0
 	for color: String in COLORS:
 		mana_pool[color] = 0
-		_mana_fraction[color] = 0.0
 		enchantments[color] = 0
 	SignalBus.mana_changed.emit(mana_pool)
 	SignalBus.team_level_changed.emit(team_level, 0)
@@ -125,19 +123,45 @@ func reset() -> void:
 ## the dead enemy's own colour. Which lanes the team fights in therefore still decides
 ## what it can afford, which is what keeps the pentagon meaningful now that personal
 ## builds are bought with points instead.
-func on_enemy_killed(data: EnemyData, is_elite: bool) -> void:
+## `at` is where the enemy died, and it is here only so a payout can be SEEN. Ordinary
+## enemies pay nothing now (GameSettings.mana_per_basic), so the ones that do pay are rare
+## enough to be worth announcing - a drop that silently increments a number in the corner
+## of the HUD is a drop the player never learns to want.
+func on_enemy_killed(data: EnemyData, is_elite: bool, at: Vector3 = Vector3.INF) -> void:
 	if data == null or not Net.is_server():
 		return
 	var xp: float = GameSettings.xp_per_basic
 	var mana: int = GameSettings.mana_per_basic
-	if data.enemy_class == "Boss":
+	var is_boss: bool = data.enemy_class == "Boss"
+	if is_boss:
 		xp = GameSettings.xp_per_boss
 		mana = GameSettings.mana_per_boss
 	elif is_elite:
 		xp = GameSettings.xp_per_elite
 		mana = GameSettings.mana_per_elite
 	add_xp(xp)
-	add_mana(data.color_identity, mana)
+	if mana <= 0:
+		return
+	if is_boss:
+		# Overgrowth's boss half, applied before the general multiplier in add_mana rather
+		# than folded into it - a boss is supposed to be the stack's headline.
+		mana = int(round(float(mana) * (1.0 + GameSettings.enchantment_green_boss_mana * enchantment_stacks("Green"))))
+	var banked: int = add_mana(data.color_identity, mana)
+	if banked > 0 and at.is_finite():
+		_announce_mana_drop(data, banked, at)
+
+
+## The visible half of a payout: a number in the enemy's own colour where it fell, and a
+## ring under it for a boss, whose drop is worth looking up for.
+func _announce_mana_drop(data: EnemyData, amount: int, at: Vector3) -> void:
+	var tint: Color = data.visual_color
+	# The label REPLACES the number in DamageNumber, so the amount has to be inside it -
+	# and it says "mana" out loud, because a bare +4 floating off a corpse in a game full
+	# of floating damage numbers reads as damage.
+	NetFx.damage_number(at + Vector3(0.0, 2.1, 0.0), float(amount), tint, "+%d mana" % amount)
+	if data.enemy_class == "Boss":
+		NetFx.ring(at, tint, 3.0)
+		NetFx.impact(at, tint, 1.6)
 
 
 func add_xp(amount: float) -> void:
@@ -189,21 +213,25 @@ func xp_progress() -> Vector2:
 
 ## Banks mana of `color`, scaled by however many Overgrowth stacks the team has bought.
 ## Green's enchantment compounds precisely because it is applied here.
-func add_mana(color: String, amount: int) -> void:
+## Returns the WHOLE mana actually banked, which is what a payout should show: the caller
+## has no other way to know what its amount became once Overgrowth and the carried
+## fraction below were applied to it.
+func add_mana(color: String, amount: int) -> int:
 	if amount <= 0 or not Net.is_server():
-		return
+		return 0
 	var color_key: String = color
 	if not mana_pool.has(color_key):
 		push_warning("RunState.add_mana: unknown colour '%s', banking as White" % color)
 		color_key = "White"
-	# Banked whole, with the remainder carried, so a +12% bonus on a 1-mana kill is not
-	# rounded away - it turns up as an extra point roughly every ninth kill instead.
-	var earned: float = float(amount) * mana_multiplier() + float(_mana_fraction[color_key])
-	var whole: int = int(floor(earned))
-	_mana_fraction[color_key] = earned - float(whole)
-	mana_pool[color_key] += whole
+	# Whole numbers, straight in. There used to be a fractional carry here, for Overgrowth's
+	# general "+12% to all income" multiplier - a +12% bonus on a 1-mana kill would
+	# otherwise round away to nothing. That multiplier is gone (Overgrowth is myr slots and
+	# boss mana now), every income is an exact integer again, and the carry had nothing
+	# left to carry.
+	mana_pool[color_key] += amount
 	_dirty = true
 	SignalBus.mana_changed.emit(mana_pool)
+	return amount
 
 
 # --- spending -----------------------------------------------------------------
@@ -337,16 +365,104 @@ func crystal_ward_radius() -> float:
 	return GameSettings.enchantment_white_radius * enchantment_stacks("White")
 
 
-## Green, Overgrowth: all mana income rises. Compounds, so it is worth most at wave 3
-## and almost nothing at wave 22 - the one enchantment whose value is a bet on the run
-## being long.
-func mana_multiplier() -> float:
-	return 1.0 + GameSettings.enchantment_green_income * enchantment_stacks("Green")
+## How many myrs may work ONE well, Overgrowth included. The base cap is five slots a
+## well and ten myrs in total, so without this the myr economy tops out well below its own
+## headcount limit whenever a team wants to concentrate on a lane.
+func myr_well_slots() -> int:
+	return GameSettings.myr_well_max_slots + GameSettings.enchantment_green_well_slots * enchantment_stacks("Green")
 
 
 func enchantment_name(color: String) -> String:
 	return String(GameSettings.ENCHANTMENT_NAMES.get(color, color))
 
 
+## What this enchantment is doing RIGHT NOW, and what one more stack would make of it.
+##
+## The Upkeep shop is asked one question - "is another stack worth it?" - and a static
+## sentence cannot answer it. Every effect here is per stack, so at zero stacks the row
+## reads as what the first one buys, and after that as the live value plus the step.
 func enchantment_description(color: String) -> String:
-	return String(GameSettings.ENCHANTMENT_DESCRIPTIONS.get(color, ""))
+	var template: String = String(GameSettings.ENCHANTMENT_DESCRIPTIONS.get(color, ""))
+	if template == "":
+		return ""
+	var stacks: int = enchantment_stacks(color)
+	var next: Array = _enchantment_values(color, stacks + 1)
+	# Nothing owned yet, so there is no live value to state - filling the template with
+	# zeroes produces "enemies deal no less damage", which reads as a description of the
+	# enchantment rather than of not having it. Only the offer is shown.
+	if stacks <= 0:
+		return "One stack: %s." % [template % next]
+	return "%s.  Next stack: %s." % [template % _enchantment_values(color, stacks), template % next]
+
+
+## The two numbers a colour's description template takes, at `stacks` stacks, already
+## formatted. Kept next to the template rather than inside it so the units - a percentage,
+## a count, a duration, a damage figure - live with the values they belong to.
+func _enchantment_values(color: String, stacks: int) -> Array:
+	match color:
+		"White":
+			return [
+				_pct(GameSettings.enchantment_white_reduction * stacks),
+				_pct(minf(GameSettings.enchantment_white_myr_reduction * stacks,
+					GameSettings.enchantment_white_myr_reduction_cap)),
+			]
+		"Blue":
+			return [
+				_pct(GameSettings.enchantment_blue_attack_slow * stacks),
+				"%.1fs" % (GameSettings.enchantment_blue_myr_phase * stacks),
+			]
+		"Black":
+			return [
+				_pct(GameSettings.enchantment_black_lifesteal * stacks),
+				"%d damage" % int(round(GameSettings.enchantment_black_myr_blast_damage * stacks)),
+			]
+		"Red":
+			return [
+				_pct(GameSettings.enchantment_red_damage * stacks),
+				_pct(GameSettings.enchantment_red_myr_speed * stacks),
+			]
+		"Green":
+			var slots: int = GameSettings.enchantment_green_well_slots * stacks
+			return [
+				"+%d myr slot%s" % [slots, "" if slots == 1 else "s"],
+				_pct(GameSettings.enchantment_green_boss_mana * stacks),
+			]
+	return ["", ""]
+
+
+func _pct(fraction: float) -> String:
+	return "%d%%" % int(round(fraction * 100.0))
+
+
+# --- the myr half of the enchantments -----------------------------------------
+#
+# Read live by Myr rather than cached on it, the same way _refresh_fervor_state already
+# reads aura state, so a stack bought at Upkeep applies to myrs that are already walking.
+
+## White, Sphere of Safety. Capped short of immunity on purpose - see the cap's own note.
+func myr_damage_reduction() -> float:
+	return minf(GameSettings.enchantment_white_myr_reduction * enchantment_stacks("White"),
+		GameSettings.enchantment_white_myr_reduction_cap)
+
+
+## Blue, Propaganda. Seconds a LOADED myr is out of reach after being hit; 0 disables it.
+func myr_phase_duration() -> float:
+	return GameSettings.enchantment_blue_myr_phase * enchantment_stacks("Blue")
+
+
+## Black, Exquisite Blood. Damage and radius of a dying myr's blast; 0 damage disables it.
+func myr_blast_damage() -> float:
+	return GameSettings.enchantment_black_myr_blast_damage * enchantment_stacks("Black")
+
+
+func myr_blast_radius() -> float:
+	var stacks: int = enchantment_stacks("Black")
+	if stacks <= 0:
+		return 0.0
+	return GameSettings.enchantment_black_myr_blast_radius \
+		+ GameSettings.enchantment_black_myr_blast_radius_per_stack * stacks
+
+
+## Red, Furnace of Rath. Multiplier on myr move speed.
+func myr_speed_multiplier() -> float:
+	return 1.0 + GameSettings.enchantment_red_myr_speed * enchantment_stacks("Red")

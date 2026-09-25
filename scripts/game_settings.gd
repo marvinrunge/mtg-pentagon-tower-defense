@@ -51,11 +51,15 @@ extends Node
 @export var player_jump_velocity: float = 4.5
 @export var player_mouse_sensitivity: float = 0.002
 @export var player_gamepad_look_sensitivity: float = 2.5
-## Myrs only. The player no longer harvests: mana banks automatically on kill, because
-## the pool is the team's and there is nobody for a pickup to belong to. Walking a well
-## round trip used to cost the player ~40 seconds for a single mana.
+## Harvesting by hand, at a well, alongside the myrs. Not the main line - a myr works the
+## well continuously and the player cannot - but a player standing in a lane they are
+## already defending should not have to watch mana they could be picking up. Held, not
+## pressed, so it costs attention rather than a keystroke, and it breaks the moment they
+## move (see Player._update_mana_harvest).
 @export var player_mana_harvest_distance: float = 6.0
 @export var player_mana_harvest_time: float = 3.0
+## What one completed harvest banks, in the well's own colour.
+@export var player_mana_harvest_amount: int = 1
 
 # --- DOWNED / REVIVE ---
 ## Multiplayer: how long a downed player can be picked up before they respawn at the
@@ -989,6 +993,29 @@ func rank_level_requirement(rank: int) -> int:
 ## How long the flinch takes; the clip is squeezed into it the same way the player's
 ## reactions are.
 @export var enemy_hit_react_duration: float = 0.4
+
+# --- Locomotion animation ---------------------------------------------------------------
+#
+# Every locomotion clip carries a measured `stride_speed`: how far it actually carries the
+# character per second at playback 1.0 (tools/animation_stride.gd). An enemy picks whichever
+# of its clips is closest to the speed it is really travelling and plays it at exactly the
+# rate that speed needs, so the feet stop sliding. The knobs below are the limits of that.
+
+## How far a clip may be stretched from its own natural pace to match the enemy's real
+## speed. A cycle pushed much past these stops reading as the same movement: slower than
+## the minimum floats, faster than the maximum turns into a scribble. Anything outside the
+## range is clamped, and some slide comes back - which is correct, because the honest fix
+## for a clip that is twice too slow is a different clip, not a faster one.
+@export var enemy_anim_match_min: float = 0.6
+## 1.8 rather than a rounder number for a measured reason: the fastest thing in the game
+## is a Red goblin with Haste, charging - 3.25 base x 1.3 x 1.5 = 6.34 units per second -
+## and its run cycle covers 2.43, so anything below 1.8 leaves that one case visibly
+## skating while every other enemy is already matched. Nothing needs more than this.
+@export var enemy_anim_match_max: float = 1.8
+## Relative speed change needed before the playback rate is re-applied. Purely to avoid
+## re-issuing play() on every single frame of an acceleration; well below what the eye
+## resolves on a walk cycle.
+@export var enemy_anim_match_epsilon: float = 0.02
 ## Whether a flinch also throws away the swing in flight. True is what "getting hit"
 ## normally means, and the cooldown above is what keeps it from becoming a stunlock -
 ## set false to make flinches purely cosmetic and leave the old balance untouched.
@@ -1148,7 +1175,13 @@ func rank_level_requirement(rank: int) -> int:
 ## Banked automatically on kill, in the dead enemy's own colour. There is no pickup:
 ## the pool is shared, so there is nobody for a drop to belong to and no reason to make
 ## anyone walk to it.
-@export var mana_per_basic: int = 1
+##
+## ORDINARY enemies pay nothing. They used to pay 1 each, which sounds small and was not:
+## a wave of ninety trash enemies banked ~100 mana in two minutes, against the ~0.5 a
+## level-1 myr brings home in the same time. Kill income was the economy and the myrs were
+## a rounding error, which is the opposite of the intent. What is left pays out only for
+## the kills that were worth making - and pays visibly, see RunState.on_enemy_killed.
+@export var mana_per_basic: int = 0
 @export var mana_per_elite: int = 4
 @export var mana_per_boss: int = 25
 @export var mana_per_camp: int = 12
@@ -1181,17 +1214,61 @@ func rank_level_requirement(rank: int) -> int:
 @export var enchantment_cost_step: int = 6
 ## Red - Furnace of Rath: every player deals more damage. The benchmark buy.
 @export var enchantment_red_damage: float = 0.08
+## ...and myrs move faster. The myr economy's one real bottleneck is the round trip -
+## ~112 of its ~123 seconds is walking - so this is the stack that buys throughput.
+@export var enchantment_red_myr_speed: float = 0.07
 ## Blue - Propaganda: enemies attack and cast more slowly. Scales into the late game.
 @export var enchantment_blue_attack_slow: float = 0.06
+## ...and a LOADED myr phases out of reach for this long, per stack, each time it is hit.
+## The hit that starts the phase still lands - this buys the follow-ups, not the first
+## swing - and it does nothing at all for a myr walking out empty. Blue defends the cargo;
+## White (below) defends the creature.
+@export var enchantment_blue_myr_phase: float = 0.5
 ## Black - Exquisite Blood: players heal for a share of the damage they deal. Keeps the
 ## PLAYERS alive, where white keeps the CRYSTAL alive.
 @export var enchantment_black_lifesteal: float = 0.03
+## ...and a myr that dies takes the neighbourhood with it. The one myr effect that pays
+## out when every other one has already failed.
+@export var enchantment_black_myr_blast_damage: float = 35.0
+@export var enchantment_black_myr_blast_radius: float = 3.5
+@export var enchantment_black_myr_blast_radius_per_stack: float = 0.4
 ## White - Sphere of Safety: enemies near the crystal hurt it less. Does nothing while
 ## the team is winning; saves the run when they are not.
 @export var enchantment_white_reduction: float = 0.08
 @export var enchantment_white_radius: float = 2.0
-## Green - Overgrowth: all mana income rises. Compounds, so it is a bet on a long run.
-@export var enchantment_green_income: float = 0.12
+## ...and myrs take less damage, by the same fraction per stack the crystal gets. Flat
+## armour that always applies, loaded or not.
+@export var enchantment_white_myr_reduction: float = 0.08
+## Ceiling on that reduction however many stacks are bought. Short of immunity on purpose:
+## a myr that cannot die removes the reason to protect the lane it walks.
+@export var enchantment_white_myr_reduction_cap: float = 0.7
+## Green - Overgrowth: the ECONOMY enchantment, and the only one that changes what the
+## team can build rather than a number on a fight.
+##
+## Extra myr slots on EVERY well, per stack. The hard cap on the myr economy is not the
+## myr count (10) but the five-times-five harvesting slots underneath it, so this is the
+## stack that actually lets a team commit to myrs.
+@export var enchantment_green_well_slots: int = 1
+## Boss mana, per stack. There used to be a general "+12% to all income" here as well, and
+## the two compounded: at two stacks a 25-mana boss paid 53. Overgrowth is the slots and
+## the bosses now, and nothing else, so what a stack is worth can be read off the row.
+@export var enchantment_green_boss_mana: float = 0.15
+
+## The colour each lane reads as on screen. Same values the lane-warning banners use
+## (WaveManager._get_lane_color), lifted here so anything that has to tint itself by lane -
+## a loaded myr's glow, a banner, a well - can agree without copying them again.
+const LANE_TINTS: Dictionary = {
+	"White": Color(0.95, 0.95, 0.85),
+	"Blue": Color(0.25, 0.55, 1.0),
+	"Black": Color(0.65, 0.35, 0.8),
+	"Red": Color(1.0, 0.25, 0.2),
+	"Green": Color(0.25, 0.85, 0.35),
+}
+
+
+func lane_tint(color: String) -> Color:
+	return LANE_TINTS.get(color, Color.WHITE)
+
 
 const ENCHANTMENT_NAMES: Dictionary = {
 	"White": "Sphere of Safety",
@@ -1200,12 +1277,19 @@ const ENCHANTMENT_NAMES: Dictionary = {
 	"Red": "Furnace of Rath",
 	"Green": "Overgrowth",
 }
+## What each enchantment does, as a TEMPLATE rather than a sentence: RunState fills in the
+## numbers for the stacks actually owned and for the one being sold. A static description
+## cannot answer the only question the Upkeep shop is asked - "is another stack worth it?"
+## - which is exactly the question a stackable effect lives or dies on.
+##
+## Both halves of each colour are named, the original effect and the myr one, because a
+## player choosing between colours is choosing between whole packages.
 const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
-	"White": "Enemies near the crystal deal less damage to it",
-	"Blue": "All enemies attack and cast more slowly",
-	"Black": "Every player heals for a share of the damage they deal",
-	"Red": "Every player deals more damage",
-	"Green": "All mana income increases",
+	"White": "Enemies near the crystal deal %s less damage to it; myrs take %s less damage",
+	"Blue": "Enemies attack and cast %s more slowly; a loaded myr phases out of reach for %s after each hit",
+	"Black": "Players heal for %s of the damage they deal; a dying myr explodes for %s",
+	"Red": "Every player deals %s more damage; myrs move %s faster",
+	"Green": "%s on every well; bosses drop %s more mana",
 }
 
 
@@ -1232,6 +1316,11 @@ const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
 @export var myr_level_carry_bonus: int = 1
 ## Mana the next level costs, multiplied by the level being bought - so 2, 4, 6, 8.
 @export var myr_level_cost: int = 2
+## How much bigger each level past the first makes a myr. The one part of a level the
+## player can see from across the lane without opening the base screen - a myr carrying
+## three mana should not look like one carrying one. At 0.09 a maxed myr is 1.36x, which
+## still reads as the same creature.
+@export var myr_level_scale_bonus: float = 0.09
 ## A well has room for this many Myrs standing around it, Warcraft-mine style. More
 ## than that is what wedged them against the model, so the base UI refuses the sixth.
 @export var myr_well_max_slots: int = 5

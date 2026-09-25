@@ -215,6 +215,13 @@ var _reprisal_block_chance: float = 0.0
 ## Ironbark (green_5). The only CC immunity in the game.
 var _ironbark_timer: float = 0.0
 var _ironbark_reduction: float = 0.0
+## Harvesting a mana well by hand. Seconds left on the channel, and which well is being
+## worked. Both local to the harvesting player: this is a held action with a progress
+## prompt, and only the peer holding the key can know it is still held. The mana itself is
+## banked on the server - see _request_harvest.
+var _harvest_left: float = 0.0
+var _harvest_well: Node3D = null
+
 ## Giant Growth (green_2). `is_giant` / `giant_timer` / `base_scale` are declared above -
 ## they were stubbed long before the skill existed. This is the health half, and the
 ## scale factor the buff actually applied, which the damage and cadence halves read.
@@ -1292,9 +1299,15 @@ func _begin_cast(spell_id: String, charge_pct: float, windup_progress: float = -
 	var from_windup: bool = windup_progress >= 0.0 and _cast_windup_clip == clip
 	_cast_windup_clip = ""
 
-	if clip == "" or not animator.has_clip(clip):
-		# No animation for this spell: fall back to the old instant behaviour rather
-		# than swallowing the cast.
+	if clip == "":
+		# Deliberately instant: the spell declares no cast animation and resolves on the
+		# frame it is pressed. Displace is the one that wants this - see its entry in
+		# SpellDatabase.
+		execute_spell(spell_id, charge_pct)
+		return
+	if not animator.has_clip(clip):
+		# A clip was NAMED and is missing, which is a content bug rather than a choice.
+		# Still fires, so the spell is not swallowed, but says so.
 		push_warning("Spell '%s' has no usable cast clip '%s'; firing instantly" % [spell_id, clip])
 		execute_spell(spell_id, charge_pct)
 		return
@@ -2234,12 +2247,97 @@ func _net_place_effect(info: Dictionary) -> void:
 ## Drops `pos` straight down onto the world geometry (layer 1/5). A spawn handed the
 ## corpse's own mid-air position would leave the summon falling through the floor it
 ## was raised above; a ray down finds the ground that is actually there.
-func _ground_snap(pos: Vector3) -> Vector3:
+## `mask` defaults to Player + Environment, which is what most callers want. Displace
+## passes Environment alone so it lands on the GROUND under a Wall of Frost rather than on
+## top of it - see cast_blue_displace.
+func _ground_snap(pos: Vector3, mask: int = 17) -> Vector3:
 	var space_state := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(pos + Vector3(0.0, 2.0, 0.0), pos - Vector3(0.0, 8.0, 0.0), 17)
+	var query := PhysicsRayQueryParameters3D.create(pos + Vector3(0.0, 2.0, 0.0), pos - Vector3(0.0, 8.0, 0.0), mask)
 	query.exclude = [get_rid()]
 	var result: Dictionary = space_state.intersect_ray(query)
 	return result.position if result else pos
+
+
+## Harvesting the nearest mana well, ticked. Returns true when this player is standing at
+## a well at all - held or not - so the caller knows the HUD prompt is spoken for.
+##
+## The player used to be the only way mana was gathered, and it was cut when kills started
+## banking it automatically: a forty-second round trip for a single mana is not a choice
+## anybody makes twice. It is back for the opposite reason - trash kills pay nothing now
+## (GameSettings.mana_per_basic), so a player already standing in the lane guarding a well
+## should be able to work it instead of watching it.
+##
+## Deliberately NOT competitive with a myr. A myr works a well for the whole wave and a
+## player cannot: this pays in the gaps, and stops paying the moment the lane needs
+## defending, which is the trade that keeps the myrs the actual economy.
+func _update_mana_harvest(delta: float, revive_available: bool) -> bool:
+	var well: Node3D = _nearest_mana_well() if (is_local and not is_downed and not revive_available) else null
+	if well == null:
+		_harvest_left = 0.0
+		_harvest_well = null
+		return false
+
+	# Standing still AND holding. Moving gives it up, so harvesting costs the player their
+	# position as well as their time - otherwise it is passive income with extra steps.
+	var moving: bool = Vector2(velocity.x, velocity.z).length_squared() > 0.25
+	if not Input.is_action_pressed("interact") or moving:
+		_harvest_left = 0.0
+		_harvest_well = null
+		SignalBus.interact_prompt_changed.emit("Hold %s to Harvest Mana" % _interact_key_label(), true)
+		return true
+
+	if well != _harvest_well:
+		_harvest_well = well
+		_harvest_left = GameSettings.player_mana_harvest_time
+
+	_harvest_left -= delta
+	if _harvest_left <= 0.0:
+		# Keeps going while the key is held: one hold is a rhythm, not a single pickup.
+		_harvest_left = GameSettings.player_mana_harvest_time
+		var color: String = _well_color(well)
+		if Net.is_active():
+			_request_harvest.rpc_id(1, color)
+		else:
+			_request_harvest(color)
+
+	var elapsed: float = GameSettings.player_mana_harvest_time - _harvest_left
+	var pct: int = int(round(elapsed / maxf(GameSettings.player_mana_harvest_time, 0.01) * 100.0))
+	SignalBus.interact_prompt_changed.emit("Harvesting... %d%%" % pct, true)
+	return true
+
+
+## The closest well within reach, or null. Wells sit in the "mana_sources" group and carry
+## their lane in metadata, which is how the myrs already find them.
+func _nearest_mana_well() -> Node3D:
+	var best: Node3D = null
+	var best_distance: float = GameSettings.player_mana_harvest_distance
+	for source: Node in get_tree().get_nodes_in_group("mana_sources"):
+		if not (source is Node3D):
+			continue
+		var distance: float = global_position.distance_to((source as Node3D).global_position)
+		if distance <= best_distance:
+			best_distance = distance
+			best = source as Node3D
+	return best
+
+
+func _well_color(well: Node3D) -> String:
+	return String(well.get_meta("lane_name", "White"))
+
+
+## Banked on the server, like every other reward, and shown from there too - the payout
+## FX has to reach every peer, not only the one that did the holding. The channel itself
+## stays local, because only the peer holding the key can see that it is still held.
+@rpc("any_peer", "call_local", "reliable")
+func _request_harvest(color: String) -> void:
+	if not Net.is_server():
+		return
+	var banked: int = RunState.add_mana(color, GameSettings.player_mana_harvest_amount)
+	if banked <= 0:
+		return
+	var tint: Color = GameSettings.lane_tint(color)
+	NetFx.damage_number(global_position + Vector3(0.0, 2.2, 0.0), float(banked), tint, "+%d mana" % banked)
+	NetFx.ring(global_position, tint, 1.4)
 
 
 ## The revive channel, ticked. Everything the HELPER does that is not kneeling breaks
@@ -3418,10 +3516,13 @@ func _physics_process(delta: float) -> void:
 				break
 	_update_revive_channel(delta, revived_teammate)
 
-	# Base proximity. Mana is banked automatically when an enemy dies now - there is no
-	# harvest, no carrying and no deposit trip, because the pool is the team's and there
-	# is nobody for a pickup to belong to. What is left here is only "am I at the base",
-	# which is what opens the base UI and what the HUD prompt reads.
+	# Working a well by hand. A channel like the revive above rather than a key press, and
+	# checked right after it so the two cannot both be writing the same line of HUD text -
+	# a revive always wins, because somebody is on the floor.
+	var harvesting: bool = _update_mana_harvest(delta, revived_teammate)
+
+	# Base proximity. What is left here is only "am I at the base", which is what opens the
+	# base UI and what the HUD prompt reads.
 	var main_node = get_tree().current_scene
 	if main_node and main_node.has_method("spawn_myr"):
 		var near_base = global_position.distance_to(main_node.crystal_anchor.global_position) < GameSettings.player_base_proximity
@@ -3433,7 +3534,7 @@ func _physics_process(delta: float) -> void:
 			if main_node.base_ui_instance and not main_node.base_ui_instance.visible:
 				main_node.base_ui_instance.open(main_node)
 
-		if is_local and not revived_teammate:
+		if is_local and not revived_teammate and not harvesting:
 			if main_node.base_ui_instance and main_node.base_ui_instance.visible:
 				SignalBus.interact_prompt_changed.emit("", false)
 			elif _notification_timer > 0.0:
@@ -3514,11 +3615,13 @@ func _physics_process(delta: float) -> void:
 		_combat_timer > 0.0
 	)
 	
-	if is_giant:
-		giant_timer -= delta
-		if giant_timer <= 0:
-			is_giant = false
-		_giant_scale_mult = 1.0
+	# NOTE: there used to be a second giant-growth timer here, left over from when
+	# `is_giant` was a stub with nothing behind it. It ticked `giant_timer` a second time
+	# every frame (so the buff lasted half its stated duration) and, worse, ended with an
+	# unconditional `_giant_scale_mult = 1.0` - which ran while the buff was ACTIVE and
+	# pinned the multiplier back to 1 every single frame. _sync_giant_scale duly tweened
+	# the player straight back down, and Giant Growth never visibly grew anybody. The real
+	# timer is in _update_skill_timers, which ends the buff through _end_giant_growth.
 
 	if slow_timer > 0:
 		slow_timer -= delta

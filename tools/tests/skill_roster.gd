@@ -386,10 +386,26 @@ func _check_green() -> void:
 	_clear_enemies()
 
 	var max_before: float = _player.max_hp
+	var scale_before: float = _player.scale.y
 	_cast("green_2")
 	_check("green_2 Giant Growth", _player.is_giant and _player.max_hp > max_before,
 		"giant=%s hp=%.0f->%.0f" % [_player.is_giant, max_before, _player.max_hp])
+	# The SIZE half, checked separately from the health half because it broke on its own
+	# and this test passed the whole time it was broken. A stale duplicate timer in
+	# _physics_process reset _giant_scale_mult to 1.0 on every frame the buff was active,
+	# so the player grew for part of one frame and was tweened straight back down.
+	_check("green_2 sets a size to grow to", _player._giant_scale_mult > 1.0,
+		"mult %.2f" % _player._giant_scale_mult)
+	_player._sync_giant_scale()
+	_check("green_2 actually grows the player", _player._applied_giant_scale > scale_before,
+		"applied %.2f, was %.2f" % [_player._applied_giant_scale, scale_before])
+	# The regression itself: the size has to SURVIVE the frames after the cast.
+	for _step: int in range(10):
+		_player._physics_process(0.016)
+	_check("green_2 stays big on the frames after the cast", _player._giant_scale_mult > 1.0,
+		"mult fell back to %.2f" % _player._giant_scale_mult)
 	_player._end_giant_growth()
+	_player._sync_giant_scale()
 
 	_clear_spawned()
 	_cast("green_3")
