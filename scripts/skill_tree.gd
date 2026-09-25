@@ -129,6 +129,10 @@ var _detail_title: Label
 var _detail_status: Label
 var _detail_body: Label
 var _hovered_record: Dictionary = {}
+## Width of the skill-point counter. Wide enough for "Skill Points: 999" at font size 32,
+## and the figure the counter's own placement is measured back from.
+const POINTS_LABEL_WIDTH: float = 300.0
+
 ## Prominent, always-visible counter of the player's spendable skill points. Sits above
 ## the pentagon rather than buried in a corner, because it is the one number every
 ## purchase in this screen revolves around.
@@ -305,8 +309,12 @@ func _build_ui() -> void:
 
 	_skill_points_label = Label.new()
 	_skill_points_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_skill_points_label.position = Vector2(-320.0, 18.0)
-	_skill_points_label.size = Vector2(300.0, 40.0)
+	# Held clear of the X in the same corner, which used to sit on top of the number. The
+	# gap is read off CloseButton's own constants rather than eyeballed, so resizing the
+	# button cannot walk it back over the text.
+	var close_clearance: float = CloseButton.SIZE.x + CloseButton.MARGIN * 2.0
+	_skill_points_label.position = Vector2(-(POINTS_LABEL_WIDTH + close_clearance), 18.0)
+	_skill_points_label.size = Vector2(POINTS_LABEL_WIDTH, 40.0)
 	_skill_points_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_skill_points_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_skill_points_label.add_theme_font_size_override("font_size", 32)

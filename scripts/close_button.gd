@@ -56,6 +56,13 @@ static func attach(parent: Control, panel: Control, on_pressed: Callable) -> Clo
 	button.offset_bottom = button.offset_top + SIZE.y
 	# Above the panel it belongs to, or a panel with its own z_index draws over it.
 	button.z_index = panel.z_index + 1
+	# Not a child of the panel (a container would lay it out), which means it does not
+	# inherit the panel's visibility either - so the Escape menu closed and left its X
+	# floating over the game with nothing behind it. Mirrored explicitly instead.
+	button.visible = panel.visible
+	panel.visibility_changed.connect(func() -> void:
+		if is_instance_valid(button):
+			button.visible = panel.visible)
 	return button
 
 
