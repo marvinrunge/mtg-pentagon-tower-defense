@@ -190,22 +190,29 @@ var _flat: Array[AudioStreamPlayer] = []
 var _global: Array[AudioStreamPlayer3D] = []
 var _music_player: AudioStreamPlayer = null
 var _gameplay_music: bool = false
-var _gameplay_night: bool = false
-var _next_gameplay_track: int = 0
+## Every gameplay track, in the order they will be played. Shuffled, walked through once,
+## then shuffled again - see _next_gameplay_path for why a bag rather than a dice roll.
+var _gameplay_playlist: PackedStringArray = PackedStringArray()
+var _playlist_position: int = 0
+## Carried across reshuffles so a track cannot follow itself over the seam.
+var _last_track: String = ""
 var _next_positional: int = 0
 var _next_flat: int = 0
 var _next_global: int = 0
 
-const MUSIC_FILES: Dictionary = {
-	&"title_music": ["main-title.mp3"],
-	&"day_music": ["main-title.mp3", "day1.mp3"],
-	&"night_music": ["night1.mp3", "night2.mp3"],
-}
+## The menu theme, and the one track that is NOT in the gameplay shuffle: it is the sound
+## of the main menu, and hearing it mid-wave reads as the game having fallen back to the
+## title screen.
+const TITLE_TRACK := "main-title.mp3"
+
+## What counts as music in MUSIC_ROOT. Everything else in that folder is ignored.
+const MUSIC_EXTENSIONS: Array[String] = ["mp3", "ogg", "wav"]
 
 
 func _ready() -> void:
 	_load_streams()
 	_build_pools()
+	_build_gameplay_playlist()
 	_setup_title_music()
 
 
@@ -251,23 +258,73 @@ func _build_pools() -> void:
 		_flat.append(player)
 
 
-func _load_music_stream() -> AudioStream:
-	var music_key: StringName = &"title_music"
-	if _gameplay_music:
-		music_key = &"night_music" if _gameplay_night else &"day_music"
-	var stream_paths: Array = MUSIC_FILES.get(music_key, [])
-	if stream_paths.is_empty():
-		return null
+## Every track in MUSIC_ROOT except the title theme, discovered rather than listed.
+##
+## Read off the directory so that dropping a new mp3 into assets/music/ is the whole job.
+## The alternative is a hand-maintained table, which is wrong the moment somebody adds a
+## file and forgets - and that is exactly what happened here: the old day/night tables
+## named four tracks while twenty sat on disk.
+func _build_gameplay_playlist() -> void:
+	var found: Dictionary = {}
+	for entry: String in DirAccess.get_files_at(MUSIC_ROOT):
+		# An exported build hands back the import bookkeeping rather than the source file,
+		# so the real name is underneath one of these suffixes.
+		var file_name: String = entry
+		if file_name.ends_with(".import") or file_name.ends_with(".remap"):
+			file_name = file_name.get_basename()
+		if not MUSIC_EXTENSIONS.has(file_name.get_extension().to_lower()):
+			continue
+		if file_name == TITLE_TRACK:
+			continue
+		found[file_name] = true
 
-	var track_index: int = 0
-	if _gameplay_music:
-		track_index = _next_gameplay_track % stream_paths.size()
-		_next_gameplay_track += 1
-	var path: String = MUSIC_ROOT + String(stream_paths[track_index])
+	var names: Array = found.keys()
+	# Sorted before shuffling, so the pool does not depend on the order the filesystem
+	# happened to hand the files back.
+	names.sort()
+	_gameplay_playlist = PackedStringArray(names)
+	if _gameplay_playlist.is_empty():
+		push_warning("No gameplay music found in %s; only the title theme will play" % MUSIC_ROOT)
+		return
+	_shuffle_playlist()
+
+
+## Reshuffles, and makes sure the new order does not open with the track that just played.
+func _shuffle_playlist() -> void:
+	var names: Array = Array(_gameplay_playlist)
+	names.shuffle()
+	if names.size() > 1 and String(names[0]) == _last_track:
+		names.push_back(names.pop_front())
+	_gameplay_playlist = PackedStringArray(names)
+	_playlist_position = 0
+
+
+## The next track, drawn from a bag rather than rolled.
+##
+## Random-with-replacement is random on paper and clumpy in the ear: over a long run it
+## will play the same track twice in a row and leave others unheard for an hour. Shuffling
+## the whole set and walking it means every track is heard once before any is heard twice,
+## which is what "play them all randomly" means to a listener.
+func _next_gameplay_path() -> String:
+	if _gameplay_playlist.is_empty():
+		return ""
+	if _playlist_position >= _gameplay_playlist.size():
+		_shuffle_playlist()
+	var track_name: String = _gameplay_playlist[_playlist_position]
+	_playlist_position += 1
+	_last_track = track_name
+	return MUSIC_ROOT + track_name
+
+
+func _load_music_stream() -> AudioStream:
+	var path: String = _next_gameplay_path() if _gameplay_music else MUSIC_ROOT + TITLE_TRACK
+	if path == "":
+		return null
 	if not ResourceLoader.exists(path):
 		push_warning("Music track '%s' is missing; music will be silent" % path)
 		return null
-
+	# Loaded one at a time rather than all at once: twenty mp3s held open is a lot of
+	# memory for a thing that plays one of them.
 	var stream: AudioStream = load(path) as AudioStream
 	if stream == null:
 		push_warning("'%s' did not load as an AudioStream" % path)
@@ -275,11 +332,18 @@ func _load_music_stream() -> AudioStream:
 	return stream
 
 
-func set_gameplay_music(night: bool) -> void:
-	if not _gameplay_music or _gameplay_night != night:
-		_next_gameplay_track = 0
+## Switches from the menu theme to the shuffled gameplay playlist. Idempotent: called
+## again while gameplay music is already running it does nothing, so it can never cut a
+## track off partway through.
+##
+## Day and night no longer choose the music. There were two day tracks and two night ones
+## picked by phase, and every dawn and dusk interrupted whatever was playing to swap them.
+## With every track in one shuffled pool there is nothing to swap to and no reason to cut
+## anything short, so DayNightPacing.phase_changed is no longer wired to audio at all.
+func start_gameplay_music() -> void:
+	if _gameplay_music:
+		return
 	_gameplay_music = true
-	_gameplay_night = night
 	if _music_player == null:
 		_setup_title_music()
 		return
@@ -304,15 +368,17 @@ func _setup_title_music() -> void:
 	_music_player.stream = stream
 	_music_player.autoplay = false
 	_music_player.bus = "Master"
+	# One track ends, the next begins. In gameplay that is the next entry in the shuffled
+	# playlist; on the menu it is the title theme again, which simply loops.
 	_music_player.finished.connect(func() -> void:
-		if GameSettings.music_enabled and _music_player != null and _music_player.stream != null:
-			if _gameplay_music:
-				var next_stream: AudioStream = _load_music_stream()
-				if next_stream != null:
-					_music_player.stream = next_stream
+		if not GameSettings.music_enabled or _music_player == null:
+			return
+		if _gameplay_music:
+			var next_stream: AudioStream = _load_music_stream()
+			if next_stream != null:
+				_music_player.stream = next_stream
+		if _music_player.stream != null:
 			_music_player.play()
-			else:
-				_music_player.play()
 	)
 	add_child(_music_player)
 	_apply_music_settings()
