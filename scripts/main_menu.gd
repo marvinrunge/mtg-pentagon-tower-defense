@@ -272,6 +272,7 @@ func _on_join_pressed() -> void:
 ## lobby is joined straight away, a match already running is joined from inside the map
 ## so that nothing is spawned before the map exists to spawn it into.
 func _join_online(lobby: Dictionary, in_progress: bool) -> void:
+	print("[NetOnline] menu: joining lobby %s (%s)" % [lobby.get("lobby", "?"), lobby.get("name", "?")])
 	PlayerRegistry.clear_saved_build()
 	NetOnline.set_browsing(false)
 	if in_progress:

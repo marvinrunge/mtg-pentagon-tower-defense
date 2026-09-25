@@ -89,6 +89,10 @@ var _pump_left: float = 0.0
 var _pump_busy: bool = false
 ## ticket id -> {"peer_id", "conn", "remote_set", "ice_sent", "ice_applied", "started"}
 var _tickets: Dictionary = {}
+## Throttles the "post box is empty" log to roughly once every 10 pumps, so a host left
+## sitting on the lobby screen for a while does not bury the one line that matters under
+## a wall of identical ones.
+var _empty_pump_count: int = 0
 ## Tickets that have been served and deleted. A delete and the next read of the post box
 ## are two separate requests, so a finished ticket can come back one more time - and
 ## without this the host would answer it a second time, build a second connection for a
@@ -275,7 +279,12 @@ func _pump_tickets() -> void:
 		return
 	var tickets: Dictionary = result["data"] if result["data"] is Dictionary else {}
 	if not tickets.is_empty():
+		_empty_pump_count = 0
 		_log("pump: %d ticket(s) in the post box: %s" % [tickets.size(), tickets.keys()])
+	else:
+		_empty_pump_count += 1
+		if _empty_pump_count % 10 == 1:
+			_log("pump: post box is empty (lobby %s, checked %d times so far)" % [_lobby_id, _empty_pump_count])
 	for ticket_id: String in tickets:
 		var ticket: Variant = tickets[ticket_id]
 		if ticket is Dictionary:
@@ -691,13 +700,22 @@ func _fetch_lobbies() -> void:
 			continue
 		var lobby: Dictionary = entry
 		if int(lobby.get("version", 0)) != PROTOCOL_VERSION:
+			_log("browse: hiding %s (%s) - protocol %s vs our %d, one side is on a different build" % [
+				lobby_id, lobby.get("name", "?"), lobby.get("version", "?"), PROTOCOL_VERSION,
+			])
 			continue
 		if now - float(lobby.get("heartbeat", 0.0)) > STALE_SECONDS * 1000.0:
 			# Nobody owns the job of clearing these, so whoever notices does it. The
 			# security rules allow a stale entry to be deleted by anyone and a live one
 			# by its host alone, so this cannot be used to close somebody's game.
+			_log("browse: hiding %s (%s) - stale, no heartbeat for over %ds, deleting it" % [
+				lobby_id, lobby.get("name", "?"), int(STALE_SECONDS),
+			])
 			_db.delete_json("%s/%s" % [LOBBIES_PATH, lobby_id])
 			continue
+		_log("browse: listing %s (%s) - heartbeat %ds ago" % [
+			lobby_id, lobby.get("name", "?"), int((now - float(lobby.get("heartbeat", 0.0))) / 1000.0),
+		])
 		listed.append({
 			"online": true,
 			"lobby": lobby_id,
@@ -743,6 +761,7 @@ func _reset() -> void:
 	_lobby_info = {}
 	_tickets.clear()
 	_retired.clear()
+	_empty_pump_count = 0
 	_heartbeat_left = 0.0
 	_pump_left = 0.0
 	_ticket_path = ""
