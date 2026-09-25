@@ -5,11 +5,15 @@ class_name WallOfFrost
 const TINT: Color = Color(0.58, 0.86, 1.0)
 const HEIGHT: float = 3.2
 const THICKNESS: float = 0.85
+const WALL_MODEL: PackedScene = preload("res://assets/wall-of-frost.glb")
+## Measured via tools/tests headless AABB probe; the model isn't centered on its own Y axis.
+const MODEL_AABB_POSITION: Vector3 = Vector3(-0.931936, -0.6207, -0.372087)
+const MODEL_AABB_SIZE: Vector3 = Vector3(1.861481, 1.189154, 0.750721)
 
 var _life_timer: float = 0.0
 var _length: float = 8.0
 var _unsummon_bonus_damage: float = 0.0
-var _material: StandardMaterial3D
+var _despawning: bool = false
 
 
 static func create(length: float, duration: float, unsummon_bonus_damage: float) -> WallOfFrost:
@@ -56,21 +60,22 @@ func get_unsummon_bonus_damage() -> float:
 
 
 func _build_wall_mesh() -> void:
-	var mesh_instance := MeshInstance3D.new()
+	var mesh_instance: Node3D = WALL_MODEL.instantiate()
 	mesh_instance.name = "IceSlab"
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(_length, HEIGHT, THICKNESS)
-	mesh_instance.mesh = mesh
-	mesh_instance.position = Vector3(0.0, HEIGHT * 0.5, 0.0)
-	_material = StandardMaterial3D.new()
-	_material.albedo_color = Color(0.62, 0.9, 1.0, 0.58)
-	_material.emission_enabled = true
-	_material.emission = TINT
-	_material.emission_energy_multiplier = 0.55
-	_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_material.roughness = 0.18
-	_material.render_priority = SpellFx.FX_RENDER_PRIORITY
-	mesh_instance.material_override = _material
+	mesh_instance.scale = Vector3(
+		_length / MODEL_AABB_SIZE.x,
+		HEIGHT / MODEL_AABB_SIZE.y,
+		THICKNESS / MODEL_AABB_SIZE.z
+	)
+	mesh_instance.position = Vector3(0.0, -MODEL_AABB_POSITION.y / MODEL_AABB_SIZE.y * HEIGHT, 0.0)
+
+	var slab: MeshInstance3D = mesh_instance.find_child("Mesh_0")
+	var material: StandardMaterial3D = (slab.mesh.surface_get_material(0) as StandardMaterial3D).duplicate()
+	material.emission_enabled = true
+	material.emission = TINT
+	material.emission_energy_multiplier = 0.55
+	material.render_priority = SpellFx.FX_RENDER_PRIORITY
+	slab.material_override = material
 	add_child(mesh_instance)
 
 
@@ -129,6 +134,7 @@ func _process(delta: float) -> void:
 	if _life_timer <= 0.0:
 		queue_free()
 		return
-	if _life_timer < 1.0 and _material != null:
-		_material.albedo_color.a = 0.58 * maxf(_life_timer, 0.0)
-		_material.emission_energy_multiplier = 0.55 * maxf(_life_timer, 0.0)
+	if _life_timer < 0.3 and not _despawning:
+		_despawning = true
+		var tween: Tween = create_tween()
+		tween.tween_property(self, "scale", Vector3(1.0, 0.05, 1.0), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
