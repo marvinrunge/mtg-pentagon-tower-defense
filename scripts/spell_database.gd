@@ -146,7 +146,11 @@ const SPELLS: Dictionary = {
 		"name": "Displace",
 		"desc": "Blink a short distance to the ground you are aiming at.",
 		"cooldown": 10.0, "chargeable": false,
-		"cast_clip": "cast_blue", "cast_duration": 0.7, "roots": false,
+		# The one spell with NO cast animation. A blink that has to be announced for
+		# two-thirds of a second is not an escape, and the cast pose read as the caster
+		# hesitating before a movement skill they had already committed to. An empty
+		# cast_clip is the supported way to say "resolve now" - see Player._begin_cast.
+		"cast_clip": "", "cast_duration": 0.0, "roots": false,
 	},
 
 	# --- BLACK: parasitic drain ---

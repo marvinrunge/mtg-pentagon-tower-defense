@@ -14,6 +14,12 @@ class_name SpellEffects
 ## `Player.execute_spell` -> `_run_spell_effect` is still the only way in. The split is
 ## about where the code lives, not about how a spell is reached.
 
+## Physics layer 5 alone - the lanes and the base plateau (project.godot's
+## 3d_physics/layer_5="Environment"). For rays that must find the GROUND and nothing else:
+## the default aim mask includes layer 1, which is the player layer but also, so that the
+## player collides with it, the layer Wall of Frost sits on.
+const ENVIRONMENT_MASK: int = 1 << 4
+
 
 static func cast_red_fireball(caster: Player, charge_pct: float) -> void:
 	var dir = -caster.camera.global_basis.z.normalized()
@@ -309,15 +315,22 @@ static func cast_blue_wall_of_frost(caster: Player) -> void:
 
 
 ## blue_5. Displace: a short blue blink to the aimed ground point.
+## A blink THROUGH things, which is the point of it - including the caster's own Wall of
+## Frost, which it used to stop dead at. The wall is a StaticBody3D on physics layer 1 (so
+## that the player collides with it), and both of the rays that place this blink hit layer
+## 1 by default: the aim ray landed on the wall's face and the ground snap then dropped the
+## caster onto its top. Both are pointed at ENVIRONMENT_MASK instead, so the only thing
+## either of them can find is actual terrain and the wall is invisible to the spell.
 static func cast_blue_displace(caster: Player) -> void:
 	var from: Vector3 = caster.global_position
 	var max_distance: float = GameSettings.spell_blue_displace_distance * caster._rank_area()
-	var target: Vector3 = caster._ground_snap(caster._aim_point(max_distance))
+	var target: Vector3 = caster._ground_snap(
+		caster._aim_point(max_distance, ENVIRONMENT_MASK), ENVIRONMENT_MASK)
 	var offset: Vector3 = target - from
 	offset.y = 0.0
 	if offset.length() > max_distance:
 		target = from + offset.normalized() * max_distance
-		target = caster._ground_snap(target)
+		target = caster._ground_snap(target, ENVIRONMENT_MASK)
 	caster._spawn_ring(from, Color(0.42, 0.72, 1.0), 1.7)
 	caster.global_position = target
 	caster.velocity = Vector3.ZERO
