@@ -105,6 +105,18 @@ jobs:
           godot --headless --path . --import || true
           godot --headless --path . --import
 
+      # Absent, online play stays hidden rather than broken (see scripts/online_config.gd) -
+      # so this step is safe to run even where the secrets are not available, such as a
+      # pull_request build from a fork, which GitHub withholds repo secrets from on purpose.
+      - name: Write online_config.json
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
+        run: |
+          cat > online_config.json <<JSON
+          {"api_key": "${FIREBASE_API_KEY}", "database_url": "${FIREBASE_DATABASE_URL}", "ice_servers": []}
+          JSON
+
       - name: Export
         run: |
           set -euo pipefail
