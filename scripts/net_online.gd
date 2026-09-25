@@ -744,6 +744,10 @@ func close() -> void:
 	var lobby_id: String = _lobby_id
 	var ticket_path: String = _ticket_path
 	var was_hosting: bool = _hosting
+	_log("close() called - was_hosting=%s lobby=%s ticket=%s connection_status=%d" % [
+		was_hosting, lobby_id, ticket_path,
+		_rtc.get_connection_status() if _rtc != null else -1,
+	])
 	_reset()
 	if not ticket_path.is_empty():
 		_db.delete_json(ticket_path)
