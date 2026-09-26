@@ -84,7 +84,9 @@ func _ready() -> void:
 	# of enemy fire (enemy projectile mask 19 covers it) without also making the player's
 	# own projectiles collide with their summons.
 	collision_layer = 2
-	collision_mask = 1
+	# The ground is on EnemyBase.ENVIRONMENT_LAYER, not layer 1 - masking only layer 1
+	# left nothing underneath, and every summon fell out of the world the moment it rose.
+	collision_mask = 1 | EnemyBase.ENVIRONMENT_LAYER
 
 	var body := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
