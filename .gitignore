@@ -58,3 +58,9 @@ build/
 
 # Firebase project coordinates for online play - see docs/ONLINE_LOBBY_PLAN.md
 online_config.json
+
+# Godot copies a loaded GDExtension's DLL to "~<name>.dll" so the original can be
+# replaced while the editor runs, and Windows leaves "~...~RF<hex>.TMP" behind when that
+# copy is swapped. Both are regenerated on every launch.
+addons/*/bin/~*
+addons/*/lib/~*

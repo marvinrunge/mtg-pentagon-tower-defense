@@ -113,25 +113,17 @@ func _ready() -> void:
 			var spawner = lane_node.get_node("EnemySpawner")
 			mana_sources.append(mana)
 			enemy_spawners.append(spawner)
-			_add_lane_grass(lane_node, lane_name)
+
+	# Set before the navmesh bake rather than after it. The bake runs on a thread now and
+	# takes a couple of seconds on the terrain, and a spawn command the server sends while a
+	# client is still baking is discarded if the spawner has no function yet.
+	$PlayerSpawner.spawn_function = _spawn_avatar
+	$EnemyNetSpawner.spawn_function = _spawn_enemy
+	$MyrNetSpawner.spawn_function = _spawn_myr
+	$EffectNetSpawner.spawn_function = _spawn_effect
 
 	# Bake navigation mesh
 	call_deferred("bake_map_navigation")
-
-## Scatters the lane's biome grass across its wedge. The lane node is the parent, so
-## the scatter inherits that lane's rotation and can work in a single lane-local frame
-## regardless of which of the five directions it points.
-##
-## Seeded off the lane's index rather than left random, so a lane's grass is laid out
-## the same way every run - a lane that reshuffles itself between runs makes it much
-## harder to tell a real placement bug from noise.
-func _add_lane_grass(lane_node: Node3D, lane_name: String) -> void:
-	var grass := GrassScatter.new()
-	grass.name = "Grass"
-	grass.biome = lane_name.to_lower()
-	grass.random_seed = hash(lane_name)
-	lane_node.add_child(grass)
-
 
 func _process(delta: float) -> void:
 	if crystal_visual == null:
@@ -205,37 +197,141 @@ func _build_crystal_lights() -> void:
 		)
 		crystal_visual.add_child(light)
 
+## The ground is the TerraBrush terrain, and everything that stands on it waits for it:
+## the players are put on it as soon as it exists, and the navmesh is baked from its
+## collision before anything that paths is started. The wells, spawners and crystal are
+## placed on it by hand in the editor, and so is the grass - as TerraBrush foliage.
 func bake_map_navigation() -> void:
+	var terrain_body: StaticBody3D = await _wait_for_terrain_body()
+	_terrain_body = terrain_body
+
 	print("Baking Navigation Mesh...")
-	nav_region.bake_navigation_mesh(false)
-	print("Navigation Mesh baked successfully!")
-	
-	# Wait two physics frames for the physics server to register all CSG collision shapes
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	
+	# Parsed by hand rather than through nav_region.bake_navigation_mesh(), because the
+	# terrain is not under the region. The terrain is the only source: the region holds
+	# nothing else that collides except the crystal, and that hangs well over agent
+	# height, so it never blocked a path - parsing it only added an unreachable island
+	# on its top, and a runtime readback of its CSG mesh. Baked into a copy so assigning
+	# it back is a real change the region reacts to.
+	var nav_mesh: NavigationMesh = nav_region.navigation_mesh.duplicate()
+	var source := NavigationMeshSourceGeometryData3D.new()
+	if terrain_body != null:
+		NavigationServer3D.parse_source_geometry_data(nav_mesh, source, terrain_body)
+
+	# Players only need the ground, not the navmesh, so they do not sit through the bake.
 	spawn_entities()
+
+	# A 512 m heightmap takes a couple of seconds to bake - on a thread, so the map is
+	# not frozen while it does.
+	var baked := [false]
+	NavigationServer3D.bake_from_source_geometry_data_async(nav_mesh, source, func() -> void: baked[0] = true)
+	while not baked[0]:
+		await get_tree().process_frame
+	nav_region.navigation_mesh = nav_mesh
+	await _wait_for_navigation_map()
+	print("Navigation Mesh baked successfully!")
+
+	_start_match()
+
+
+## Waits until the navigation map actually answers from the new navmesh. The map takes
+## the region in on a thread of its own, and at terrain size that finishes around half
+## a second later - long after the two physics frames that used to be enough for the
+## flat slabs. Until then every map query returns (0, 0, 0): the first squads were
+## snapped to that and every path came back empty, so enemies walked straight at the
+## crystal and into whatever was sculpted in between.
+##
+## "Answers" is measured as the map agreeing with the region itself on the nearest
+## point to a spawner, which is only true once the region's polygons are in the map.
+## A spawner, not the origin, so a real answer is never (0, 0, 0).
+func _wait_for_navigation_map() -> void:
+	var map: RID = nav_region.get_navigation_map()
+	var probe: Vector3 = enemy_spawners[0].global_position if not enemy_spawners.is_empty() else Vector3.ZERO
+	for frame in NAVIGATION_WAIT_FRAMES:
+		await get_tree().physics_frame
+		var from_region: Vector3 = NavigationServer3D.region_get_closest_point(nav_region.get_rid(), probe)
+		var from_map: Vector3 = NavigationServer3D.map_get_closest_point(map, probe)
+		# Both sides answer (0, 0, 0) while they are still empty, and agree doing so.
+		if from_region != Vector3.ZERO and from_map.is_equal_approx(from_region):
+			return
+	push_error("The navigation map never took in the baked navmesh - enemies will not path")
+
+
+## Ceiling for _wait_for_navigation_map, in physics frames (about ten seconds). Only
+## reached if the navigation server is broken, so the match still starts.
+const NAVIGATION_WAIT_FRAMES := 600
+
+
+## How long to wait for TerraBrush to build its collision before giving up on it. It
+## builds on its first frame in the tree; this is only a ceiling for a broken terrain,
+## so the match still starts (on no ground) rather than hanging on a black screen.
+const TERRAIN_WAIT_FRAMES := 600
+
+## TerraBrush's collision body, once it has built one. See _wait_for_terrain_body.
+var _terrain_body: StaticBody3D = null
+
+
+## TerraBrush makes its collision body itself, a frame after it enters the tree, as an
+## internal child a few levels down - so it cannot be referenced from the scene and has
+## to be found once it exists. Null in a test scene that has no terrain at all.
+func _wait_for_terrain_body() -> StaticBody3D:
+	var terrain: Node = get_node_or_null("TerraBrush")
+	if terrain == null:
+		return null
+	for frame in TERRAIN_WAIT_FRAMES:
+		var body: StaticBody3D = _find_collision_body(terrain)
+		if body != null:
+			# One physics frame more, so the body is registered in the physics space
+			# before anything raycasts against it.
+			await get_tree().physics_frame
+			return body
+		await get_tree().process_frame
+	push_error("TerraBrush never built its collision - the map has no ground")
+	return null
+
+
+func _find_collision_body(node: Node) -> StaticBody3D:
+	for child in node.get_children(true):
+		if child is StaticBody3D:
+			return child
+		var found: StaticBody3D = _find_collision_body(child)
+		if found != null:
+			return found
+	return null
+
+
+## Height of the ground under a point. `fallback` when nothing is there, e.g. off the
+## edge of the terrain.
+##
+## The crystal's hitbox shares the environment layer, and a ray dropped from above onto
+## the centre of the map meets its top first - so once the terrain body is known, every
+## other hit is stepped through.
+func ground_height_at(point: Vector3, fallback: float = 0.0) -> float:
+	var query := PhysicsRayQueryParameters3D.create(
+		Vector3(point.x, 1000.0, point.z), Vector3(point.x, -1000.0, point.z),
+		EnemyBase.ENVIRONMENT_LAYER
+	)
+	var space := get_world_3d().direct_space_state
+	for attempt in 8:
+		var hit: Dictionary = space.intersect_ray(query)
+		if hit.is_empty():
+			return fallback
+		if _terrain_body == null or hit["collider"] == _terrain_body:
+			return (hit["position"] as Vector3).y
+		query.exclude = query.exclude + [hit["rid"] as RID]
+	return fallback
 
 func spawn_entities() -> void:
 	# The spawn function runs on EVERY peer with the same argument, which is the only
 	# way to get per-avatar data across. Metadata set on the server's instance does not
 	# replicate - the client would rebuild the node from the scene file alone and fall
-	# back to defaults, giving every avatar authority 1 and is_local true.
-	$PlayerSpawner.spawn_function = _spawn_avatar
-	$EnemyNetSpawner.spawn_function = _spawn_enemy
-	$MyrNetSpawner.spawn_function = _spawn_myr
-	$EffectNetSpawner.spawn_function = _spawn_effect
+	# back to defaults, giving every avatar authority 1 and is_local true. The spawn
+	# functions themselves are set in _ready.
+	#
+	# A peer joining a match already under way spawns nothing here: its own avatar comes
+	# from the server like everybody else's, once _start_match has connected it.
 	if Net.is_joining():
-		# Joining a match already under way. The map has to be complete BEFORE the
-		# connection opens, because the server pushes the whole running world - every
-		# enemy, myr and avatar - the instant a peer connects, and a spawn command that
-		# arrives before its spawner exists is discarded rather than queued.
-		#
-		# Nothing is spawned locally: this peer's own avatar comes from the server like
-		# everybody else's, a moment after the handshake.
-		if Net.complete_pending_join() != OK:
-			push_warning("Could not reconnect to the host.")
-	elif Net.is_active():
+		return
+	if Net.is_active():
 		spawn_networked_players()
 	else:
 		spawn_players(GameSettings.player_count)
@@ -244,20 +340,33 @@ func spawn_entities() -> void:
 	# otherwise silent and looks like a rendering fault rather than a spawn one.
 	#
 	# A joining client legitimately has none yet - the server has not been asked for one.
-	if PlayerRegistry.count() == 0 and not Net.is_joining() and not Net.is_active():
+	if PlayerRegistry.count() == 0 and not Net.is_active():
 		push_error("No player was spawned - the map will render as an empty grey screen")
-	
+
 	# Myrs are now spawned by the player via base UI, not here
-		
+
+	# Last, so it goes up over a map that is already built - the terrain and the players,
+	# which is all anyone sees; the navmesh bake still running behind it is not. The HUD
+	# is instanced in main.tscn, and children are ready before their parent, so it is
+	# already listening.
+	SignalBus.mission_announced.emit(MISSION_OBJECTIVE)
+
+
+## Everything that needs the navmesh, once it is in the navigation map.
+func _start_match() -> void:
+	if Net.is_joining():
+		# Joining a match already under way. The map has to be complete BEFORE the
+		# connection opens, because the server pushes the whole running world - every
+		# enemy, myr and avatar - the instant a peer connects, and a spawn command that
+		# arrives before its spawner exists is discarded rather than queued.
+		if Net.complete_pending_join() != OK:
+			push_warning("Could not reconnect to the host.")
+
 	# Start Wave Manager
 	var wave_manager = WaveManager.new()
 	wave_manager.name = "WaveManager"
 	add_child(wave_manager)
 	wave_manager.start_waves(self)
-
-	# Last, so it goes up over a map that is already built. The HUD is instanced in
-	# main.tscn, and children are ready before their parent, so it is already listening.
-	SignalBus.mission_announced.emit(MISSION_OBJECTIVE)
 
 ## Undoes leakage, up to whatever is actually missing. Server-only for the same reason
 ## damage is: five peers each healing their own copy would disagree instantly.
@@ -430,7 +539,10 @@ func _spawn_avatar(data: Variant) -> Node:
 func _player_seat(index: int) -> Transform3D:
 	var lane: int = posmod(index, LANE_NAMES.size())
 	var outward: Vector3 = _lane_outward(lane)
-	var origin: Vector3 = Vector3(0.0, 1.0, 0.0) + outward * GameSettings.player_spawn_ring_radius
+	var origin: Vector3 = outward * GameSettings.player_spawn_ring_radius
+	# A metre over the terrain, wherever it is there - a fixed height would put the
+	# avatar inside any hill the seat happens to fall on.
+	origin.y = ground_height_at(origin) + 1.0
 	# atan2(x, z) aims local +Z along a direction, so the NEGATED direction aims -Z - which is
 	# what a Node3D calls forward. Same idiom as the wall placement in Player.
 	var basis := Basis(Vector3.UP, atan2(-outward.x, -outward.z))

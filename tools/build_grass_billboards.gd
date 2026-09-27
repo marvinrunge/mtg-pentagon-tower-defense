@@ -22,8 +22,8 @@ extends SceneTree
 ##     distance.
 ##
 ## Tiles are then cropped to their alpha bounding box, so the quad that carries them
-## is all grass and no empty margin. GrassScatter reads the aspect back off the
-## texture at build time, so cropping to different sizes per variant is fine.
+## is all grass and no empty margin, so cropping to different sizes per variant is
+## fine. The billboards are placed as TerraBrush foliage in the editor.
 ##
 ## The source sheets stay in the repo behind a .gdignore (Godot must not import 9 MB
 ## of white-background PNGs as game textures) so this stays re-runnable.

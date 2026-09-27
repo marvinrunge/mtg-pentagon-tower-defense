@@ -1,8 +1,8 @@
 # Grass Atlas Prompts
 
 Image-generation prompts for replacement grass sheets, one per biome. These feed
-`tools/build_grass_billboards.gd`, which keys them to alpha cutouts that
-`scripts/grass_scatter.gd` scatters across the lane wedges.
+`tools/build_grass_billboards.gd`, which keys them to alpha cutouts that are placed
+on the terrain as TerraBrush foliage.
 
 Separate from `docs/BIOME_ASSETS.md` on purpose: that file is Meshy text-to-3D, this
 is flat 2D texture sheets. Different tool, different rules.
@@ -151,6 +151,6 @@ Worth knowing that two known limits remain, neither fixed by better source art:
 - **Mipmap alpha coverage is not preserved.** Distant grass still loses coverage as
   it mips down. The standard fix rescales alpha per mip level so coverage stays
   constant; Godot does not do it at import and the build script does not do it yet.
-- **Alpha-to-coverage needs MSAA on.** `scripts/grass_scatter.gd` requests it, but
-  `GraphicsSettings` defaults `msaa_level` to 0, so it is inert until a preset is
-  chosen in the menu.
+- **Alpha-to-coverage needs MSAA on.** If the foliage material requests it,
+  `GraphicsSettings` still defaults `msaa_level` to 0, so it is inert until a preset
+  is chosen in the menu.

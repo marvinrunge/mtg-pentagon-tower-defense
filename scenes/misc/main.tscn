@@ -13,25 +13,95 @@
 [ext_resource type="PackedScene" uid="uid://dm18yoqik3i42" path="res://scenes/mana_wells/mana_well_red.tscn" id="6_well_red"]
 [ext_resource type="Texture2D" uid="uid://bm7dot7t7u1q4" path="res://addons/sky_3d/assets/thirdparty/textures/milkyway/StarField.jpg" id="7_k8tuh"]
 [ext_resource type="PackedScene" uid="uid://bpcfm7k0vv3bv" path="res://scenes/mana_wells/mana_well_green.tscn" id="7_well_green"]
-[ext_resource type="Texture2D" uid="uid://mosn2rro8ox0" path="res://assets/textures/base/textures/concrete_rock_path_diff_1k.jpg" id="8_base_diff"]
 [ext_resource type="Texture2D" uid="uid://c1vwcdcdvb74a" path="res://addons/sky_3d/assets/thirdparty/textures/milkyway/Milkyway.jpg" id="8_fwtpx"]
-[ext_resource type="Texture2D" uid="uid://psn3juf62kt2" path="res://assets/textures/base/textures/concrete_rock_path_nor_gl_1k.jpg" id="9_base_norm"]
 [ext_resource type="Script" uid="uid://deo0gxkmk2ahd" path="res://addons/sky_3d/src/Sky3D.gd" id="9_ppysr"]
 [ext_resource type="Script" uid="uid://b4tkplvh7fq40" path="res://addons/sky_3d/src/SkyDome.gd" id="10_of6xu"]
-[ext_resource type="Texture2D" uid="uid://bikbnkhat1f6m" path="res://assets/textures/plains2/textures/gravel_ground_01_diff_1k.jpg" id="10_white_diff"]
 [ext_resource type="Script" uid="uid://cjmkcj8hwm7ts" path="res://addons/sky_3d/src/TimeOfDay.gd" id="11_rywwc"]
-[ext_resource type="Texture2D" uid="uid://d1gry213g378" path="res://assets/textures/plains2/textures/gravel_ground_01_nor_gl_1k.jpg" id="11_white_norm"]
-[ext_resource type="Texture2D" uid="uid://m0rerhchm8br" path="res://assets/textures/island/textures/coast_sand_01_diff_1k.jpg" id="12_blue_diff"]
-[ext_resource type="Texture2D" uid="uid://cagpud3ith4oc" path="res://assets/textures/island/textures/coast_sand_01_nor_gl_1k.jpg" id="13_blue_norm"]
-[ext_resource type="Texture2D" uid="uid://ce24rw6yay2wq" path="res://assets/textures/swamp/textures/brown_mud_03_diff_1k.jpg" id="14_black_diff"]
-[ext_resource type="Texture2D" uid="uid://dkd3a04pag0hn" path="res://assets/textures/swamp/textures/brown_mud_03_nor_gl_1k.jpg" id="15_black_norm"]
-[ext_resource type="Texture2D" uid="uid://c1lgdvbjxqti1" path="res://assets/textures/mountains/textures/cracked_red_ground_diff_1k.jpg" id="16_red_diff"]
-[ext_resource type="Texture2D" uid="uid://cxygmepbyhnn0" path="res://assets/textures/mountains/textures/cracked_red_ground_nor_gl_1k.jpg" id="17_red_norm"]
-[ext_resource type="Texture2D" uid="uid://cgx0r1710d5a" path="res://assets/textures/forest/textures/forrest_ground_01_diff_1k.jpg" id="18_green_diff"]
-[ext_resource type="Texture2D" uid="uid://b15nsy6gnphkq" path="res://assets/textures/forest/textures/forrest_ground_01_nor_gl_1k.jpg" id="19_green_norm"]
 [ext_resource type="PackedScene" uid="uid://diuwaujmte4h" path="res://assets/structures/base-cristal/Meshy_AI_Ein_riesiger_schweben_0523220202_texture.fbx" id="20_crystal"]
-[ext_resource type="Texture2D" uid="uid://dgfha2snve6n3" path="res://assets/textures/plains2/textures/gravel_ground_01_rough_1k.jpg" id="21_white_rough"]
-[ext_resource type="PackedScene" uid="uid://cm6a7dxm3ecnm" path="res://assets/structures/pillar/Meshy_AI_Cracked_Crescent_0921233649_texture.glb" id="32_i5wgy"]
+[ext_resource type="Texture2D" uid="uid://vcdlt1sstpxr" path="res://addons/terrabrush/Assets/Textures/Grass001/Grass001_Albedo.png" id="33_rg1j2"]
+[ext_resource type="Texture2D" uid="uid://coyqln8wfkumu" path="res://addons/terrabrush/Assets/Textures/BrownMud03/BrownMud03_Albedo.png" id="33_txvyh"]
+[ext_resource type="Texture2D" uid="uid://cxm427y6job51" path="res://addons/terrabrush/Assets/Textures/Grass001/Grass001_Height.png" id="34_7uu3w"]
+[ext_resource type="Texture2D" uid="uid://j8p4kklykwe3" path="res://addons/terrabrush/Assets/Textures/BrownMud03/BrownMud03_Height.png" id="34_50w3u"]
+[ext_resource type="Texture2D" uid="uid://dgil38ax1h3fb" path="res://addons/terrabrush/Assets/Textures/Grass001/Grass001_Normal.png" id="35_sq54b"]
+[ext_resource type="Texture2D" uid="uid://buwdh4kaqwaev" path="res://addons/terrabrush/Assets/Textures/BrownMud03/BrownMud03_Normal.png" id="35_u733h"]
+[ext_resource type="Texture2D" uid="uid://dspgjrqhgne0w" path="res://addons/terrabrush/Assets/Textures/Grass001/Grass001_Roughness.png" id="36_amxbg"]
+[ext_resource type="Texture2D" uid="uid://big2p7y8wdp31" path="res://addons/terrabrush/Assets/Textures/BrownMud03/BrownMud03_Roughness.png" id="36_q2y6g"]
+[ext_resource type="Texture2D" uid="uid://b7b6yqvropgbi" path="res://addons/terrabrush/Assets/Textures/Grass004/Grass004_Albedo.png" id="37_dmxqf"]
+[ext_resource type="Texture2D" uid="uid://f65m3emiy8ox" path="res://addons/terrabrush/Assets/Textures/Rock037/Rock037_Albedo.png" id="37_esgqe"]
+[ext_resource type="Texture2D" uid="uid://dywsq5d01q81p" path="res://addons/terrabrush/Assets/Textures/Grass004/Grass004_Height.png" id="38_txvyh"]
+[ext_resource type="Texture2D" uid="uid://umjw2vmcejiy" path="res://addons/terrabrush/Assets/Textures/Rock037/Rock037_Height.png" id="38_wppt0"]
+[ext_resource type="Texture2D" uid="uid://bgjotrli2xj5g" path="res://addons/terrabrush/Assets/Textures/Grass004/Grass004_Normal.png" id="39_50w3u"]
+[ext_resource type="Texture2D" uid="uid://501usivtbbyh" path="res://addons/terrabrush/Assets/Textures/Rock037/Rock037_Normal.png" id="39_k7hcf"]
+[ext_resource type="Texture2D" uid="uid://b7edqwonad0fq" path="res://addons/terrabrush/Assets/Textures/Rock037/Rock037_Roughness.png" id="40_3uf3g"]
+[ext_resource type="Texture2D" uid="uid://dr3rfgs33rk4r" path="res://addons/terrabrush/Assets/Textures/Grass004/Grass004_Roughness.png" id="40_u733h"]
+[ext_resource type="Image" uid="uid://cs1yw7p32cgyf" path="res://scenes/misc/Main/Heightmap_0_0.res" id="41_q2y6g"]
+[ext_resource type="Texture2D" uid="uid://c4rabuh3eribj" path="res://addons/terrabrush/Assets/Textures/BrownMudRocks01/BrownMudRocks01_Albedo.png" id="41_x7dmq"]
+[ext_resource type="Image" uid="uid://b1ripoqx7jhsc" path="res://scenes/misc/Main/Splatmap_0_0_0.res" id="42_esgqe"]
+[ext_resource type="Texture2D" uid="uid://bdn08b57ibd41" path="res://addons/terrabrush/Assets/Textures/BrownMudRocks01/BrownMudRocks01_Height.png" id="42_sb1md"]
+[ext_resource type="Texture2D" uid="uid://11mbxlak8lm2" path="res://addons/terrabrush/Assets/Textures/BrownMudRocks01/BrownMudRocks01_Normal.png" id="43_p2rl2"]
+[ext_resource type="Texture2D" uid="uid://bolu264pwvlgn" path="res://addons/terrabrush/Assets/Textures/BrownMudRocks01/BrownMudRocks01_Roughness.png" id="44_ok2av"]
+[ext_resource type="Texture2D" uid="uid://co4ksk0isp5gm" path="res://addons/terrabrush/Assets/Textures/Ground111/Ground111_Albedo.png" id="45_bif71"]
+[ext_resource type="Texture2D" uid="uid://054f5vl5s0rt" path="res://addons/terrabrush/Assets/Textures/Ground111/Ground111_Height.png" id="46_herpf"]
+[ext_resource type="Texture2D" uid="uid://c2qvwnyrbx7ol" path="res://addons/terrabrush/Assets/Textures/Ground111/Ground111_Normal.png" id="47_2hqj3"]
+[ext_resource type="Image" uid="uid://dalljb6pnhaqs" path="res://scenes/misc/Main/Splatmap_0_0_1.res" id="47_bif71"]
+[ext_resource type="Texture2D" uid="uid://cypcruaa784sm" path="res://addons/terrabrush/Assets/Textures/Ground111/Ground111_Roughness.png" id="48_avc4j"]
+[ext_resource type="Texture2D" uid="uid://bs8ofcstuu13c" path="res://addons/terrabrush/Assets/Textures/Rock029/Rock029_Albedo.png" id="49_erpbv"]
+[ext_resource type="Texture2D" uid="uid://dkoybu51hxs82" path="res://addons/terrabrush/Assets/Textures/Rock029/Rock029_Height.png" id="50_3kmkn"]
+[ext_resource type="Texture2D" uid="uid://b3olxdlvexe06" path="res://addons/terrabrush/Assets/Textures/Rock029/Rock029_Normal.png" id="51_x2uu7"]
+[ext_resource type="Texture2D" uid="uid://6i8jdahxfbep" path="res://addons/terrabrush/Assets/Textures/Rock029/Rock029_Roughness.png" id="52_vfoqf"]
+[ext_resource type="Texture2D" uid="uid://b84wysig1rng" path="res://addons/terrabrush/Assets/Textures/Rock060/Rock060_Albedo.png" id="53_bot0s"]
+[ext_resource type="Texture2D" uid="uid://dw87oy7i6pe2t" path="res://addons/terrabrush/Assets/Textures/Rock060/Rock060_Height.png" id="54_b8ah5"]
+[ext_resource type="Texture2D" uid="uid://bq45dajgvwno6" path="res://addons/terrabrush/Assets/Textures/Rock060/Rock060_Normal.png" id="55_agxr8"]
+[ext_resource type="Texture2D" uid="uid://b7y32aad33siq" path="res://addons/terrabrush/Assets/Textures/Rock060/Rock060_Roughness.png" id="56_btwst"]
+[ext_resource type="Texture2D" uid="uid://ckeg3c5sktai7" path="res://addons/terrabrush/Assets/Textures/Ground108/Ground108_Albedo.png" id="57_7r8lw"]
+[ext_resource type="Texture2D" uid="uid://cmb4fbohmcrbo" path="res://addons/terrabrush/Assets/Textures/Ground108/Ground108_Height.png" id="58_33vy2"]
+[ext_resource type="Texture2D" uid="uid://m7aqduo0acc" path="res://addons/terrabrush/Assets/Textures/Ground108/Ground108_Normal.png" id="59_spg4g"]
+[ext_resource type="Texture2D" uid="uid://c01h1dkpduweo" path="res://addons/terrabrush/Assets/Textures/Ground108/Ground108_Roughness.png" id="60_toge7"]
+[ext_resource type="Texture2D" uid="uid://cpfttibjqvr3" path="res://addons/terrabrush/Assets/Textures/Moss002/Moss002_Albedo.png" id="65_8os88"]
+[ext_resource type="Texture2D" uid="uid://bw0l0emwxn3u0" path="res://addons/terrabrush/Assets/Textures/Moss002/Moss002_Height.png" id="66_tid4t"]
+[ext_resource type="Texture2D" uid="uid://c205q5sajiw6c" path="res://addons/terrabrush/Assets/Textures/Moss002/Moss002_Normal.png" id="67_qdf57"]
+[ext_resource type="Texture2D" uid="uid://ciumslmxytevj" path="res://addons/terrabrush/Assets/Textures/Moss002/Moss002_Roughness.png" id="68_5054f"]
+[ext_resource type="Texture2D" uid="uid://dnp0lo0k5csk0" path="res://addons/terrabrush/Assets/Textures/Ground086/Ground086_Albedo.png" id="69_27io6"]
+[ext_resource type="Texture2D" uid="uid://r8kxc64hib74" path="res://addons/terrabrush/Assets/Textures/Ground086/Ground086_Height.png" id="70_6s8j1"]
+[ext_resource type="Texture2D" uid="uid://cuw4y2phyx2r" path="res://addons/terrabrush/Assets/Textures/Ground086/Ground086_Normal.png" id="71_gye48"]
+[ext_resource type="Texture2D" uid="uid://dhtgd6cmj63p7" path="res://addons/terrabrush/Assets/Textures/Ground086/Ground086_Roughness.png" id="72_bk8c7"]
+[ext_resource type="Texture2D" uid="uid://um3ltj0h55eu" path="res://addons/terrabrush/Assets/Textures/Rock057/Rock057_Albedo.png" id="73_e46dg"]
+[ext_resource type="Texture2D" uid="uid://cng6xqfjbgp0i" path="res://addons/terrabrush/Assets/Textures/Rock057/Rock057_Height.png" id="74_o72nt"]
+[ext_resource type="Texture2D" uid="uid://ba6np2wf33diw" path="res://addons/terrabrush/Assets/Textures/Rock057/Rock057_Normal.png" id="75_54asi"]
+[ext_resource type="Texture2D" uid="uid://udloyndaj4pc" path="res://addons/terrabrush/Assets/Textures/Rock057/Rock057_Roughness.png" id="76_m7oiy"]
+[ext_resource type="Texture2D" uid="uid://b2eg3llwbbvr6" path="res://addons/terrabrush/Assets/Textures/Ground054/Ground054_Albedo.png" id="77_27io6"]
+[ext_resource type="Texture2D" uid="uid://unhhxdvfvwa0" path="res://addons/terrabrush/Assets/Textures/Ground054/Ground054_Height.png" id="78_6s8j1"]
+[ext_resource type="Texture2D" uid="uid://bg2iisv5bl6ev" path="res://addons/terrabrush/Assets/Textures/Ground054/Ground054_Normal.png" id="79_gye48"]
+[ext_resource type="Texture2D" uid="uid://cvvwou8luos2q" path="res://addons/terrabrush/Assets/Textures/Ground054/Ground054_Roughness.png" id="80_bk8c7"]
+[ext_resource type="Image" uid="uid://dkquw750iklv1" path="res://scenes/misc/Main/Splatmap_0_0_2.res" id="80_xy1ao"]
+[ext_resource type="Texture2D" uid="uid://cl7na46qy1w8k" path="res://addons/terrabrush/Assets/Textures/Ground050/Ground050_Albedo.png" id="85_o72nt"]
+[ext_resource type="Texture2D" uid="uid://bxmnxvxdt8u3m" path="res://addons/terrabrush/Assets/Textures/Ground050/Ground050_Height.png" id="86_54asi"]
+[ext_resource type="Texture2D" uid="uid://c6atw4ffxb4ug" path="res://addons/terrabrush/Assets/Textures/Ground050/Ground050_Normal.png" id="87_m7oiy"]
+[ext_resource type="Texture2D" uid="uid://basr480t5pnhe" path="res://addons/terrabrush/Assets/Textures/Ground050/Ground050_Roughness.png" id="88_xy1ao"]
+[ext_resource type="Texture2D" uid="uid://ds1ekn23rcfuo" path="res://addons/terrabrush/Assets/Textures/Ground004/Ground004_Albedo.png" id="89_gcobm"]
+[ext_resource type="Texture2D" uid="uid://cxensrwqtfwrs" path="res://addons/terrabrush/Assets/Textures/Ground004/Ground004_Height.png" id="90_8g8tp"]
+[ext_resource type="Texture2D" uid="uid://vxsk8m32k3g0" path="res://addons/terrabrush/Assets/Textures/Ground004/Ground004_Normal.png" id="91_mduvp"]
+[ext_resource type="Texture2D" uid="uid://cwbv704xafliv" path="res://addons/terrabrush/Assets/Textures/Ground004/Ground004_Roughness.png" id="92_fddui"]
+[ext_resource type="Texture2D" uid="uid://23wo6dvdpsgm" path="res://addons/terrabrush/Assets/Textures/Rock051/Rock051_Albedo.png" id="93_5v6xv"]
+[ext_resource type="Image" uid="uid://hd0nm3nfavds" path="res://scenes/misc/Main/Splatmap_0_0_3.res" id="93_gcobm"]
+[ext_resource type="Image" uid="uid://eat2ku3uic55" path="res://scenes/misc/Main/Water_0_0.res" id="94_54asi"]
+[ext_resource type="Texture2D" uid="uid://cjmjkvnnhj4y8" path="res://addons/terrabrush/Assets/Textures/Rock051/Rock051_Height.png" id="94_kparq"]
+[ext_resource type="Texture2D" uid="uid://cl3skfwkus5gs" path="res://addons/terrabrush/Assets/Textures/Rock051/Rock051_Normal.png" id="95_g4uf2"]
+[ext_resource type="PackedScene" path="res://scenes/environment/swamp.tscn" id="95_gcobm"]
+[ext_resource type="Texture2D" uid="uid://cv8volib6qfy1" path="res://addons/terrabrush/Assets/Textures/Rock051/Rock051_Roughness.png" id="96_2srjq"]
+[ext_resource type="PackedScene" path="res://scenes/environment/volcano_light.tscn" id="96_8g8tp"]
+[ext_resource type="Texture2D" uid="uid://cog14bsccq3nw" path="res://addons/terrabrush/Assets/Textures/Rock015/Rock015_Albedo.png" id="97_cnnyy"]
+[ext_resource type="PackedScene" uid="uid://bt2rlba45g5yl" path="res://scenes/environment/volcano_smoke.tscn" id="97_mduvp"]
+[ext_resource type="PackedScene" uid="uid://coggm3fumsr6h" path="res://assets/structures/pillar_broken_stone.glb" id="98_kparq"]
+[ext_resource type="Texture2D" uid="uid://wv24cwtehth2" path="res://addons/terrabrush/Assets/Textures/Rock015/Rock015_Height.png" id="98_sdwp7"]
+[ext_resource type="PackedScene" uid="uid://dte13ut4coggi" path="res://assets/structures/pillar_carved_crescent.glb" id="99_g4uf2"]
+[ext_resource type="Texture2D" uid="uid://vw61cf5g5464" path="res://addons/terrabrush/Assets/Textures/Rock015/Rock015_Normal.png" id="99_i65u4"]
+[ext_resource type="PackedScene" uid="uid://cybs5dox6yqhh" path="res://assets/structures/pillar_pointed_slab.glb" id="100_2srjq"]
+[ext_resource type="Texture2D" uid="uid://c7b02xvylutin" path="res://addons/terrabrush/Assets/Textures/Rock015/Rock015_Roughness.png" id="100_siirq"]
+[ext_resource type="PackedScene" uid="uid://b3i3qhkyjfnq" path="res://assets/structures/pillar_slender_monolith.glb" id="101_cnnyy"]
+[ext_resource type="PackedScene" uid="uid://b1g7lbwfgdidf" path="res://assets/structures/pillar_weathered_sentinel.glb" id="102_sdwp7"]
+[ext_resource type="Image" uid="uid://ob0rfk35p1fo" path="res://scenes/misc/Main/Splatmap_0_0_4.res" id="106_sdwp7"]
+[ext_resource type="Shader" path="res://assets/shaders/terrain_water.gdshader" id="200_water"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_w4i7m"]
 shader = ExtResource("2_tafxk")
@@ -43,12 +113,12 @@ shader_parameter/atm_darkness = 0.5
 shader_parameter/atm_sun_intensity = 18.0
 shader_parameter/atm_day_tint = Color(0.8491341, 0.9290065, 0.9999997, 1)
 shader_parameter/atm_horizon_light_tint = Color(0.980392, 0.635294, 0.462745, 1)
-shader_parameter/atm_night_tint = Color(0.11776571, 0.13967599, 0.1752794, 0.69837993)
+shader_parameter/atm_night_tint = Color(0, 0, 0, 0)
 shader_parameter/atm_level_params = Vector3(1, 0, 0)
 shader_parameter/atm_thickness = 0.7
 shader_parameter/atm_beta_ray = Vector3(5.804544e-06, 1.3562913e-05, 3.311258e-05)
 shader_parameter/atm_beta_mie = Vector3(3.038e-08, 3.038e-08, 3.038e-08)
-shader_parameter/sun_light_color = Color(0.98, 0.523, 0.294, 1)
+shader_parameter/sun_light_color = Color(1, 1, 1, 1)
 shader_parameter/sun_disk_color = Color(0.996094, 0.541334, 0.140076, 1)
 shader_parameter/sun_disk_intensity = 30.0
 shader_parameter/sun_disk_size = 0.02
@@ -62,7 +132,7 @@ shader_parameter/moon_texture_flip_u = false
 shader_parameter/moon_texture_flip_v = false
 shader_parameter/moon_size = 0.07
 shader_parameter/atm_moon_mie_tint = Color(0.137255, 0.184314, 0.292196, 1)
-shader_parameter/atm_moon_mie_intensity = 0.7
+shader_parameter/atm_moon_mie_intensity = 0.0
 shader_parameter/atm_moon_partial_mie_phase = Vector3(0.36, 1.64, 1.6)
 shader_parameter/starmap_color = Color(0.709804, 0.709804, 0.709804, 0.854902)
 shader_parameter/starmap_texture = ExtResource("8_fwtpx")
@@ -70,7 +140,7 @@ shader_parameter/starmap_flip_u = false
 shader_parameter/starmap_flip_v = false
 shader_parameter/starmap_alignment = Vector3(2.68288, -0.25891, 0.40101)
 shader_parameter/star_rotation_offset = 9.38899
-shader_parameter/star_rotation = -9.50518239812662
+shader_parameter/star_rotation = -12.037250621424258
 shader_parameter/star_tilt = -1.2915436464758039
 shader_parameter/star_field_color = Color(1, 1, 1, 1)
 shader_parameter/star_field_texture = ExtResource("7_k8tuh")
@@ -86,8 +156,8 @@ shader_parameter/cirrus_absorption = 2.0
 shader_parameter/cirrus_sky_tint_fade = 0.5
 shader_parameter/cirrus_size = 1.0
 shader_parameter/cirrus_uv = Vector2(0.16, 0.11)
-shader_parameter/cirrus_position1 = Vector2(0.39305705, 0.39305705)
-shader_parameter/cirrus_position2 = Vector2(0.39305705, 0.39305705)
+shader_parameter/cirrus_position1 = Vector2(0.844245, 0.844245)
+shader_parameter/cirrus_position2 = Vector2(0.844245, 0.844245)
 shader_parameter/cirrus_texture = ExtResource("3_i5wgy")
 shader_parameter/cumulus_visible = true
 shader_parameter/cumulus_intensity = 0.52
@@ -97,7 +167,7 @@ shader_parameter/cumulus_absorption = 2.0
 shader_parameter/cumulus_noise_freq = 2.7
 shader_parameter/cumulus_sky_tint_fade = 0.0
 shader_parameter/cumulus_size = 0.5
-shader_parameter/cumulus_position = Vector2(1.9653554, 1.9653554)
+shader_parameter/cumulus_position = Vector2(4.2217965, 4.2217965)
 shader_parameter/cumulus_texture = ExtResource("4_xvpgp")
 shader_parameter/cumulus_partial_mie_phase = Vector3(0.957564, 1.042436, 0.412)
 shader_parameter/cumulus_mie_intensity = 1.0
@@ -107,7 +177,7 @@ shader_parameter/azimuthal_grid_rotation_offset = 0.03
 shader_parameter/show_equatorial_grid = false
 shader_parameter/equatorial_grid_color = Color(0, 0.75, 1, 1)
 shader_parameter/equatorial_grid_rotation_offset = 0.03
-shader_parameter/moon_matrix = Basis(-0.042693254, 0.9603853, 0.27538607, 0.47774082, 0.26170638, -0.83861417, -0.87746286, 0.09576, -0.46998832)
+shader_parameter/moon_matrix = Basis(-0.62550515, -0.7499954, -0.21505773, -0.37027663, 0.527972, -0.7642908, 0.6867592, -0.39843708, -0.6079552)
 
 [sub_resource type="Sky" id="Sky_rg1j2"]
 sky_material = SubResource("ShaderMaterial_w4i7m")
@@ -116,8 +186,7 @@ sky_material = SubResource("ShaderMaterial_w4i7m")
 background_mode = 2
 sky = SubResource("Sky_rg1j2")
 ambient_light_source = 3
-ambient_light_color = Color(0.23768455, 0.27983963, 0.35, 1)
-ambient_light_sky_contribution = 0.7
+ambient_light_color = Color(1, 1, 1, 1)
 ambient_light_energy = 1.105
 reflected_light_source = 2
 tonemap_mode = 3
@@ -126,18 +195,10 @@ tonemap_white = 6.0
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_sq54b"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_1"]
+geometry_parsed_geometry_type = 1
+geometry_collision_mask = 16
 agent_height = 2.0
 agent_max_climb = 0.5
-
-[sub_resource type="StandardMaterial3D" id="Material_Base"]
-albedo_texture = ExtResource("8_base_diff")
-roughness = 0.8
-normal_enabled = true
-normal_scale = 1.5
-normal_texture = ExtResource("9_base_norm")
-uv1_scale = Vector3(0.08, 0.08, 0.08)
-uv1_triplanar = true
-uv1_world_triplanar = true
 
 [sub_resource type="StandardMaterial3D" id="Material_Crystal"]
 transparency = 1
@@ -147,61 +208,186 @@ emission_enabled = true
 emission = Color(0.5, 0.1, 0.6, 1)
 emission_energy_multiplier = 5.7
 
-[sub_resource type="StandardMaterial3D" id="Material_White"]
-albedo_color = Color(0.78, 0.84, 0.68, 1)
-albedo_texture = ExtResource("10_white_diff")
-roughness = 0.9
-roughness_texture = ExtResource("21_white_rough")
-normal_enabled = true
-normal_scale = 1.5
-normal_texture = ExtResource("11_white_norm")
-uv1_scale = Vector3(0.08, 0.08, 0.08)
-uv1_triplanar = true
-uv1_world_triplanar = true
-
 [sub_resource type="StandardMaterial3D" id="Material_Spawner"]
 albedo_color = Color(0.8, 0.1, 0.1, 1)
 roughness = 0.3
 
-[sub_resource type="StandardMaterial3D" id="Material_Blue"]
-albedo_texture = ExtResource("12_blue_diff")
-roughness = 0.9
-normal_enabled = true
-normal_scale = 1.5
-normal_texture = ExtResource("13_blue_norm")
-uv1_scale = Vector3(0.08, 0.08, 0.08)
-uv1_triplanar = true
-uv1_world_triplanar = true
+[sub_resource type="TextureSetResource" id="TextureSetResource_ve6a8"]
+albedoTexture = ExtResource("33_txvyh")
+normalTexture = ExtResource("35_u733h")
+roughnessTexture = ExtResource("36_q2y6g")
+heightTexture = ExtResource("34_50w3u")
+specular = 0.0
 
-[sub_resource type="StandardMaterial3D" id="Material_Black"]
-albedo_texture = ExtResource("14_black_diff")
-roughness = 0.9
-normal_enabled = true
-normal_scale = 1.5
-normal_texture = ExtResource("15_black_norm")
-uv1_scale = Vector3(0.08, 0.08, 0.08)
-uv1_triplanar = true
-uv1_world_triplanar = true
+[sub_resource type="TextureSetResource" id="TextureSetResource_mmojm"]
+albedoTexture = ExtResource("37_esgqe")
+normalTexture = ExtResource("39_k7hcf")
+roughnessTexture = ExtResource("40_3uf3g")
+heightTexture = ExtResource("38_wppt0")
+specular = 0.0
 
-[sub_resource type="StandardMaterial3D" id="Material_Red"]
-albedo_texture = ExtResource("16_red_diff")
-roughness = 0.9
-normal_enabled = true
-normal_scale = 1.5
-normal_texture = ExtResource("17_red_norm")
-uv1_scale = Vector3(0.08, 0.08, 0.08)
-uv1_triplanar = true
-uv1_world_triplanar = true
+[sub_resource type="TextureSetResource" id="TextureSetResource_qfssv"]
+albedoTexture = ExtResource("41_x7dmq")
+normalTexture = ExtResource("43_p2rl2")
+roughnessTexture = ExtResource("44_ok2av")
+heightTexture = ExtResource("42_sb1md")
+specular = 0.0
 
-[sub_resource type="StandardMaterial3D" id="Material_Green"]
-albedo_texture = ExtResource("18_green_diff")
-roughness = 0.9
-normal_enabled = true
-normal_scale = 1.5
-normal_texture = ExtResource("19_green_norm")
-uv1_scale = Vector3(0.08, 0.08, 0.08)
-uv1_triplanar = true
-uv1_world_triplanar = true
+[sub_resource type="TextureSetResource" id="TextureSetResource_ayq0h"]
+albedoTexture = ExtResource("45_bif71")
+normalTexture = ExtResource("47_2hqj3")
+roughnessTexture = ExtResource("48_avc4j")
+heightTexture = ExtResource("46_herpf")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_wvpf7"]
+albedoTexture = ExtResource("49_erpbv")
+normalTexture = ExtResource("51_x2uu7")
+roughnessTexture = ExtResource("52_vfoqf")
+heightTexture = ExtResource("50_3kmkn")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_qy21g"]
+albedoTexture = ExtResource("53_bot0s")
+normalTexture = ExtResource("55_agxr8")
+roughnessTexture = ExtResource("56_btwst")
+heightTexture = ExtResource("54_b8ah5")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_bif71"]
+albedoTexture = ExtResource("57_7r8lw")
+normalTexture = ExtResource("59_spg4g")
+roughnessTexture = ExtResource("60_toge7")
+heightTexture = ExtResource("58_33vy2")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_herpf"]
+albedoTexture = ExtResource("33_rg1j2")
+normalTexture = ExtResource("35_sq54b")
+roughnessTexture = ExtResource("36_amxbg")
+heightTexture = ExtResource("34_7uu3w")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_2hqj3"]
+albedoTexture = ExtResource("65_8os88")
+normalTexture = ExtResource("67_qdf57")
+roughnessTexture = ExtResource("68_5054f")
+heightTexture = ExtResource("66_tid4t")
+specular = 0.075
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_avc4j"]
+albedoTexture = ExtResource("69_27io6")
+normalTexture = ExtResource("71_gye48")
+roughnessTexture = ExtResource("72_bk8c7")
+heightTexture = ExtResource("70_6s8j1")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_nxa4y"]
+albedoTexture = ExtResource("73_e46dg")
+normalTexture = ExtResource("75_54asi")
+roughnessTexture = ExtResource("76_m7oiy")
+heightTexture = ExtResource("74_o72nt")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_vl6u8"]
+albedoTexture = ExtResource("77_27io6")
+normalTexture = ExtResource("79_gye48")
+roughnessTexture = ExtResource("80_bk8c7")
+heightTexture = ExtResource("78_6s8j1")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_wb3n1"]
+albedoTexture = ExtResource("37_dmxqf")
+normalTexture = ExtResource("39_50w3u")
+roughnessTexture = ExtResource("40_u733h")
+heightTexture = ExtResource("38_txvyh")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_yot8j"]
+albedoTexture = ExtResource("85_o72nt")
+normalTexture = ExtResource("87_m7oiy")
+roughnessTexture = ExtResource("88_xy1ao")
+heightTexture = ExtResource("86_54asi")
+specular = 0.3
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_5v6xv"]
+albedoTexture = ExtResource("89_gcobm")
+normalTexture = ExtResource("91_mduvp")
+roughnessTexture = ExtResource("92_fddui")
+heightTexture = ExtResource("90_8g8tp")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_cnnyy"]
+albedoTexture = ExtResource("93_5v6xv")
+normalTexture = ExtResource("95_g4uf2")
+roughnessTexture = ExtResource("96_2srjq")
+heightTexture = ExtResource("94_kparq")
+specular = 0.0
+
+[sub_resource type="TextureSetResource" id="TextureSetResource_ndvxj"]
+albedoTexture = ExtResource("97_cnnyy")
+normalTexture = ExtResource("99_i65u4")
+roughnessTexture = ExtResource("100_siirq")
+heightTexture = ExtResource("98_sdwp7")
+
+[sub_resource type="TextureSetsResource" id="TextureSetsResource_wvpf7"]
+textureSets = Array[TextureSetResource]([SubResource("TextureSetResource_ve6a8"), SubResource("TextureSetResource_mmojm"), SubResource("TextureSetResource_qfssv"), SubResource("TextureSetResource_ayq0h"), SubResource("TextureSetResource_wvpf7"), SubResource("TextureSetResource_qy21g"), SubResource("TextureSetResource_bif71"), SubResource("TextureSetResource_herpf"), SubResource("TextureSetResource_2hqj3"), SubResource("TextureSetResource_avc4j"), SubResource("TextureSetResource_nxa4y"), SubResource("TextureSetResource_vl6u8"), SubResource("TextureSetResource_wb3n1"), SubResource("TextureSetResource_yot8j"), SubResource("TextureSetResource_5v6xv"), SubResource("TextureSetResource_cnnyy"), SubResource("TextureSetResource_ndvxj")])
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_gcobm"]
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_m7oiy"]
+noise = SubResource("FastNoiseLite_gcobm")
+seamless = true
+as_normal_map = true
+normalize = false
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_8g8tp"]
+seed = 1
+frequency = 0.013
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_xy1ao"]
+noise = SubResource("FastNoiseLite_8g8tp")
+seamless = true
+as_normal_map = true
+normalize = false
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_5v6xv"]
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_mduvp"]
+noise = SubResource("FastNoiseLite_5v6xv")
+seamless = true
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_water"]
+shader = ExtResource("200_water")
+
+[sub_resource type="WaterResource" id="WaterResource_o72nt"]
+customShader = SubResource("ShaderMaterial_water")
+waterFactor = 3.0
+waterInnerOffset = 0.3
+waterColor = Color(0, 0.031, 0.051, 1)
+waterFresnelColor = Color(0.251, 0.353, 0.4, 1)
+waterRoughness = 0.05
+waterNormalMap = SubResource("NoiseTexture2D_m7oiy")
+waterNormalMap2 = SubResource("NoiseTexture2D_xy1ao")
+waterTimeScale = 0.05
+waterStrength = 1.5
+waterWave = SubResource("NoiseTexture2D_mduvp")
+waterHeightScale = 0.05
+waterColorDeep = Color(0.02, 0.122, 0.2, 1)
+waterColorShallow = Color(0.251, 0.549, 0.549, 1)
+waterBeersLaw = 1.5
+waterEdgeScale = 0.03
+waterNear = 0.05
+waterFar = 4000.0
+waterEdgeColor = Color(0.784, 0.855, 0.855, 1)
+
+[sub_resource type="ZoneResource" id="ZoneResource_wppt0"]
+heightMapImage = ExtResource("41_q2y6g")
+splatmapsImage = Array[Image]([ExtResource("42_esgqe"), ExtResource("47_bif71"), ExtResource("80_xy1ao"), ExtResource("93_gcobm"), ExtResource("106_sdwp7")])
+waterImage = ExtResource("94_54asi")
+
+[sub_resource type="ZonesResource" id="ZonesResource_k7hcf"]
+zones = Array[ZoneResource]([SubResource("ZoneResource_wppt0")])
 
 [node name="Main" type="Node3D" unique_id=1615303851]
 script = ExtResource("1_main")
@@ -210,7 +396,8 @@ script = ExtResource("1_main")
 environment = SubResource("Environment_7uu3w")
 camera_attributes = SubResource("CameraAttributesPractical_sq54b")
 script = ExtResource("9_ppysr")
-current_time = 4.644620000101328
+editor_time_enabled = false
+current_time = 14.29
 minutes_per_day = 60.0
 skydome_energy = 0.84
 cloud_intensity = 0.52
@@ -220,53 +407,44 @@ wind_direction = 2.35619451204804
 metadata/_custom_type_script = "uid://deo0gxkmk2ahd"
 
 [node name="SunLight" type="DirectionalLight3D" parent="Sky3D" unique_id=1301438558]
-transform = Transform3D(0.29302704, 0.3808927, 0.8769583, 0, 0.9172204, -0.39837995, -0.9561041, 0.1167361, 0.26877043, 0.8769583, -0.39837995, 0.26877043)
-light_color = Color(0.98, 0.523, 0.294, 1)
-light_energy = 0.0
+transform = Transform3D(0.72334826, 0.4343902, -0.5367238, 0, 0.777316, 0.62911034, 0.69048333, -0.45506588, 0.5622702, -0.5367238, 0.62911034, 0.5622702)
+shadow_enabled = true
 
 [node name="MoonLight" type="DirectionalLight3D" parent="Sky3D" unique_id=380553891]
-transform = Transform3D(0, -0.47964466, -0.87746286, -0.97986776, -0.1751835, 0.09575997, -0.19964777, 0.8597976, -0.4699883, -0.87746286, 0.09575997, -0.4699883)
+transform = Transform3D(0, -0.72688496, 0.6867593, -0.8363844, -0.37644255, -0.39843714, 0.5481434, -0.57439476, -0.6079552, 0.6867593, -0.39843714, -0.6079552)
 light_color = Color(0.572549, 0.776471, 0.956863, 1)
-light_energy = 0.3338134
-shadow_enabled = true
+light_energy = 0.0
 
 [node name="SkyDome" type="Node" parent="Sky3D" unique_id=87682917]
 script = ExtResource("10_of6xu")
 exposure = 0.84
-sun_azimuth = -1.8681877
-sun_altitude = -1.9805462
-moon_azimuth = -5.2041264
-moon_altitude = -1.4748894
+sun_azimuth = -3.9037497
+sun_altitude = -0.8903882
+moon_azimuth = -0.84618914
+moon_altitude = -1.9806086
 moon_light_energy = 5.0
 atm_day_tint = Color(0.8491341, 0.9290065, 0.9999997, 1)
-fog_density = 0.017221568
+fog_density = 0.010975039
 fog_start = 50.0
 fog_end = 100.0
 fog_sea_level = -1.0
-fog_rayleigh_depth = 0.009554245
+fog_rayleigh_depth = 0.0053006094
+fog_mie_depth = 0.028963111
 wind_direction = 2.35619451204804
 cumulus_intensity = 0.52
 
 [node name="TimeOfDay" type="Node" parent="Sky3D" unique_id=422699861]
 script = ExtResource("11_rywwc")
+editor_time_enabled = false
 dome_path = NodePath("../SkyDome")
 minutes_per_day = 60.0
-current_time = 4.644620000101328
+current_time = 14.29
 day = 12
 
 [node name="HUD" parent="." unique_id=1088357893 instance=ExtResource("2_hud")]
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="." unique_id=389480206]
 navigation_mesh = SubResource("NavigationMesh_1")
-
-[node name="BasePentagon" type="CSGCylinder3D" parent="NavigationRegion3D" unique_id=980948011]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 0, 0.25, 0)
-use_collision = true
-collision_layer = 16
-radius = 50.0
-height = 0.5
-sides = 5
-material = SubResource("Material_Base")
 
 [node name="MainCrystal" type="CSGBox3D" parent="NavigationRegion3D" unique_id=2093067025 groups=["crystal_hitbox"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5.3, 0)
@@ -285,14 +463,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
 
 [node name="Lane_White" type="Node3D" parent="NavigationRegion3D/Lanes" unique_id=1574773339]
 
-[node name="Geometry" type="CSGPolygon3D" parent="NavigationRegion3D/Lanes/Lane_White" unique_id=1499687993]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -40.4508)
-use_collision = true
-collision_layer = 16
-polygon = PackedVector2Array(-29.3892, 0, -134.0118, -144, 134.0118, -144, 29.3892, 0)
-depth = 0.5
-material = SubResource("Material_White")
-
 [node name="ManaSource" type="Area3D" parent="NavigationRegion3D/Lanes/Lane_White" unique_id=66589503 groups=["mana_sources"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -112.4508)
 collision_layer = 0
@@ -301,9 +471,10 @@ metadata/lane_index = 0
 metadata/lane_name = "White"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_White/ManaSource" unique_id=116146493 instance=ExtResource("3_well_white")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3196731, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_White" unique_id=555229883 groups=["spawners"]]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4066858, -179.4508)
 metadata/lane_index = 0
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_White/EnemySpawner" unique_id=990309684]
@@ -314,14 +485,6 @@ material = SubResource("Material_Spawner")
 [node name="Lane_Blue" type="Node3D" parent="NavigationRegion3D/Lanes" unique_id=1061939795]
 transform = Transform3D(0.309017, 0, -0.951057, 0, 1, 0, 0.951057, 0, 0.309017, 0, 0, 0)
 
-[node name="Geometry" type="CSGPolygon3D" parent="NavigationRegion3D/Lanes/Lane_Blue" unique_id=1278420759]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -40.4508)
-use_collision = true
-collision_layer = 16
-polygon = PackedVector2Array(-29.3892, 0, -134.0118, -144, 134.0118, -144, 29.3892, 0)
-depth = 0.5
-material = SubResource("Material_Blue")
-
 [node name="ManaSource" type="Area3D" parent="NavigationRegion3D/Lanes/Lane_Blue" unique_id=625831615 groups=["mana_sources"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -112.4508)
 collision_layer = 0
@@ -330,26 +493,19 @@ metadata/lane_index = 1
 metadata/lane_name = "Blue"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Blue/ManaSource" unique_id=1074833049 instance=ExtResource("4_well_blue")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5411768, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Blue" unique_id=279903782 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
 metadata/lane_index = 1
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_Blue/EnemySpawner" unique_id=937391241]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.40009785, 0)
 size = Vector3(1.5, 1.5, 1.5)
 material = SubResource("Material_Spawner")
 
 [node name="Lane_Black" type="Node3D" parent="NavigationRegion3D/Lanes" unique_id=764561733]
 transform = Transform3D(-0.809017, 0, -0.587785, 0, 1, 0, 0.587785, 0, -0.809017, 0, 0, 0)
-
-[node name="Geometry" type="CSGPolygon3D" parent="NavigationRegion3D/Lanes/Lane_Black" unique_id=870798473]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -40.4508)
-use_collision = true
-collision_layer = 16
-polygon = PackedVector2Array(-29.3892, 0, -134.0118, -144, 134.0118, -144, 29.3892, 0)
-depth = 0.5
-material = SubResource("Material_Black")
 
 [node name="ManaSource" type="Area3D" parent="NavigationRegion3D/Lanes/Lane_Black" unique_id=21760138 groups=["mana_sources"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -112.4508)
@@ -359,26 +515,19 @@ metadata/lane_index = 2
 metadata/lane_name = "Black"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Black/ManaSource" unique_id=1853583485 instance=ExtResource("5_well_black")]
+transform = Transform3D(0.9999999, 0, 0, 0, 1, 0, 0, 0, 0.9999999, 0, -0.54421735, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Black" unique_id=412126932 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
 metadata/lane_index = 2
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_Black/EnemySpawner" unique_id=25498473]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+transform = Transform3D(0.99999994, 0, 2.9802322e-08, 0, 1, 0, -2.9802322e-08, 0, 0.99999994, 0, 0.07373428, 0)
 size = Vector3(1.5, 1.5, 1.5)
 material = SubResource("Material_Spawner")
 
 [node name="Lane_Red" type="Node3D" parent="NavigationRegion3D/Lanes" unique_id=794598649]
 transform = Transform3D(-0.809017, 0, 0.587785, 0, 1, 0, -0.587785, 0, -0.809017, 0, 0, 0)
-
-[node name="Geometry" type="CSGPolygon3D" parent="NavigationRegion3D/Lanes/Lane_Red" unique_id=919139598]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -40.4508)
-use_collision = true
-collision_layer = 16
-polygon = PackedVector2Array(-29.3892, 0, -134.0118, -144, 134.0118, -144, 29.3892, 0)
-depth = 0.5
-material = SubResource("Material_Red")
 
 [node name="ManaSource" type="Area3D" parent="NavigationRegion3D/Lanes/Lane_Red" unique_id=723066967 groups=["mana_sources"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -112.4508)
@@ -388,26 +537,19 @@ metadata/lane_index = 3
 metadata/lane_name = "Red"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Red/ManaSource" unique_id=1055033489 instance=ExtResource("6_well_red")]
+transform = Transform3D(0.99999994, 0, -2.9802322e-08, 0, 1, 0, 2.9802322e-08, 0, 0.99999994, 0, -0.71180725, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Red" unique_id=693690319 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
 metadata/lane_index = 3
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_Red/EnemySpawner" unique_id=438236655]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+transform = Transform3D(0.99999994, 0, -2.9802322e-08, 0, 1, 0, 2.9802322e-08, 0, 0.99999994, 0, 0.7118454, 0)
 size = Vector3(1.5, 1.5, 1.5)
 material = SubResource("Material_Spawner")
 
 [node name="Lane_Green" type="Node3D" parent="NavigationRegion3D/Lanes" unique_id=808519689]
 transform = Transform3D(0.309017, 0, 0.951057, 0, 1, 0, -0.951057, 0, 0.309017, 0, 0, 0)
-
-[node name="Geometry" type="CSGPolygon3D" parent="NavigationRegion3D/Lanes/Lane_Green" unique_id=1147962945]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -40.4508)
-use_collision = true
-collision_layer = 16
-polygon = PackedVector2Array(-29.3892, 0, -134.0118, -144, 134.0118, -144, 29.3892, 0)
-depth = 0.5
-material = SubResource("Material_Green")
 
 [node name="ManaSource" type="Area3D" parent="NavigationRegion3D/Lanes/Lane_Green" unique_id=1548401807 groups=["mana_sources"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -112.4508)
@@ -417,6 +559,7 @@ metadata/lane_index = 4
 metadata/lane_name = "Green"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Green/ManaSource" unique_id=243531861 instance=ExtResource("7_well_green")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8213339, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Green" unique_id=1886257386 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -448,17 +591,100 @@ spawn_path = NodePath("../Myrs")
 [node name="EffectNetSpawner" type="MultiplayerSpawner" parent="." unique_id=1751286532]
 spawn_path = NodePath("../Effects")
 
-[node name="Meshy_AI_Cracked_Crescent_0921233649_texture3" parent="." unique_id=1885759939 instance=ExtResource("32_i5wgy")]
-transform = Transform3D(-21.160267, 0, 29.124613, 0, 36, 0, -29.124613, 0, -21.160267, -29.3675, 16.25, -40.252)
+[node name="TerraBrush" type="TerraBrush" parent="." unique_id=255431259]
+dataPath = "res://scenes/misc/Main"
+zonesSize = 512
+createCollisionInThread = false
+collisionLayers = 16
+textureSets = SubResource("TextureSetsResource_wvpf7")
+textureDetail = 50
+nearestTextureFilter = true
+waterDefinition = SubResource("WaterResource_o72nt")
+terrainZones = SubResource("ZonesResource_k7hcf")
+physics_interpolation_mode = 2
+metadata/_edit_lock_ = false
 
-[node name="Meshy_AI_Cracked_Crescent_0921233649_texture2" parent="." unique_id=1681519761 instance=ExtResource("32_i5wgy")]
-transform = Transform3D(4.292957e-07, 0, -36, 0, 36, 0, 36, 0, 4.292957e-07, 0, 16.25, 47.908524)
+[node name="Swamp" parent="." unique_id=698008996 instance=ExtResource("95_gcobm")]
+transform = Transform3D(5.7817826, 0, -1.6034303, 0, 6, 0, 1.6034303, 0, 5.7817826, 114.253235, -7.6293945e-06, 171.33482)
 
-[node name="Meshy_AI_Cracked_Crescent_0921233649_texture" parent="." unique_id=964813932 instance=ExtResource("32_i5wgy")]
-transform = Transform3D(34.42697, 0, -10.525381, 0, 36, 0, 10.525381, 0, 34.42697, 47.207657, 16.25, 15.319265)
+[node name="VolcanoLight" parent="." unique_id=984410338 instance=ExtResource("96_8g8tp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -145.93121, 86.598785, 172.28755)
 
-[node name="Meshy_AI_Cracked_Crescent_0921233649_texture4" parent="." unique_id=1297126774 instance=ExtResource("32_i5wgy")]
-transform = Transform3D(-34.238033, 0, -11.124613, 0, 36, 0, 11.124613, 0, -34.238033, -47.420376, 16.25, 15.857677)
+[node name="VolcanoSmoke" parent="." unique_id=1751862520 instance=ExtResource("97_mduvp")]
+transform = Transform3D(-0.98570347, 0, 0.16848934, 0, 1, 0, -0.16848934, 0, -0.98570347, -147.73683, 75.87078, 173.94023)
 
-[node name="Meshy_AI_Cracked_Crescent_0921233649_texture5" parent="." unique_id=117296096 instance=ExtResource("32_i5wgy")]
-transform = Transform3D(21.160269, 0, 29.124613, 0, 36, 0, -29.124613, 0, 21.160269, 31.179354, 16.25, -43.360878)
+[node name="OuterStoneRing" type="Node3D" parent="." unique_id=1341683072]
+transform = Transform3D(-18.809126, 0, 25.888544, 0, 32, 0, -25.888544, 0, -18.809126, -29.368, 16.009, -40.252)
+
+[node name="pillar_carved_crescent2" parent="OuterStoneRing" unique_id=1535943905 instance=ExtResource("99_g4uf2")]
+
+[node name="pillar_carved_crescent3" parent="OuterStoneRing" unique_id=540724521 instance=ExtResource("99_g4uf2")]
+transform = Transform3D(-0.8090171, 0, 0.58778524, 0, 1, 0, -0.58778524, 0, -0.8090171, -2.7682953, 4.4703484e-06, -0.8768825)
+
+[node name="pillar_carved_crescent4" parent="OuterStoneRing" unique_id=1125296890 instance=ExtResource("99_g4uf2")]
+transform = Transform3D(-0.7986355, 0, -0.60181516, 0, 1, 0, 0.60181516, 0, -0.7986355, -2.8115046, 4.4703484e-06, 0.91522026)
+
+[node name="pillar_carved_crescent5" parent="OuterStoneRing" unique_id=979782907 instance=ExtResource("99_g4uf2")]
+transform = Transform3D(0.30901688, 0, 0.9510566, 0, 1, 0, -0.9510566, 0, 0.30901688, -1.0869615, 4.4703484e-06, -1.487035)
+
+[node name="pillar_carved_crescent6" parent="OuterStoneRing" unique_id=1160310681 instance=ExtResource("99_g4uf2")]
+transform = Transform3D(0.3090171, 0, -0.9510566, 0, 1, 0, 0.9510566, 0, 0.3090171, -1.0335532, 4.4703484e-06, 1.5878501)
+
+[node name="StoneRings" type="Node3D" parent="." unique_id=662480395]
+
+[node name="weathered_sentinel_1" parent="StoneRings" unique_id=409436517 instance=ExtResource("102_sdwp7")]
+transform = Transform3D(3.29195, 0.066, 4.5253, -0.14567, 5.59445, 0.02437, -4.52344, -0.13213, 3.29252, 21.4337, 2.4624, 3.0423)
+
+[node name="pointed_slab_1" parent="StoneRings" unique_id=1963627556 instance=ExtResource("100_2srjq")]
+transform = Transform3D(-0.66792, -0.47552, -7.35625, 0.02101, 7.38623, -0.47937, 7.37157, -0.06413, -0.66517, 18.5823, 3.2568, 9.7617)
+
+[node name="slender_monolith_1" parent="StoneRings" unique_id=1906919779 instance=ExtResource("101_cnnyy")]
+transform = Transform3D(-0.2018, 0.20625, -7.76481, -0.14681, 7.76594, 0.2101, 7.76616, 0.15216, -0.19779, 2.2386, 3.4189, 21.7317)
+
+[node name="broken_stone_1" parent="StoneRings" unique_id=940543059 instance=ExtResource("98_kparq")]
+transform = Transform3D(3.96384, -0.42601, 5.31956, 0.23762, 6.63395, 0.35421, -5.3313, -0.02106, 3.9709, -20.8483, 2.925, 4.4044)
+
+[node name="pointed_slab_2" parent="StoneRings" unique_id=1417289956 instance=ExtResource("100_2srjq")]
+transform = Transform3D(-2.38644, -0.21157, -7.59034, 0.29649, 7.94772, -0.31475, 7.5875, -0.37711, -2.37504, -15.1631, 3.5022, -17.005)
+
+[node name="broken_stone_2" parent="StoneRings" unique_id=355914337 instance=ExtResource("98_kparq")]
+transform = Transform3D(-3.19217, 0.09566, 5.44969, 0.13878, 6.31491, -0.02955, -5.44876, 0.1048, -3.19346, 13.0363, 2.7793, -17.1763)
+
+[node name="slender_monolith_2" parent="StoneRings" unique_id=1460859800 instance=ExtResource("101_cnnyy")]
+transform = Transform3D(-6.36585, 0.40934, 7.36155, 0.34134, 9.73176, -0.24596, -7.36502, 0.09723, -6.37426, 32.3472, 4.286, 6.0925)
+
+[node name="weathered_sentinel_2" parent="StoneRings" unique_id=1555885848 instance=ExtResource("102_sdwp7")]
+transform = Transform3D(-1.03496, 0.00963, 9.43727, 0.09857, 9.49335, 0.00112, -9.43676, 0.0981, -1.03501, 29.2414, 4.1773, 19.9879)
+
+[node name="pointed_slab_3" parent="StoneRings" unique_id=612961936 instance=ExtResource("100_2srjq")]
+transform = Transform3D(5.71767, -0.25169, -4.51044, 0.22662, 7.28241, -0.1191, 4.51176, -0.04682, 5.72196, 12.8379, 3.2062, 30.0251)
+
+[node name="broken_stone_3" parent="StoneRings" unique_id=755582153 instance=ExtResource("98_kparq")]
+transform = Transform3D(-7.70994, -0.26914, 5.31498, -0.26972, 9.36403, 0.08291, -5.31495, -0.08479, -7.71419, -0.9437, 4.1704, 34.4788)
+
+[node name="weathered_sentinel_3" parent="StoneRings" unique_id=57447183 instance=ExtResource("102_sdwp7")]
+transform = Transform3D(-3.22993, 0.37678, -8.49582, 0.25201, 9.0882, 0.30725, 8.50043, -0.12627, -3.23729, -9.5649, 4.0274, 33.0441)
+
+[node name="slender_monolith_3" parent="StoneRings" unique_id=1546131619 instance=ExtResource("101_cnnyy")]
+transform = Transform3D(5.81934, -0.11326, -3.53463, -0.03673, 6.80384, -0.27848, 3.53625, 0.25704, 5.81377, -28.3962, 2.9986, 19.6131)
+
+[node name="broken_stone_4" parent="StoneRings" unique_id=1132694360 instance=ExtResource("98_kparq")]
+transform = Transform3D(5.02647, 0.53085, 6.23628, -0.20293, 8.00804, -0.51811, -6.25554, 0.16677, 5.0278, -32.7661, 3.532, 10.0975)
+
+[node name="weathered_sentinel_4" parent="StoneRings" unique_id=1046605917 instance=ExtResource("102_sdwp7")]
+transform = Transform3D(0.1705, -0.1507, -7.34921, 0.25187, 7.34699, -0.14481, 7.34643, -0.24839, 0.17553, -23.8627, 3.2352, -23.5966)
+
+[node name="slender_monolith_4" parent="StoneRings" unique_id=1271064405 instance=ExtResource("101_cnnyy")]
+transform = Transform3D(0.23209, 0.51904, 7.69056, 0.12715, 7.69274, -0.52302, -7.70701, 0.14254, 0.22297, -17.6168, 3.3931, -29.107)
+
+[node name="pointed_slab_4" parent="StoneRings" unique_id=133785919 instance=ExtResource("100_2srjq")]
+transform = Transform3D(-1.53717, 0.05136, -7.82012, -0.03326, 7.96965, 0.05888, 7.82022, 0.04399, -1.5369, -7.4068, 3.5068, -34.4088)
+
+[node name="pointed_slab_5" parent="StoneRings" unique_id=1840879993 instance=ExtResource("100_2srjq")]
+transform = Transform3D(-4.87602, 0.47419, 5.6279, 0.34345, 7.44627, -0.32983, -5.63739, 0.04351, -4.88791, 7.3874, 3.3313, -33.3899)
+
+[node name="broken_stone_5" parent="StoneRings" unique_id=2115266819 instance=ExtResource("98_kparq")]
+transform = Transform3D(-9.64751, 0.06182, -0.96671, 0.12897, 9.67208, -0.66859, 0.96006, -0.6781, -9.62451, 17.3273, 4.2922, -29.0146)
+
+[node name="slender_monolith_5" parent="StoneRings" unique_id=657745346 instance=ExtResource("101_cnnyy")]
+transform = Transform3D(0.4573, 0.06857, -8.04746, 0.53198, 8.04255, 0.09876, 8.03015, -0.53671, 0.45174, 24.8007, 3.5467, -21.3934)

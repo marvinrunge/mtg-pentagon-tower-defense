@@ -1,0 +1,53 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://assets/shaders/swamp_water.gdshader" id="1_swamp"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_algae"]
+seed = 3
+frequency = 0.012
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_algae"]
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_algae")
+seamless = true
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ripple"]
+seed = 11
+frequency = 0.03
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ripple"]
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_ripple")
+seamless = true
+as_normal_map = true
+bump_strength = 4.0
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ripple2"]
+seed = 29
+frequency = 0.045
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_ripple2"]
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_ripple2")
+seamless = true
+as_normal_map = true
+bump_strength = 4.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_swamp"]
+render_priority = 0
+shader = ExtResource("1_swamp")
+shader_parameter/algae_noise = SubResource("NoiseTexture2D_algae")
+shader_parameter/ripple_normal = SubResource("NoiseTexture2D_ripple")
+shader_parameter/ripple_normal_2 = SubResource("NoiseTexture2D_ripple2")
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_swamp"]
+material = SubResource("ShaderMaterial_swamp")
+size = Vector2(40, 40)
+
+[node name="Swamp" type="MeshInstance3D"]
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_swamp")

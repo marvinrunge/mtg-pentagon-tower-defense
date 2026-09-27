@@ -65,8 +65,8 @@ worse than an alpha-card billboard.
 
 Grass is already handled separately: `tools/build_grass_billboards.gd` keys the 2x2
 source sheets in `assets/foliage/grass/source/` into 20 alpha-cutout billboards, four
-per biome, and `scripts/grass_scatter.gd` scatters them across each lane wedge as
-MultiMeshes. Remaining foliage should follow that route rather than this one.
+per biome, which are placed on the terrain as TerraBrush foliage. Remaining foliage
+should follow that route rather than this one.
 
 **Craters are rims, not holes.** Every Meshy prop returns as a closed mesh with
 `origin_at: bottom`, so a generated crater sits on the ground like a bowl. The three

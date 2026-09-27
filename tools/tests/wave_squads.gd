@@ -153,6 +153,11 @@ func _start_test_wave() -> void:
 ## its own agent_radius, so even the spawner marker itself does not sit exactly ON the
 ## mesh - only a slot that lands meaningfully FURTHER off than the spawner already is
 ## signals a real problem.
+##
+## Per lane, against that lane's own spawner. Measured against the smallest baseline of
+## all five it only held while every lane was the same flat slab: on sculpted terrain one
+## spawner can sit metres further off the mesh than another, and its whole formation
+## was then judged by a neighbour's tolerance.
 func _check_formation_reachability() -> void:
 	if _scene == null or _scene.nav_region == null:
 		return
@@ -162,9 +167,9 @@ func _check_formation_reachability() -> void:
 		var plan_rng := RandomNumberGenerator.new()
 		plan_rng.seed = hash("wave:%d:%d" % [wave_idx, PlayerRegistry.count()])
 		var per_color: Dictionary = _manager._compose_wave(wave_idx, plan_rng)
-		var worst: float = 0.0
+		var worst: float = -INF
 		var worst_color: String = ""
-		var tolerance: float = INF
+		var worst_detail: String = ""
 		for color: String in WaveManager.LANE_COLORS:
 			var counts: Dictionary = per_color.get(color, {})
 			if counts.is_empty():
@@ -176,7 +181,6 @@ func _check_formation_reachability() -> void:
 			var origin: Vector3 = spawner.global_position
 			var forward: Vector3 = Vector3(spawner.global_transform.basis.z.x, 0.0, spawner.global_transform.basis.z.z).normalized()
 			var baseline: float = origin.distance_to(NavigationServer3D.map_get_closest_point(nav_map, origin))
-			tolerance = minf(tolerance, baseline + 1.5)
 
 			# The deploy's own seed, so this measures the formation the wave would really
 			# build rather than a differently jittered one.
@@ -188,14 +192,17 @@ func _check_formation_reachability() -> void:
 					var world: Vector3 = SquadDoctrine.to_world(origin, forward, offset)
 					var snapped: Vector3 = NavigationServer3D.map_get_closest_point(nav_map, world)
 					var off_mesh: float = world.distance_to(snapped)
-					if off_mesh > worst:
-						worst = off_mesh
+					# How much further off than its own spawner - the quantity the
+					# tolerance is on.
+					if off_mesh - baseline > worst:
+						worst = off_mesh - baseline
 						worst_color = color
-		if tolerance == INF:
+						worst_detail = "%.2f off, spawner %.2f" % [off_mesh, baseline]
+		if worst == -INF:
 			continue
 		_check("wave %d's formations stay within reach of the navmesh" % (wave_idx + 1),
-			worst <= tolerance,
-			"%s was worst at %.2f off (tolerance %.2f)" % [worst_color, worst, tolerance])
+			worst <= 1.5,
+			"%s was worst at %s (tolerance +1.50)" % [worst_color, worst_detail])
 
 
 ## A battle group lands in ONE step, so the enemy count on the first step anything exists is
