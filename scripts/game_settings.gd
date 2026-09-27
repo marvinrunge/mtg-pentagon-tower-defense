@@ -870,7 +870,15 @@ func rank_level_requirement(rank: int) -> int:
 ## trickling in, which is how a wave of ten spawn groups ended up spread over more than a
 ## minute of deployment and was fought colour by colour. A late wave is now two or three
 ## groups, all on the map inside twenty seconds - the same enemies, arriving as an army.
+##
+## This is the gap once the waves are hard. Early on it is much shorter - see
+## wave_first_group_delay - because the first waves send every colour on its own, and five
+## lone colours ten seconds apart made the opening of a run a minute of waiting.
 @export var wave_delay_between_groups: float = 10.0
+## The gap between groups in wave 1. It grows evenly from this to wave_delay_between_groups,
+## which it reaches at wave_group_delay_full_wave.
+@export var wave_first_group_delay: float = 1.0
+@export var wave_group_delay_full_wave: int = 10
 ## From this wave on, ALLIED NEIGHBOURS pair up: two adjacent lanes arrive together, form
 ## up between their lanes and charge as one. Before it, every colour comes in on its own.
 @export var wave_alliance_start_wave: int = 4

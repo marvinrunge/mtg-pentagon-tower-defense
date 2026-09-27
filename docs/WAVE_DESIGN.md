@@ -148,6 +148,11 @@ deployment and be fought a colour at a time, and now a late wave is two or three
 are all on the map inside twenty seconds. If that turns out to be too much, the knob is
 `wave_delay_between_groups`, not the head count.
 
+The gap is not constant across a run: it starts at `wave_first_group_delay` (1 s) in wave 1
+and grows evenly to `wave_delay_between_groups` (10 s) by `wave_group_delay_full_wave`
+(wave 10). The first waves send each colour on its own, and at a flat ten seconds the
+opening of a run was mostly waiting for the next lone colour to arrive.
+
 Head counts did not move. `_compose_wave` uses the same base difficulty, the same growth per
 wave, the same player-count factor and the same cost per draw the queue-based planner used;
 all that changed is that a colour's draws are merged into one composition instead of becoming

@@ -233,6 +233,13 @@ func _crystal_position() -> Vector3:
 ##
 ## Seeded off the wave number so the plan is reproducible - useful for reading a bug report
 ## back, and it means a re-rolled wave is the same wave.
+## Gap between battle groups in wave `wave_idx` (0-based): short at the start of a run,
+## growing to the full wave_delay_between_groups as the waves get harder.
+func _group_delay(wave_idx: int) -> float:
+	var ramp: float = clampf(float(wave_idx) / float(maxi(GameSettings.wave_group_delay_full_wave - 1, 1)), 0.0, 1.0)
+	return lerpf(GameSettings.wave_first_group_delay, GameSettings.wave_delay_between_groups, ramp)
+
+
 func _plan_wave(wave_idx: int) -> Array:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = hash("wave:%d:%d" % [wave_idx, PlayerRegistry.count()])
@@ -282,7 +289,7 @@ func _plan_wave(wave_idx: int) -> Array:
 		if squads.is_empty():
 			continue
 		groups.append({
-			"delay": GameSettings.wave_initial_warning_time if first else GameSettings.wave_delay_between_groups,
+			"delay": GameSettings.wave_initial_warning_time if first else _group_delay(wave_idx),
 			"colors": colors,
 			"squads": squads,
 		})
