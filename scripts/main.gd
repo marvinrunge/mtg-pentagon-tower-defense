@@ -122,6 +122,8 @@ func _ready() -> void:
 	$MyrNetSpawner.spawn_function = _spawn_myr
 	$EffectNetSpawner.spawn_function = _spawn_effect
 
+	_add_stone_collision()
+
 	# Bake navigation mesh
 	call_deferred("bake_map_navigation")
 
@@ -207,14 +209,18 @@ func bake_map_navigation() -> void:
 
 	print("Baking Navigation Mesh...")
 	# Parsed by hand rather than through nav_region.bake_navigation_mesh(), because the
-	# terrain is not under the region. The terrain is the only source: the region holds
-	# nothing else that collides except the crystal, and that hangs well over agent
-	# height, so it never blocked a path - parsing it only added an unreachable island
-	# on its top, and a runtime readback of its CSG mesh. Baked into a copy so assigning
-	# it back is a real change the region reacts to.
+	# terrain is not under the region. The sources are the terrain and the stone rings,
+	# gathered by group so the two can sit anywhere in the tree. The crystal is left out
+	# on purpose: it hangs well over agent height, so it never blocked a path - parsing
+	# it only added an unreachable island on its top, and a runtime readback of its CSG
+	# mesh. Still parsed relative to the terrain body, as before the stones joined. Baked
+	# into a copy so assigning it back is a real change the region reacts to.
 	var nav_mesh: NavigationMesh = nav_region.navigation_mesh.duplicate()
+	nav_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
+	nav_mesh.geometry_source_group_name = NAVMESH_SOURCE_GROUP
 	var source := NavigationMeshSourceGeometryData3D.new()
 	if terrain_body != null:
+		terrain_body.add_to_group(NAVMESH_SOURCE_GROUP)
 		NavigationServer3D.parse_source_geometry_data(nav_mesh, source, terrain_body)
 
 	# Players only need the ground, not the navmesh, so they do not sit through the bake.
@@ -231,6 +237,37 @@ func bake_map_navigation() -> void:
 	print("Navigation Mesh baked successfully!")
 
 	_start_match()
+
+
+## The nodes the navmesh is baked from. See bake_map_navigation.
+const NAVMESH_SOURCE_GROUP := "navmesh_source"
+
+
+## The standing stones are plain imported meshes with no collision of their own, so
+## enemies walked straight through them. Each mesh gets a convex hull on the terrain's
+## layer, which blocks bodies the way the ground does, and the ring joins the navmesh
+## bake, so paths lead around the stones rather than into them. The stone kinds share
+## their meshes, so each hull is built once. The carved pillars of OuterStoneRing are
+## not part of this.
+func _add_stone_collision() -> void:
+	var stones: Node = get_node_or_null("StoneRings")
+	if stones == null:
+		return
+	stones.add_to_group(NAVMESH_SOURCE_GROUP)
+	var hulls: Dictionary = {}
+	for mesh_instance: MeshInstance3D in stones.find_children("*", "MeshInstance3D", true, false):
+		if mesh_instance.mesh == null:
+			continue
+		if not hulls.has(mesh_instance.mesh):
+			hulls[mesh_instance.mesh] = mesh_instance.mesh.create_convex_shape(true, true)
+		var shape := CollisionShape3D.new()
+		shape.shape = hulls[mesh_instance.mesh]
+		var body := StaticBody3D.new()
+		body.name = "StoneCollision"
+		body.collision_layer = EnemyBase.ENVIRONMENT_LAYER
+		body.collision_mask = 0
+		body.add_child(shape)
+		mesh_instance.add_child(body)
 
 
 ## Waits until the navigation map actually answers from the new navmesh. The map takes

@@ -1,17 +1,17 @@
 extends Node3D
 class_name OrbitingOrb
-## The orb that circles a player for three of the five aura Manifestations.
+## The orb that hangs beside a player for four of the five aura Manifestations.
 ##
-## Winter Orb (blue), Orb of Fire (red) and Healing Orb (white) are one implementation
-## with three payloads, because the only thing that differs between them is what happens
-## on the tick - everything else, the orbit, the bob, the light, the target search, is
-## shared. Writing three of these was the alternative, and three copies of an orbit is
-## how the third one ends up subtly out of step with the other two.
+## Winter Orb (blue), Orb of Fire (red), Healing Orb (white) and the Soul Orb of Grave Pact
+## (black) are one implementation with four payloads, because the only thing that differs
+## between them is what happens on the tick - everything else, the orbit, the bob, the light,
+## the target search, is shared. Writing four of these was the alternative, and four copies
+## of an orbit is how the fourth one ends up subtly out of step with the others.
 ##
 ## It lives as a child of the player and follows them by being parented to them, so
 ## nothing here has to chase a moving anchor.
 
-enum Mode { FROST, FIRE, HEAL }
+enum Mode { FROST, FIRE, HEAL, SOUL }
 
 var mode: int = Mode.FROST
 
@@ -20,64 +20,60 @@ var _tick_timer: float = 0.0
 var _owner: Node3D
 var _mesh: MeshInstance3D
 var _light: OmniLight3D
-## Fire's light flickers and heal's breathes, both off this. Frost's is steady.
+## Fire's light flickers, heal's breathes, the soul orb brightens with what it holds.
 var _light_phase: float = 0.0
-var _light_base_energy: float = 1.8
+var _light_base_energy: float = 0.45
+## Grave Pact's stored souls - see add_soul. Server-side, like every payload.
+var _souls: int = 0
+var _soul_material: StandardMaterial3D = null
 
 const COLORS: Dictionary = {
 	Mode.FROST: Color(0.45, 0.8, 1.0),
 	Mode.FIRE: Color(1.0, 0.45, 0.12),
 	Mode.HEAL: Color(1.0, 0.95, 0.65),
+	# The raised dead's own green, so a soul reads as the same substance as the zombies.
+	Mode.SOUL: Color(0.45, 1.0, 0.62),
 }
 
-## A separate orbit per mode, because all three used to share one.
+## Where each orb sits in the halo. They used to CIRCLE the player - up to three metres out,
+## at head height - which put them straight through the over-the-shoulder camera's view every
+## few seconds: three glowing balls sweeping between the player and what they were aiming at.
 ##
-## `_angle` started at 0.0 for every orb and advanced at one shared speed, at one shared
-## radius and height - so a player holding the blue, red and white Manifestations at once had
-## three orbs occupying the exact same point in space for the whole run. Not merely crossing
-## occasionally: coincident, permanently, with only the frost crown visible because it is the
-## largest. The staggered `_tick_timer` in _ready hints that this was known about for the
-## FIRING and missed for the orbit.
+## Now they share one small, slow halo above and to the LEFT of the head. The camera sits over
+## the right shoulder, so the left is the side of the frame the aim line never crosses, and a
+## ring well under a metre across never reaches the camera at all. It reads as a familiar
+## perched on the player rather than as satellites.
 ##
-## Each orb now gets its own lane, and the numbers are picked so the three can never touch
-## rather than merely usually missing: separated in radius AND height, so no combination of
-## speeds can bring two together, then given different speeds and phases on top so they read
-## as three independent things rather than a rotating rack. tools/tests/orb_orbits.gd
-## brute-forces the minimum separation over a long run and fails if it closes.
+## One ring and one speed for all four, each on its own quarter of it. That is what keeps them
+## apart whichever of them a player owns: any two sit at least a quarter-turn apart for good,
+## so their separation is a fixed chord instead of something two speeds bring together now and
+## then. tools/tests/orb_orbits.gd brute-forces the minimum separation and fails if it closes.
 ##
-## radius and speed are MULTIPLIERS on the GameSettings values, and height an offset in
-## metres, so the global knobs still move all three together.
+## `bob` is metres, `bob_rate` radians per second - kept small and out of step with each
+## other so the four do not rise and fall as one rigid rack.
 const ORBIT_PLAN: Dictionary = {
-	# Innermost, lowest, fastest: the one that reads as a familiar on the player's shoulder.
-	Mode.FROST: {"radius": 0.70, "height": -0.65, "speed": 1.05, "phase": 0.0, "tilt": 0.0, "bob": 0.05, "bob_rate": 2.0},
-	# Middle lane, tilted, slower - the tilt is what stops three concentric rings reading as
-	# one mechanism with three beads on it. Kept SMALL: a tilt of 0.09 was the first thing
-	# tried and orb_orbits.gd measured it closing frost-to-fire to 0.68m, because a tilted
-	# ring trades vertical separation for the look. 0.04 still reads as a canted orbit.
-	Mode.FIRE: {"radius": 1.05, "height": 0.10, "speed": 0.71, "phase": TAU / 3.0, "tilt": 0.04, "bob": 0.05, "bob_rate": 2.7},
-	# Outermost, highest, slowest, tilted the other way: it hangs over the player like
-	# something watching over them, which is the only one of the three that is not a weapon.
-	Mode.HEAL: {"radius": 1.40, "height": 0.90, "speed": 0.49, "phase": TAU * 2.0 / 3.0, "tilt": -0.04, "bob": 0.05, "bob_rate": 1.5},
+	Mode.FROST: {"phase": 0.0, "bob": 0.035, "bob_rate": 2.1},
+	Mode.FIRE: {"phase": PI * 0.5, "bob": 0.035, "bob_rate": 2.7},
+	Mode.HEAL: {"phase": PI, "bob": 0.035, "bob_rate": 1.6},
+	Mode.SOUL: {"phase": PI * 1.5, "bob": 0.035, "bob_rate": 2.4},
 }
 
 
 ## Where `mode`'s orb sits, local to the player, `time` seconds in.
 ##
-## Static and pure so the separation between the three lanes can be measured directly by a
-## test - no scene, no player, no frames. Reading it back off three live orbs would mean
-## sampling whatever positions one particular run happened to visit, which for orbits with
-## incommensurable periods is exactly the wrong way to look for the closest approach.
+## Static and pure so the separation between the orbs can be measured directly by a test -
+## no scene, no player, no frames.
 static func orbit_position(orb_mode: int, time: float) -> Vector3:
 	var plan: Dictionary = ORBIT_PLAN[orb_mode]
-	var radius: float = GameSettings.aura_orb_radius * float(plan["radius"])
-	var angle: float = time * GameSettings.aura_orb_speed * float(plan["speed"]) + float(plan["phase"])
-	var height: float = GameSettings.aura_orb_height + float(plan["height"])
-	height += sin(time * float(plan["bob_rate"])) * float(plan["bob"])
-	# The tilt is applied as a rise and fall around the ring rather than by rotating the whole
-	# orbit basis: same look, and it keeps this function one expression that a test can reason
-	# about instead of a transform chain.
-	height += sin(angle) * radius * float(plan["tilt"])
-	return Vector3(cos(angle) * radius, height, sin(angle) * radius)
+	var radius: float = GameSettings.aura_orb_radius
+	var angle: float = time * GameSettings.aura_orb_speed + float(plan["phase"])
+	var centre: Vector3 = GameSettings.aura_orb_halo_centre
+	var height: float = centre.y + sin(time * float(plan["bob_rate"])) * float(plan["bob"])
+	# A slight cant, applied as a rise and fall around the ring rather than by rotating the
+	# orbit basis - same look, and it keeps this function one expression a test can reason
+	# about. The same cant for every orb, so it moves them together and cannot close a gap.
+	height += sin(angle) * radius * GameSettings.aura_orb_tilt
+	return Vector3(centre.x + cos(angle) * radius, height, centre.z + sin(angle) * radius)
 
 
 static func create(p_mode: int, p_owner: Node3D) -> OrbitingOrb:
@@ -93,8 +89,8 @@ func _ready() -> void:
 
 	_mesh = MeshInstance3D.new()
 	var sphere := SphereMesh.new()
-	sphere.radius = 0.24
-	sphere.height = 0.48
+	sphere.radius = 0.14
+	sphere.height = 0.28
 	_mesh.mesh = sphere
 	var mat: StandardMaterial3D = _orb_material(tint)
 	_mesh.material_override = mat
@@ -103,23 +99,30 @@ func _ready() -> void:
 		Mode.FROST: _build_frost_crown()
 		Mode.FIRE: _build_fire_body()
 		Mode.HEAL: _build_heal_body()
+		Mode.SOUL: _build_soul_body()
 
+	# A glow on the player, not a lamp. Up to four of these travel with the player, and at the
+	# strength they used to have they lit the ground around them in four moving colours - the
+	# most visible thing on screen was the orbs' light, not the orbs.
 	_light = OmniLight3D.new()
 	_light.light_color = tint
+	_light_base_energy = GameSettings.aura_orb_light_energy
 	# Fire's own light is warmer than its bolt colour - a fire that lights the ground the
 	# same orange it is drawn in reads as a flat sticker rather than as something burning.
 	if mode == Mode.FIRE:
 		_light.light_color = Color(1.0, 0.62, 0.28)
-		_light_base_energy = 2.4
-	elif mode == Mode.HEAL:
-		_light_base_energy = 1.5
+		_light_base_energy *= 1.3
 	_light.light_energy = _light_base_energy
-	_light.omni_range = 4.0
+	# What EmberFx.flicker swings around - without it the fire orb flickers about 1.0,
+	# twice what the others glow at.
+	_light.set_meta("base_energy", _light_base_energy)
+	_light.omni_range = GameSettings.aura_orb_light_range
+	_light.shadow_enabled = false
 	add_child(_light)
 
-	# Staggered so a player who somehow had two would not see them fire in lockstep,
-	# and so the first tick does not land on the same frame the aura is bought.
-	_tick_timer = _interval() * 0.5
+	# Staggered so a player holding several does not see them fire in lockstep, and so the
+	# first tick does not land on the same frame the aura is bought.
+	_tick_timer = _interval() * (0.25 + 0.2 * float(mode))
 
 
 func _orb_material(tint: Color) -> StandardMaterial3D:
@@ -130,7 +133,7 @@ func _orb_material(tint: Color) -> StandardMaterial3D:
 		mat.roughness = 0.18
 		mat.emission_enabled = true
 		mat.emission = Color(0.62, 0.9, 1.0)
-		mat.emission_energy_multiplier = 0.8
+		mat.emission_energy_multiplier = 0.6
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.rim_enabled = true
 		mat.rim = 0.75
@@ -139,17 +142,31 @@ func _orb_material(tint: Color) -> StandardMaterial3D:
 	if mode == Mode.FIRE:
 		# Shaded, not UNSHADED. That one flag is most of why this orb read as placeholder next
 		# to the frost one: an unshaded emissive sphere has no light falling across it and no
-		# rim, so at any distance it is a flat orange circle rather than a ball. Frost was the
-		# only mode with a real material, and it was the only one that looked like an object.
+		# rim, so at any distance it is a flat orange circle rather than a ball.
 		mat.albedo_color = Color(0.55, 0.13, 0.02)
 		mat.metallic = 0.15
 		mat.roughness = 0.55
 		mat.emission_enabled = true
 		mat.emission = Color(1.0, 0.42, 0.08)
-		mat.emission_energy_multiplier = 2.4
+		mat.emission_energy_multiplier = 1.7
 		mat.rim_enabled = true
 		mat.rim = 0.9
 		mat.rim_tint = 0.15
+		return mat
+	if mode == Mode.SOUL:
+		# Dark, with the light INSIDE it: a violet-black husk the stored souls glow through.
+		# The emission is what _update_soul_glow moves - an empty orb is nearly black, a full
+		# one burns the zombies' green.
+		mat.albedo_color = Color(0.16, 0.06, 0.22)
+		mat.metallic = 0.3
+		mat.roughness = 0.4
+		mat.emission_enabled = true
+		mat.emission = tint
+		mat.emission_energy_multiplier = 0.3
+		mat.rim_enabled = true
+		mat.rim = 0.8
+		mat.rim_tint = 0.5
+		_soul_material = mat
 		return mat
 	# HEAL. Pale and soft rather than hot: low emission with a strong rim, so the light reads
 	# as coming off the surface instead of out of it.
@@ -158,7 +175,7 @@ func _orb_material(tint: Color) -> StandardMaterial3D:
 	mat.roughness = 0.35
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.92, 0.68)
-	mat.emission_energy_multiplier = 1.5
+	mat.emission_energy_multiplier = 1.1
 	mat.rim_enabled = true
 	mat.rim = 0.95
 	mat.rim_tint = 0.4
@@ -169,14 +186,14 @@ func _build_frost_crown() -> void:
 	var crown := MeshInstance3D.new()
 	crown.name = "FrostCrown"
 	var mesh := SphereMesh.new()
-	mesh.radius = 0.31
-	mesh.height = 0.62
+	mesh.radius = 0.18
+	mesh.height = 0.36
 	crown.mesh = mesh
 	var shell := StandardMaterial3D.new()
-	shell.albedo_color = Color(0.56, 0.86, 1.0, 0.22)
+	shell.albedo_color = Color(0.56, 0.86, 1.0, 0.2)
 	shell.emission_enabled = true
 	shell.emission = Color(0.5, 0.86, 1.0)
-	shell.emission_energy_multiplier = 0.45
+	shell.emission_energy_multiplier = 0.35
 	shell.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	shell.metallic = 0.35
 	shell.roughness = 0.08
@@ -186,39 +203,37 @@ func _build_frost_crown() -> void:
 
 	var shards := GPUParticles3D.new()
 	shards.name = "FrostOrbitShards"
-	shards.amount = 18
+	shards.amount = 8
 	shards.lifetime = 1.8
 	shards.preprocess = 1.8
-	shards.draw_pass_1 = SpellFx.premul_particle_mesh(0.22, "shard")
+	shards.draw_pass_1 = SpellFx.premul_particle_mesh(0.14, "shard")
 	var process := ParticleProcessMaterial.new()
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	process.emission_sphere_radius = 0.34
+	process.emission_sphere_radius = 0.2
 	process.direction = Vector3.UP
 	process.spread = 180.0
 	process.gravity = Vector3.ZERO
 	process.initial_velocity_min = 0.02
-	process.initial_velocity_max = 0.12
+	process.initial_velocity_max = 0.08
 	process.scale_min = 0.05
-	process.scale_max = 0.16
+	process.scale_max = 0.14
 	process.color_ramp = SpellFx._premul_ramp(Color(0.65, 0.92, 1.0))
 	shards.process_material = process
 	add_child(shards)
 
 
-## Orb of Fire. The frost orb got a shell, orbiting shards and a tinted metallic core; this
-## one was an unshaded orange ball with a light in it, which is why it read as placeholder
-## next to the other. Same three-part construction, in fire's own language: a dark molten
-## shell over a hot core, a flame guttering off the top, and embers shedding off the outside.
+## Orb of Fire, in fire's own language: a dark molten shell over a hot core, a flame
+## guttering off the top, and embers shedding off the outside.
 ##
 ## Premultiplied throughout (SpellFx rather than EmberFx's additive builders) - see
 ## docs/SPELL_VFX_PLAN.md. Additive fire is invisible against a bright sky, which is exactly
-## where an orb orbiting head-height sits.
+## where an orb hovering over a player's head sits.
 func _build_fire_body() -> void:
 	var shell := MeshInstance3D.new()
 	shell.name = "FireShell"
 	var mesh := SphereMesh.new()
-	mesh.radius = 0.30
-	mesh.height = 0.60
+	mesh.radius = 0.18
+	mesh.height = 0.36
 	shell.mesh = mesh
 	var crust := StandardMaterial3D.new()
 	# Dark and rough, so the bright core shows THROUGH it in patches rather than being
@@ -226,7 +241,7 @@ func _build_fire_body() -> void:
 	crust.albedo_color = Color(0.32, 0.09, 0.03, 0.42)
 	crust.emission_enabled = true
 	crust.emission = Color(1.0, 0.35, 0.06)
-	crust.emission_energy_multiplier = 1.1
+	crust.emission_energy_multiplier = 0.8
 	crust.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	crust.roughness = 0.85
 	crust.rim_enabled = true
@@ -238,68 +253,68 @@ func _build_fire_body() -> void:
 
 	var flame := GPUParticles3D.new()
 	flame.name = "OrbFlame"
-	flame.amount = 28
-	flame.lifetime = 0.85
-	flame.preprocess = 0.85
+	flame.amount = 12
+	flame.lifetime = 0.7
+	flame.preprocess = 0.7
 	flame.local_coords = true
-	flame.draw_pass_1 = SpellFx.premul_particle_mesh(0.52, "smoke")
+	flame.draw_pass_1 = SpellFx.premul_particle_mesh(0.3, "smoke")
 	var rising := ParticleProcessMaterial.new()
 	rising.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	rising.emission_sphere_radius = 0.16
+	rising.emission_sphere_radius = 0.09
 	rising.direction = Vector3.UP
 	rising.spread = 24.0
 	# Fire falls UP, the same trick EmberFx.build_flame uses: positive gravity makes the
 	# tongue accelerate away instead of arcing back down like debris.
-	rising.gravity = Vector3(0.0, 0.9, 0.0)
-	rising.initial_velocity_min = 0.35
-	rising.initial_velocity_max = 0.95
+	rising.gravity = Vector3(0.0, 0.6, 0.0)
+	rising.initial_velocity_min = 0.2
+	rising.initial_velocity_max = 0.55
 	rising.angle_min = -180.0
 	rising.angle_max = 180.0
 	rising.scale_min = 0.4
-	rising.scale_max = 0.9
+	rising.scale_max = 0.8
 	rising.color_ramp = SpellFx._premul_ramp(Color(1.0, 0.52, 0.14))
 	flame.process_material = rising
 	add_child(flame)
 
 	var embers := GPUParticles3D.new()
 	embers.name = "OrbEmbers"
-	embers.amount = 14
-	embers.lifetime = 1.1
-	embers.preprocess = 1.1
+	embers.amount = 6
+	embers.lifetime = 1.0
+	embers.preprocess = 1.0
 	# World space, unlike the flame: embers are shed and LEFT BEHIND, so a moving orb should
 	# trail them rather than drag them along in a clump.
 	embers.local_coords = false
-	embers.draw_pass_1 = SpellFx.premul_particle_mesh(0.09, "spark")
+	embers.draw_pass_1 = SpellFx.premul_particle_mesh(0.06, "spark")
 	var shed := ParticleProcessMaterial.new()
 	shed.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	shed.emission_sphere_radius = 0.26
+	shed.emission_sphere_radius = 0.15
 	shed.direction = Vector3.UP
 	shed.spread = 180.0
 	shed.gravity = Vector3(0.0, -0.35, 0.0)
-	shed.initial_velocity_min = 0.1
-	shed.initial_velocity_max = 0.45
+	shed.initial_velocity_min = 0.08
+	shed.initial_velocity_max = 0.3
 	shed.scale_min = 0.05
-	shed.scale_max = 0.14
+	shed.scale_max = 0.12
 	shed.color_ramp = SpellFx._premul_ramp(Color(1.0, 0.72, 0.3))
 	embers.process_material = shed
 	add_child(embers)
 
 
-## Healing Orb. The one of the three that is not a weapon, so it is built to read as calm
-## where fire reads as violent: a soft halo instead of a crust, motes drifting UP out of it
-## instead of shedding off it, and a ring lying flat around it that nothing else has.
+## Healing Orb. The one that is not a weapon, so it is built to read as calm where fire
+## reads as violent: a soft halo instead of a crust, motes drifting UP out of it instead of
+## shedding off it, and a ring lying flat around it that nothing else has.
 func _build_heal_body() -> void:
 	var halo := MeshInstance3D.new()
 	halo.name = "HealHalo"
 	var mesh := SphereMesh.new()
-	mesh.radius = 0.34
-	mesh.height = 0.68
+	mesh.radius = 0.19
+	mesh.height = 0.38
 	halo.mesh = mesh
 	var glow := StandardMaterial3D.new()
-	glow.albedo_color = Color(1.0, 0.97, 0.82, 0.16)
+	glow.albedo_color = Color(1.0, 0.97, 0.82, 0.14)
 	glow.emission_enabled = true
 	glow.emission = Color(1.0, 0.93, 0.7)
-	glow.emission_energy_multiplier = 0.6
+	glow.emission_energy_multiplier = 0.45
 	glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glow.roughness = 0.25
 	glow.rim_enabled = true
@@ -309,20 +324,20 @@ func _build_heal_body() -> void:
 	halo.material_override = glow
 	add_child(halo)
 
-	# A flat ring around the orb's equator. The one silhouette cue the other two do not have,
+	# A flat ring around the orb's equator. The one silhouette cue the others do not have,
 	# which is what lets a glance tell the white orb from the blue one at distance, where both
 	# are pale and the colours have washed together.
 	var ring := MeshInstance3D.new()
 	ring.name = "HealRing"
 	var torus := TorusMesh.new()
-	torus.inner_radius = 0.40
-	torus.outer_radius = 0.46
+	torus.inner_radius = 0.22
+	torus.outer_radius = 0.25
 	ring.mesh = torus
 	var band := StandardMaterial3D.new()
-	band.albedo_color = Color(1.0, 0.95, 0.75, 0.5)
+	band.albedo_color = Color(1.0, 0.95, 0.75, 0.45)
 	band.emission_enabled = true
 	band.emission = Color(1.0, 0.9, 0.62)
-	band.emission_energy_multiplier = 1.6
+	band.emission_energy_multiplier = 1.1
 	band.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	band.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	ring.material_override = band
@@ -331,28 +346,61 @@ func _build_heal_body() -> void:
 
 	var motes := GPUParticles3D.new()
 	motes.name = "HealMotes"
-	motes.amount = 16
+	motes.amount = 7
 	motes.lifetime = 1.6
 	motes.preprocess = 1.6
 	motes.local_coords = true
 	# "mote" rather than "spark": rays instead of a round speck, so these read as something
 	# rising rather than as more embers in a different colour.
-	motes.draw_pass_1 = SpellFx.premul_particle_mesh(0.15, "mote")
+	motes.draw_pass_1 = SpellFx.premul_particle_mesh(0.1, "mote")
 	var drift := ParticleProcessMaterial.new()
 	drift.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	drift.emission_sphere_radius = 0.3
+	drift.emission_sphere_radius = 0.17
 	drift.direction = Vector3.UP
 	drift.spread = 30.0
-	drift.gravity = Vector3(0.0, 0.25, 0.0)
-	drift.initial_velocity_min = 0.12
-	drift.initial_velocity_max = 0.34
+	drift.gravity = Vector3(0.0, 0.2, 0.0)
+	drift.initial_velocity_min = 0.08
+	drift.initial_velocity_max = 0.22
 	drift.angle_min = -180.0
 	drift.angle_max = 180.0
 	drift.scale_min = 0.35
-	drift.scale_max = 0.85
+	drift.scale_max = 0.8
 	drift.color_ramp = SpellFx._premul_ramp(Color(1.0, 0.95, 0.72))
 	motes.process_material = drift
 	add_child(motes)
+
+
+## Grave Pact's Soul Orb. Black's Manifestation used to be a number - a heal and a stacking
+## damage bonus nobody could see - and is now a thing hanging beside the player: a dark husk
+## the souls of whatever dies nearby are drawn into, and that throws them back out at the
+## living. The wisps circling it are the souls it is holding.
+func _build_soul_body() -> void:
+	var wisps := GPUParticles3D.new()
+	wisps.name = "SoulWisps"
+	wisps.amount = 8
+	wisps.lifetime = 1.4
+	wisps.preprocess = 1.4
+	wisps.local_coords = true
+	wisps.draw_pass_1 = SpellFx.premul_particle_mesh(0.12, "mote")
+	var swirl := ParticleProcessMaterial.new()
+	swirl.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	swirl.emission_ring_axis = Vector3.UP
+	swirl.emission_ring_radius = 0.2
+	swirl.emission_ring_inner_radius = 0.16
+	swirl.emission_ring_height = 0.05
+	swirl.direction = Vector3.UP
+	swirl.spread = 40.0
+	swirl.gravity = Vector3(0.0, 0.15, 0.0)
+	swirl.initial_velocity_min = 0.02
+	swirl.initial_velocity_max = 0.1
+	swirl.orbit_velocity_min = 0.4
+	swirl.orbit_velocity_max = 0.7
+	swirl.scale_min = 0.3
+	swirl.scale_max = 0.7
+	swirl.color_ramp = SpellFx._premul_ramp(COLORS[Mode.SOUL])
+	wisps.process_material = swirl
+	add_child(wisps)
+	_update_soul_glow()
 
 
 func _process(delta: float) -> void:
@@ -361,13 +409,13 @@ func _process(delta: float) -> void:
 		return
 
 	_elapsed += delta
-	# Local to the player, so the orbit does not have to be recomputed from the player's
-	# world position every frame - and so it keeps circling correctly while they move.
+	# Local to the player, so the halo does not have to be recomputed from the player's
+	# world position every frame - and so it keeps its place while they move.
 	position = orbit_position(mode, _elapsed)
 	_animate_light(delta)
 
 	# The payload is a game effect, so it is the server's, exactly like a spell. The
-	# orbit above is cosmetic and runs everywhere, which is what keeps the orb visible on
+	# halo above is cosmetic and runs everywhere, which is what keeps the orb visible on
 	# every client without any of them deciding it dealt damage.
 	if not Net.is_server():
 		return
@@ -379,11 +427,11 @@ func _process(delta: float) -> void:
 		Mode.FROST: _fire_frost()
 		Mode.FIRE: _fire_flame()
 		Mode.HEAL: _heal_lowest()
+		Mode.SOUL: _release_soul()
 
 
-## Fire gutters, heal breathes, frost holds steady. One line each, and it is most of what
-## separates the three at a glance in a dark scene - a static point light reads as a lamp
-## bolted to the player whatever colour it is.
+## Fire gutters, heal breathes, frost holds steady, the soul orb burns brighter the more it
+## holds. Kept faint on purpose - see _ready.
 func _animate_light(delta: float) -> void:
 	if _light == null:
 		return
@@ -394,6 +442,8 @@ func _animate_light(delta: float) -> void:
 		Mode.HEAL:
 			# Slow and shallow: a heartbeat under the surface, not a blinker.
 			_light.light_energy = _light_base_energy * (1.0 + sin(_light_phase * 1.6) * 0.22)
+		Mode.SOUL:
+			_light.light_energy = _light_base_energy * (0.4 + 1.2 * _soul_fill())
 
 
 func _interval() -> float:
@@ -401,6 +451,9 @@ func _interval() -> float:
 	match mode:
 		Mode.FIRE: return GameSettings.aura_orb_of_fire_interval / speed_mult
 		Mode.HEAL: return GameSettings.aura_healing_orb_interval / speed_mult
+		# Not rank-scaled: the souls are the rate limit, and a rank that emptied the orb
+		# faster would only make it sit empty sooner.
+		Mode.SOUL: return GameSettings.aura_grave_pact_release_interval
 		_: return GameSettings.aura_orb_of_frost_interval / speed_mult
 
 
@@ -420,12 +473,21 @@ func _nearest_enemy(range_units: float) -> Node3D:
 	return best
 
 
+## The sound of this orb's shot. Somebody else's orb is background to this player rather
+## than a sound of their own doing, so it sits further down still.
+func _play_shot_sound(event: StringName) -> void:
+	var extra_db: float = 0.0
+	if is_instance_valid(_owner) and "is_local" in _owner and not bool(_owner.is_local):
+		extra_db = GameSettings.aura_orb_remote_gain_db
+	SoundBank.play_at(event, global_position, extra_db)
+
+
 func _fire_frost() -> void:
 	var target: Node3D = _nearest_enemy(GameSettings.aura_orb_of_frost_range * _rank_mult("area"))
 	if target == null:
 		return
 	_shoot_bolt(target, COLORS[Mode.FROST])
-	SoundBank.play_at(&"aura_orb_frost", global_position)
+	_play_shot_sound(&"aura_orb_frost")
 	var damage: float = GameSettings.aura_orb_of_frost_damage * _rank_mult() * _damage_multiplier()
 	if target.has_method("take_damage"):
 		target.take_damage(damage, _owner)
@@ -438,7 +500,7 @@ func _fire_flame() -> void:
 	if target == null:
 		return
 	_shoot_bolt(target, COLORS[Mode.FIRE])
-	SoundBank.play_at(&"aura_orb_fire", global_position)
+	_play_shot_sound(&"aura_orb_fire")
 	var damage: float = GameSettings.aura_orb_of_fire_damage * _rank_mult() * _damage_multiplier()
 	if target.has_method("take_damage"):
 		target.take_damage(damage, _owner)
@@ -471,7 +533,7 @@ func _heal_lowest() -> void:
 	if best == null:
 		return
 	_shoot_bolt(best, COLORS[Mode.HEAL])
-	SoundBank.play_at(&"aura_orb_heal", global_position)
+	_play_shot_sound(&"aura_orb_heal")
 	# Bound to the player's max HP like every white/green HP number, so the orb scales
 	# with green affinity and Giant Growth instead of falling behind them.
 	var restored: float = best.heal(GameSettings.player_max_hp * GameSettings.aura_healing_orb_hp_mult * _rank_mult())
@@ -481,10 +543,70 @@ func _heal_lowest() -> void:
 		_owner._credit_heal(best, restored)
 
 
+## An enemy died near the owner: its soul is drawn into the orb. Called by Player on the
+## server, where the deaths are. A wisp streaks from the body to the orb so the player can see
+## WHY the orb just brightened - a count that climbs invisibly is the old Grave Pact again.
+##
+## Capped: the orb holds a handful and lets the rest go. Without a cap one wave-clearing
+## Wrath of God would bank enough souls to keep firing for a minute after the fight ended.
+func add_soul(from: Vector3) -> void:
+	if mode != Mode.SOUL:
+		return
+	if _souls >= GameSettings.aura_grave_pact_max_souls:
+		return
+	_souls += 1
+	_update_soul_glow()
+	var scene: Node = get_tree().current_scene
+	if scene == null:
+		return
+	var start: Vector3 = from + Vector3(0.0, 1.0, 0.0)
+	var to_orb: Vector3 = global_position - start
+	var length: float = to_orb.length()
+	if length > 0.05:
+		var streak: Node3D = SpellFx.beam(to_orb / length, length, COLORS[Mode.SOUL], 0.16, 0.3)
+		scene.add_child(streak)
+		streak.global_position = start
+
+
+## Held souls, for anything that has to read the orb from outside (tests, the HUD one day).
+func soul_count() -> int:
+	return _souls
+
+
+## Throws one held soul at the nearest enemy. Nothing held, or nothing in reach, and the
+## tick passes - the souls wait for the next living thing to come close.
+func _release_soul() -> void:
+	if _souls <= 0:
+		return
+	var target: Node3D = _nearest_enemy(GameSettings.aura_grave_pact_range * _rank_mult("area"))
+	if target == null:
+		return
+	_souls -= 1
+	_update_soul_glow()
+	_shoot_bolt(target, COLORS[Mode.SOUL])
+	_play_shot_sound(&"aura_grave_pact")
+	var damage: float = GameSettings.aura_grave_pact_soul_damage * _rank_mult() * _damage_multiplier()
+	if target.has_method("take_damage"):
+		target.take_damage(damage, _owner)
+
+
+## How full the orb is, 0 to 1.
+func _soul_fill() -> float:
+	return clampf(float(_souls) / maxf(float(GameSettings.aura_grave_pact_max_souls), 1.0), 0.0, 1.0)
+
+
+## An empty orb is a dark husk; a full one burns the zombies' green through it.
+func _update_soul_glow() -> void:
+	if _soul_material == null:
+		return
+	_soul_material.emission_energy_multiplier = lerpf(0.25, 2.4, _soul_fill())
+
+
 func _aura_id() -> String:
 	match mode:
 		Mode.FIRE: return "aura_orb_of_fire"
 		Mode.HEAL: return "aura_healing_orb"
+		Mode.SOUL: return "aura_grave_pact"
 		_: return "aura_orb_of_frost"
 
 
@@ -494,18 +616,9 @@ func _rank_mult(curve: String = "damage") -> float:
 	return 1.0
 
 
-## The shot from the orb to whatever it just acted on.
-##
-## Was a plain emissive CYLINDER, which energy_beam.gdshader's own header names as the thing
-## it exists to replace: "a visible silhouette and a hard cap at each end - the two things
-## that made every beam in the game read as a coloured pipe". Every other beam in the game
-## had already moved to the shader; the orbs were the last caller still drawing pipes, so
-## they were the last effects that looked untouched.
-##
-## SpellFx.beam gives crossed quads with a hot core, a softer sheath and both ends tapered,
-## drawn premultiplied so it survives a bright sky. On top of that the shot now LANDS: a
-## flash and a scatter of points at the far end, because a beam that simply stops is only
-## half an event, and the orbs fire often enough that the arrival is what the eye follows.
+## The shot from the orb to whatever it just acted on: SpellFx.beam's crossed quads with a
+## hot core and tapered ends, drawn premultiplied so it survives a bright sky, and a small
+## landing at the far end - a beam that simply stops is only half an event.
 func _shoot_bolt(target: Node3D, tint: Color) -> void:
 	var muzzle: Vector3 = global_position
 	var hit: Vector3 = target.global_position + Vector3(0.0, 1.0, 0.0)
@@ -515,9 +628,9 @@ func _shoot_bolt(target: Node3D, tint: Color) -> void:
 		return
 
 	var scene: Node = get_tree().current_scene
-	# Thin and quick: this fires every 1.4-2.0 seconds, and a shot as wide or as long-lived
+	# Thin and quick: this fires every second or two, and a shot as wide or as long-lived
 	# as a spell's beam would leave the player permanently looking at one.
-	var shaft: Node3D = SpellFx.beam(to_target / length, length, tint, _beam_width(), 0.22)
+	var shaft: Node3D = SpellFx.beam(to_target / length, length, tint, _beam_width(), 0.18)
 	scene.add_child(shaft)
 	# Placed at the beam's START, not its middle: SpellFx.beam builds it running out along
 	# its own +X from wherever it is put.
@@ -530,9 +643,10 @@ func _shoot_bolt(target: Node3D, tint: Color) -> void:
 ## weapon hitting something.
 func _beam_width() -> float:
 	match mode:
-		Mode.FIRE: return 0.34
-		Mode.HEAL: return 0.42
-		_: return 0.26
+		Mode.FIRE: return 0.22
+		Mode.HEAL: return 0.26
+		Mode.SOUL: return 0.24
+		_: return 0.17
 
 
 ## The far end of the shot. Deliberately not SpellFx.impact, which builds a shockwave, a
@@ -544,28 +658,28 @@ func _spawn_bolt_impact(scene: Node, point: Vector3, tint: Color) -> void:
 
 	var flash := OmniLight3D.new()
 	flash.light_color = tint
-	flash.light_energy = 3.2
-	flash.omni_range = 2.4
+	flash.light_energy = 1.4
+	flash.omni_range = 1.8
 	burst.add_child(flash)
 
 	var motes := GPUParticles3D.new()
-	motes.amount = 8
+	motes.amount = 5
 	motes.lifetime = 0.4
 	motes.one_shot = true
 	motes.explosiveness = 1.0
 	# Each mode scatters its own shape: ice splinters, fire sparks, and soft rays for the
-	# heal - the same slot-per-colour split the rest of the effect layer already uses.
-	motes.draw_pass_1 = SpellFx.premul_particle_mesh(0.16, _impact_slot())
+	# heal and the souls - the same slot-per-colour split the rest of the effect layer uses.
+	motes.draw_pass_1 = SpellFx.premul_particle_mesh(0.12, _impact_slot())
 	var scatter := ParticleProcessMaterial.new()
 	scatter.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	scatter.emission_sphere_radius = 0.12
+	scatter.emission_sphere_radius = 0.1
 	scatter.direction = Vector3.UP
 	scatter.spread = 180.0
 	scatter.gravity = Vector3(0.0, -1.5, 0.0) if mode != Mode.HEAL else Vector3(0.0, 0.8, 0.0)
-	scatter.initial_velocity_min = 1.2
-	scatter.initial_velocity_max = 2.8
+	scatter.initial_velocity_min = 1.0
+	scatter.initial_velocity_max = 2.2
 	scatter.scale_min = 0.3
-	scatter.scale_max = 0.8
+	scatter.scale_max = 0.7
 	scatter.color_ramp = SpellFx._premul_ramp(tint)
 	motes.process_material = scatter
 	burst.add_child(motes)
@@ -573,7 +687,7 @@ func _spawn_bolt_impact(scene: Node, point: Vector3, tint: Color) -> void:
 	scene.add_child(burst)
 	burst.global_position = point
 	var tween: Tween = burst.create_tween()
-	tween.tween_property(flash, "light_energy", 0.0, 0.16)
+	tween.tween_property(flash, "light_energy", 0.0, 0.14)
 	# Outlives the flash by the particles' own lifetime, or the scatter is cut off mid-air.
 	tween.tween_interval(0.45)
 	tween.tween_callback(burst.queue_free)
@@ -582,12 +696,12 @@ func _spawn_bolt_impact(scene: Node, point: Vector3, tint: Color) -> void:
 func _impact_slot() -> String:
 	match mode:
 		Mode.FIRE: return "spark"
-		Mode.HEAL: return "mote"
+		Mode.HEAL, Mode.SOUL: return "mote"
 		_: return "shard"
 
 
 ## The orb is the player's, so it scales with everything the player's own spells scale
-## with - red affinity, the team's Furnace of Rath, run modifiers. A aura that
+## with - red affinity, the team's Furnace of Rath, run modifiers. An aura that
 ## ignored the build it was bought into would fall off exactly when it was bought.
 func _damage_multiplier() -> float:
 	if is_instance_valid(_owner) and _owner.has_method("get_spell_damage_multiplier"):

@@ -109,7 +109,6 @@ var charging_spell_id: String = ""
 var _leap_timer: float = 0.0
 var last_spell_cast_time: float = -999.0
 var rhystic_shield: float = 0.0
-var glorious_anthem_shield: float = 0.0
 ## Aura fingerprint as last applied. Never compared before the first _sync_auras pass:
 ## `_applied_green_affinity_rank` starts at -1 and no colour can be at rank -1, so the
 ## first call always runs in full whatever this happens to hold.
@@ -186,6 +185,7 @@ func display_name() -> String:
 ## place that knows both that the hit was fatal and who threw it.
 func on_enemy_killed_by_me() -> void:
 	add_stat("kills")
+	_on_kill_for_equipment()
 
 
 ## Books `restored` health against this player as healing, split by whether it landed on
@@ -203,10 +203,6 @@ func _credit_heal(target: Node, restored: float) -> void:
 ## thing limiting it, and the correct play was to stand in the base casting it until the pool
 ## was arbitrarily large - see GameSettings.spell_white_circle_duration.
 var _protection_shield_timer: float = 0.0
-## Seconds since this player last TOOK damage, which is what Glorious Anthem's shield recharges
-## on. Distinct from _combat_timer, which the player's own swings set - a white player meleeing
-## safely behind their team is not what the recharge delay is there to lock out.
-var _undamaged_timer: float = 0.0
 ## Reprisal Ward (white_3). The two fractions are resolved at cast time and read back
 ## in take_damage, because a buff with a duration outlives the cast that set it.
 var _reprisal_timer: float = 0.0
@@ -253,13 +249,13 @@ var _channel_release_sent: bool = false
 ## Fingerprint of the build as it was last broadcast, so _publish_build can tell a real
 ## change from the sixty times a second it is asked.
 var _published_build: int = 0
-## Grave Pact (black aura). Stacks decay if the player stops killing, which is the
-## whole design - it pays aggression rather than existence.
-var _grave_stacks: int = 0
-var _grave_stack_timer: float = 0.0
-## Neutral passives (the guild nodes between the colours in the skill tree). Rank per
-## id; every effect reads through get_passive_bonus so the curves stay in GameSettings.
-var passive_ranks: Dictionary = {}
+## The equipment this player is wearing, by id (EquipmentDatabase). Personal: the TEAM owns
+## what the bosses dropped (RunState.equipment_unlocked), and each player picks what to put
+## on from that. Everything an item does reads through equipment_value().
+var equipped_items: Array[String] = []
+## Whispersilk Cloak: seconds enemies still overlook this player after a kill. Ticked where
+## the enemies think - on the server - like every other buff here.
+var _cloak_timer: float = 0.0
 ## Rally the Fallen's solo floor: while this runs, the next death is refused outright.
 var _phoenix_ward_timer: float = 0.0
 ## The helper's 3-second revive channel on a downed teammate. Any of the HELPER's own
@@ -582,7 +578,7 @@ func _build_synchronizer() -> void:
 	# sixty times a second, and between them these six change a handful of times a fight.
 	var vitals := SceneReplicationConfig.new()
 	for property: String in [":hp", ":max_hp",
-			":glorious_anthem_shield", ":rhystic_shield", ":protection_shield",
+			":rhystic_shield", ":protection_shield",
 			":_channel_id", ":_channel_rank", ":_channel_held",
 			":_giant_scale_mult"]:
 		vitals.add_property(NodePath(property))
@@ -812,11 +808,10 @@ func export_build() -> Dictionary:
 		"quick_slots": quick_slots.duplicate(),
 		"unlocked_spells_in_path": unlocked_spells_in_path.duplicate(),
 		"chosen_color_path": chosen_color_path,
-		# Both of these were missing, and both cost the player something real. The five
-		# neutral passives cost a skill point per rank, so coming back without them left
-		# `spent_skill_points` counting points that had bought nothing; Blade Dance is the
-		# third melee stage, granted at BLADE_DANCE_LEVEL and never saved.
-		"passive_ranks": passive_ranks.duplicate(true),
+		# What they had on. The team's unlocks are RunState's and come back with it; which of
+		# them this player was wearing is a choice, and choices are what a build is.
+		"equipped_items": equipped_items.duplicate(),
+		# Blade Dance is the third melee stage, granted at BLADE_DANCE_LEVEL and never saved.
 		"melee_combo_extended": melee_combo_extended,
 	}
 
@@ -834,7 +829,7 @@ func apply_build(build: Dictionary) -> void:
 	spell_ranks = (build.get("spell_ranks", {}) as Dictionary).duplicate(true)
 	affinity_ranks = (build.get("affinity_ranks", affinity_ranks) as Dictionary).duplicate(true)
 	aura_ranks = (build.get("aura_ranks", {}) as Dictionary).duplicate(true)
-	passive_ranks = (build.get("passive_ranks", {}) as Dictionary).duplicate(true)
+	_set_equipped_from(build.get("equipped_items", []))
 	melee_combo_extended = bool(build.get("melee_combo_extended", melee_combo_extended))
 	chosen_color_path = String(build.get("chosen_color_path", ""))
 
@@ -932,58 +927,113 @@ func _rank_damage() -> float:
 
 
 func _rank_area() -> float:
-	return GameSettings.rank_area_mult(_casting_rank)
+	return area_mult_at_rank(_casting_rank)
+
+
+## A spell's area at `rank`, Kodama's Reach included. Public for the one spell that resolves
+## its area outside a cast (Fire Cone, which pays out per frame at the rank it started at).
+func area_mult_at_rank(rank: int) -> float:
+	return GameSettings.rank_area_mult(rank) * reach_area_mult()
+
+
+## Kodama's Reach, green's Attunement: every spell reaches further. The only area bonus in
+## the game - green is the colour of being bigger - and it rides the one funnel every spell's
+## area passes through, so no spell can be forgotten. (Not "Overgrowth": that is already the
+## name of green's team enchantment.)
+func reach_area_mult() -> float:
+	if not has_aura("aura_kodamas_reach"):
+		return 1.0
+	return GameSettings.aura_bonus_mult(GameSettings.aura_kodamas_reach_area_mult, get_aura_rank("aura_kodamas_reach"))
 
 
 func _rank_duration() -> float:
-	# Vigilance (Selesnya passive) lengthens everything with a duration, so it rides the
-	# one funnel every spell's duration already passes through.
+	# The Amulet of Vigor lengthens everything with a duration, so it rides the one funnel
+	# every spell's duration already passes through.
 	return GameSettings.rank_duration_mult(_casting_rank) * _vigilance_mult()
 
 
 ## The part of a duration bonus that is NOT rank. For a spell whose rank curve is written
-## out explicitly (Suction), so the passive still applies without rank being counted twice.
+## out explicitly (Suction), so the amulet still applies without rank being counted twice.
 func _vigilance_mult() -> float:
-	return 1.0 + get_passive_bonus("vigilance")
+	return 1.0 + equipment_value("amulet_of_vigor")
 
 
-## Rank of a neutral passive, 0 if not owned. The five passives live between the
-## colours in the tree and cost one skill point per rank, exactly like spells.
-func get_passive_rank(passive_id: String) -> int:
-	return int(passive_ranks.get(passive_id, 0))
+# --- equipment ------------------------------------------------------------------
+#
+# What the bosses drop (see EquipmentDatabase and RunState.try_drop_equipment). The five
+# keyword passives that used to sit between the colours in the skill tree live here now:
+# they were general-purpose numbers that belonged to no colour, bought with skill points
+# from whichever neighbour was nearer. As equipment they are found, not bought, and the
+# colour of the boss that drops one is the colour it fits.
+
+const EquipmentDatabase := preload("res://scripts/equipment_database.gd")
 
 
-func grant_passive_rank(passive_id: String) -> bool:
-	var rank: int = get_passive_rank(passive_id)
-	if rank >= GameSettings.spell_max_rank:
+func is_equipped(item_id: String) -> bool:
+	return equipped_items.has(item_id)
+
+
+## What an equipped item gives, as the one number its effect needs - a fraction, a chance,
+## a duration. 0 for anything this player is not wearing, so every call site can simply use
+## the answer.
+func equipment_value(item_id: String) -> float:
+	if not equipped_items.has(item_id):
+		return 0.0
+	return EquipmentDatabase.value(item_id)
+
+
+## Puts an item on or takes it off. Refuses anything the team has not found, and - when
+## GameSettings.equipment_max_equipped is set - anything past that many.
+##
+## Local: the build is this player's, and _publish_build carries the change to the server
+## and everyone else on the next frame, exactly as a skill purchase travels.
+func set_equipped(item_id: String, wear: bool) -> bool:
+	if not EquipmentDatabase.has_item(item_id):
 		return false
-	passive_ranks[passive_id] = rank + 1
-	SignalBus.passive_rank_changed.emit(passive_id, rank + 1)
+	if wear:
+		if equipped_items.has(item_id):
+			return true
+		if not RunState.is_equipment_unlocked(item_id):
+			return false
+		var limit: int = GameSettings.equipment_max_equipped
+		if limit > 0 and equipped_items.size() >= limit:
+			return false
+		equipped_items.append(item_id)
+	else:
+		if not equipped_items.has(item_id):
+			return true
+		equipped_items.erase(item_id)
+	SignalBus.equipment_changed.emit(self)
 	return true
 
 
-## What a passive grants at a given rank: its GameSettings minimum at rank 1, its
-## ceiling at max rank, walked the way every other fraction skill walks. All five are
-## fractions of something - a chance, a speed bonus, an HP share - never flat numbers.
-func get_passive_bonus_at(passive_id: String, rank: int) -> float:
-	if rank <= 0:
-		return 0.0
-	match passive_id:
-		"vigilance":
-			return GameSettings.rank_fraction(GameSettings.passive_vigilance_duration_min, GameSettings.passive_vigilance_duration_max, rank)
-		"double_strike":
-			return GameSettings.rank_fraction(GameSettings.passive_crit_chance_min, GameSettings.passive_crit_chance_max, rank)
-		"trample_strike":
-			return GameSettings.rank_fraction(GameSettings.passive_trample_hp_fraction_min, GameSettings.passive_trample_hp_fraction_max, rank)
-		"haste":
-			return GameSettings.rank_fraction(GameSettings.passive_haste_speed_min, GameSettings.passive_haste_speed_max, rank)
-		"flight":
-			return GameSettings.rank_fraction(GameSettings.passive_flight_jump_min, GameSettings.passive_flight_jump_max, rank)
-	return 0.0
+## Replaces what is worn from a saved or received build. Rebuilt element by element because
+## `equipped_items` is an Array[String] and an Array off the wire cannot be assigned to it.
+func _set_equipped_from(items: Variant) -> void:
+	equipped_items.clear()
+	if items is Array:
+		for item: Variant in items:
+			var item_id: String = String(item)
+			if EquipmentDatabase.has_item(item_id) and not equipped_items.has(item_id):
+				equipped_items.append(item_id)
 
 
-func get_passive_bonus(passive_id: String) -> float:
-	return get_passive_bonus_at(passive_id, get_passive_rank(passive_id))
+## Whispersilk Cloak: whether enemies can see this player at all. EnemyBase asks this of
+## every candidate, both for its ordinary target and for a boss special's victims, so a
+## cloaked player simply is not considered - and one being chased is dropped on the next
+## re-evaluation.
+func is_targetable() -> bool:
+	return _cloak_timer <= 0.0
+
+
+## Called by EnemyBase on the server the moment a hit of this player's kills something.
+func _on_kill_for_equipment() -> void:
+	var cloak: float = equipment_value("whispersilk_cloak")
+	if cloak > 0.0:
+		var fresh: bool = _cloak_timer <= 0.0
+		_cloak_timer = maxf(_cloak_timer, cloak)
+		if fresh:
+			NetFx.ring(global_position, Color(0.42, 0.3, 0.62), 1.6)
 
 
 ## Adds one rank. The tree charges the point; this only moves the rank, so a debug-free
@@ -1094,11 +1144,10 @@ func _get_spell_cooldown(spell_id: String) -> float:
 	return cooldown
 
 
+## Blue's affinity is the one source of faster cooldowns. Rhystic Study used to be a second
+## one on top (x0.7), which made the same number twice in the same colour.
 func _spell_cooldown_recovery_rate() -> float:
-	var cdr: float = 1.0
-	if has_aura("aura_rhystic_study"):
-		cdr = GameSettings.aura_bonus_mult(GameSettings.aura_rhystic_study_cdr_mult, get_aura_rank("aura_rhystic_study"))
-	return (1.0 + get_affinity_bonus("blue")) / maxf(cdr, 0.01)
+	return 1.0 + get_affinity_bonus("blue")
 
 func is_chargeable(spell_id: String) -> bool:
 	return SpellDatabase.is_chargeable(spell_id)
@@ -1114,8 +1163,9 @@ func cast_active_spell() -> void:
 	if not is_spell_unlocked(active_spell_index):
 		return
 
-	var cd = spell_cooldown_timers.get(spell_id, 0.0)
-	if cd > 0.0:
+	var cd: float = float(spell_cooldown_timers.get(spell_id, 0.0))
+	# Phyrexian Arena lets a spell on cooldown be cast anyway, for life - see blood_cast_cost.
+	if cd > 0.0 and not can_blood_cast(spell_id):
 		return
 
 	if not _can_start_cast():
@@ -1314,6 +1364,11 @@ func _begin_cast(spell_id: String, charge_pct: float, windup_progress: float = -
 
 	var release_on_last: bool = bool(row.get("release_on_last", false))
 	var commit: float = float(row.get("commit", duration))
+	# Fervor quickens the cast the way it quickens a swing - the clip, the release frame and
+	# the commitment all shrink together, so the spell still lands on its own frame.
+	var cast_speed: float = _cast_speed_mult()
+	duration /= cast_speed
+	commit /= cast_speed
 	# Clip-seconds per real second: the pace an uncharged cast of this spell plays at,
 	# matched exactly, so continuing out of a wind-up makes the cast LONGER - there is
 	# more lead-in still to cover - rather than slower.
@@ -1375,7 +1430,8 @@ func release_charged_spell() -> void:
 	is_charging = false
 	charge_timer = 0.0
 	SignalBus.spell_charge_changed.emit(0.0, charge_max_time, false)
-	if not is_spell_owned(spell_id) or spell_cooldown_timers.get(spell_id, 0.0) > 0.0:
+	var on_cooldown: bool = float(spell_cooldown_timers.get(spell_id, 0.0)) > 0.0
+	if not is_spell_owned(spell_id) or (on_cooldown and not can_blood_cast(spell_id)):
 		_fizzle_charge_orb()
 		_stop_spell_windup()
 		return
@@ -1395,6 +1451,15 @@ func release_charged_spell() -> void:
 ## authority, because a projectile spawned on a client is invisible to everyone else and
 ## its damage would never reach the server's enemies.
 func execute_spell(spell_id: String, charge_pct: float = 1.0) -> void:
+	# A spell still on cooldown at its release frame is a Phyrexian Arena cast, paid for in
+	# life. Priced HERE, on the frame it resolves, from what is left of the cooldown now -
+	# and refused if the price would kill: the aura trades health for time, never a life.
+	var blood_cost: float = 0.0
+	if has_aura("aura_phyrexian_arena") and float(spell_cooldown_timers.get(spell_id, 0.0)) > 0.0:
+		if not can_blood_cast(spell_id):
+			_notify("Not enough life to pay for it")
+			return
+		blood_cost = blood_cast_cost(spell_id)
 	var cooldown: float = _get_spell_cooldown(spell_id)
 	if cooldown > 0.0:
 		spell_cooldown_timers[spell_id] = cooldown / _spell_cooldown_recovery_rate()
@@ -1404,16 +1469,57 @@ func execute_spell(spell_id: String, charge_pct: float = 1.0) -> void:
 	# which is how a client's channel ended the instant the host was not pressing anything.
 	var held: bool = is_local and Input.is_action_pressed("cast_spell")
 	if Net.is_active() and not Net.is_server():
-		_request_spell.rpc_id(1, spell_id, charge_pct, held)
+		_request_spell.rpc_id(1, spell_id, charge_pct, held, blood_cost)
 		return
+	pay_life(blood_cost)
 	_run_spell_effect(spell_id, charge_pct, held)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _request_spell(spell_id: String, charge_pct: float, held: bool = false) -> void:
+func _request_spell(spell_id: String, charge_pct: float, held: bool = false, blood_cost: float = 0.0) -> void:
 	if not Net.is_server():
 		return
+	pay_life(blood_cost)
 	_run_spell_effect(spell_id, charge_pct, held)
+
+
+## Phyrexian Arena: what casting `spell_id` right now would cost in life. 0 when it is not
+## on cooldown, and -1 when this player cannot pay in life at all.
+##
+## The price is TIME: a share of maximum health for every second of cooldown still left,
+## which the aura's rank makes cheaper. A spell that is almost ready is almost free, and Kill
+## called a whole cooldown early costs most of a health bar - the same rule answers both.
+func blood_cast_cost(spell_id: String) -> float:
+	if not has_aura("aura_phyrexian_arena"):
+		return -1.0
+	var remaining: float = float(spell_cooldown_timers.get(spell_id, 0.0))
+	if remaining <= 0.0:
+		return 0.0
+	var per_second: float = GameSettings.rank_fraction(
+		GameSettings.aura_phyrexian_arena_life_per_second,
+		GameSettings.aura_phyrexian_arena_life_per_second_max,
+		get_aura_rank("aura_phyrexian_arena")
+	)
+	return max_hp * per_second * remaining
+
+
+## Whether a spell on cooldown could be paid for in life right now. Never with the last of
+## it: a payment that would leave less than 1 health is refused, not taken.
+func can_blood_cast(spell_id: String) -> bool:
+	var cost: float = blood_cast_cost(spell_id)
+	return cost > 0.0 and not is_downed and hp - cost >= 1.0
+
+
+## Life paid for a spell. Taken straight off health - a shield is protection from what
+## enemies do, not a way to pay for what the player chose - and never below 1.
+func pay_life(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	hp = maxf(hp - amount, 1.0)
+	_emit_health_changed()
+	NetFx.damage_number(global_position + Vector3(0.0, 1.8, 0.0), amount,
+		Color(0.72, 0.2, 0.42), "-%d life" % roundi(amount))
+	NetFx.ring(global_position, Color(0.5, 0.08, 0.2), 1.4)
 
 
 func _run_spell_effect(spell_id: String, charge_pct: float, held: bool = false) -> void:
@@ -1421,7 +1527,8 @@ func _run_spell_effect(spell_id: String, charge_pct: float, held: bool = false) 
 	# so the rank is resolved again rather than assumed to be left over from the cast.
 	_casting_rank = maxi(get_spell_rank(spell_id), 1)
 	
-	# Rhystic Study Shield trigger on cast
+	# Rhystic Study: every cast banks shield, up to a cap. (When it breaks, it freezes what
+	# broke it - see _rhystic_shatter.)
 	if has_aura("aura_rhystic_study"):
 		rhystic_shield = minf(
 			rhystic_shield + GameSettings.aura_rhystic_study_shield_amount * get_aura_rank_mult("aura_rhystic_study"),
@@ -1444,7 +1551,7 @@ func _run_spell_effect(spell_id: String, charge_pct: float, held: bool = false) 
 		"blue_5": SpellEffects.cast_blue_displace(self)
 		# --- BLACK ---
 		"black_1": SpellEffects.cast_black_doom_blade(self)
-		"black_2": SpellEffects.cast_black_fear(self)
+		"black_2": SpellEffects.cast_black_contagion(self)
 		"black_3": SpellEffects.cast_black_kill(self)
 		"black_4": SpellEffects.cast_black_wall_of_souls(self)
 		"black_5": SpellEffects.cast_black_zombify(self)
@@ -1520,30 +1627,29 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false) -
 		if is_instance_valid(source) and source.has_method("take_damage") and source.is_in_group("enemies"):
 			source.take_damage(remaining_damage * _reprisal_reflect, self)
 
-	# Ironbark: the only damage REDUCTION the player has. Applied before the shields so
-	# it makes them last longer rather than being wasted on damage they already ate.
+	# Ironbark: the only damage REDUCTION the player has of their own. Applied before the
+	# shields so it makes them last longer rather than being wasted on damage they already ate.
 	if can_use_defenses and _ironbark_timer > 0.0:
 		remaining_damage *= 1.0 - _ironbark_reduction
+	# ...and a white teammate's Glorious Anthem, which shelters everyone near them but them.
+	if can_use_defenses:
+		remaining_damage *= Player.anthem_damage_taken_mult(self)
 
 	if can_use_defenses:
-		# Any hit that reaches the shields restarts Anthem's recharge delay, including one the
-		# shields eat outright - a shield absorbing damage is the player being in trouble, which
-		# is exactly when the recharge should not be running.
-		_undamaged_timer = 0.0
 		var shield_before: float = total_shield()
-		var absorbed: float = minf(glorious_anthem_shield, remaining_damage)
-		glorious_anthem_shield -= absorbed
-		remaining_damage -= absorbed
-		absorbed = minf(rhystic_shield, remaining_damage)
+		var rhystic_before: float = rhystic_shield
+		var absorbed: float = minf(rhystic_shield, remaining_damage)
 		rhystic_shield -= absorbed
 		remaining_damage -= absorbed
-		# Circle of Protection is spent LAST of the three, because it is the only one a
-		# player chose to cast - a aura shield regenerates on its own and this does not.
+		# Circle of Protection is spent LAST, because it is the only one a player chose to
+		# cast - the aura shield comes back on its own and this does not.
 		absorbed = minf(protection_shield, remaining_damage)
 		protection_shield -= absorbed
 		remaining_damage -= absorbed
 		if not is_equal_approx(shield_before, total_shield()):
 			emit_shield_changed()
+		if rhystic_before > 0.0 and rhystic_shield <= 0.0:
+			_rhystic_shatter()
 
 	if remaining_damage <= 0.0:
 		return
@@ -1622,11 +1728,6 @@ func _sync_auras() -> void:
 	# whenever the giant bonus changes, i.e. on every Giant Growth, and a green/white player
 	# growing should not lose a shield an ally just cast on them. Its own timer expires it.
 	rhystic_shield = 0.0
-	glorious_anthem_shield = 0.0
-	if has_aura("aura_sylvan_library"):
-		max_hp *= GameSettings.aura_bonus_mult(GameSettings.aura_sylvan_library_hp_mult, get_aura_rank("aura_sylvan_library"))
-	if has_aura("aura_glorious_anthem"):
-		glorious_anthem_shield = GameSettings.aura_glorious_anthem_shield * get_aura_rank_mult("aura_glorious_anthem")
 	max_hp += _giant_bonus_hp
 	hp = clampf(max_hp * health_ratio, 1.0, max_hp)
 	if _applied_auras != aura_signature:
@@ -1657,6 +1758,7 @@ func _rebuild_aura_orbs() -> void:
 		"aura_orb_of_frost": OrbitingOrb.Mode.FROST,
 		"aura_orb_of_fire": OrbitingOrb.Mode.FIRE,
 		"aura_healing_orb": OrbitingOrb.Mode.HEAL,
+		"aura_grave_pact": OrbitingOrb.Mode.SOUL,
 	}
 	for aura_id: String in orb_modes.keys():
 		if not has_aura(aura_id):
@@ -1688,7 +1790,7 @@ func build_snapshot() -> Dictionary:
 		"spells": spell_ranks,
 		"auras": aura_ranks,
 		"affinity": affinity_ranks,
-		"passives": passive_ranks,
+		"equipment": equipped_items,
 		"combo": melee_combo_extended,
 	}
 
@@ -1696,8 +1798,8 @@ func build_snapshot() -> Dictionary:
 ## Sends the build out when it has actually moved.
 ##
 ## A dirty CHECK rather than a notification from each of the six places that can change a
-## build - grant_spell_rank, grant_aura_rank, grant_passive_rank, the affinity purchase
-## and the two debug resets. A notification is a thing a future skill-tree change can
+## build - grant_spell_rank, grant_aura_rank, set_equipped, the affinity purchase and the
+## two debug resets. A notification is a thing a future skill-tree change can
 ## forget to send; watching the state cannot be forgotten, and the same reasoning already
 ## drives _sync_auras and _sync_channel_fx.
 func _publish_build() -> void:
@@ -1718,7 +1820,7 @@ func _publish_build() -> void:
 ## nothing had changed. The snapshot is now built only on the frame the fingerprint moves.
 func _build_fingerprint() -> int:
 	return hash([
-		spell_ranks, aura_ranks, affinity_ranks, passive_ranks,
+		spell_ranks, aura_ranks, affinity_ranks, equipped_items,
 		unlocked_spells_in_path, chosen_color_path, melee_combo_extended,
 	])
 
@@ -1763,7 +1865,7 @@ func _apply_build(build: Dictionary) -> void:
 	spell_ranks = (build.get("spells", {}) as Dictionary).duplicate()
 	aura_ranks = (build.get("auras", {}) as Dictionary).duplicate()
 	affinity_ranks = (build.get("affinity", {}) as Dictionary).duplicate()
-	passive_ranks = (build.get("passives", {}) as Dictionary).duplicate()
+	_set_equipped_from(build.get("equipment", []))
 	melee_combo_extended = bool(build.get("combo", false))
 	# The whole reason it was sent: maximum health, the shields the auras carry, and the
 	# orbiting ones. On the host this makes a client's spells resolve at their real rank;
@@ -1828,29 +1930,84 @@ func grant_aura_rank(aura_id: String) -> bool:
 	return true
 
 
-## Grave Pact: a kill near the player leaves a soul - a small heal, and one stack of a
-## damage bonus whose timer restarts with every kill. Stop killing and the whole thing
-## lapses at once rather than decaying one stack at a time, because a bonus that drains
-## away slowly is one the player never notices losing.
+## Grave Pact: an enemy dying near the player gives its soul to the Soul Orb, which throws
+## it at the next enemy (see OrbitingOrb.add_soul). Reached only on the server, where enemies
+## die. Only ENEMY deaths count - a raised zombie bursting is already the end of a soul the
+## pact has used once, and the zombies never emit enemy_died_at.
 func _on_enemy_died_near(position: Vector3) -> void:
 	if is_downed or global_position.distance_to(position) > GameSettings.aura_grave_pact_radius:
 		return
-	heal(GameSettings.aura_grave_pact_heal * get_aura_rank_mult("aura_grave_pact"))
-	_grave_stacks = mini(_grave_stacks + 1, GameSettings.aura_grave_pact_max_stacks)
-	_grave_stack_timer = GameSettings.aura_grave_pact_stack_duration * get_aura_rank_mult("aura_grave_pact", "duration")
+	var orb: Node = _aura_orbs.get("aura_grave_pact", null)
+	if is_instance_valid(orb) and orb.has_method("add_soul"):
+		orb.add_soul(position)
 
+
+## Red's affinity is the player's own damage bonus, the team's Furnace of Rath multiplies it,
+## and a nearby white teammate's Glorious Anthem adds its share. Nothing else in the tree
+## grants damage - Phyrexian Arena, Anthem-on-yourself and Grave Pact all used to, which was
+## the same number three more times.
 func get_spell_damage_multiplier() -> float:
 	var affinity_multiplier: float = 1.0 + get_affinity_bonus("red")
-	# Grave Pact's stacks multiply into the same term the affinity does, so they scale
-	# everything the player does rather than only their melee.
-	affinity_multiplier *= 1.0 + float(_grave_stacks) * GameSettings.aura_grave_pact_damage_per_stack * get_aura_rank_mult("aura_grave_pact")
-	if has_aura("aura_glorious_anthem"):
-		return GameSettings.aura_bonus_mult(GameSettings.aura_glorious_anthem_damage_mult, get_aura_rank("aura_glorious_anthem")) * RunState.damage_multiplier() * affinity_multiplier
-	# Furnace of Rath is the team's, so it multiplies whatever this player already has.
-	var team_multiplier: float = RunState.damage_multiplier()
-	if has_aura("aura_phyrexian_arena"):
-		return GameSettings.aura_bonus_mult(GameSettings.aura_phyrexian_arena_damage_mult, get_aura_rank("aura_phyrexian_arena")) * team_multiplier * affinity_multiplier
-	return team_multiplier * affinity_multiplier
+	return RunState.damage_multiplier() * affinity_multiplier * Player.anthem_damage_mult(self)
+
+
+# --- Glorious Anthem: the team aura ------------------------------------------------
+#
+# "Creatures you control get +1/+1." White's Attunement makes everyone around the white
+# player better - teammates, myrs and summons - and deliberately NOT the player themselves:
+# their own damage is red's number, and a second copy of it is what this used to be.
+#
+# Static, and asked by the one who is being helped rather than pushed by the one helping:
+# the three kinds of ally take and deal damage in three different scripts, and each only has
+# to ask "is a white player standing near me" at the moment it matters.
+
+## The strongest Anthem reaching `ally` - several white players do not stack, the best one
+## applies. `rank` 0 when no Anthem reaches them.
+static func _anthem_rank_reaching(ally: Node3D) -> int:
+	if not is_instance_valid(ally) or not ally.is_inside_tree():
+		return 0
+	var best: int = 0
+	for node: Node in ally.get_tree().get_nodes_in_group("player"):
+		var singer := node as Player
+		if singer == null or singer == ally or singer.is_downed or not singer.has_aura("aura_glorious_anthem"):
+			continue
+		if singer.global_position.distance_to(ally.global_position) > GameSettings.aura_glorious_anthem_radius:
+			continue
+		best = maxi(best, singer.get_aura_rank("aura_glorious_anthem"))
+	return best
+
+
+## Multiplier on what `ally` deals, from a teammate's Anthem. 1.0 when none reaches them.
+static func anthem_damage_mult(ally: Node3D) -> float:
+	var rank: int = _anthem_rank_reaching(ally)
+	if rank <= 0:
+		return 1.0
+	return GameSettings.aura_bonus_mult(GameSettings.aura_glorious_anthem_ally_damage_mult, rank)
+
+
+## Multiplier on what `ally` takes, from a teammate's Anthem. 1.0 when none reaches them.
+static func anthem_damage_taken_mult(ally: Node3D) -> float:
+	var rank: int = _anthem_rank_reaching(ally)
+	if rank <= 0:
+		return 1.0
+	return GameSettings.aura_bonus_mult(GameSettings.aura_glorious_anthem_ally_damage_taken_mult, rank)
+
+
+## Rhystic Study's shield breaking: the enemies close enough to have broken it are frozen
+## where they stand - a blue shield that punishes the hand that cracks it. Bosses are slowed
+## instead, the same line Frost Breath draws. Runs on the server, where take_damage does.
+func _rhystic_shatter() -> void:
+	var radius: float = GameSettings.aura_rhystic_study_shatter_radius
+	var freeze: float = GameSettings.aura_rhystic_study_shatter_freeze * get_aura_rank_mult("aura_rhystic_study", "duration")
+	for enemy: Node3D in _enemies_in_radius(global_position, radius):
+		if enemy.has_method("is_boss") and enemy.is_boss():
+			if enemy.has_method("apply_frost_slow"):
+				enemy.apply_frost_slow(freeze)
+		elif "freeze_timer" in enemy:
+			enemy.freeze_timer = maxf(enemy.freeze_timer, freeze)
+	NetFx.ring(global_position, FX_BLUE, radius)
+	NetFx.impact(global_position + Vector3(0.0, 1.0, 0.0), FX_BLUE, 1.2)
+	NetFx.sound(&"spell_frostwave", global_position)
 
 ## Levels grant these to every player at once; Upkeep can buy more, also for everyone.
 ## What each player spends them on is their own business.
@@ -1875,11 +2032,11 @@ func apply_slow(duration: float) -> void:
 		return
 	slow_timer = maxf(slow_timer, duration)
 
-## Everything currently standing between the player and their health bar. The three shields
-## are spent as one pool in take_damage - Anthem, then Rhystic, then Circle of Protection -
-## so they are also reported as one number.
+## Everything currently standing between the player and their health bar. The two shields
+## are spent as one pool in take_damage - Rhystic, then Circle of Protection - so they are
+## also reported as one number.
 func total_shield() -> float:
-	return glorious_anthem_shield + rhystic_shield + protection_shield
+	return rhystic_shield + protection_shield
 
 
 ## Announces the shield pool to the HUD. Called from every place any of the three changes;
@@ -1889,29 +2046,20 @@ func total_shield() -> float:
 ## it. (`player_health_changed` has no such guard and predates this - in a real multiplayer
 ## session a remote player's damage still moves the local health bar. Left alone here rather
 ## than fixed in passing, but new code should not copy it.)
-## The two shields that change on their own: Circle of Protection's expires, and Glorious
-## Anthem's comes back. Rhystic Study's is not here - it is granted by casting and capped, so
-## it has no clock of its own.
+## The shield that changes on its own: Circle of Protection's expires. Rhystic Study's is
+## not here - it is granted by casting and capped, so it has no clock of its own. (Glorious
+## Anthem's recharging shield used to be the third; Anthem is a team aura now.)
 ##
-## Both halves report through emit_shield_changed only when the total actually MOVED. This runs
-## every physics frame, and the recharge moves the number by a fraction each one; announcing all
-## of that would push a signal at the HUD sixty times a second for three seconds.
+## Reports through emit_shield_changed only when the total actually MOVED, because this runs
+## every physics frame.
 func _update_shields(delta: float) -> void:
 	var before: float = total_shield()
-	_undamaged_timer += delta
 
 	if _protection_shield_timer > 0.0:
 		_protection_shield_timer -= delta
 		if _protection_shield_timer <= 0.0:
 			_protection_shield_timer = 0.0
 			protection_shield = 0.0
-
-	if has_aura("aura_glorious_anthem") and not is_downed:
-		var full: float = GameSettings.aura_glorious_anthem_shield * get_aura_rank_mult("aura_glorious_anthem")
-		if glorious_anthem_shield < full and _undamaged_timer >= GameSettings.aura_glorious_anthem_recharge_delay:
-			glorious_anthem_shield = minf(
-				glorious_anthem_shield + GameSettings.aura_glorious_anthem_recharge_rate * delta, full
-			)
 
 	if not is_equal_approx(before, total_shield()):
 		emit_shield_changed()
@@ -2478,7 +2626,7 @@ func _build_channel_fx() -> void:
 	_channel_voice = SoundBank.attach_loop(&"spell_fire_cone", self, false)
 	# Off `_channel_rank` rather than `_rank_area()`, because this now runs on peers where
 	# no cast is in progress and `_casting_rank` is whatever was cast here last.
-	var length: float = GameSettings.spell_red_fire_cone_length * GameSettings.rank_area_mult(_channel_rank)
+	var length: float = GameSettings.spell_red_fire_cone_length * area_mult_at_rank(_channel_rank)
 	_channel_fx = EmberFx.build_flame(length * 0.25, 60)
 	_channel_fx.position = Vector3(0.0, 1.2, -1.2)
 	var process: ParticleProcessMaterial = _channel_fx.process_material
@@ -2551,13 +2699,8 @@ func _update_skill_timers(delta: float) -> void:
 		_phoenix_ward_timer -= delta
 	if _ironbark_timer > 0.0:
 		_ironbark_timer -= delta
-
-	if _grave_stack_timer > 0.0:
-		_grave_stack_timer -= delta
-		if _grave_stack_timer <= 0.0:
-			# The whole stack lapses at once rather than draining away one at a time: a
-			# bonus that decays gradually is one the player never notices losing.
-			_grave_stacks = 0
+	if _cloak_timer > 0.0:
+		_cloak_timer -= delta
 
 	if giant_timer > 0.0:
 		giant_timer -= delta
@@ -2592,7 +2735,7 @@ func _update_channel(delta: float) -> void:
 
 	var damage: float = GameSettings.spell_red_fire_cone_dps * get_spell_damage_multiplier() \
 		* GameSettings.rank_damage_mult(_channel_rank) * delta
-	var length: float = GameSettings.spell_red_fire_cone_length * GameSettings.rank_area_mult(_channel_rank)
+	var length: float = GameSettings.spell_red_fire_cone_length * area_mult_at_rank(_channel_rank)
 	for enemy: Node3D in _enemies_in_cone(length, GameSettings.spell_red_fire_cone_dot):
 		_deal_damage(enemy, damage, false)
 		# The control half of the cone's job, now that it is no longer red's biggest damage
@@ -3162,10 +3305,18 @@ func _giant_damage_mult() -> float:
 ## stretched by Giant Growth's size. The slow is capped: a rank-5 giant swings at most
 ## a little over half speed, so the growth never tips into feeling broken.
 func _attack_speed_mult() -> float:
-	var mult: float = GameSettings.aura_bonus_mult(GameSettings.aura_fervor_speed_boost, get_aura_rank("aura_fervor")) if has_aura("aura_fervor") else 1.0
+	var mult: float = _cast_speed_mult()
 	if is_giant:
 		mult /= minf(_giant_scale_mult, GameSettings.spell_green_giant_attack_slow_cap)
 	return mult
+
+
+## Red's Fervor: faster swings and faster casts. Only those - moving faster is the Swiftfoot
+## Boots' job, and Fervor used to do that too.
+func _cast_speed_mult() -> float:
+	if not has_aura("aura_fervor"):
+		return 1.0
+	return GameSettings.aura_bonus_mult(GameSettings.aura_fervor_speed_boost, get_aura_rank("aura_fervor"))
 
 
 ## The gameplay half of starting a committed move: how long it owns the player, and
@@ -3218,11 +3369,6 @@ func _begin_melee_action(clip: String, duration: float, damage_mult: float, uppe
 func _deal_damage(target: Node, amount: float, is_melee: bool, exile_on_kill: bool = false) -> void:
 	if not is_instance_valid(target):
 		return
-	# Double Strike (Dimir passive): everything the player causes can crit, melee and
-	# spells alike, so the roll lives in the one funnel all of it passes through.
-	var crit_chance: float = get_passive_bonus("double_strike")
-	if crit_chance > 0.0 and randf() < crit_chance:
-		amount *= GameSettings.passive_crit_damage_mult
 	if Net.is_server():
 		if target.has_method("take_damage"):
 			target.take_damage(amount, self, is_melee, exile_on_kill)
@@ -3242,9 +3388,9 @@ func _apply_melee_damage(damage_mult: float) -> int:
 	var knockback: float = GameSettings.spell_melee_kick_knockback if is_kick else _attack_knockback_strength
 	var dmg: float = GameSettings.spell_melee_kick_damage if is_kick else GameSettings.spell_melee_damage * damage_mult
 	dmg *= get_spell_damage_multiplier() * _giant_damage_mult()
-	# Trample (Gruul passive): melee scales off the player's own health pool, which is
-	# what makes the passive pair with Giant Growth inside the same colours.
-	dmg += max_hp * get_passive_bonus("trample_strike")
+	# Loxodon Warhammer: melee scales off the player's own health pool, which is what makes
+	# it pair with green's size - Giant Growth and the green affinity both raise the pool.
+	dmg += max_hp * equipment_value("loxodon_warhammer")
 
 	# Exalted Strike (white_1). A kick is not a strike, so it never spends the charge -
 	# otherwise the buff could be thrown away by a button the player pressed for spacing.
@@ -3263,7 +3409,7 @@ func _apply_melee_damage(damage_mult: float) -> int:
 
 	if result and result.collider.is_in_group("enemies"):
 		var enemy = result.collider
-		_deal_damage(enemy, dmg, true, exalted)
+		_melee_strike(enemy, dmg, exalted)
 		_apply_basic_attack_knockback(enemy, knockback)
 		return 1
 
@@ -3273,10 +3419,40 @@ func _apply_melee_damage(damage_mult: float) -> int:
 		if is_instance_valid(e) and global_position.distance_to(e.global_position) <= reach:
 			var dir_to_e = (e.global_position - global_position).normalized()
 			if -transform.basis.z.dot(dir_to_e) > GameSettings.spell_melee_cone:
-				_deal_damage(e, dmg, true, exalted)
+				_melee_strike(e, dmg, exalted)
 				_apply_basic_attack_knockback(e, knockback)
 				connected += 1
 	return connected
+
+
+## One enemy struck by one melee impact, with everything the player wears on the weapon arm.
+## Rolled here, on the machine that swung, like the rest of melee - only the consequence
+## travels to the server.
+func _melee_strike(enemy: Node3D, dmg: float, exile: bool) -> void:
+	_deal_damage(enemy, dmg, true, exile)
+	# Fireshrieker: the blade sometimes lands twice. A second hit rather than a bigger one,
+	# which is what double strike means - it is seen as two numbers, and a second hit on a
+	# nearly dead enemy is a kill where one bigger hit would only have been overkill.
+	var double_chance: float = equipment_value("fireshrieker")
+	if double_chance > 0.0 and randf() < double_chance and is_instance_valid(enemy):
+		_deal_damage(enemy, dmg, true, exile)
+		NetFx.impact(enemy.global_position + Vector3(0.0, 1.2, 0.0), FX_RED, 0.6)
+	# Icy Manipulator: the hit sometimes freezes what it lands on.
+	var freeze_chance: float = equipment_value("icy_manipulator")
+	if freeze_chance > 0.0 and randf() < freeze_chance and is_instance_valid(enemy):
+		var freeze: float = GameSettings.equipment_icy_manipulator_freeze
+		if Net.is_server():
+			if enemy.has_method("apply_equipment_freeze"):
+				enemy.apply_equipment_freeze(freeze)
+		elif enemy.has_method("request_freeze"):
+			enemy.request_freeze.rpc_id(1, freeze)
+		NetFx.impact(enemy.global_position + Vector3(0.0, 1.2, 0.0), FX_BLUE, 0.8)
+
+
+## Executioner's Capsule: the share of an enemy's health below which a melee hit of this
+## player's simply kills it. 0 without the capsule. Asked by EnemyBase on the server.
+func melee_execute_threshold() -> float:
+	return equipment_value("executioners_capsule")
 
 func _apply_basic_attack_knockback(enemy: Node3D, strength: float = -1.0) -> void:
 	if not enemy.has_method("apply_knockback"):
@@ -3433,15 +3609,15 @@ func _physics_process(delta: float) -> void:
 	is_grounded = is_on_floor()
 
 	if not is_on_floor():
-		# Flying (Azorius passive): holding jump on the way down trades the fall for a
-		# glide. Only the fall - a rising jump keeps full weight, or it floats forever.
+		# Cobbled Wings: holding jump on the way down trades the fall for a glide. Only the
+		# fall - a rising jump keeps full weight, or it floats forever.
 		var fall_gravity: float = gravity
-		if velocity.y < 0.0 and get_passive_rank("flight") > 0 and Input.is_action_pressed("jump"):
-			fall_gravity *= GameSettings.passive_flight_glide_gravity_mult
+		if velocity.y < 0.0 and is_equipped("cobbled_wings") and Input.is_action_pressed("jump"):
+			fall_gravity *= GameSettings.equipment_cobbled_wings_glide_gravity_mult
 		velocity.y -= fall_gravity * delta
 
 	if is_local and Input.is_action_just_pressed("jump") and is_on_floor():
-		velocity.y = jump_velocity * (1.0 + get_passive_bonus("flight"))
+		velocity.y = jump_velocity * (1.0 + equipment_value("cobbled_wings"))
 		animator.start_jump(velocity.y)
 
 	# Titanic Brawl is in the air: gravity and the launch impulse own the player, so
@@ -3481,16 +3657,9 @@ func _physics_process(delta: float) -> void:
 			release_charged_spell()
 
 
-	# Base & Aura Passive HP Regeneration
+	# Regeneration: white's affinity is the only thing that raises it.
 	var regen_amount = GameSettings.player_base_hp_regen * (1.0 + get_affinity_bonus("white")) * delta
-	if has_aura("aura_sylvan_library"):
-		regen_amount += GameSettings.aura_sylvan_library_regen * get_aura_rank_mult("aura_sylvan_library") * delta
 	heal(regen_amount, false)
-
-	if has_aura("aura_phyrexian_arena"):
-		var drain = max_hp * GameSettings.aura_phyrexian_arena_hp_drain_pct * delta
-		hp = max(1.0, hp - drain)
-		_emit_health_changed()
 
 	# Trample, green's Manifestation. Gated on actually MOVING, which is the whole
 	# design: it rewards the colour that fights by being physically present, and it does
@@ -3557,14 +3726,9 @@ func _physics_process(delta: float) -> void:
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 	
 	var current_speed = speed
-	if has_aura("aura_fervor"):
-		current_speed *= GameSettings.aura_bonus_mult(GameSettings.aura_fervor_speed_boost, get_aura_rank("aura_fervor"))
-	elif has_aura("aura_phyrexian_arena"):
-		current_speed *= GameSettings.aura_bonus_mult(GameSettings.aura_phyrexian_arena_speed_mult, get_aura_rank("aura_phyrexian_arena"))
-	# Haste (Rakdos passive): a plain multiplier on top of whatever else is moving you.
-	var haste_bonus: float = get_passive_bonus("haste")
-	if haste_bonus > 0.0:
-		current_speed *= 1.0 + haste_bonus
+	# Swiftfoot Boots: the one thing in the game that makes a player move faster. Fervor,
+	# Phyrexian Arena and the Haste passive all used to, three copies of one number.
+	current_speed *= 1.0 + equipment_value("swiftfoot_boots")
 		
 	# A heavy attack, a kick or a stagger plays on the whole body, so the player is
 	# held in place for its duration - otherwise the character slides along the floor

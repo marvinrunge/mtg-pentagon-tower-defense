@@ -32,7 +32,7 @@ const ICON_FILES: Dictionary = {
 	"white_1": "exalted-strike.png", "white_2": "circle-of-protection.png", "white_3": "reprisal-ward.png",
 	"white_4": "wrath-of-god.png", "white_5": "rally-the-fallen.png", "blue_1": "unsummon.png",
 	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": "frost-globe.png", "blue_5": "flying.png",
-	"black_1": "doom-blade.png", "black_2": "fear.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
+	"black_1": "doom-blade.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
 	"black_5": "zombify.png", "red_1": "fireball.png", "red_2": "fire-dash.png", "red_3": "rain-of-ember.png",
 	"red_4": "fire-cone.png", "red_5": "lightning-bolt.png", "green_1": "titanic-leap.png",
 	"green_2": "giant-growth.png", "green_3": "fog.png", "flight": "flying.png", "haste": "haste.png",
@@ -42,7 +42,7 @@ const ICON_FILES: Dictionary = {
 	"aura_rhystic_study": "rhystic-study.png", "aura_orb_of_frost": "orb-of-frost.png",
 	"aura_phyrexian_arena": "phyrexian-arena.png", "aura_grave_pact": "grave-pact.png",
 	"aura_fervor": "fervor.png", "aura_orb_of_fire": "orb-of-fire.png",
-	"aura_sylvan_library": "sylvan-library.png", "aura_trample": "trample.png",
+	"aura_trample": "trample.png",
 }
 
 ## Per-spell definition.
@@ -153,27 +153,30 @@ const SPELLS: Dictionary = {
 		"cast_clip": "", "cast_duration": 0.0, "roots": false,
 	},
 
-	# --- BLACK: parasitic drain ---
-	# Trades its own resources for removal, and the only colour that can delete a target
-	# outright.
+	# --- BLACK: death as a resource ---
+	# Kills, and feeds on what the killing leaves: corpses to raise, souls to throw, a plague
+	# that runs through a crowd. The only colour that can delete a target outright.
 	"black_1": {
 		"name": "Doom Blade",
-		"desc": "A black blade travels straight ahead, passing through everything in the line.",
+		"desc": "A black blade travels straight ahead, passing through everything in the line. Reaches further with every rank.",
 		"cooldown": 7.0, "chargeable": false,
 		"cast_clip": "cast_black", "cast_duration": 0.5, "roots": false,
 	},
+	# Replaced Fear, which scattered the packs every area skill wants and whose damage window
+	# was Wall of Souls' vulnerability a second time. See docs/SKILL_DESIGN.md.
 	"black_2": {
-		"name": "Fear",
-		"desc": "Nearby enemies turn and flee instead of fighting, and take more damage for as long as they run.",
-		"cooldown": 14.0, "chargeable": false,
-		"cast_clip": "cast_black", "cast_duration": 0.6, "roots": false,
+		"name": "Contagion",
+		"desc": "Plague the enemy you are looking at. It burns, and jumps to the nearest enemy every second - the denser the wave, the further it runs.",
+		"cooldown": 12.0, "chargeable": false,
+		"cast_clip": "cast_black", "cast_duration": 0.55, "roots": false,
 	},
-	# The harshest cooldown in the game, deliberately. An instant delete on a short
-	# cooldown invalidates every other black skill.
+	# Still the longest cooldown in the game, deliberately: an instant delete on a short
+	# cooldown invalidates every other black skill. Cut from a whole minute, which in a
+	# game of hordes meant one elite a minute.
 	"black_3": {
 		"name": "Kill",
 		"desc": "Instantly kills one enemy. Bosses only below a third of their health.",
-		"cooldown": 60.0, "chargeable": false,
+		"cooldown": 40.0, "chargeable": false,
 		"cast_clip": "cast_black", "cast_duration": 0.75, "roots": true,
 	},
 	"black_4": {
@@ -184,7 +187,7 @@ const SPELLS: Dictionary = {
 	},
 	"black_5": {
 		"name": "Zombify",
-		"desc": "Raises the corpses already lying on the field as undead that fight for you.",
+		"desc": "Raises the corpses lying nearby as ghouls that rush the nearest enemy and burst.",
 		"cooldown": 30.0, "chargeable": false,
 		"cast_clip": "cast_black", "cast_duration": 0.9, "roots": true,
 	},
@@ -303,7 +306,7 @@ const AURAS: Dictionary = {
 	"white": {
 		"attunement": {
 			"id": "aura_glorious_anthem", "name": "Glorious Anthem",
-			"desc": "A permanent shield, and every hit you land is stronger.",
+			"desc": "Teammates, myrs and summons near you deal more damage and take less. Not you - it is a song for everyone else.",
 		},
 		"manifestation": {
 			"id": "aura_healing_orb", "name": "Healing Orb",
@@ -313,7 +316,7 @@ const AURAS: Dictionary = {
 	"blue": {
 		"attunement": {
 			"id": "aura_rhystic_study", "name": "Rhystic Study",
-			"desc": "Sharply faster cooldowns, and every cast grants shield.",
+			"desc": "Every spell you cast grants shield. When the shield breaks, it freezes the enemies around you.",
 		},
 		"manifestation": {
 			"id": "aura_orb_of_frost", "name": "Winter Orb",
@@ -323,17 +326,17 @@ const AURAS: Dictionary = {
 	"black": {
 		"attunement": {
 			"id": "aura_phyrexian_arena", "name": "Phyrexian Arena",
-			"desc": "More damage and more speed, paid for with your own health, every second.",
+			"desc": "Cast spells that are still on cooldown by paying life instead - more for every second left. Never enough to kill you.",
 		},
 		"manifestation": {
 			"id": "aura_grave_pact", "name": "Grave Pact",
-			"desc": "Enemies dying near you leave souls: a small heal and a stacking damage bonus that decays if you stop killing.",
+			"desc": "A soul orb follows you. Enemies dying near you give it their souls, and it hurls them at the living.",
 		},
 	},
 	"red": {
 		"attunement": {
 			"id": "aura_fervor", "name": "Fervor",
-			"desc": "You attack and move faster, permanently.",
+			"desc": "You swing and cast faster, permanently.",
 		},
 		"manifestation": {
 			"id": "aura_orb_of_fire", "name": "Orb of Fire",
@@ -342,8 +345,11 @@ const AURAS: Dictionary = {
 	},
 	"green": {
 		"attunement": {
-			"id": "aura_sylvan_library", "name": "Sylvan Library",
-			"desc": "Far more maximum health, and steady regeneration.",
+			# Was Sylvan Library: more maximum health and regeneration, i.e. the green and the
+			# white affinities a second time. Area is the one number nothing else in the tree
+			# grants. Not "Overgrowth", which is already green's team enchantment.
+			"id": "aura_kodamas_reach", "name": "Kodama's Reach",
+			"desc": "Every spell you cast covers a larger area.",
 		},
 		"manifestation": {
 			# NOT "Trample": the Gruul passive already owns that name, and it is the one

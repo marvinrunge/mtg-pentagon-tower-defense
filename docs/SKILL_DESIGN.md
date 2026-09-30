@@ -165,40 +165,43 @@ stand next to.
 
 ---
 
-## Black — parasitic drain
+## Black — death as a resource
 
-Black trades its own resources for removal, and is the only colour that can delete a
-target outright.
+Black kills, and feeds on what the killing leaves: corpses to raise, souls to throw, a
+plague that runs through a crowd. It is still the only colour that can delete a target
+outright. Reworked 2026-09-30 - see *The black rework* below for what changed and why.
 
 | Skill | Kind | Effect | Scales with rank | Uses |
 |---|---|---|---|---|
-| **Doom Blade** ✅ | Line | A black blade travels straight ahead, passing **through** enemies. High damage, but only what the blade actually touches is hit. | Damage, blade length, width (barely) | Thin `Area3D` sweep along a ray |
-| **Fear** ✅ | Burst | Nearby enemies **flee** for a duration instead of fighting — the colour's answer to being surrounded — and **take more damage while they run**. | Radius, flee duration, vulnerability | `flee_timer`, `apply_doom_curse()` |
-| **Kill** ✅ | Targeted | **Instantly kills** one non-boss enemy. Bosses are executed only **below 33% health**. | Cooldown, boss execute threshold | Direct `die()`; boss HP check |
-| **Wall of Souls** ✅ | Placed | Enemies that pass through take **double damage from every source** while marked. | Wall length, mark duration, damage multiplier | `curse_timer` / `curse_mult` — already exists |
-| **Zombify** 🆕✅ | Summon | Raises the corpses already lying on the field as temporary undead allies that fight for you. | Corpses raised, undead HP, duration | `EnemyBase._register_corpse` corpse registry |
-| **Aura: Grave Pact** 🆕✅ | Aura | Every enemy that dies near the player leaves a soul wisp: a small heal, plus a **stacking damage bonus that decays** if you stop killing. | Heal per soul, bonus per stack, decay time | `SignalBus.enemy_died`, `heal()` |
+| **Doom Blade** ✅ | Line | A black blade travels straight ahead, passing **through** enemies. High damage, but only what the blade actually touches is hit. | Damage, **reach** (20m -> 36m), width (barely) | Thin `Area3D` sweep along a ray |
+| **Contagion** 🆕✅ | Spreading curse | A plague on the enemy in the sights: damage over time, and every second it **jumps to the nearest uninfected enemy** within 4.5m. One cast reaches 8 enemies (16 at rank 5). | Damage, duration, jump radius, victims | `EnemyBase.apply_contagion`, shared `outbreak` record |
+| **Kill** ✅ | Targeted | **Instantly kills** one non-boss enemy. Bosses are executed only **below 33% health**. | Cooldown (40s -> 24s), boss execute threshold | Direct `die()`; boss HP check |
+| **Wall of Souls** ✅ | Placed | Enemies that pass through take **double damage from every source** while marked - black's one damage amplifier. | Wall length, mark duration, damage multiplier | `curse_timer` / `curse_mult` |
+| **Zombify** 🆕✅ | Summon | Raises the corpses lying nearby as **ghouls that sprint at the nearest enemy and burst** - on contact, when their time runs out, or when something kills them. What the burst kills leaves an ordinary corpse. | Ghouls raised (3 -> 7), burst damage, duration | `TemporaryAlly._explode`, corpse registry |
+| **Aura: Grave Pact** 🆕✅ | Aura | A **Soul Orb** in the player's halo. Every enemy dying within 12m gives it a soul (up to 6); it throws them one at a time at the nearest enemy. A raised ghoul's burst releases no soul. | Soul damage, range | `OrbitingOrb.Mode.SOUL`, `SignalBus.enemy_died_at` |
 
-> **Zombify replaced an earlier "Vampiric Drain"** (a held HP-draining beam), which
-> overlapped the Grave Pact aura's healing-on-kill and gave black a second channelled
-> skill next to nothing else. Zombify turns a system that already exists and does
-> nothing — corpses are kept in the scene up to a cap and are pure decoration — into a
-> resource, and gives black the only summon outside green.
+### The black rework (2026-09-30)
 
-> **Kill needs the harshest cooldown in the game.** An instant-delete with a short
-> cooldown invalidates every other black skill, and the boss clause is what stops it
-> trivialising the wave-boss fights entirely.
+Played mono-black, the colour had no engine: only Doom Blade and a once-a-minute Kill
+dealt damage, and Fear and Wall of Souls were amplifiers multiplying damage black did not
+have - through the same `apply_doom_curse` channel, so they were also the same effect twice.
+The rework keeps the colour's identity and gives it a loop: **Contagion and Doom Blade kill
+-> the dead leave corpses and souls -> Zombify and Grave Pact turn those into damage -> more
+dead.**
 
-> **Fear has to pay for the scatter it causes.** This is a tower defence: Suction, Wall of
-> Souls, Rain of Ember, Fireball, Fire Cone and Wrath of God all want enemies *clustered*,
-> so a spell whose whole effect is to spread them out actively makes the rest of the roster
-> worse — and there is no other skill in the game with that property. The vulnerability is
-> what turns it from a panic button that undoes the player's own positioning into a damage
-> window they choose to open. It rides the same `apply_doom_curse` channel as Wall of Souls'
-> mark, which now keeps the *stronger* of the two rather than letting one overwrite the
-> other, so casting both is a real combination instead of a mistake. It also lands on bosses,
-> which shrug off the flee itself — otherwise Fear would be a blank card in exactly the fight
-> where black most needs one.
+| Was | Is | Why |
+|---|---|---|
+| Fear | **Contagion** | Fear scattered the packs every area skill wants, its vulnerability was Wall of Souls' a second time, and the crystal-protection half is Roar's and Unsummon's. `EnemyBase.apply_fear` is kept, unused. |
+| Kill, 60s | **Kill, 40s** | One elite a minute was too rare to feel like a skill in a horde game. The boss window is unchanged. |
+| Zombify: undead that fight | **Ghouls that burst** | They traded blows with no attack animation, walking on the spot. A burst needs none, and it is black's area damage. |
+| Doom Blade: wider with rank | **Longer with rank** | A wider line is a cone; reach is the skill shot getting better. |
+| Grave Pact: heal + stacking damage | **Soul Orb** | Its heal was the black affinity's lifesteal and its damage was red's number. Now it is a Manifestation that visibly fights, like the other orbs. |
+| Phyrexian Arena: +25% damage, +15% speed, HP drain | **Phyrexian mana** | Both halves were other nodes' numbers. Now: cast a spell still on cooldown by paying life, 1.2% of maximum health per second left (0.7% at rank 5). Never enough to kill. |
+
+> **Kill could never execute a boss before this.** Its boss clause reads the target's health
+> ratio through `HealthReader`, and `EnemyBase` had no maximum health to divide by - so the
+> ratio came back "unreadable" and Kill refused every boss at any health. `EnemyBase.max_health`
+> exists now; `skill_roster.gd` checks it.
 
 ---
 
@@ -282,11 +285,16 @@ half. Both are on the board and both are buyable.
 
 | Colour | Attunement | What it does |
 |---|---|---|
-| White | **Glorious Anthem** | 35 shield that recharges out of combat, ×1.15 damage |
-| Blue | **Rhystic Study** | ×0.7 cooldowns, and every cast grants 15 shield up to 45 |
-| Black | **Phyrexian Arena** | ×1.25 damage and ×1.15 speed, paid for by draining 1.5% max HP per second |
-| Red | **Fervor** | ×1.15 attack and movement speed |
-| Green | **Sylvan Library** | ×1.35 maximum HP, +3 HP/sec regeneration |
+| White | **Glorious Anthem** | Teammates, myrs and summons within 14m deal ×1.2 damage and take ×0.8 - **not** the white player |
+| Blue | **Rhystic Study** | Every cast grants 20 shield up to 60; when it breaks, enemies within 4m freeze (bosses slow) |
+| Black | **Phyrexian Arena** | Cast a spell still on cooldown by paying life - 1.2% max HP per second left (0.7% at rank 5), never lethal |
+| Red | **Fervor** | ×1.15 swing and cast speed |
+| Green | **Kodama's Reach** | ×1.3 area on every spell (was Sylvan Library; not "Overgrowth", which is green's team enchantment) |
+
+> **Rewritten 2026-09-30 under "one number, one node"** (below). Every attunement used to
+> hand out a number some other node already owned: Rhystic Study's cooldowns were blue's
+> affinity, Sylvan Library's health and regeneration were green's and white's, Anthem's and
+> Arena's damage were red's, Fervor's and Arena's movement were the Haste passive's.
 
 > Every multiplier in that table is the **rank 5** value. Auras rank up like skills, and a
 > multiplier cannot simply be multiplied by the rank curve — ×1.15 damage at rank 5 would
@@ -301,6 +309,54 @@ half. Both are on the board and both are buyable.
 > Nothing here is irreversible or exclusive. `Player.grant_aura_rank` used to refuse a second
 > aura in the same colour, which is what made the pair a fork; it now only refuses a rank past
 > the maximum, exactly like `grant_spell_rank`.
+
+### One number, one node
+
+**Every plain stat in the tree has exactly one home.** The five affinities own the five
+basic numbers; nothing else grants them.
+
+| Number | Its one home |
+|---|---|
+| Regeneration | White affinity (Holy Strength) |
+| Cooldown recovery | Blue affinity (Curiosity) |
+| Lifesteal | Black affinity (Vampiric Link) |
+| Damage | Red affinity (Reckless Charge) |
+| Maximum health | Green affinity (Wild Growth) |
+| Swing and cast speed | Fervor |
+| Spell area | Kodama's Reach |
+| Movement speed | Swiftfoot Boots (equipment) |
+| Spell duration | Amulet of Vigor (equipment) |
+
+Everything else in the tree does something **mechanical** - a shield that punishes whoever
+breaks it, life paid for time, an aura that strengthens other people. A new node that wants
+to be "+X% of something" has to take that something off its current home or find a
+different idea.
+
+### Equipment - what the keyword passives became ✅
+
+The five nodes that sat on the bisectors between the colours - Flying, Double Strike,
+Haste, Trample, Vigilance - were plain numbers that belonged to no colour, reachable from
+either neighbour for a point. They are **equipment** now: dropped by wave bosses (60% chance
+per boss, only pieces the team does not have yet), shared by the whole team, and worn from
+their own menu (**I**). What a player wears is part of their build and survives a reconnect.
+
+| Piece | Effect | Dropped by |
+|---|---|---|
+| Swiftfoot Boots | +20% movement speed | Red |
+| Cobbled Wings | +100% jump height, glide while holding jump | Blue, White |
+| Fireshrieker | 25% chance a melee hit lands twice | Red, White |
+| Amulet of Vigor | +30% spell duration | Green, White |
+| Loxodon Warhammer | Melee hits add 12% of maximum health | Green |
+| Icy Manipulator | 15% chance a melee hit freezes for 1.5s (bosses slow) | Blue |
+| Executioner's Capsule | Melee hits kill non-bosses below 15% health | Black |
+| Whispersilk Cloak | Enemies overlook you for 2s after each of your kills | Black, Blue |
+
+Every number is in `GameSettings`' EQUIPMENT block; the table itself is
+`scripts/equipment_database.gd`. **Open question:** a wear limit (`equipment_max_equipped`,
+0 = none today) - slots per body part, a flat number, or none at all.
+
+The gaps between the colours are free now for real **guild nodes** - see
+`docs/GUILD_PLAN.md`.
 
 ### Colourless — Blade Dance ✅
 
@@ -642,15 +698,24 @@ holds the ones that need positioning or are situationally stronger.
 |---|---|---|---|
 | **White** | Exalted Strike · Circle of Protection | Reprisal Ward · Wrath of God · Rally the Fallen | Glorious Anthem **or** Healing Orb |
 | **Blue** | Unsummon · Frost Breath | Wall of Frost · Suction · Displace | Rhystic Study **or** Winter Orb |
-| **Black** | Doom Blade · Fear | Kill · Wall of Souls · Zombify | Phyrexian Arena **or** Grave Pact |
+| **Black** | Doom Blade · Contagion | Kill · Wall of Souls · Zombify | Phyrexian Arena **or** Grave Pact |
 | **Red** | Fireball · Fire Dash | Rain of Ember · Fire Cone · Lightning Bolt | Fervor **or** Orb of Fire |
-| **Green** | Leap Slam · Giant Growth | Fog · Roar · Ironbark | Sylvan Library **or** Trample |
+| **Green** | Leap Slam · Giant Growth | Fog · Roar · Ironbark | Kodama's Reach **or** Stampede |
+
+**Active is square, passive is round.** A spell - anything that can go on the hotbar - wears
+the same rounded square as its hotbar slot; an affinity or an aura is a circle
+(`IconStyle.circle_material`). The shape is the whole distinction, the convention WoW and
+Path of Exile taught players.
 
 **There is no exclusive choice in the tree any more.** Ring 3 was the one place that had a
 permanent either/or, and it was removed along with the capstone concept: the two nodes are
 ordinary skills, so a player deep enough in a colour can buy both.
 
 ### Guild nodes — the tree mirrors the map
+
+> **Planned, staged:** `docs/GUILD_PLAN.md` carries this idea further - the five allied
+> guilds first, then the five enemy guilds, then three-colour nodes. The section below is
+> the original sketch.
 
 Five extra nodes sit **on the boundaries between adjacent branches**, in the same
 positions as the guild camps on the map. Each needs **5 ranks in both** of its

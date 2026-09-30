@@ -54,6 +54,15 @@ var mana_pool: Dictionary = {"White": 0, "Blue": 0, "Black": 0, "Red": 0, "Green
 ## colour -> stacks bought. Permanent for the run, global to every player.
 var enchantments: Dictionary = {"White": 0, "Blue": 0, "Black": 0, "Red": 0, "Green": 0}
 
+# --- equipment ----------------------------------------------------------------
+
+## Equipment the team has found this run, by id. Dropped by bosses (try_drop_equipment) and
+## shared: every player may put on anything in here. Which pieces a player actually WEARS is
+## their own build - see Player.equipped_items.
+var equipment_unlocked: Array[String] = []
+
+const EquipmentDatabase := preload("res://scripts/equipment_database.gd")
+
 
 ## Set whenever the server changes anything, cleared when the change goes out. Kills
 ## arrive far faster than a UI can read, so the pool is flushed at a fixed rate instead
@@ -71,18 +80,19 @@ func _process(delta: float) -> void:
 		return
 	_flush_timer = GameSettings.run_state_sync_interval
 	_dirty = false
-	_apply_state.rpc(team_xp, team_level, mana_pool, enchantments, points_awarded)
+	_apply_state.rpc(team_xp, team_level, mana_pool, enchantments, points_awarded, equipment_unlocked)
 
 
 ## The whole economy in one message. Small enough that sending it entire is cheaper than
 ## working out which field moved, and it cannot drift the way incremental updates can.
 @rpc("authority", "call_remote", "reliable")
-func _apply_state(xp: float, level: int, pool: Dictionary, ench: Dictionary, awarded: int = 0) -> void:
+func _apply_state(xp: float, level: int, pool: Dictionary, ench: Dictionary, awarded: int = 0, equipment: Array = []) -> void:
 	team_xp = xp
 	team_level = level
 	mana_pool = pool
 	enchantments = ench
 	points_awarded = awarded
+	_set_equipment_unlocked(equipment)
 	SignalBus.mana_changed.emit(mana_pool)
 	# Emitted with levels_gained ZERO, which is what makes this a statement of where the
 	# run is rather than a level-up: Player._on_team_level_changed returns early on a zero
@@ -103,7 +113,7 @@ func _apply_state(xp: float, level: int, pool: Dictionary, ench: Dictionary, awa
 func push_state_to(peer_id: int) -> void:
 	if not Net.is_active() or not Net.is_server():
 		return
-	_apply_state.rpc_id(peer_id, team_xp, team_level, mana_pool, enchantments, points_awarded)
+	_apply_state.rpc_id(peer_id, team_xp, team_level, mana_pool, enchantments, points_awarded, equipment_unlocked)
 
 
 func reset() -> void:
@@ -113,8 +123,70 @@ func reset() -> void:
 	for color: String in COLORS:
 		mana_pool[color] = 0
 		enchantments[color] = 0
+	equipment_unlocked.clear()
 	SignalBus.mana_changed.emit(mana_pool)
 	SignalBus.team_level_changed.emit(team_level, 0)
+	SignalBus.equipment_unlocked_changed.emit("")
+
+
+# --- equipment ----------------------------------------------------------------
+
+func is_equipment_unlocked(item_id: String) -> bool:
+	return equipment_unlocked.has(item_id)
+
+
+## A wave boss died: maybe it dropped something. Server only, like every payout.
+##
+## Only pieces the team does not have yet are in the draw, so a drop is always news - and
+## once a colour's pool is exhausted its boss simply drops nothing more. Rolled per boss
+## rather than guaranteed, so finding one stays an event.
+func try_drop_equipment(boss_color: String, at: Vector3 = Vector3.INF) -> String:
+	if not Net.is_server():
+		return ""
+	var candidates: Array[String] = []
+	for item_id: String in EquipmentDatabase.pool_for(boss_color.to_lower()):
+		if not equipment_unlocked.has(item_id):
+			candidates.append(item_id)
+	if candidates.is_empty() or randf() >= GameSettings.equipment_boss_drop_chance:
+		return ""
+	var dropped: String = candidates[randi() % candidates.size()]
+	unlock_equipment(dropped, at)
+	return dropped
+
+
+## Adds a piece to the team's stash and tells everyone. Also the debug and test entry
+## point, which is why it is not folded into try_drop_equipment.
+func unlock_equipment(item_id: String, at: Vector3 = Vector3.INF) -> void:
+	if not Net.is_server() or not EquipmentDatabase.has_item(item_id) or equipment_unlocked.has(item_id):
+		return
+	_dirty = true
+	if Net.is_active():
+		_apply_equipment_drop.rpc(item_id, at)
+	_apply_equipment_drop(item_id, at)
+
+
+## The drop, landing on every peer at once - like a level, it is an event the whole team
+## should see happen, not a number that quietly changes on the next state flush.
+@rpc("authority", "call_remote", "reliable")
+func _apply_equipment_drop(item_id: String, at: Vector3) -> void:
+	if not equipment_unlocked.has(item_id):
+		equipment_unlocked.append(item_id)
+	var tint: Color = Color(1.0, 0.85, 0.4)
+	SignalBus.lane_warning_requested.emit("", "%s found! Press I to equip it." % EquipmentDatabase.display_name(item_id), tint)
+	if at.is_finite():
+		NetFx.ring(at, tint, 3.4)
+	SignalBus.equipment_unlocked_changed.emit(item_id)
+
+
+func _set_equipment_unlocked(items: Array) -> void:
+	var changed: bool = items.size() != equipment_unlocked.size()
+	equipment_unlocked.clear()
+	for item: Variant in items:
+		var item_id: String = String(item)
+		if EquipmentDatabase.has_item(item_id) and not equipment_unlocked.has(item_id):
+			equipment_unlocked.append(item_id)
+	if changed:
+		SignalBus.equipment_unlocked_changed.emit("")
 
 
 # --- earning ------------------------------------------------------------------
@@ -140,6 +212,9 @@ func on_enemy_killed(data: EnemyData, is_elite: bool, at: Vector3 = Vector3.INF)
 		xp = GameSettings.xp_per_elite
 		mana = GameSettings.mana_per_elite
 	add_xp(xp)
+	# Before the mana, so a boss tuned to pay no mana would still drop its equipment.
+	if is_boss:
+		try_drop_equipment(data.color_identity, at)
 	if mana <= 0:
 		return
 	if is_boss:

@@ -33,6 +33,11 @@ var _ground: MeshInstance3D
 
 func _ready() -> void:
 	_build_world()
+	# `-- <out.png> --glow` renders with the game's bloom, so the two can be compared side
+	# by side. Configured straight onto this scene's own sky rather than through
+	# GraphicsSettings.apply_glow, which would also save the switch into the player's settings.
+	if OS.get_cmdline_user_args().has("--glow") and _sky.environment != null:
+		GraphicsSettings.configure_glow(_sky.environment, true)
 	_spawn_effects()
 	_shoot.call_deferred()
 
@@ -97,7 +102,7 @@ func _place(node: Node3D, at: Vector3) -> void:
 func _shoot() -> void:
 	var out_path: String = "vfx_showcase.png"
 	var args: PackedStringArray = OS.get_cmdline_user_args()
-	if not args.is_empty():
+	if not args.is_empty() and not args[0].begins_with("--"):
 		out_path = args[0]
 
 	var frames: Array[Image] = []

@@ -18,32 +18,18 @@ class_name HUD
 @onready var settings_panel: PanelContainer = $Control/SettingsPanel
 @onready var minimap_container: MarginContainer = $Control/MinimapContainer
 @onready var minimap: ColorRect = $Control/MinimapContainer/Minimap
-@onready var show_minimap_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ShowMinimapCheckbox
-@onready var damage_numbers_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/DamageNumbersCheckbox
-@onready var enemy_health_bars_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/EnemyHealthBarsCheckbox
-@onready var attack_indicators_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/AttackIndicatorsCheckbox
-@onready var camera_shake_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/CameraShakeCheckbox
-@onready var music_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/MusicCheckbox
-@onready var music_volume_slider: HSlider = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/MusicVolumeSlider
-@onready var minimap_size_slider: HSlider = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/MinimapSizeSlider
-
-@onready var quality_preset_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/QualityPresetOption
-@onready var render_scale_slider: HSlider = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RenderScaleSlider
-@onready var shadows_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ShadowsCheckbox
-@onready var anti_aliasing_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/AntiAliasingOption
-@onready var glow_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/GlowCheckbox
-@onready var vsync_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/VSyncCheckbox
-@onready var show_fps_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ShowFpsCheckbox
-@onready var free_skills_checkbox: CheckBox = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/FreeSkillsCheckbox
 @onready var fps_label: Label = $Control/FpsLabel
-@onready var renderer_option: OptionButton = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RendererOption
-@onready var restart_required_label: Label = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/RestartRequiredLabel
-@onready var apply_restart_btn: Button = $Control/SettingsPanel/MarginContainer/ScrollContainer/VBoxContainer/ApplyRestartBtn
 
-const RENDERER_METHODS: Array[String] = ["forward_plus", "mobile", "gl_compatibility"]
-# True while a preset is being applied programmatically, so the individual
-# control handlers it drives don't each also flip the preset back to Custom.
-var _applying_preset: bool = false
+## The options panel the main menu shows too - see scripts/settings_menu.gd. Built into the
+## SettingsPanel at _ready; the HUD only adds the debug tab, which means nothing outside a run.
+const SettingsMenuScript := preload("res://scripts/settings_menu.gd")
+var _settings_menu: VBoxContainer
+## The equipment screen (I). Added here so it exists wherever a run does - see
+## scripts/equipment_menu.gd.
+const EquipmentMenuScript := preload("res://scripts/equipment_menu.gd")
+## A hotbar slot whose spell is on cooldown but could be paid for in life right now
+## (Phyrexian Arena) - its overlay turns blood red, so the option is visible, not remembered.
+const BLOOD_CAST_TINT := Color(1.0, 0.45, 0.5, 1.0)
 
 @onready var game_over_panel: PanelContainer = $Control/GameOverPanel
 @onready var restart_btn: Button = $Control/GameOverPanel/MarginContainer/VBoxContainer/RestartBtn
@@ -246,28 +232,18 @@ func _ready() -> void:
 	SignalBus.game_over.connect(func() -> void:
 		log_message("The crystal has shattered", Color(1.0, 0.4, 0.35)))
 	
-	show_minimap_checkbox.toggled.connect(_on_show_minimap_toggled)
-	if damage_numbers_checkbox:
-		damage_numbers_checkbox.button_pressed = GameSettings.show_damage_numbers
-		damage_numbers_checkbox.toggled.connect(_on_damage_numbers_toggled)
-	if enemy_health_bars_checkbox:
-		enemy_health_bars_checkbox.button_pressed = GameSettings.show_enemy_health_bars
-		enemy_health_bars_checkbox.toggled.connect(_on_enemy_health_bars_toggled)
-	if attack_indicators_checkbox:
-		attack_indicators_checkbox.button_pressed = GameSettings.show_attack_indicators
-		attack_indicators_checkbox.toggled.connect(_on_attack_indicators_toggled)
-	if camera_shake_checkbox:
-		camera_shake_checkbox.button_pressed = GameSettings.camera_shake_enabled
-		camera_shake_checkbox.toggled.connect(_on_camera_shake_toggled)
-	if music_checkbox:
-		music_checkbox.button_pressed = GameSettings.music_enabled
-		music_checkbox.toggled.connect(_on_music_toggled)
-	if music_volume_slider:
-		music_volume_slider.value = GameSettings.music_volume_db
-		music_volume_slider.value_changed.connect(_on_music_volume_changed)
-	minimap_size_slider.value_changed.connect(_on_minimap_size_changed)
-	_setup_graphics_settings()
-	_build_settings_tabs()
+	_build_settings_menu()
+	# What the options panel changes that only the HUD can apply. Everything else it sets
+	# is read live off UserSettings / GameSettings by whoever uses it.
+	UserSettings.changed.connect(_on_user_setting_changed)
+	GraphicsSettings.changed.connect(func(key: StringName) -> void:
+		if key == &"show_fps":
+			fps_label.visible = GraphicsSettings.show_fps)
+	minimap_container.visible = UserSettings.show_minimap
+	fps_label.visible = GraphicsSettings.show_fps
+	var equipment_menu: CanvasLayer = EquipmentMenuScript.new()
+	equipment_menu.name = "EquipmentMenu"
+	add_child(equipment_menu)
 	restart_btn.pressed.connect(_on_restart_pressed)
 	settings_panel.hide()
 	game_over_panel.hide()
@@ -294,8 +270,7 @@ func _ready() -> void:
 	_ensure_hotbar_icons()
 	_lay_out_hotbar_slots()
 	_setup_mana_icons()
-	if minimap_size_slider != null:
-		_minimap_preferred_side = minimap_size_slider.value
+	_minimap_preferred_side = UserSettings.minimap_size
 	SignalBus.active_spell_changed.connect(_on_active_spell_changed)
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
 	SignalBus.upkeep_started.connect(func(_d: float): _upkeep_open = true)
@@ -327,6 +302,7 @@ func _process(delta: float) -> void:
 		
 	if _player != null and "spell_cooldown_timers" in _player:
 		var has_slot_lookup: bool = _player.has_method("_get_spell_id_for_slot")
+		var has_blood_lookup: bool = _player.has_method("can_blood_cast")
 		for i in range(_hotbar_overlays.size()):
 			var overlay: Control = _hotbar_overlays[i]
 			if overlay == null:
@@ -341,6 +317,10 @@ func _process(delta: float) -> void:
 				continue
 			if not overlay.visible:
 				overlay.show()
+			var blood: bool = has_blood_lookup and bool(_player.can_blood_cast(spell_id))
+			var tint: Color = BLOOD_CAST_TINT if blood else Color.WHITE
+			if overlay.modulate != tint:
+				overlay.modulate = tint
 			var label: Label = _hotbar_cd_labels[i]
 			if label != null:
 				label.text = "%.1fs" % cd
@@ -835,80 +815,44 @@ func set_settings_open(open: bool) -> void:
 	SignalBus.menu_opened.emit("settings", open)
 	if open:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		show_minimap_checkbox.grab_focus()
+		if _settings_menu != null:
+			_settings_menu.focus_first()
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-func _build_settings_tabs() -> void:
+
+## The shared options panel, inside the HUD's own frame, plus the one tab only a run has.
+func _build_settings_menu() -> void:
 	var margin: MarginContainer = settings_panel.get_node("MarginContainer") as MarginContainer
-	var scroll: ScrollContainer = margin.get_node("ScrollContainer") as ScrollContainer
-	var source: VBoxContainer = scroll.get_node("VBoxContainer") as VBoxContainer
-	var controls: Array[Node] = source.get_children()
-	var tabs := TabContainer.new()
-	tabs.name = "SettingsTabs"
-	tabs.layout_mode = 2
-	tabs.custom_minimum_size = Vector2(0.0, 500.0)
-	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tabs.mouse_filter = Control.MOUSE_FILTER_STOP
-	var gameplay_scroll := ScrollContainer.new()
-	gameplay_scroll.name = "Gameplay"
-	gameplay_scroll.mouse_filter = Control.MOUSE_FILTER_PASS
-	gameplay_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var gameplay := VBoxContainer.new()
-	gameplay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gameplay.add_theme_constant_override("separation", 15)
-	gameplay_scroll.add_child(gameplay)
-	tabs.add_child(gameplay_scroll)
-	var graphics_scroll := ScrollContainer.new()
-	graphics_scroll.name = "Graphics"
-	graphics_scroll.mouse_filter = Control.MOUSE_FILTER_PASS
-	graphics_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var graphics := VBoxContainer.new()
-	graphics.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	graphics.add_theme_constant_override("separation", 15)
-	graphics_scroll.add_child(graphics)
-	tabs.add_child(graphics_scroll)
-	for child: Node in controls:
-		source.remove_child(child)
-		if child.name in ["GraphicsSeparator", "GraphicsHeaderLabel", "QualityPresetLabel", "QualityPresetOption", "RenderScaleLabel", "RenderScaleSlider", "ShadowsCheckbox", "AntiAliasingLabel", "AntiAliasingOption", "GlowCheckbox", "VSyncCheckbox", "ShowFpsCheckbox", "RendererLabel", "RendererOption", "RestartRequiredLabel", "ApplyRestartBtn"]:
-			graphics.add_child(child)
-		else:
-			gameplay.add_child(child)
-	margin.remove_child(scroll)
-	scroll.queue_free()
-	margin.add_child(tabs)
-	tabs.current_tab = 0
+	# hud.tscn used to author every control of the panel by hand under a ScrollContainer.
+	# Removed if an old copy of the scene still carries it, so the panel is never drawn twice.
+	var legacy: Node = margin.get_node_or_null("ScrollContainer")
+	if legacy != null:
+		margin.remove_child(legacy)
+		legacy.queue_free()
+	_settings_menu = SettingsMenuScript.new()
+	_settings_menu.name = "SettingsMenu"
+	margin.add_child(_settings_menu)
+
+	var debug: VBoxContainer = _settings_menu.add_tab("Debug")
+	var free_skills := CheckBox.new()
+	free_skills.text = "Free Skills (no mana, no rank gates)"
+	free_skills.button_pressed = GameSettings.debug_free_skills
+	free_skills.toggled.connect(_on_free_skills_toggled)
+	debug.add_child(free_skills)
+
+
+func _on_user_setting_changed(key: StringName) -> void:
+	match key:
+		&"show_minimap":
+			minimap_container.visible = UserSettings.show_minimap
+		&"minimap_size":
+			_on_minimap_size_changed(UserSettings.minimap_size)
+
 
 func _on_restart_pressed() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	get_tree().reload_current_scene()
-
-func _on_show_minimap_toggled(button_pressed: bool) -> void:
-	minimap_container.visible = button_pressed
-
-func _on_damage_numbers_toggled(button_pressed: bool) -> void:
-	GameSettings.show_damage_numbers = button_pressed
-
-func _on_enemy_health_bars_toggled(button_pressed: bool) -> void:
-	GameSettings.show_enemy_health_bars = button_pressed
-	SignalBus.enemy_health_bars_visibility_changed.emit(button_pressed)
-
-func _on_attack_indicators_toggled(button_pressed: bool) -> void:
-	GameSettings.show_attack_indicators = button_pressed
-	SignalBus.attack_indicators_visibility_changed.emit(button_pressed)
-
-func _on_camera_shake_toggled(button_pressed: bool) -> void:
-	GameSettings.camera_shake_enabled = button_pressed
-
-
-func _on_music_toggled(button_pressed: bool) -> void:
-	GameSettings.music_enabled = button_pressed
-	SoundBank.apply_music_settings()
-
-
-func _on_music_volume_changed(value: float) -> void:
-	GameSettings.music_volume_db = value
-	SoundBank.apply_music_settings()
 
 
 ## Debug: makes every skill-tree node free and ungated. The tree redraws itself off
@@ -945,107 +889,6 @@ func _apply_minimap_size(requested_side: float) -> void:
 	minimap_container.offset_left = -(side + margin_x)
 	minimap_container.offset_top = -(side + margin_y)
 	_refresh_minimap_corners()
-
-func _setup_graphics_settings() -> void:
-	quality_preset_option.clear()
-	quality_preset_option.add_item("Low", GraphicsSettings.Preset.LOW)
-	quality_preset_option.add_item("Medium", GraphicsSettings.Preset.MEDIUM)
-	quality_preset_option.add_item("High", GraphicsSettings.Preset.HIGH)
-	quality_preset_option.add_item("Custom", GraphicsSettings.Preset.CUSTOM)
-
-	anti_aliasing_option.clear()
-	anti_aliasing_option.add_item("Off", 0)
-	anti_aliasing_option.add_item("MSAA 2x", 1)
-	anti_aliasing_option.add_item("MSAA 4x", 2)
-
-	renderer_option.clear()
-	renderer_option.add_item("Forward+ (best visuals)", 0)
-	renderer_option.add_item("Mobile (balanced)", 1)
-	renderer_option.add_item("Compatibility (weak / integrated GPUs)", 2)
-
-	_applying_preset = true
-	quality_preset_option.select(GraphicsSettings.preset)
-	render_scale_slider.value = GraphicsSettings.render_scale
-	shadows_checkbox.button_pressed = GraphicsSettings.shadows_enabled
-	anti_aliasing_option.select(GraphicsSettings.msaa_level)
-	glow_checkbox.button_pressed = GraphicsSettings.glow_enabled
-	vsync_checkbox.button_pressed = GraphicsSettings.vsync_enabled
-	show_fps_checkbox.button_pressed = GraphicsSettings.show_fps
-	fps_label.visible = GraphicsSettings.show_fps
-	var current_method: String = GraphicsSettings.pending_rendering_method if GraphicsSettings.pending_rendering_method != "" else GraphicsSettings.active_rendering_method
-	var method_idx: int = RENDERER_METHODS.find(current_method)
-	renderer_option.select(maxi(method_idx, 0))
-	_applying_preset = false
-	_update_restart_notice()
-
-	free_skills_checkbox.button_pressed = GameSettings.debug_free_skills
-	free_skills_checkbox.toggled.connect(_on_free_skills_toggled)
-
-	quality_preset_option.item_selected.connect(_on_quality_preset_selected)
-	render_scale_slider.value_changed.connect(_on_render_scale_changed)
-	shadows_checkbox.toggled.connect(_on_shadows_toggled)
-	anti_aliasing_option.item_selected.connect(_on_anti_aliasing_selected)
-	glow_checkbox.toggled.connect(_on_glow_toggled)
-	vsync_checkbox.toggled.connect(_on_vsync_toggled)
-	show_fps_checkbox.toggled.connect(_on_show_fps_toggled)
-	renderer_option.item_selected.connect(_on_renderer_selected)
-	apply_restart_btn.pressed.connect(_on_apply_restart_pressed)
-
-func _mark_custom_preset() -> void:
-	if _applying_preset:
-		return
-	GraphicsSettings.preset = GraphicsSettings.Preset.CUSTOM
-	quality_preset_option.select(GraphicsSettings.Preset.CUSTOM)
-
-func _update_restart_notice() -> void:
-	restart_required_label.visible = GraphicsSettings.restart_required
-
-func _on_quality_preset_selected(idx: int) -> void:
-	var p: int = quality_preset_option.get_item_id(idx)
-	if p == GraphicsSettings.Preset.CUSTOM:
-		return
-	_applying_preset = true
-	GraphicsSettings.apply_preset(p)
-	render_scale_slider.value = GraphicsSettings.render_scale
-	shadows_checkbox.button_pressed = GraphicsSettings.shadows_enabled
-	anti_aliasing_option.select(GraphicsSettings.msaa_level)
-	glow_checkbox.button_pressed = GraphicsSettings.glow_enabled
-	var method_idx: int = RENDERER_METHODS.find(GraphicsSettings.pending_rendering_method)
-	renderer_option.select(maxi(method_idx, 0))
-	_applying_preset = false
-	_update_restart_notice()
-
-func _on_render_scale_changed(value: float) -> void:
-	GraphicsSettings.apply_render_scale(value)
-	_mark_custom_preset()
-
-func _on_shadows_toggled(button_pressed: bool) -> void:
-	GraphicsSettings.apply_shadows(button_pressed)
-	_mark_custom_preset()
-
-func _on_anti_aliasing_selected(idx: int) -> void:
-	GraphicsSettings.apply_msaa(idx)
-	_mark_custom_preset()
-
-func _on_glow_toggled(button_pressed: bool) -> void:
-	GraphicsSettings.apply_glow(button_pressed)
-	_mark_custom_preset()
-
-func _on_vsync_toggled(button_pressed: bool) -> void:
-	GraphicsSettings.apply_vsync(button_pressed)
-	_mark_custom_preset()
-
-func _on_show_fps_toggled(button_pressed: bool) -> void:
-	GraphicsSettings.set_show_fps(button_pressed)
-	fps_label.visible = button_pressed
-
-func _on_renderer_selected(idx: int) -> void:
-	GraphicsSettings.set_pending_rendering_method(RENDERER_METHODS[idx])
-	_mark_custom_preset()
-	_update_restart_notice()
-
-func _on_apply_restart_pressed() -> void:
-	GraphicsSettings.quit_to_apply_restart()
 
 func _on_at_base_changed(is_at_base: bool) -> void:
 	if interact_label:

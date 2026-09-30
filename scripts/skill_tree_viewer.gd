@@ -38,7 +38,6 @@ class SkillTreePreviewPlayer extends Node3D:
 	var quick_slots: Array[String] = ["blue_1", "blue_2", "blue_3", "blue_4", "blue_5"]
 	var _affinity_ranks: Dictionary = {}
 	var _spell_ranks: Dictionary = {}
-	var _passive_ranks: Dictionary = {}
 
 
 	func _init() -> void:
@@ -46,8 +45,6 @@ class SkillTreePreviewPlayer extends Node3D:
 			_affinity_ranks[color] = GameSettings.spell_max_rank
 			for tier: int in range(1, SpellDatabase.SPELLS_PER_COLOR + 1):
 				_spell_ranks[SpellDatabase.make_id(color, tier)] = GameSettings.spell_max_rank
-		for passive_id: String in SkillTree.PASSIVE_ORDER:
-			_passive_ranks[passive_id] = GameSettings.spell_max_rank
 		for color: String in SkillTree.COLOR_NAMES:
 			var auras: Array[Dictionary] = SpellDatabase.get_auras(color)
 			if not auras.is_empty():
@@ -64,31 +61,6 @@ class SkillTreePreviewPlayer extends Node3D:
 
 	func get_spell_rank(spell_id: String) -> int:
 		return int(_spell_ranks.get(spell_id, 0))
-
-
-	func get_passive_rank(passive_id: String) -> int:
-		return int(_passive_ranks.get(passive_id, 0))
-
-
-	func get_passive_bonus_at(passive_id: String, rank: int) -> float:
-		if rank <= 0:
-			return 0.0
-		match passive_id:
-			"vigilance":
-				return GameSettings.rank_fraction(GameSettings.passive_vigilance_duration_min, GameSettings.passive_vigilance_duration_max, rank)
-			"double_strike":
-				return GameSettings.rank_fraction(GameSettings.passive_crit_chance_min, GameSettings.passive_crit_chance_max, rank)
-			"trample_strike":
-				return GameSettings.rank_fraction(GameSettings.passive_trample_hp_fraction_min, GameSettings.passive_trample_hp_fraction_max, rank)
-			"haste":
-				return GameSettings.rank_fraction(GameSettings.passive_haste_speed_min, GameSettings.passive_haste_speed_max, rank)
-			"flight":
-				return GameSettings.rank_fraction(GameSettings.passive_flight_jump_min, GameSettings.passive_flight_jump_max, rank)
-		return 0.0
-
-
-	func get_passive_bonus(passive_id: String) -> float:
-		return get_passive_bonus_at(passive_id, get_passive_rank(passive_id))
 
 
 	func spell_rank_blocker(_spell_id: String) -> String:
@@ -130,12 +102,6 @@ class SkillTreePreviewPlayer extends Node3D:
 		return true
 
 
-	func grant_passive_rank(passive_id: String) -> bool:
-		_passive_ranks[passive_id] = get_passive_rank(passive_id) + 1
-		SignalBus.passive_rank_changed.emit(passive_id, get_passive_rank(passive_id))
-		return true
-
-
 	func get_aura_rank(aura_id: String) -> int:
 		return int(aura_ranks.get(aura_id, 0))
 
@@ -157,7 +123,3 @@ class SkillTreePreviewPlayer extends Node3D:
 			return false
 		aura_ranks[aura_id] = get_aura_rank(aura_id) + 1
 		return true
-
-
-	func grant_aura_rank(aura_id: String) -> void:
-		grant_aura_rank(aura_id)

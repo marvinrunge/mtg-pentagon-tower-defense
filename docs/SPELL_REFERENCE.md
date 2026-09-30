@@ -83,15 +83,15 @@ ranks 11-20 grant 1% each, and ranks 21+ grant 0.5% each.
 | 4 | Wrath of God | 1 | 20s | No | Area damage | Area | Deals heavy damage to nearby enemies. |
 | 5 | Rally the Fallen | 1 | 45s | No | Revive / heal | Ally area | Revives downed teammates and heals surviving allies and myrs. |
 
-## Black - Sacrifice
+## Black - Death as a Resource
 
 | Tier | Spell | Cost | Cooldown | Charge | Damage / Healing | Range / Radius | Details |
 |---:|---|---:|---:|:---:|---:|---:|---|
-| 1 | Doom Blade | 1 | 7s | No | Line damage | 5m line | Sends a black blade along the camera aim line through enemies. |
-| 2 | Fear | 1 | 14s | No | Flee / vulnerability | Area | Nearby enemies flee instead of fighting, and take more damage while they run. |
-| 3 | Kill | 1 | 60s | No | Execute | Single target | Instantly kills an enemy; bosses must be below one third health. |
+| 1 | Doom Blade | 1 | 7s | No | Line damage | 20m line, 36m at rank 5 | Sends a black blade along the camera aim line through enemies. Rank buys reach, not width. |
+| 2 | Contagion | 1 | 12s | No | Damage over time, spreading | Aimed target, 4.5m jumps | Plagues the enemy in the sights; every second it jumps to the nearest uninfected enemy, up to 8 victims (16 at rank 5). Replaced Fear. |
+| 3 | Kill | 1 | 40s (24s at rank 5) | No | Execute | Single target | Instantly kills an enemy; bosses must be below one third health (half at rank 5). |
 | 4 | Wall of Souls | 1 | 20s | No | Damage amplifier | Wall | Enemies crossing the wall take increased damage. |
-| 5 | Zombify | 1 | 30s | No | Summon | Corpse area | Raises corpses as temporary undead allies. |
+| 5 | Zombify | 1 | 30s | No | Burst damage | Corpse area | Raises corpses as ghouls that sprint at the nearest enemy and burst on contact, on expiry or when killed (90 damage in 3.5m at rank 1). |
 
 ## Charge Formulas
 

@@ -13,12 +13,14 @@ const CENTER_BRANCH: int = -1
 ## it - the fork in docs/SKILL_DESIGN.md drawn as a fork. 6 is the Attunement (the stat
 ## line), 7 the Manifestation (the visible one).
 const AURA_BRANCHES: Array[int] = [6, 7]
-## The guild passive's index in the radial navigation. It is DRAWN on the bisector
-## between two colour spokes rather than on either, but the colour x branch grid needs
-## a home for it, so it files under the gap's counterclockwise colour, past the fork.
-const PASSIVE_BRANCH: int = 8
 ## One past the last real branch index, for the radial keyboard navigation's wrap.
-const BRANCH_COUNT: int = 9
+##
+## There used to be a ninth: the five keyword passives (Flying, Double Strike, Haste,
+## Trample, Vigilance) sat on the bisectors between the colours. They were numbers that
+## belonged to no colour, and they are equipment now - found on bosses, worn from their
+## own menu (EquipmentMenu). The gaps between the colours are kept free for real guild
+## nodes; see docs/GUILD_PLAN.md.
+const BRANCH_COUNT: int = 8
 const CENTER_INFO: Dictionary = {
 	"id": "melee_combo",
 	"name": "Blade Dance",
@@ -49,34 +51,11 @@ const AFFINITY_DATA: Dictionary = {
 	"red": {"name": "Reckless Charge", "mechanic": "+% Total Damage", "flavor": "Explosive aggression, raw power, and volatility."},
 	"green": {"name": "Wild Growth", "mechanic": "+% Maximum HP", "flavor": "Primal vitality, physical mass, and resilience."},
 }
-## The five neutral passives, one per adjacent colour pair - the pentagon's gaps are
-## the guilds. PASSIVE_ORDER is in gap order: gap i lies between COLOR_NAMES[i] and the
-## next colour clockwise. Five ranks each, one skill point per rank, gated only by the
-## shared team level.
-const PASSIVE_ORDER: Array[String] = ["flight", "double_strike", "haste", "trample_strike", "vigilance"]
-const PASSIVE_DATA: Dictionary = {
-	"flight": {"name": "Flying", "guild": "Azorius", "colors": ["white", "blue"],
-		"unit": "jump height",
-		"desc": "Jump higher, and hold jump while falling to glide. 50% higher per rank, up to 250%."},
-	"double_strike": {"name": "Double Strike", "guild": "Dimir", "colors": ["blue", "black"],
-		"unit": "crit chance",
-		"desc": "Everything you deal - melee and spells - can crit for double damage. 10% chance at rank 1, up to 50%."},
-	"haste": {"name": "Haste", "guild": "Rakdos", "colors": ["black", "red"],
-		"unit": "move speed",
-		"desc": "Move faster. 10% at rank 1, up to 50%."},
-	"trample_strike": {"name": "Trample", "guild": "Gruul", "colors": ["red", "green"],
-		"unit": "of max HP",
-		"desc": "Melee hits add bonus damage from your own max HP. 10% at rank 1, up to 50%."},
-	"vigilance": {"name": "Vigilance", "guild": "Selesnya", "colors": ["green", "white"],
-		"unit": "duration",
-		"desc": "Your spells with a duration last longer. 10% longer per rank, up to 100%."},
-}
 # Spell rows come from SpellDatabase - names, costs and descriptions used to be
 # duplicated here and drifted from the versions in player.gd and game_settings.gd.
 @onready var control_root: Control = $Control
 
 var _board: Control
-var _passive_lines: Array[Line2D] = []
 ## Where each branch sits inside its colour's wedge: x is the angle off the colour's own
 ## axis in degrees, y is how far out it sits between the hub and the rim.
 ##
@@ -92,8 +71,7 @@ var _passive_lines: Array[Line2D] = []
 ##
 ## Red reads as: affinity, then Fireball and Fire Dash, then Rain of Ember, Fire Cone and
 ## Lightning Bolt. The wedge is 72 degrees wide, so the widest pair at 26 degrees still
-## leaves a clear gap to the neighbouring colour - and the guild passive that sits on the
-## bisector between them is at a different radius again.
+## leaves a clear gap to the neighbouring colour.
 const BRANCH_LAYOUT: Dictionary = {
 	0: Vector2(0.0, 0.12),
 	1: Vector2(-14.0, 0.58),
@@ -154,7 +132,6 @@ func _ready() -> void:
 	SignalBus.skill_unlocked.connect(func(_color: String): update_ui())
 	SignalBus.spell_unlocked.connect(func(_color: String, _spell_id: String): update_ui())
 	SignalBus.spell_rank_changed.connect(func(_spell_id: String, _rank: int): update_ui())
-	SignalBus.passive_rank_changed.connect(func(_passive_id: String, _rank: int): update_ui())
 	SignalBus.quick_slots_changed.connect(update_ui)
 	SignalBus.skill_points_changed.connect(func(_player: Node, _points: int): update_ui())
 	# The hub shows the team level now, so the board has to follow it.
@@ -323,14 +300,6 @@ func _build_ui() -> void:
 	_skill_points_label.add_theme_constant_override("outline_size", 6)
 	control_root.add_child(_skill_points_label)
 
-	for _connection: int in range(COLOR_NAMES.size() * 2):
-		var passive_line := Line2D.new()
-		passive_line.width = 2.0
-		passive_line.default_color = Color(0.72, 0.68, 0.52, 0.42)
-		passive_line.antialiased = true
-		_board.add_child(passive_line)
-		_passive_lines.append(passive_line)
-
 	for color: String in COLOR_NAMES:
 		# One Line2D per EDGE now. A branching colour is not a polyline, and a single Line2D
 		# can only ever draw one continuous run of points.
@@ -384,17 +353,6 @@ func _build_ui() -> void:
 			# made them an end-of-run reward rather than a skill.
 			_create_icon_node(color, AURA_BRANCHES[half], aura_info)
 
-	# The five guild passives, one per gap between adjacent colours. Filed under the
-	# gap's counterclockwise colour at PASSIVE_BRANCH so the radial grid can reach them;
-	# _layout_nodes draws them on the gap's bisector instead.
-	for gap: int in range(COLOR_NAMES.size()):
-		var passive_id: String = PASSIVE_ORDER[gap]
-		var passive_info: Dictionary = PASSIVE_DATA[passive_id].duplicate()
-		passive_info["id"] = passive_id
-		passive_info["is_passive"] = true
-		passive_info["rank_requirement"] = GameSettings.rank_level_requirement(1)
-		_create_icon_node(COLOR_NAMES[gap], PASSIVE_BRANCH, passive_info)
-
 	_build_selection_ring()
 	_build_detail_panel()
 	_board.resized.connect(_layout_nodes)
@@ -416,9 +374,8 @@ func _create_icon_node(color: String, branch_index: int, info: Dictionary) -> vo
 	var button := TextureButton.new()
 	button.ignore_texture_size = true
 	button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	# The same rounding the hotbar gives its icons: a node in the tree and the slot it
-	# gets bound to are the same picture, and they have to read as the same object.
-	button.material = IconStyle.rounded_material()
+	# Square for what can be cast, round for what is always on - see _node_material.
+	button.material = _node_material(info, false)
 	button.focus_mode = Control.FOCUS_NONE
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.mouse_entered.connect(_show_details.bind(color, branch_index, info))
@@ -452,7 +409,7 @@ func _bind_hovered_to_slot(slot_index: int) -> void:
 	if record.is_empty():
 		return
 	var info: Dictionary = record["info"]
-	if bool(info.get("is_affinity", false)) or bool(info.get("is_aura", false)) or bool(info.get("is_center", false)) or bool(info.get("is_passive", false)):
+	if bool(info.get("is_affinity", false)) or bool(info.get("is_aura", false)) or bool(info.get("is_center", false)):
 		return
 	var player = PlayerRegistry.get_local()
 	if player == null or not player.has_method("assign_quick_slot"):
@@ -585,29 +542,6 @@ func _layout_nodes() -> void:
 				line.points = PackedVector2Array([points[edge[0]], points[edge[1]]])
 			else:
 				line.points = PackedVector2Array()
-	# The guild passives sit on the bisector of their two colours, a little inside the
-	# ring of spell nodes - between the colours, which is the whole point of them.
-	var passive_points: Array[Vector2] = []
-	for gap: int in range(COLOR_NAMES.size()):
-		var passive_record: Dictionary = _find_record(COLOR_NAMES[gap], PASSIVE_BRANCH)
-		if passive_record.is_empty():
-			continue
-		var bisector: float = -PI * 0.5 + TAU * (float(gap) + 0.5) / float(COLOR_NAMES.size())
-		var passive_button: TextureButton = passive_record["button"]
-		passive_button.size = Vector2(36.0, 36.0) * icon_scale
-		var passive_point: Vector2 = center + Vector2(cos(bisector), sin(bisector)) * (branch_radius * 0.55)
-		passive_points.append(passive_point)
-		passive_button.position = passive_point - passive_button.size * 0.5
-		_place_badge(passive_record, passive_button)
-
-	for gap: int in range(passive_points.size()):
-		var next_color_index: int = (gap + 1) % COLOR_NAMES.size()
-		var left_key: String = "%s_%d" % [COLOR_NAMES[gap], 2]
-		var right_key: String = "%s_%d" % [COLOR_NAMES[next_color_index], 1]
-		var passive_point: Vector2 = passive_points[gap]
-		var line_index: int = gap * 2
-		_passive_lines[line_index].points = PackedVector2Array([passive_point, node_centers[left_key]])
-		_passive_lines[line_index + 1].points = PackedVector2Array([passive_point, node_centers[right_key]])
 	if not _hovered_record.is_empty():
 		var hovered_layout: Dictionary = _find_record(
 			String(_hovered_record["color"]), int(_hovered_record["branch_index"]))
@@ -703,7 +637,7 @@ func update_ui() -> void:
 		else:
 			button.texture_normal = _get_icon_texture(info, color)
 		button.texture_hover = button.texture_normal
-		button.material = IconStyle.rounded_material(state == "unlocked")
+		button.material = _node_material(info, state == "unlocked")
 		button.modulate = _icon_modulate(state)
 
 	if not _hovered_record.is_empty():
@@ -723,7 +657,6 @@ func update_ui() -> void:
 # kind is four small answers rather than a fifth arm that has to remember five things.
 
 const KIND_AURA := "aura"
-const KIND_PASSIVE := "passive"
 const KIND_AFFINITY := "affinity"
 const KIND_SPELL := "spell"
 
@@ -731,8 +664,6 @@ const KIND_SPELL := "spell"
 func _node_kind(info: Dictionary) -> String:
 	if bool(info.get("is_aura", false)):
 		return KIND_AURA
-	if bool(info.get("is_passive", false)):
-		return KIND_PASSIVE
 	if bool(info.get("is_affinity", false)):
 		return KIND_AFFINITY
 	return KIND_SPELL
@@ -743,8 +674,6 @@ func _node_rank(player: Node, color: String, info: Dictionary) -> int:
 	match _node_kind(info):
 		KIND_AURA:
 			return _aura_rank_of(player, String(info["id"]))
-		KIND_PASSIVE:
-			return player.get_passive_rank(String(info["id"]))
 		KIND_AFFINITY:
 			return player.get_affinity_rank(color)
 		_:
@@ -754,8 +683,6 @@ func _node_rank(player: Node, color: String, info: Dictionary) -> int:
 ## Whether something joined to this node is already owned, so it can be bought at all.
 func _node_reachable(player: Node, color: String, branch_index: int, info: Dictionary) -> bool:
 	match _node_kind(info):
-		KIND_PASSIVE:
-			return _passive_reachable(player, color)
 		KIND_AFFINITY:
 			# Joined to the hub, so every colour opens the same way and always can.
 			return true
@@ -765,8 +692,6 @@ func _node_reachable(player: Node, color: String, branch_index: int, info: Dicti
 
 ## What the next rank costs in skill points.
 func _node_cost(info: Dictionary) -> int:
-	if _node_kind(info) == KIND_PASSIVE:
-		return GameSettings.spell_rank_point_cost
 	return int(info["cost"])
 
 
@@ -782,8 +707,6 @@ func _node_gate_met(player: Node, color: String, branch_index: int, info: Dictio
 	match _node_kind(info):
 		KIND_AURA:
 			return _gate_met(player, color, info)
-		KIND_PASSIVE:
-			return _passive_gate_met(player, rank + 1)
 		KIND_AFFINITY:
 			# Joined to the hub: the price is the only thing in the way.
 			return true
@@ -807,16 +730,20 @@ func _node_state(player: Node, color: String, branch_index: int, info: Dictionar
 	return "available"
 
 
-## Which nodes wear the colour's mana symbol instead of their own art.
-##
-## Undiscovered ones everywhere - except a between-colour passive, which keeps the pip
-## until it is OWNED rather than until it is merely reachable. Those sit in the open where
-## every colour can see them, and the whole point of them is that what they are stays
-## hidden until somebody buys one.
-func _shows_mana_pip(info: Dictionary, state: String, rank: int) -> bool:
-	if _node_kind(info) == KIND_PASSIVE:
-		return rank <= 0
+## Which nodes wear the colour's mana symbol instead of their own art: the undiscovered ones.
+func _shows_mana_pip(_info: Dictionary, state: String, _rank: int) -> bool:
 	return state == "unreachable"
+
+
+## Square for an ACTIVE spell, round for a PASSIVE one. The spells wear the same rounded
+## square the hotbar gives its icons - a node in the tree and the slot it gets bound to are
+## the same picture, and they have to read as the same object - while an affinity or an aura
+## is a circle: always on, never on the bar. `bright` is an owned node, drawn untinted.
+func _node_material(info: Dictionary, bright: bool) -> ShaderMaterial:
+	var kind: String = _node_kind(info)
+	if kind == KIND_AURA or kind == KIND_AFFINITY:
+		return IconStyle.circle_material(bright)
+	return IconStyle.rounded_material(bright)
 
 
 ## The rank readout on the node itself.
@@ -908,8 +835,7 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	# The two outer nodes used to be exempt, back when they were capstones and the fork
 	# between them was meant to be visible from the start. They are ordinary skills now, so
 	# they are withheld like every other one.
-	if not bool(info.get("is_passive", false)) and not bool(info["is_affinity"]) \
-			and not _is_reachable(player, color, branch_index):
+	if not bool(info["is_affinity"]) and not _is_reachable(player, color, branch_index):
 		_detail_title.text = "%s - Undiscovered" % COLOR_DISPLAY[color]
 		_detail_title.add_theme_color_override("font_color", COLOR_HEX[color] * Color(1, 1, 1, 0.7))
 		_detail_status.text = "Unlock a connected skill to reveal this"
@@ -934,25 +860,6 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 			status = "Rank %d/%d  -  next rank %d point" % [rank, GameSettings.spell_max_rank, GameSettings.spell_rank_point_cost]
 		_detail_status.text = "%s  %s  Points %d" % [COLOR_SYMBOL[color], status, _skill_points(player)]
 		_detail_body.text = info["desc"]
-		return
-
-	if bool(info.get("is_passive", false)):
-		var passive_id: String = String(info["id"])
-		var passive_rank: int = player.get_passive_rank(passive_id)
-		var pair: Array = info["colors"]
-		_detail_title.text = "%s - %s" % [String(info["guild"]), info["name"]]
-		_detail_title.add_theme_color_override("font_color", (COLOR_HEX[pair[0]] + COLOR_HEX[pair[1]]) * 0.5)
-		var passive_status: String
-		if passive_rank <= 0 and not _passive_reachable(player, color):
-			passive_status = "Unlock a connected skill first  |  "
-		elif passive_rank >= GameSettings.spell_max_rank:
-			passive_status = "Rank %d/%d - MAX  |  " % [passive_rank, GameSettings.spell_max_rank] + _passive_value_text(player, passive_id, passive_rank)
-		elif passive_rank <= 0:
-			passive_status = "Unlock for %d point  |  " % GameSettings.spell_rank_point_cost + _passive_value_text(player, passive_id, 1)
-		else:
-			passive_status = "Rank %d/%d  |  " % [passive_rank, GameSettings.spell_max_rank] + _passive_value_text(player, passive_id, passive_rank) + " -> " + _passive_value_text(player, passive_id, passive_rank + 1)
-		_detail_status.text = "%s  |  Invested %d  |  Points %d" % [passive_status, passive_rank, _skill_points(player)]
-		_detail_body.text = String(info["desc"])
 		return
 
 	if bool(info["is_affinity"]):
@@ -1011,19 +918,6 @@ func _on_node_pressed(color: String, branch_index: int, info: Dictionary) -> voi
 			return
 		if _pay(player, GameSettings.spell_rank_point_cost) and player.has_method("grant_aura_rank"):
 			player.grant_aura_rank(aura_id)
-			update_ui()
-			SoundBank.play(&"skill_unlock")
-		return
-
-	if bool(info.get("is_passive", false)):
-		var passive_id: String = String(info["id"])
-		var passive_rank: int = player.get_passive_rank(passive_id)
-		if passive_rank >= GameSettings.spell_max_rank:
-			return
-		if passive_rank <= 0 and not _passive_reachable(player, color):
-			return
-		if _pay(player, GameSettings.spell_rank_point_cost):
-			player.grant_passive_rank(passive_id)
 			update_ui()
 			SoundBank.play(&"skill_unlock")
 		return
@@ -1110,7 +1004,7 @@ func _pay(player: Node, points: int) -> bool:
 func _is_reachable(player: Node, color: String, branch_index: int) -> bool:
 	if GameSettings.debug_free_skills:
 		return true
-	if branch_index == CENTER_BRANCH or branch_index == PASSIVE_BRANCH:
+	if branch_index == CENTER_BRANCH:
 		return true
 	for edge: Array in BRANCH_EDGES:
 		var neighbour: int = -99
@@ -1123,18 +1017,6 @@ func _is_reachable(player: Node, color: String, branch_index: int) -> bool:
 		if _branch_owned(player, color, neighbour):
 			return true
 	return false
-
-
-## Between-colour passives are connected to the two adjacent skills shown by their lines:
-## the second opener on the gap's left colour and the first opener on the next colour.
-func _passive_reachable(player: Node, gap_color: String) -> bool:
-	if GameSettings.debug_free_skills:
-		return true
-	var gap_index: int = COLOR_NAMES.find(gap_color)
-	if gap_index < 0:
-		return false
-	var next_color: String = COLOR_NAMES[(gap_index + 1) % COLOR_NAMES.size()]
-	return _branch_owned(player, gap_color, 2) or _branch_owned(player, next_color, 1)
 
 
 ## Whether the player already holds the node at `branch_index` of `color`. The hub counts as
@@ -1183,19 +1065,6 @@ func _gate_met(player: Node, color: String, info: Dictionary) -> bool:
 	return true
 
 
-## Passive ranks use the same shared team-level clock as active skill ranks.
-func _passive_gate_met(player: Node, rank: int) -> bool:
-	return true
-
-
-## "25% move speed" style readout for the detail panel, computed from the same numbers
-## the player script actually applies.
-func _passive_value_text(player: Node, passive_id: String, rank: int) -> String:
-	var value: float = player.get_passive_bonus_at(passive_id, rank) * 100.0
-	if absf(value - roundf(value)) < 0.05:
-		return "%d%% %s" % [int(roundf(value)), String(PASSIVE_DATA[passive_id]["unit"])]
-	return "%.1f%% %s" % [value, String(PASSIVE_DATA[passive_id]["unit"])]
-
 ## How many points the player has left, or 0 for anything that has none. Only used to
 ## print the number, so an unreadable player is 0 rather than an error.
 func _skill_points(player: Node) -> int:
@@ -1224,17 +1093,6 @@ func _total_mana(mana_pool: Dictionary) -> int:
 func _get_next_rank_bonus(next_rank: int) -> float:
 	return GameSettings.affinity_rank_bonus_base
 
-## The blended pair colour of each guild passive, built lazily because a const cannot
-## blend two Colors at parse time.
-var _guild_hex_cache: Dictionary = {}
-func _guild_hex() -> Dictionary:
-	if _guild_hex_cache.is_empty():
-		for pid: String in PASSIVE_ORDER:
-			var pair: Array = PASSIVE_DATA[pid]["colors"]
-			_guild_hex_cache[pid] = (COLOR_HEX[pair[0]] + COLOR_HEX[pair[1]]) * 0.5
-	return _guild_hex_cache
-
-
 func _get_placeholder_texture(color: String, branch_index: int, state: String) -> ImageTexture:
 	var cache_key: String = "%s_%d_%s" % [color, branch_index, state]
 	if _texture_cache.has(cache_key):
@@ -1242,12 +1100,8 @@ func _get_placeholder_texture(color: String, branch_index: int, state: String) -
 
 	var image := Image.create(96, 96, false, Image.FORMAT_RGBA8)
 	image.fill(Color.TRANSPARENT)
-	# Guild nodes are keyed by passive id rather than by a single colour, so the blended
-	# pair colour is looked up first; everything else keeps its own colour.
 	var base_color: Color
-	if _guild_hex().has(color):
-		base_color = _guild_hex()[color]
-	elif color == "center":
+	if color == "center":
 		base_color = Color(0.72, 0.7, 0.6)
 	else:
 		base_color = COLOR_HEX[color]

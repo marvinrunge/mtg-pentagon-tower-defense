@@ -227,6 +227,19 @@ var sun_light_enabled: bool = true :
 			_sun_light_node.shadow_enabled = false
 
 
+## PROJECT PATCH (mtg-pentagon-tower-defense): whether the sun and moon may cast shadows at
+## all. The updates below switch a light's shadow back ON whenever it has energy, which made
+## the game's own Shadows option impossible to honour - the sun turned it back on at the next
+## update. GraphicsSettings.apply_shadows sets this; everything else leaves it true.
+var shadows_allowed: bool = true :
+	set(value):
+		shadows_allowed = value
+		if _sun_light_node:
+			_sun_light_node.shadow_enabled = value and _sun_light_node.light_energy > 0.0
+		if _moon_light_node:
+			_moon_light_node.shadow_enabled = value and _moon_light_node.light_energy > 0.0
+
+
 ## The day-night state
 func is_day() -> bool:
 	return _day
@@ -327,7 +340,7 @@ func _update_sun_light_energy() -> void:
 	
 	if is_equal_approx(_sun_light_node.light_energy, 0.0) and _sun_light_node.shadow_enabled:
 		_sun_light_node.shadow_enabled = false
-	elif _sun_light_node.light_energy > 0.0 and not _sun_light_node.shadow_enabled:
+	elif _sun_light_node.light_energy > 0.0 and not _sun_light_node.shadow_enabled and shadows_allowed:
 		_sun_light_node.shadow_enabled = true
 
 
@@ -498,7 +511,7 @@ func _update_moon_light_energy() -> void:
 	
 	if is_equal_approx(_moon_light_node.light_energy, 0.0) and _moon_light_node.shadow_enabled:
 		_moon_light_node.shadow_enabled = false
-	elif _moon_light_node.light_energy > 0.0 and not _moon_light_node.shadow_enabled:
+	elif _moon_light_node.light_energy > 0.0 and not _moon_light_node.shadow_enabled and shadows_allowed:
 		_moon_light_node.shadow_enabled = true
 
 

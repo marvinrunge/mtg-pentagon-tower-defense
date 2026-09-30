@@ -1,5 +1,5 @@
 extends Node
-## Screenshots all three aura orbs on one player, mid-fight, so the two that were
+## Screenshots all four aura orbs on one player, mid-fight, so the ones that were
 ## rebuilt can be judged against the one that was already good.
 ##
 ## Run with (windowed - a headless run draws nothing):
@@ -48,7 +48,7 @@ func _arm() -> void:
 	if player == null:
 		return
 	player.aura_ranks.clear()
-	for aura_id: String in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb"]:
+	for aura_id: String in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb", "aura_grave_pact"]:
 		player.aura_ranks[aura_id] = GameSettings.spell_max_rank
 	player._sync_auras()
 	# Something to shoot at, and something to heal - the heal orb picks the most hurt ally in
@@ -69,9 +69,13 @@ func _arm() -> void:
 		scene.add_child(enemy)
 		enemy.global_position = stage + offset
 
-	# A framing camera of this tool's own, rather than the gameplay rig: the orbs orbit out to
-	# 3.1m and the shoulder camera sits 3.2m behind the player, so the outer one spends half its
-	# orbit behind the lens. Far enough back and high enough to hold all three lanes at once.
+	# `--gameplay-camera` keeps the player's own shoulder camera instead - the view the orbs
+	# used to sweep through, which is the one that has to stay clear.
+	if OS.get_cmdline_user_args().has("--gameplay-camera"):
+		print("armed: %d orbs (gameplay camera)" % player._aura_orbs.size())
+		return
+	# A framing camera of this tool's own, rather than the gameplay rig, far enough back and
+	# high enough to hold the whole halo and the enemies it is firing at.
 	var camera := Camera3D.new()
 	camera.name = "OrbShotCamera"
 	scene.add_child(camera)
@@ -84,7 +88,7 @@ func _arm() -> void:
 func _shoot() -> void:
 	var out_path: String = "orbs.png"
 	var args: PackedStringArray = OS.get_cmdline_user_args()
-	if not args.is_empty():
+	if not args.is_empty() and not args[0].begins_with("--"):
 		out_path = args[0]
 	# Several frames apart, because the bolts are brief and the orbs are on three different
 	# periods: one frame is unlikely to catch more than one of them doing anything.

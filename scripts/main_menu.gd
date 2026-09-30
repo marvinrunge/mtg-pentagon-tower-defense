@@ -46,6 +46,11 @@ var _peer_list: VBoxContainer
 var _ready_button: Button
 var _start_button: Button
 
+## The same options panel the HUD opens on Escape, over the menu. See scripts/settings_menu.gd.
+const SettingsMenuScript := preload("res://scripts/settings_menu.gd")
+var _settings_overlay: Control
+var _settings_menu: VBoxContainer
+
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -534,16 +539,22 @@ func _build_ui() -> void:
 	rows.add_child(heading)
 
 	# One name field for the whole menu: the player types it once and it is used by
-	# whichever page they end up on.
+	# whichever page they end up on - and remembered for the next time the game starts.
 	var name_row := HBoxContainer.new()
 	name_row.add_theme_constant_override("separation", 8)
 	var name_label := Label.new()
 	name_label.text = "Name"
 	name_row.add_child(name_label)
 	_name_field = LineEdit.new()
-	_name_field.text = "Player"
+	var saved_name: String = UserSettings.player_name.strip_edges()
+	_name_field.text = saved_name if saved_name != "" else "Player"
 	_name_field.placeholder_text = "Your name"
+	_name_field.max_length = 24
 	_name_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# text_changed fires for typing only, never for the autostart flags setting the field,
+	# so a "Host" or "Client" test window can never overwrite the name the player chose.
+	_name_field.text_changed.connect(func(new_text: String) -> void:
+		UserSettings.set_value(&"player_name", new_text.strip_edges()))
 	name_row.add_child(_name_field)
 	rows.add_child(name_row)
 
@@ -565,6 +576,62 @@ func _build_ui() -> void:
 	_status_label.add_theme_color_override("font_color", Color(0.8, 0.75, 0.5))
 	rows.add_child(_status_label)
 
+	_build_settings_overlay()
+
+
+## The options panel, hidden until SETTINGS is pressed. An overlay over the whole menu
+## rather than a fifth page: the pages are sized for a handful of buttons, and the options
+## need the room - and closing it has to land back on whichever page was open.
+func _build_settings_overlay() -> void:
+	_settings_overlay = Control.new()
+	_settings_overlay.name = "SettingsOverlay"
+	_settings_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_settings_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	_settings_overlay.visible = false
+	add_child(_settings_overlay)
+
+	var shade := ColorRect.new()
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0.005, 0.008, 0.012, 0.72)
+	_settings_overlay.add_child(shade)
+
+	var panel := PanelContainer.new()
+	panel.anchor_left = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_top = 0.06
+	panel.anchor_bottom = 0.94
+	panel.offset_left = -330.0
+	panel.offset_right = 330.0
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.015, 0.02, 0.03, 1.0)
+	style.border_color = Color(0.35, 0.42, 0.55, 1.0)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", style)
+	_settings_overlay.add_child(panel)
+
+	var margin := MarginContainer.new()
+	for side: String in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 20)
+	panel.add_child(margin)
+	_settings_menu = SettingsMenuScript.new()
+	margin.add_child(_settings_menu)
+	CloseButton.attach(_settings_overlay, panel, func() -> void: _set_settings_open(false))
+
+
+func _set_settings_open(open: bool) -> void:
+	if _settings_overlay == null or _settings_overlay.visible == open:
+		return
+	_settings_overlay.visible = open
+	if open:
+		_settings_menu.focus_first()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and _settings_overlay != null and _settings_overlay.visible:
+		_set_settings_open(false)
+		get_viewport().set_input_as_handled()
+
 
 func _build_main_page() -> Control:
 	var page := VBoxContainer.new()
@@ -575,6 +642,7 @@ func _build_main_page() -> Control:
 	_reconnect_button.visible = false
 	page.add_child(_reconnect_button)
 	page.add_child(_menu_button("PLAY SOLO", _on_solo_pressed))
+	page.add_child(_menu_button("SETTINGS", func() -> void: _set_settings_open(true)))
 	page.add_child(_menu_button("QUIT", _on_quit_pressed))
 	return page
 

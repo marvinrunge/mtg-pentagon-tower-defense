@@ -97,7 +97,6 @@ func _check_stats() -> void:
 	_player.hp = _player.max_hp
 	_player.protection_shield = 0.0
 	_player.rhystic_shield = 0.0
-	_player.glorious_anthem_shield = 0.0
 	_player.take_damage(20.0)
 	_check("damage taken is recorded", is_equal_approx(_player.stats["damage_taken"], 20.0),
 		"%.1f" % _player.stats["damage_taken"])

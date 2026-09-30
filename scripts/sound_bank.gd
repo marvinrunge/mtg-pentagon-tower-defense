@@ -60,13 +60,17 @@ const EVENT_FILES := {
 	&"spell_frostwave": ["magic/frostwave1.wav", "magic/frostwave2.wav"],
 	&"spell_frost_globe": ["magic/frost-globe.wav"],
 	&"spell_suction": ["magic/suction.wav"],
-	## GUESSED MAPPING: the recording is a violent howling gale and Fear is the closest
-	## thing in the roster to terror sweeping outward. Unsummon already has a file of its
-	## own, which is why the gale did not go there. One line to move if it belongs
-	## somewhere else - the file keeps its neutral name for exactly that reason.
-	&"spell_fear": ["magic/howling-gale.wav"],
+	## GUESSED MAPPING, moved once already: the recording is a violent howling gale, and it
+	## belonged to Fear until Contagion replaced it in black's second slot. A plague rushing
+	## out of its victim is the nearest thing the roster still has to a gale. One line to move
+	## if it belongs somewhere else - the file keeps its neutral name for exactly that reason.
+	&"spell_contagion": ["magic/howling-gale.wav"],
 	&"spell_kill": ["magic/kill.wav"],
 	&"spell_zombify": ["magic/zombify.wav"],
+	## A raised corpse bursting. The magic impact rather than the fireball's: it is a body
+	## giving way, not an explosive, and the fireball's boom is too big to hear seven times
+	## in two seconds when a whole Zombify pack reaches the line at once.
+	&"zombie_burst": ["magic/magic-missle-impact1.wav", "magic/magic-missle-impact2.wav"],
 	&"spell_lightning_bolt": ["lightning-bolt.wav"],
 	## The two sustained spells. Both are held for as long as their effect lasts, so
 	## both are attached rather than fired - see LOOPING_EVENTS.
@@ -173,6 +177,35 @@ const LOOPING_EVENTS: Array[StringName] = [
 	&"spell_fire_cone",
 ]
 
+## event -> decibels added to the ordinary effects level, for the events that fire so often
+## that the level everything else is mixed at makes them the loudest thing on the map.
+##
+## The aura orbs are why this exists. Each fires every one to two seconds for the whole run,
+## on its own, whether the player is doing anything or not - three of them at the level of a
+## sword hit was a constant patter over everything the player actually chose to do.
+const EVENT_GAIN_DB: Dictionary = {
+	&"aura_orb_frost": -11.0,
+	&"aura_orb_fire": -11.0,
+	&"aura_orb_heal": -11.0,
+	&"aura_grave_pact": -8.0,
+	&"zombie_burst": -4.0,
+}
+
+## event -> a group whose members share ONE retrigger clock. Three orbs are three events,
+## so the per-event gap in _pick let them all land in the same instant; grouped, the second
+## and third shot of a moment are simply not heard, and the three read as one familiar
+## rather than as three separate ones competing for attention.
+const RETRIGGER_GROUPS: Dictionary = {
+	&"aura_orb_frost": &"aura_orb",
+	&"aura_orb_fire": &"aura_orb",
+	&"aura_orb_heal": &"aura_orb",
+	&"aura_grave_pact": &"aura_orb",
+}
+
+## By path rather than by the autoload's name: SoundBank may start before UserSettings, and
+## the buses have to exist before the first voice is routed into one.
+const UserSettingsScript := preload("res://scripts/user_settings.gd")
+
 ## event -> the streams behind it, resolved once at startup.
 var _streams: Dictionary = {}
 ## event -> index last played, so a two-variant event alternates instead of
@@ -210,6 +243,7 @@ const MUSIC_EXTENSIONS: Array[String] = ["mp3", "ogg", "wav"]
 
 
 func _ready() -> void:
+	UserSettingsScript.ensure_audio_buses()
 	_load_streams()
 	_build_pools()
 	_build_gameplay_playlist()
@@ -237,12 +271,15 @@ func _load_streams() -> void:
 		_streams[event] = streams
 
 
+## Every voice here goes to the SFX bus, which is what the effects slider turns down. Only
+## the music player is routed elsewhere.
 func _build_pools() -> void:
 	for i in GameSettings.sfx_positional_voices:
 		var player := AudioStreamPlayer3D.new()
 		player.max_distance = GameSettings.sfx_max_distance
 		player.unit_size = GameSettings.sfx_unit_size
 		player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		player.bus = UserSettingsScript.BUS_SFX
 		add_child(player)
 		_positional.append(player)
 	for i in GameSettings.sfx_global_voices:
@@ -250,10 +287,12 @@ func _build_pools() -> void:
 		player.max_distance = GameSettings.sfx_global_max_distance
 		player.unit_size = GameSettings.sfx_global_unit_size
 		player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		player.bus = UserSettingsScript.BUS_SFX
 		add_child(player)
 		_global.append(player)
 	for i in GameSettings.sfx_flat_voices:
 		var player := AudioStreamPlayer.new()
+		player.bus = UserSettingsScript.BUS_SFX
 		add_child(player)
 		_flat.append(player)
 
@@ -367,7 +406,8 @@ func _setup_title_music() -> void:
 	_music_player.name = "TitleMusicPlayer"
 	_music_player.stream = stream
 	_music_player.autoplay = false
-	_music_player.bus = "Master"
+	# Its own bus, so the music slider and the effects slider are two different things.
+	_music_player.bus = UserSettingsScript.BUS_MUSIC
 	# One track ends, the next begins. In gameplay that is the next entry in the shuffled
 	# playlist; on the menu it is the title theme again, which simply loops.
 	_music_player.finished.connect(func() -> void:
@@ -406,7 +446,10 @@ func _apply_music_settings() -> void:
 ## Plays `event` at a point on the map. Silently does nothing for an event with no
 ## usable recording, so a missing file costs a warning at startup rather than an
 ## error on every hit.
-func play_at(event: StringName, position: Vector3) -> void:
+##
+## `extra_db` is for a caller that knows something the event does not - an orb belonging
+## to somebody else's avatar is background to this player, not a sound of their own doing.
+func play_at(event: StringName, position: Vector3, extra_db: float = 0.0) -> void:
 	var stream: AudioStream = _pick(event)
 	if stream == null:
 		return
@@ -424,7 +467,7 @@ func play_at(event: StringName, position: Vector3) -> void:
 		return
 	player.stream = stream
 	player.global_position = position
-	player.volume_db = GameSettings.sfx_volume_db
+	player.volume_db = GameSettings.sfx_volume_db + float(EVENT_GAIN_DB.get(event, 0.0)) + extra_db
 	player.pitch_scale = _jittered_pitch()
 	player.play()
 
@@ -438,21 +481,25 @@ func play(event: StringName) -> void:
 	var player: AudioStreamPlayer = _flat[_next_flat]
 	_next_flat = (_next_flat + 1) % _flat.size()
 	player.stream = stream
-	player.volume_db = GameSettings.sfx_volume_db
+	player.volume_db = GameSettings.sfx_volume_db + float(EVENT_GAIN_DB.get(event, 0.0))
 	player.pitch_scale = _jittered_pitch()
 	player.play()
 
 
 ## The recording to use for this trigger, or null if the event has none left to give
-## - either it has no files at all, or it already fired this instant.
+## - either it has no files at all, or it (or its group) already fired this instant.
 func _pick(event: StringName) -> AudioStream:
 	var streams: Array = _streams.get(event, [])
 	if streams.is_empty():
 		return null
 	var now: float = float(Time.get_ticks_msec()) / 1000.0
-	if now - float(_last_played.get(event, -999.0)) < GameSettings.sfx_min_retrigger:
+	# A grouped event waits on the group's clock and a longer gap; everything else keeps
+	# the per-event one it always had.
+	var clock_key: StringName = RETRIGGER_GROUPS.get(event, event)
+	var min_gap: float = GameSettings.sfx_group_min_retrigger if RETRIGGER_GROUPS.has(event) else GameSettings.sfx_min_retrigger
+	if now - float(_last_played.get(clock_key, -999.0)) < min_gap:
 		return null
-	_last_played[event] = now
+	_last_played[clock_key] = now
 
 	if streams.size() == 1:
 		return streams[0]
@@ -486,6 +533,7 @@ func attach_loop(event: StringName, emitter: Node3D, ambience: bool = true) -> A
 		return null
 	var player := AudioStreamPlayer3D.new()
 	player.name = "Loop_" + String(event)
+	player.bus = UserSettingsScript.BUS_SFX
 	player.stream = streams[0]
 	player.volume_db = GameSettings.sfx_ambience_volume_db if ambience else GameSettings.sfx_volume_db
 	player.max_distance = GameSettings.sfx_ambience_max_distance if ambience else GameSettings.sfx_max_distance

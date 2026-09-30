@@ -6,10 +6,10 @@ signal mana_deposited(color: String, amount: int)
 
 signal health_changed(current: float, max_health: float)
 signal player_health_changed(current_health: float, max_health: float)
-## Absorption the local player is currently carrying, from all three sources at once -
-## Circle of Protection, Glorious Anthem and Rhystic Study. One number rather than one signal
-## per source: they are spent as one pool (see Player.take_damage) and the bar draws them as
-## one segment, so splitting them here would only make two places reassemble the same total.
+## Absorption the local player is currently carrying, from both sources at once - Circle of
+## Protection and Rhystic Study. One number rather than one signal per source: they are spent
+## as one pool (see Player.take_damage) and the bar draws them as one segment, so splitting
+## them here would only make two places reassemble the same total.
 signal player_shield_changed(amount: float)
 signal mana_changed(mana_pool: Dictionary)
 signal game_over()
@@ -28,8 +28,11 @@ signal color_path_chosen(color: String)
 ## A spell gained a rank, or was bound to a different quick slot. Both redraw the same
 ## things - the hotbar and the tree - so both ride one signal.
 signal spell_rank_changed(spell_id: String, rank: int)
-## A neutral passive (the guild nodes between the colours) gained a rank.
-signal passive_rank_changed(passive_id: String, rank: int)
+## A player put on or took off a piece of equipment.
+signal equipment_changed(player: Node)
+## The team found a piece of equipment (its id), or the whole stash was replaced by a sync
+## or a reset (empty id).
+signal equipment_unlocked_changed(item_id: String)
 signal quick_slots_changed()
 signal spell_charge_changed(current_charge: float, max_charge: float, is_charging: bool)
 signal status_effect_applied(target: Node3D, effect_type: String, duration: float)

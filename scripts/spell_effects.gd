@@ -341,14 +341,18 @@ static func cast_blue_displace(caster: Player) -> void:
 ## black_1. A line, not a cone: the blade passes THROUGH everything it touches and misses
 ## everything it does not, which is what makes it a skill shot.
 static func cast_black_doom_blade(caster: Player) -> void:
-	var aim_target: Vector3 = caster._aim_point(GameSettings.spell_black_doom_blade_length, 5)
+	# Rank makes the blade REACH further - its own curve, steeper than the generic area one,
+	# because length is the one thing a line can grow in without turning into a cone.
+	var length: float = GameSettings.rank_fraction(
+		GameSettings.spell_black_doom_blade_length, GameSettings.spell_black_doom_blade_length_max, caster._casting_rank
+	) * caster.reach_area_mult()
+	var aim_target: Vector3 = caster._aim_point(length, 5)
 	var forward: Vector3 = aim_target - caster.global_position
 	forward.y = 0.0
 	if forward.length_squared() <= 0.001:
 		forward = -caster.transform.basis.z
 		forward.y = 0.0
 	forward = forward.normalized()
-	var length: float = GameSettings.spell_black_doom_blade_length * caster._rank_area()
 	# "Width (barely)" in the design doc, so barely: a blade that widened with the rest
 	# would stop being a line and start being a cone.
 	var half_width: float = GameSettings.rank_fraction(
@@ -371,44 +375,16 @@ static func cast_black_doom_blade(caster: Player) -> void:
 	caster._play_sound(&"spell_doom_blade", caster.global_position)
 
 
-## black_2. The colour's answer to being surrounded: they leave rather than stop. See
-## EnemyBase.apply_fear, which moves the body rather than only suppressing the attack.
-static func cast_black_fear(caster: Player) -> void:
-	var radius: float = GameSettings.spell_black_fear_radius * caster._rank_area()
-	var duration: float = GameSettings.spell_black_fear_duration * caster._rank_duration()
-	# Scattering the pack is a COST in a game whose whole roster wants enemies clustered, so
-	# the flee has to buy something back. Everything running is easier to kill while it runs,
-	# which turns Fear from a button that undoes the player's own positioning into a window
-	# they open on purpose - and gives black's two debuffs a reason to be cast together.
-	var vulnerability: float = GameSettings.rank_fraction(
-		GameSettings.spell_black_fear_vulnerability, GameSettings.spell_black_fear_vulnerability_max, caster._casting_rank
-	)
-	for enemy: Node3D in caster._enemies_in_radius(caster.global_position, radius):
-		if enemy.has_method("apply_fear"):
-			enemy.apply_fear(duration, caster.global_position)
-			# Applied to everything in the radius, INCLUDING the bosses that shrug off the
-			# flee itself - otherwise Fear is a blank card in exactly the fight where black
-			# most needs one, and the spell reads as having failed.
-			if enemy.has_method("apply_doom_curse"):
-				enemy.apply_doom_curse(duration, vulnerability)
-	caster._spawn_ring(caster.global_position, Color(0.45, 0.15, 0.6), radius)
-	# Black's settle beat: the ground the shout emptied stays marked, so the player can see
-	# where their own safe circle was after the enemies have scattered out of it.
-	caster._place_ground_decal("decal_blight", Color(0.16, 0.05, 0.22, 0.8), radius, caster.global_position)
-	caster._play_sound(&"spell_fear", caster.global_position)
-
-
-## black_3. The only outright delete in the game. Bosses are executed ONLY below the
-## threshold - without that clause this one skill would end every wave boss on sight.
-static func cast_black_kill(caster: Player) -> void:
+## The enemy the player is most directly looking at within `range_units`, or null. Whatever
+## is in the sights rather than whatever is nearest: a single-target spell that picked its
+## own victim would be a different skill. Kill and Contagion both aim this way.
+static func _looked_at_enemy(caster: Player, range_units: float, min_alignment: float = 0.55) -> Node3D:
 	var target: Node3D = null
 	var forward: Vector3 = -caster.camera.global_basis.z
 	forward.y = 0.0
 	forward = forward.normalized()
-	var best_dot: float = 0.55
-	# Whatever the player is most directly looking at, rather than whatever is nearest:
-	# a single-target execute that picked its own victim would be a different skill.
-	for enemy: Node3D in caster._enemies_in_radius(caster.global_position, GameSettings.spell_black_kill_range * caster._rank_area()):
+	var best_dot: float = min_alignment
+	for enemy: Node3D in caster._enemies_in_radius(caster.global_position, range_units):
 		var to_enemy: Vector3 = enemy.global_position - caster.global_position
 		to_enemy.y = 0.0
 		if to_enemy.length_squared() < 0.01:
@@ -417,7 +393,49 @@ static func cast_black_kill(caster: Player) -> void:
 		if alignment > best_dot:
 			best_dot = alignment
 			target = enemy
+	return target
 
+
+## black_2, Contagion (replaced Fear). A plague on the enemy in the sights that burns it and
+## jumps to the nearest uninfected enemy every second - see EnemyBase.apply_contagion. It is
+## black's area damage, but slow and dependent on the crowd rather than instant like red's
+## fire: one enemy alone is a damage-over-time, a packed wave is an outbreak.
+##
+## The victims of one cast share one `outbreak` counter, which is what caps a single cast
+## however dense the wave is.
+static func cast_black_contagion(caster: Player) -> void:
+	var reach: float = GameSettings.spell_black_contagion_range * caster._rank_area()
+	var target: Node3D = _looked_at_enemy(caster, reach)
+	if target == null:
+		# Nothing in the sights: whatever stands nearest the point being aimed at.
+		var near: Array[Node3D] = caster._enemies_in_radius(caster._aim_point(reach), 6.0)
+		if not near.is_empty():
+			target = near[0]
+	if target == null or not target.has_method("apply_contagion"):
+		caster._notify("No enemy to infect")
+		return
+	var duration: float = GameSettings.spell_black_contagion_duration * caster._rank_duration()
+	var outbreak: Dictionary = {
+		"left": GameSettings.rank_count(
+			GameSettings.spell_black_contagion_max_victims, GameSettings.spell_black_contagion_max_victims_max,
+			caster._casting_rank
+		) - 1,
+		"duration": duration,
+		"dps": GameSettings.spell_black_contagion_dps * caster.get_spell_damage_multiplier() * caster._rank_damage(),
+		"radius": GameSettings.spell_black_contagion_spread_radius * caster._rank_area(),
+	}
+	target.apply_contagion(outbreak, caster)
+	var from: Vector3 = caster.global_position + Vector3(0.0, 1.3, 0.0)
+	var to: Vector3 = target.global_position + Vector3(0.0, 1.0, 0.0)
+	NetFx.beam(from, (to - from).normalized(), from.distance_to(to), EnemyBase.CONTAGION_TINT)
+	NetFx.impact(to, EnemyBase.CONTAGION_TINT, 1.2)
+	caster._play_sound(&"spell_contagion", target.global_position)
+
+
+## black_3. The only outright delete in the game. Bosses are executed ONLY below the
+## threshold - without that clause this one skill would end every wave boss on sight.
+static func cast_black_kill(caster: Player) -> void:
+	var target: Node3D = _looked_at_enemy(caster, GameSettings.spell_black_kill_range * caster._rank_area())
 	if target == null:
 		return
 	if target.has_method("is_boss") and target.is_boss():
@@ -500,7 +518,8 @@ static func cast_black_zombify(caster: Player) -> void:
 			"position": caster._ground_snap(where) + Vector3(0.0, 0.5, 0.0),
 			"hp": GameSettings.spell_black_zombify_hp * caster._rank_damage(),
 			"duration": GameSettings.spell_black_zombify_duration * caster._rank_duration(),
-			"damage": GameSettings.spell_black_zombify_damage * caster.get_spell_damage_multiplier() * caster._rank_damage(),
+			# What its burst deals - a ghoul does not fight, it runs in and bursts.
+			"damage": GameSettings.spell_black_zombify_burst_damage * caster.get_spell_damage_multiplier() * caster._rank_damage(),
 			"color": source.color_identity if source != null else "",
 			"class": source.enemy_class if source != null else "",
 		})

@@ -189,7 +189,6 @@ func _run() -> void:
 		if not aura_rec.is_empty():
 			for _n: int in range(2):
 				st._on_node_pressed("red", aura_branch, aura_rec["info"])
-	player.passive_ranks["trample_strike"] = 2
 	st.update_ui()
 
 	for rec: Dictionary in st._button_records:
@@ -202,8 +201,6 @@ func _run() -> void:
 			owned_rank = player.get_affinity_rank("red")
 		elif bool(info.get("is_aura", false)):
 			owned_rank = player.get_aura_rank(id)
-		elif bool(info.get("is_passive", false)):
-			owned_rank = player.get_passive_rank(id)
 		else:
 			owned_rank = player.get_spell_rank(id)
 		if owned_rank <= 0:
@@ -211,9 +208,9 @@ func _run() -> void:
 		var badge: Label = rec["badge"]
 		if badge.text == "" or not badge.visible:
 			failures.append("%s is at rank %d and shows no progress" % [id, owned_rank])
-	print("TEST W badges: affinity=%d fervor=%d trample=%d red_1=%d" % [
+	print("TEST W badges: affinity=%d fervor=%d red_1=%d" % [
 		player.get_affinity_rank("red"), player.get_aura_rank("aura_fervor"),
-		player.get_passive_rank("trample_strike"), player.get_spell_rank("red_1")])
+		player.get_spell_rank("red_1")])
 
 	if failures.is_empty():
 		print("TEST RESULT: PASS")

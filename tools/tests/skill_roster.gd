@@ -40,7 +40,7 @@ const EXPECTED_SPELL_SOUNDS: Dictionary = {
 	"blue_4": &"spell_frost_globe",
 	"blue_5": &"spell_cast",
 	"black_1": &"spell_doom_blade",
-	"black_2": &"spell_fear",
+	"black_2": &"spell_contagion",
 	"black_3": &"spell_kill",
 	"black_4": &"spell_wall_of_souls",
 	"black_5": &"spell_zombify",
@@ -277,20 +277,30 @@ func _check_black() -> void:
 		"line=%.0f aside=%.0f" % [in_line.health, aside.health])
 	_clear_enemies()
 
-	var scared: EnemyBase = _spawn_enemy(Vector3(3.0, 0.0, 0.0))
+	# Contagion aims like Kill - whatever the camera is pointing at - and then has to SPREAD,
+	# which is the whole spell: one sick enemy is only a damage-over-time.
+	var aim: Vector3 = -_player.camera.global_basis.z
+	aim.y = 0.0
+	aim = aim.normalized()
+	var patient_zero: EnemyBase = _spawn_enemy(aim * 8.0)
+	var neighbour: EnemyBase = _spawn_enemy(aim * 8.0 + _player.transform.basis.x * 2.0)
+	var sick_before: float = patient_zero.health
 	_cast("black_2")
-	# Both halves. Scattering the pack costs the player every area skill they own, so the
-	# vulnerability is not decoration - a Fear that only made enemies run would be a spell
-	# whose whole effect is to make the rest of the roster worse.
-	_check("black_2 Fear", scared.flee_timer > 0.0, "not fleeing")
-	_check("black_2 Fear marks what it scatters", scared.curse_timer > 0.0 and scared.curse_mult > 1.0,
-		"curse=%.1fs x%.2f" % [scared.curse_timer, scared.curse_mult])
+	_check("black_2 Contagion infects its target", patient_zero.contagion_timer > 0.0,
+		"timer=%.1f" % patient_zero.contagion_timer)
+	# One second of plague, driven directly: the burn tick and the jump both fall inside it.
+	patient_zero._tick_contagion(GameSettings.spell_black_contagion_spread_interval + 0.05)
+	_check("black_2 Contagion burns", patient_zero.health < sick_before,
+		"%.0f -> %.0f" % [sick_before, patient_zero.health])
+	_check("black_2 Contagion spreads", neighbour.contagion_timer > 0.0, "neighbour never caught it")
 	_clear_enemies()
 
 	# Kill picks whatever the CAMERA is pointing at, so the victim goes there.
-	var aim: Vector3 = -_player.camera.global_basis.z
-	aim.y = 0.0
-	var doomed: EnemyBase = _spawn_enemy(aim.normalized() * 8.0)
+	var doomed: EnemyBase = _spawn_enemy(aim * 8.0)
+	# Kill's boss clause reads the target's health RATIO, and an enemy used to have no maximum
+	# to divide by - HealthReader answered "unreadable" and Kill refused every boss forever.
+	_check("black_3 Kill can read an enemy's health", HealthReader.ratio(doomed) >= 0.0,
+		"ratio %.2f" % HealthReader.ratio(doomed))
 	_cast("black_3")
 	# An ordinary death rather than an exile: the corpse stays on the field and feeds
 	# Zombify, so the check is the death animation running, not the node being gone.
@@ -322,6 +332,16 @@ func _check_black() -> void:
 	_cast("black_5")
 	var raised: Array[Node] = _nodes_of("TemporaryAlly")
 	_check("black_5 Zombify", raised.size() >= 1 and raised[0].kind == "undead", "nothing raised")
+	# A ghoul does not fight, it BURSTS - so the check is an enemy beside it losing health when
+	# it goes off, not a swing landing.
+	if not raised.is_empty():
+		var ghoul: Node3D = raised[0] as Node3D
+		var bystander: EnemyBase = _spawn_enemy(Vector3.ZERO)
+		bystander.global_position = ghoul.global_position + Vector3(1.0, 0.0, 0.0)
+		var bystander_before: float = bystander.health
+		ghoul._explode()
+		_check("black_5 ghouls burst", bystander.health < bystander_before,
+			"%.0f -> %.0f" % [bystander_before, bystander.health])
 	_clear_spawned()
 	_clear_enemies()
 	_done_with("black")
@@ -445,7 +465,7 @@ func _check_auras() -> void:
 			_player._sync_auras()
 			_player.grant_aura_rank(aura_id)
 			var took_it: bool = _player.get_aura_rank(aura_id) == 1
-			var wants_orb: bool = aura_id in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb"]
+			var wants_orb: bool = aura_id in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb", "aura_grave_pact"]
 			var has_orb: bool = _player._aura_orbs.size() > 0
 			_check("%s %s" % [color, entry["name"]], took_it and has_orb == wants_orb,
 				"took=%s orb=%s wanted=%s" % [took_it, has_orb, wants_orb])
@@ -485,25 +505,24 @@ func _check_aura_ranks() -> void:
 	print("AURA RANKS")
 
 	for entry: Array in [
-		["aura_fervor", GameSettings.aura_fervor_speed_boost, "speed"],
-		["aura_glorious_anthem", GameSettings.aura_glorious_anthem_damage_mult, "damage"],
-		["aura_phyrexian_arena", GameSettings.aura_phyrexian_arena_damage_mult, "damage"],
-		["aura_sylvan_library", GameSettings.aura_sylvan_library_hp_mult, "max hp"],
-		["aura_rhystic_study", GameSettings.aura_rhystic_study_cdr_mult, "cooldown"],
+		["aura_fervor", GameSettings.aura_fervor_speed_boost, "swing and cast speed"],
+		["aura_glorious_anthem", GameSettings.aura_glorious_anthem_ally_damage_mult, "ally damage"],
+		["aura_glorious_anthem", GameSettings.aura_glorious_anthem_ally_damage_taken_mult, "ally damage taken"],
+		["aura_kodamas_reach", GameSettings.aura_kodamas_reach_area_mult, "area"],
 	]:
 		var aura_id: String = entry[0]
 		var ceiling: float = entry[1]
 		var low: float = GameSettings.aura_bonus_mult(ceiling, 1)
 		var high: float = GameSettings.aura_bonus_mult(ceiling, GameSettings.spell_max_rank)
-		# Rhystic Study's ceiling is BELOW 1.0 - it is a cooldown multiplier, so its bonus
-		# gets smaller as it improves. Measured as distance from 1.0, both directions read
-		# the same way: rank 1 off neutral, rank 5 all the way to the listed number.
+		# Anthem's damage-taken ceiling is BELOW 1.0 - its bonus gets smaller as it improves.
+		# Measured as distance from 1.0, both directions read the same way: rank 1 off neutral,
+		# rank 5 all the way to the listed number.
 		_check("%s rank 1 already pays (%s)" % [aura_id, entry[2]],
 			not is_equal_approx(low, 1.0) and absf(low - 1.0) > absf(ceiling - 1.0) * 0.2,
 			"x%.3f vs neutral 1.0" % low)
-		_check("%s rank 5 beats rank 1" % aura_id, absf(high - 1.0) > absf(low - 1.0) * 1.5,
+		_check("%s rank 5 beats rank 1 (%s)" % [aura_id, entry[2]], absf(high - 1.0) > absf(low - 1.0) * 1.5,
 			"x%.3f -> x%.3f" % [low, high])
-		_check("%s rank 5 reaches its listed value" % aura_id, is_equal_approx(high, ceiling),
+		_check("%s rank 5 reaches its listed value (%s)" % [aura_id, entry[2]], is_equal_approx(high, ceiling),
 			"x%.3f (listed x%.3f)" % [high, ceiling])
 
 	# --- and the same thing measured through the PLAYER, not the curve ----------
@@ -511,30 +530,91 @@ func _check_aura_ranks() -> void:
 	# lerp. These read the real accessors at both ranks, with the aura genuinely owned.
 	_player.aura_ranks.clear()
 	_player._sync_auras()
+	_player._casting_rank = 1
+	var no_aura_area: float = _player._rank_area()
 	var no_aura_damage: float = _player.get_spell_damage_multiplier()
 
-	_player.grant_aura_rank("aura_phyrexian_arena")
-	var arena_1: float = _player.get_spell_damage_multiplier()
+	# Kodama's Reach: every spell's area, through the one funnel they all use.
+	_player.grant_aura_rank("aura_kodamas_reach")
+	var reach_1: float = _player._rank_area()
 	for _i: int in range(GameSettings.spell_max_rank - 1):
-		_player.grant_aura_rank("aura_phyrexian_arena")
-	var arena_5: float = _player.get_spell_damage_multiplier()
-	_check("Phyrexian Arena rank 1 is better than no aura", arena_1 > no_aura_damage * 1.01,
-		"%.3f vs %.3f" % [arena_1, no_aura_damage])
-	_check("Phyrexian Arena rank 5 beats rank 1", arena_5 > arena_1 * 1.05,
-		"%.3f -> %.3f" % [arena_1, arena_5])
+		_player.grant_aura_rank("aura_kodamas_reach")
+	var reach_5: float = _player._rank_area()
+	_check("Kodama's Reach rank 1 widens every spell", reach_1 > no_aura_area * 1.01,
+		"x%.3f vs x%.3f" % [reach_1, no_aura_area])
+	_check("Kodama's Reach rank 5 beats rank 1", reach_5 > reach_1 * 1.05, "x%.3f -> x%.3f" % [reach_1, reach_5])
 
+	# Glorious Anthem is for EVERYONE ELSE: the white player's own damage must not move, and
+	# something standing next to them must take less.
+	_player.aura_ranks.clear()
+	_player.grant_aura_rank("aura_glorious_anthem")
+	_check("Glorious Anthem does not buff the singer", is_equal_approx(_player.get_spell_damage_multiplier(), no_aura_damage),
+		"%.3f vs %.3f" % [_player.get_spell_damage_multiplier(), no_aura_damage])
+	var listener := Node3D.new()
+	_scene.add_child(listener)
+	listener.global_position = _player.global_position + Vector3(2.0, 0.0, 0.0)
+	_check("Glorious Anthem shelters an ally beside the singer", Player.anthem_damage_taken_mult(listener) < 1.0,
+		"x%.3f" % Player.anthem_damage_taken_mult(listener))
+	_check("Glorious Anthem strengthens an ally beside the singer", Player.anthem_damage_mult(listener) > 1.0,
+		"x%.3f" % Player.anthem_damage_mult(listener))
+	listener.global_position = _player.global_position + Vector3(GameSettings.aura_glorious_anthem_radius + 5.0, 0.0, 0.0)
+	_check("Glorious Anthem has a reach", is_equal_approx(Player.anthem_damage_taken_mult(listener), 1.0),
+		"x%.3f far away" % Player.anthem_damage_taken_mult(listener))
+	listener.free()
+
+	# Rhystic Study: casting banks shield, and breaking the shield freezes the breaker.
 	_player.aura_ranks.clear()
 	_player._sync_auras()
-	var no_aura_hp: float = _player.max_hp
-	_player.grant_aura_rank("aura_sylvan_library")
-	var library_1: float = _player.max_hp
+	_player.grant_aura_rank("aura_rhystic_study")
+	_cast("blue_5")
+	_check("Rhystic Study shields a cast", _player.rhystic_shield > 0.0, "shield %.1f" % _player.rhystic_shield)
+	var breaker: EnemyBase = _spawn_enemy(Vector3(2.0, 0.0, 0.0))
+	_player._invulnerable_timer = 0.0
+	# Earlier sections cast Reprisal Ward, whose block chance turns a hit aside entirely -
+	# a hit that never lands never breaks the shield, and the check would fail at random.
+	_player._reprisal_timer = 0.0
+	_player._ironbark_timer = 0.0
+	_player.take_damage(_player.rhystic_shield + 5.0, breaker)
+	_check("Rhystic Study's shield freezes what breaks it", breaker.freeze_timer > 0.0,
+		"freeze %.2fs" % breaker.freeze_timer)
+	_clear_enemies()
+	_player.hp = _player.max_hp
+
+	# Phyrexian Arena: a spell on cooldown can be paid for in life, and never with a life.
+	_player.aura_ranks.clear()
+	_player._sync_auras()
+	_player.spell_cooldown_timers["black_1"] = 5.0
+	_check("no blood casting without Phyrexian Arena", not _player.can_blood_cast("black_1"))
+	_player.grant_aura_rank("aura_phyrexian_arena")
+	_player.hp = _player.max_hp
+	var cost_1: float = _player.blood_cast_cost("black_1")
+	_check("Phyrexian Arena prices a spell on cooldown", cost_1 > 0.0 and _player.can_blood_cast("black_1"),
+		"cost %.1f" % cost_1)
 	for _i: int in range(GameSettings.spell_max_rank - 1):
-		_player.grant_aura_rank("aura_sylvan_library")
-	var library_5: float = _player.max_hp
-	_check("Sylvan Library rank 1 grants health", library_1 > no_aura_hp * 1.01,
-		"%.0f vs %.0f" % [library_1, no_aura_hp])
-	_check("Sylvan Library rank 5 beats rank 1", library_5 > library_1 * 1.05,
-		"%.0f -> %.0f" % [library_1, library_5])
+		_player.grant_aura_rank("aura_phyrexian_arena")
+	var cost_5: float = _player.blood_cast_cost("black_1")
+	_check("Phyrexian Arena rank 5 is cheaper than rank 1", cost_5 < cost_1 * 0.9, "%.1f -> %.1f" % [cost_1, cost_5])
+	_player.hp = cost_5 * 0.5
+	_check("Phyrexian Arena never takes the last of a life", not _player.can_blood_cast("black_1"),
+		"hp %.1f, cost %.1f" % [_player.hp, cost_5])
+	_player.hp = _player.max_hp
+	_player.spell_cooldown_timers.erase("black_1")
+
+	# Grave Pact: a death nearby fills the Soul Orb, and the orb throws the soul at an enemy.
+	_player.aura_ranks.clear()
+	_player._sync_auras()
+	_player.grant_aura_rank("aura_grave_pact")
+	var soul_orb: Node = _player._aura_orbs.get("aura_grave_pact", null)
+	_check("Grave Pact builds a Soul Orb", is_instance_valid(soul_orb), "no orb")
+	if is_instance_valid(soul_orb):
+		_player._on_enemy_died_near(_player.global_position + Vector3(3.0, 0.0, 0.0))
+		_check("a death nearby gives the orb a soul", soul_orb.soul_count() == 1, "souls %d" % soul_orb.soul_count())
+		var haunted: EnemyBase = _spawn_enemy(Vector3(4.0, 0.0, 0.0))
+		var haunted_before: float = haunted.health
+		soul_orb._release_soul()
+		_check("the Soul Orb throws its souls", haunted.health < haunted_before and soul_orb.soul_count() == 0,
+			"%.0f -> %.0f, souls %d" % [haunted_before, haunted.health, soul_orb.soul_count()])
+		_clear_enemies()
 
 	_player.aura_ranks.clear()
 	_player._sync_auras()
@@ -595,6 +675,11 @@ func _check_ranks() -> void:
 		var readings: Array = _measure(entry[0], func() -> float: return _damage_probe(entry[0], entry[1]))
 		_check("%s damage scales" % entry[0], readings[1] > readings[0] * 1.5,
 			"%.0f -> %.0f" % [readings[0], readings[1]])
+
+	# Doom Blade's rank buys REACH: an enemy past the rank-1 blade is inside the rank-5 one.
+	var reach_probe: Vector3 = forward * (GameSettings.spell_black_doom_blade_length + 6.0)
+	var reach: Array = _measure("black_1", func() -> float: return _damage_probe("black_1", reach_probe))
+	_check("black_1 reach scales", reach[0] <= 0.0 and reach[1] > 0.0, "%.0f -> %.0f" % [reach[0], reach[1]])
 
 	# --- AREA: an enemy outside the rank-1 radius is inside the rank-5 one ----
 	# Roar's radius is 14 at rank 1 and 22.4 at rank 5, so 18 units out is the honest

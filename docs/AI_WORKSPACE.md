@@ -76,8 +76,12 @@ After generation:
 - `docs/MULTIPLAYER_PLAN.md`: phased plan for five-player co-op, and the single-player assumptions it has to undo
 - `docs/SKILL_UNLOCK_PLAN.md`: phased plan for replacing the tree's level gates with connectivity - what unlocks what, and how a node that cannot be reached yet is drawn
 - `docs/SPELL_VFX_PLAN.md`: phased plan for the spell visuals - what the 25 spells are drawn with today and the effect layer, shaders and budget that replace it
-- `scripts/sound_bank.gd`: which file every game event sounds like, and the pooled voices that play it
-- `scripts/run_state.gd`: the run's three currencies - shared XP/levels, the team mana pool, enchantment stacks
+- `scripts/sound_bank.gd`: which file every game event sounds like, and the pooled voices that play it (routed to the Music and SFX buses)
+- `scripts/run_state.gd`: the run's three currencies - shared XP/levels, the team mana pool, enchantment stacks - plus the equipment the team has found
+- `scripts/user_settings.gd`: the player's remembered preferences (name, volumes, HUD readouts) and the audio buses; `scripts/graphics_settings.gd` is the graphics half, both saved through `scripts/settings_file.gd` into `user://settings.cfg`
+- `scripts/settings_menu.gd`: the one options panel, shown by both the main menu and the in-game Escape menu
+- `scripts/equipment_database.gd` / `scripts/equipment_menu.gd`: the boss-dropped equipment (the former keyword passives) and its **I** menu
+- `docs/GUILD_PLAN.md`: staged plan for two- and three-colour guild nodes and guild camps
 - `scripts/player_registry.gd`: who is playing, and which one is local to this machine
 - `scripts/upkeep_panel.gd`: the build phase between waves - shop, enchantment votes, ready checks
 - `scripts/net.gd`: hosting, joining and the peer list; inert until someone hosts

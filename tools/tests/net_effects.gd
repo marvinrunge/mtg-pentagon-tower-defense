@@ -27,13 +27,17 @@ const MAP_SCENE: String = "res://scenes/misc/main.tscn"
 const ROUND_TRIP: float = 1.2
 const TEST_DAMAGE: float = 23.0
 ## The build the client buys, chosen so the host can be asked about it in three ways: the
-## rank it resolves a spell at, the aura it can see, and the maximum health that aura
-## changes. Sylvan Library multiplies max_hp, so the last one proves the host did not just
-## STORE the build but ran _sync_auras over it.
+## rank it resolves a spell at, the aura it can see, and the Soul Orb that aura builds.
+## Grave Pact grows an orb on the avatar, so the last one proves the host did not just
+## STORE the build but ran _sync_auras over it. (It used to be Sylvan Library's maximum
+## health; no aura changes a stat like that any more.)
 const BUILT_SPELL: String = "blue_2"
 const BUILT_RANK: int = 4
-const BUILT_AURA: String = "aura_sylvan_library"
+const BUILT_AURA: String = "aura_grave_pact"
 const BUILT_AURA_RANK: int = 3
+## A piece of equipment the host unlocks for the team and the client puts on, so the rejoin
+## can check that what a player WEARS survives a drop along with what they bought.
+const WORN_ITEM: String = "swiftfoot_boots"
 ## Long enough for the host to notice the drop and hold the seat. Standing in for the five
 ## minutes a real player spends on the menu - nothing in Net expires a reservation, so the
 ## length of the gap is not what the test is about.
@@ -371,6 +375,13 @@ func _run_cast_and_death_checks() -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
+func _host_unlock_equipment(item_id: String) -> void:
+	if not Net.is_server():
+		return
+	RunState.unlock_equipment(item_id)
+
+
+@rpc("any_peer", "call_remote", "reliable")
 func _host_revive_client() -> void:
 	if not Net.is_server():
 		return
@@ -596,8 +607,10 @@ func _client_enemy_walking(view: Dictionary) -> void:
 			"host %.2f, client %.2f" % [mine, view.get("speed", 0.0)])
 		# The one the player actually notices: an enemy sliding down the lane in a
 		# T-pose, or frozen on the first frame of its walk.
+		# Walk OR run: enemies pick whichever locomotion clip matches their real speed
+		# (EnemyBase.LOCOMOTION_CLIPS), so a fast one legitimately runs.
 		_check("it is playing its walk there",
-			String(view.get("anim", "")) == "walk" and bool(view.get("playing", false)),
+			EnemyBase.LOCOMOTION_CLIPS.has(String(view.get("anim", ""))) and bool(view.get("playing", false)),
 			"'%s' playing=%s" % [view.get("anim"), view.get("playing")])
 	else:
 		print("       (the host's own copy is not moving - motion not judged)")
@@ -648,12 +661,12 @@ func _run_rejoin_check() -> void:
 	var wanted_rank: int = before.get_spell_rank(BUILT_SPELL)
 	var wanted_aura: int = before.get_aura_rank(BUILT_AURA)
 	var wanted_points: int = before.skill_points
-	# A passive, which export_build did not carry - so the points spent on it were counted
-	# as spent and the ranks they bought were gone.
-	before.skill_points += 4
-	before.grant_passive_rank("vigilance")
-	before.grant_passive_rank("vigilance")
-	var wanted_passive: int = before.get_passive_rank("vigilance")
+	# Equipment: the team's stash is the host's to fill, what is worn is this player's own -
+	# and a build that forgot it would put them back in the match barefoot.
+	_host_unlock_equipment.rpc_id(1, WORN_ITEM)
+	await _wait(ROUND_TRIP)
+	before.set_equipped(WORN_ITEM, true)
+	var wanted_worn: bool = before.is_equipped(WORN_ITEM)
 
 	PlayerRegistry.save_local_build()
 	var details: Dictionary = Net.last_join.duplicate()
@@ -680,8 +693,8 @@ func _run_rejoin_check() -> void:
 		"wanted_aura": wanted_aura,
 		"points": after.skill_points if after != null else -1,
 		"wanted_points": wanted_points,
-		"passive": after.get_passive_rank("vigilance") if after != null else -1,
-		"wanted_passive": wanted_passive,
+		"worn": after.is_equipped(WORN_ITEM) if after != null else false,
+		"wanted_worn": wanted_worn,
 	})
 	await _wait(0.5)
 
@@ -819,7 +832,7 @@ func _client_result(report: Dictionary) -> void:
 		"hp": them.hp if them != null else -1.0,
 		"rank": them.get_spell_rank(BUILT_SPELL) if them != null else -1,
 		"aura": them.get_aura_rank(BUILT_AURA) if them != null else -1,
-		"max_hp": them.max_hp if them != null else -1.0,
+		"orb": them._aura_orbs.has(BUILT_AURA) if them != null else false,
 	}
 
 
@@ -892,11 +905,10 @@ func _finish() -> void:
 		_check("it knows about their aura",
 			int(_host_view.get("aura", -1)) == BUILT_AURA_RANK,
 			"rank %s, wanted %d" % [_host_view.get("aura"), BUILT_AURA_RANK])
-		# ...and applied it, rather than merely filing it. Sylvan Library raises maximum
-		# health, so this is _sync_auras having run on the host's copy of them.
-		_check("it applied the aura to their maximum health",
-			float(_host_view.get("max_hp", -1.0)) > GameSettings.player_max_hp,
-			"%s vs a base %.0f" % [_host_view.get("max_hp"), GameSettings.player_max_hp])
+		# ...and applied it, rather than merely filing it. Grave Pact builds a Soul Orb on the
+		# avatar, so this is _sync_auras having run on the host's copy of them.
+		_check("it applied the aura - their Soul Orb exists on the host",
+			bool(_host_view.get("orb", false)), "no orb on the host's copy")
 
 	if not _rejoin_report.is_empty():
 		print("WHAT THE CLIENT KEPT ACROSS A DROP")
@@ -917,9 +929,9 @@ func _finish() -> void:
 		_check("its unspent skill points came back with it",
 			int(_rejoin_report.get("points", -1)) >= int(_rejoin_report.get("wanted_points", 999)),
 			"%s, had %s" % [_rejoin_report.get("points"), _rejoin_report.get("wanted_points")])
-		_check("its passive ranks came back with it",
-			int(_rejoin_report.get("passive", -1)) == int(_rejoin_report.get("wanted_passive", -2)),
-			"rank %s, had %s" % [_rejoin_report.get("passive"), _rejoin_report.get("wanted_passive")])
+		_check("its equipment came back with it",
+			bool(_rejoin_report.get("wanted_worn", false)) and bool(_rejoin_report.get("worn", false)),
+			"worn %s, had %s" % [_rejoin_report.get("worn"), _rejoin_report.get("wanted_worn")])
 		# The host has to learn it a second time. The avatar it spawned for the returning
 		# player starts empty, and only the client can fill it in - if _publish_build does
 		# not fire again after a reconnect, they cast rank-1 spells for the rest of the run

@@ -216,6 +216,9 @@ extends Node
 ## Minimum gap between two triggers of the SAME event. Thirty enemies connecting on
 ## one frame is one impact sound, not thirty stacked into a clipping mess.
 @export var sfx_min_retrigger: float = 0.05
+## The same, for events that share a clock (SoundBank.RETRIGGER_GROUPS) - the aura orbs.
+## Long enough that three orbs firing together are heard as one shot.
+@export var sfx_group_min_retrigger: float = 0.35
 ## Beyond this the sound is inaudible; unit_size sets how quickly it falls off on
 ## the way there.
 @export var sfx_max_distance: float = 45.0
@@ -396,6 +399,8 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_red_rain_ember_duration: float = 5.0
 @export var spell_red_rain_ember_radius: float = 6.0
 @export var spell_red_rain_ember_dps: float = 25.0
+## Fervor - red's Attunement. Swing AND cast speed at rank 5. Not movement: that is the
+## Swiftfoot Boots' number alone (see the EQUIPMENT section).
 @export var aura_fervor_speed_boost: float = 1.15
 
 # --- BLUE SKILLS ---
@@ -412,13 +417,22 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_blue_unsummon_impact_damage: float = 80.0
 @export var spell_blue_freeze_breath_shatter_damage: float = 90.0
 @export var spell_blue_freeze_breath_shatter_radius: float = 4.0
-@export var aura_rhystic_study_cdr_mult: float = 0.7
-@export var aura_rhystic_study_shield_amount: float = 15.0
-@export var aura_rhystic_study_shield_max: float = 45.0
+## Rhystic Study - blue's Attunement. Every cast banks this much shield, up to the cap.
+## It used to cut cooldowns by 30% as well, which is the blue AFFINITY's number - so that
+## half went, and the shield grew to carry the node on its own.
+@export var aura_rhystic_study_shield_amount: float = 20.0
+@export var aura_rhystic_study_shield_max: float = 60.0
+## ...and when the shield breaks, whatever is standing close enough to have broken it is
+## frozen (bosses slowed) for this long, at rank 1. The duration curve lengthens it.
+@export var aura_rhystic_study_shatter_radius: float = 4.0
+@export var aura_rhystic_study_shatter_freeze: float = 1.5
 
 # --- GREEN SKILLS ---
-@export var aura_sylvan_library_hp_mult: float = 1.35
-@export var aura_sylvan_library_regen: float = 3.0
+## Kodama's Reach - green's Attunement (was Sylvan Library). Every spell's area at rank 5.
+## It used to grant maximum health and regeneration, the green and the white AFFINITIES'
+## numbers; area is the one thing no other node in the tree gives. Not called Overgrowth,
+## which is already green's team enchantment.
+@export var aura_kodamas_reach_area_mult: float = 1.3
 
 # --- WHITE SKILLS ---
 @export var spell_white_swords_exile_pct: float = 0.5
@@ -426,24 +440,23 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_white_swords_ally_heal: float = 60.0
 @export var spell_white_path_to_exile_exec_mult: float = 0.5
 @export var spell_white_pacifism_debuff_mult: float = 0.5
-## Glorious Anthem's shield is documented as PERMANENT, and it was not: it is assigned once in
-## Player._sync_auras, which early-returns when the aura signature has not changed, so
-## the first hit that broke it broke it for the rest of the run. It recharges out of combat now,
-## which is what "permanent" has to mean for a shield that can be spent.
-@export var aura_glorious_anthem_shield: float = 35.0
-## Seconds without TAKING DAMAGE before it starts coming back, then how fast. Keyed off damage
-## taken rather than the combat timer, which is set by the player's own swings - a white player
-## meleeing safely behind their team is not the case this is meant to lock out.
-@export var aura_glorious_anthem_recharge_delay: float = 6.0
-@export var aura_glorious_anthem_recharge_rate: float = 10.0
-@export var aura_glorious_anthem_damage_mult: float = 1.15
+## Glorious Anthem - white's Attunement, and a TEAM aura: teammates, myrs and summons within
+## the radius deal more and take less (rank-5 values). Not the white player themselves - it
+## used to be a shield and +15% damage on the caster, i.e. red's number and a third shield.
+## Several Anthems do not stack; the strongest one reaching an ally applies.
+@export var aura_glorious_anthem_radius: float = 14.0
+@export var aura_glorious_anthem_ally_damage_mult: float = 1.2
+@export var aura_glorious_anthem_ally_damage_taken_mult: float = 0.8
 
 # --- BLACK SKILLS ---
 @export var spell_black_drain_life_damage: float = 70.0
 @export var spell_black_drain_life_lifesteal: float = 0.65
-@export var aura_phyrexian_arena_hp_drain_pct: float = 0.015
-@export var aura_phyrexian_arena_damage_mult: float = 1.25
-@export var aura_phyrexian_arena_speed_mult: float = 1.15
+## Phyrexian Arena - black's Attunement, "Phyrexian mana": a spell on cooldown can be cast
+## anyway, for this share of maximum health per second of cooldown left (rank 1 -> rank 5).
+## Refused if it would leave the player below 1 health. It used to be +25% damage and +15%
+## speed paid for by a constant drain - red's number and the boots' number.
+@export var aura_phyrexian_arena_life_per_second: float = 0.012
+@export var aura_phyrexian_arena_life_per_second_max: float = 0.007
 
 # ============================================================
 # SKILL ROSTER - docs/SKILL_DESIGN.md
@@ -542,24 +555,29 @@ func get_tier_cost(tier_index: int) -> int:
 ## Doom Blade (black_1). Passes THROUGH - only what the line actually touches is hit,
 ## which is what makes it a skill shot rather than a cone.
 @export var spell_black_doom_blade_damage: float = 115.0
-@export var spell_black_doom_blade_length: float = 18.0
+## Rank 1 and rank 5 reach. Ranking the blade makes it REACH further - it stays a thin line
+## (the width barely moves), so a ranked blade is a longer skill shot, not a wider cone.
+@export var spell_black_doom_blade_length: float = 20.0
+@export var spell_black_doom_blade_length_max: float = 36.0
 @export var spell_black_doom_blade_width: float = 1.6
-## Fear (black_2)
-@export var spell_black_fear_radius: float = 9.0
-@export var spell_black_fear_duration: float = 4.0
-## What makes Fear worth casting in a game about keeping enemies CLUSTERED. Scattering the
-## pack is actively bad for Suction, Wall of Souls, Rain of Ember, Fireball and every other
-## area skill in the roster, so the flee needs to buy something the cluster cannot: everything
-## running takes this much more damage for as long as it runs. Fear becomes a damage window
-## the player opens deliberately, rather than a button that undoes their own positioning.
+## Contagion (black_2, replaced Fear). A plague put on one enemy that burns it and, every
+## `spread_interval`, jumps to the nearest uninfected enemy within `spread_radius` - so the
+## denser the wave, the further it runs. Each new victim catches the full duration.
 ##
-## Rides the same curse channel as Wall of Souls' mark (EnemyBase.apply_doom_curse), which
-## keeps the stronger of the two rather than letting one overwrite the other.
-@export var spell_black_fear_vulnerability: float = 1.3
-@export var spell_black_fear_vulnerability_max: float = 1.6
+## Fear went because it scattered the very packs every area skill in the roster wants, and
+## its damage window was Wall of Souls' vulnerability a second time.
+@export var spell_black_contagion_range: float = 24.0
+@export var spell_black_contagion_dps: float = 22.0
+@export var spell_black_contagion_duration: float = 7.0
+@export var spell_black_contagion_spread_radius: float = 4.5
+@export var spell_black_contagion_spread_interval: float = 1.0
+## How many enemies one cast can reach in total, rank 1 -> rank 5. A cap, or a single
+## cast into a late wave would take the whole lane.
+@export var spell_black_contagion_max_victims: int = 8
+@export var spell_black_contagion_max_victims_max: int = 16
 ## Kill (black_3). The boss clause is what stops an instant delete trivialising the wave
-## bosses; the cooldown (spell_database.gd) is the harshest in the game for the same
-## reason.
+## bosses; the cooldown (spell_database.gd) is still the longest in the game for the same
+## reason, if no longer a whole minute.
 @export var spell_black_kill_range: float = 22.0
 @export var spell_black_kill_boss_threshold: float = 0.33
 ## Wall of Souls (black_4)
@@ -567,12 +585,16 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_black_wall_duration: float = 12.0
 @export var spell_black_wall_mark_duration: float = 8.0
 @export var spell_black_wall_mark_mult: float = 2.0
-## Zombify (black_5). Raises corpses that are already lying on the field - a system that
-## until now was pure decoration.
+## Zombify (black_5). Raises corpses that are already lying on the field as ghouls that
+## SPRINT at the nearest enemy and burst on contact - or wherever they are when their time
+## runs out, or when something kills them first. A raised corpse used to stand and trade
+## blows it had no animation for; a bursting one needs none, and it is black's area damage.
 @export var spell_black_zombify_count: int = 3
-@export var spell_black_zombify_hp: float = 200.0
-@export var spell_black_zombify_damage: float = 24.0
-@export var spell_black_zombify_duration: float = 20.0
+@export var spell_black_zombify_hp: float = 160.0
+@export var spell_black_zombify_duration: float = 14.0
+@export var spell_black_zombify_speed: float = 7.0
+@export var spell_black_zombify_burst_damage: float = 90.0
+@export var spell_black_zombify_burst_radius: float = 3.5
 
 # --- RED: aggression ---
 ## Fire Dash (red_2). Escape and damage in one, which is why the trail is worth as much
@@ -649,11 +671,31 @@ func get_tier_cost(tier_index: int) -> int:
 
 # --- AURAS: THE ORBS ---
 # The second half of every colour's aura fork. The Attunements (Fervor, Rhystic
-# Study and the rest, above) are flat multipliers; these are presence - something
-# visibly fighting alongside the player. All three orbs are ONE implementation.
-@export var aura_orb_radius: float = 2.2
-@export var aura_orb_height: float = 1.9
-@export var aura_orb_speed: float = 2.0
+# Study and the rest, above) are stat lines; these are presence - something visibly
+# fighting alongside the player. All four orbs are ONE implementation (OrbitingOrb).
+#
+# They share one small halo above the player's LEFT shoulder - the camera looks over the
+# right one, so that side of the frame is never the aim line. They used to circle the
+# player up to three metres out at head height, straight through the camera's view.
+## Radius of the halo. At least 0.6: each orb takes a quarter of the ring, and
+## tools/tests/orb_orbits.gd needs a clear gap between neighbours that a smaller ring
+## cannot give.
+@export var aura_orb_radius: float = 0.62
+## Centre of the halo, in the player's own space: -X is the left shoulder, +Z is towards
+## the camera behind them. Slightly IN FRONT of the head: a halo leaning back towards the
+## lens drew its nearest orb as a large blob in the top corner of the screen.
+@export var aura_orb_halo_centre: Vector3 = Vector3(-0.6, 2.35, -0.3)
+## Radians per second. Slow: a halo that spins reads as a mechanism, not a familiar.
+@export var aura_orb_speed: float = 0.8
+## Rise and fall around the ring, as a fraction of its radius.
+@export var aura_orb_tilt: float = 0.12
+## Each orb's own light. A glow on the player rather than a lamp - four of them used to
+## light the ground in four moving colours.
+@export var aura_orb_light_energy: float = 0.45
+@export var aura_orb_light_range: float = 2.2
+## Extra decibels for an orb that belongs to another player - background, not the local
+## player's own doing. On top of SoundBank.EVENT_GAIN_DB.
+@export var aura_orb_remote_gain_db: float = -6.0
 ## Winter Orb - blue's Manifestation
 @export var aura_orb_of_frost_damage: float = 34.0
 @export var aura_orb_of_frost_interval: float = 1.4
@@ -675,13 +717,17 @@ func get_tier_cost(tier_index: int) -> int:
 ## fights by being physically present.
 @export var aura_trample_dps: float = 40.0
 @export var aura_trample_radius: float = 3.2
-## Grave Pact - black's Manifestation. A stacking bonus that DECAYS is the point: it
-## pays a player who keeps killing, and lapses the moment they stop.
+## Grave Pact - black's Manifestation, the Soul Orb. Every enemy that dies within
+## `radius` of the player gives up its soul to the orb, which throws the souls it holds at
+## the nearest enemy one at a time. It used to heal and stack a damage bonus - two numbers
+## the black affinity (lifesteal) and red (damage) already own.
 @export var aura_grave_pact_radius: float = 12.0
-@export var aura_grave_pact_heal: float = 14.0
-@export var aura_grave_pact_damage_per_stack: float = 0.04
-@export var aura_grave_pact_max_stacks: int = 8
-@export var aura_grave_pact_stack_duration: float = 6.0
+@export var aura_grave_pact_soul_damage: float = 40.0
+## How many souls the orb can hold. A cap, so clearing a wave does not bank a minute of fire.
+@export var aura_grave_pact_max_souls: int = 6
+## Seconds between two souls leaving the orb.
+@export var aura_grave_pact_release_interval: float = 0.55
+@export var aura_grave_pact_range: float = 16.0
 
 # --- RANK CEILINGS ---
 # The handful of skill numbers the generic curves cannot express, each with the value it
@@ -712,33 +758,44 @@ func get_tier_cost(tier_index: int) -> int:
 ## would outgrow the damage it is paying for.
 @export var spell_green_giant_attack_slow_cap: float = 1.75
 
-# --- NEUTRAL PASSIVES (the guild nodes between the colours) ---
-# Five ranks each, one skill point per rank, gated only by team level. Values are the
-# rank-1 minimum and the rank-5 ceiling, walked by rank_fraction.
-## Vigilance (Selesnya, green/white): spells with a duration last this much longer.
-@export var passive_vigilance_duration_min: float = 0.10
-@export var passive_vigilance_duration_max: float = 1.0
-## Double Strike (Dimir, blue/black): crit chance for ALL player damage, melee and spells.
-@export var passive_crit_chance_min: float = 0.10
-@export var passive_crit_chance_max: float = 0.50
-@export var passive_crit_damage_mult: float = 2.0
-## Trample (Gruul, red/green): melee hits add this fraction of the player's max HP.
-@export var passive_trample_hp_fraction_min: float = 0.10
-@export var passive_trample_hp_fraction_max: float = 0.50
-## Haste (Rakdos, black/red): movement speed bonus.
-@export var passive_haste_speed_min: float = 0.10
-@export var passive_haste_speed_max: float = 0.50
-## Flying (Azorius, white/blue): jump height bonus; holding jump while falling glides
-## at this fraction of normal gravity.
-@export var passive_flight_jump_min: float = 0.5
-@export var passive_flight_jump_max: float = 2.5
-@export var passive_flight_glide_gravity_mult: float = 0.25
 ## Doom Blade: "width (barely)" in the design doc, so barely.
 @export var spell_black_doom_blade_width_max: float = 1.9
 
-## How fast a feared enemy runs compared with how fast it advances. Slightly quicker,
-## so Fear visibly creates space rather than only stopping the attacks.
+## How fast a fleeing enemy runs compared with how fast it advances. No spell makes an
+## enemy flee since Fear left the roster; EnemyBase.apply_fear is kept for whatever does next.
 @export var enemy_flee_speed_mult: float = 1.15
+
+# ============================================================
+# EQUIPMENT
+# ============================================================
+# Found, not bought: a slain boss can drop one piece, from the pool its colour fits (see
+# EquipmentDatabase). What drops is the TEAM's - every player can put it on - and the five
+# keyword passives that used to sit between the colours in the skill tree became the first
+# five pieces. One number per item, which is all any of them needs.
+## Chance a slain wave boss drops a piece the team does not have yet.
+@export var equipment_boss_drop_chance: float = 0.6
+## How many pieces one player may wear at once. 0 = no limit (the current rule; a slot
+## system is still an open question, and this is the one knob it would need).
+@export var equipment_max_equipped: int = 0
+## Swiftfoot Boots: movement speed bonus.
+@export var equipment_swiftfoot_boots_speed: float = 0.2
+## Cobbled Wings: extra jump height, and holding jump on the way down glides at this
+## fraction of gravity.
+@export var equipment_cobbled_wings_jump: float = 1.0
+@export var equipment_cobbled_wings_glide_gravity_mult: float = 0.25
+## Fireshrieker: chance a melee hit lands a second time.
+@export var equipment_fireshrieker_chance: float = 0.25
+## Amulet of Vigor: spells with a duration last this much longer.
+@export var equipment_amulet_of_vigor_duration: float = 0.3
+## Loxodon Warhammer: melee hits add this share of the player's maximum health.
+@export var equipment_loxodon_warhammer_hp_share: float = 0.12
+## Icy Manipulator: chance a melee hit freezes the enemy (bosses are slowed), and for how long.
+@export var equipment_icy_manipulator_chance: float = 0.15
+@export var equipment_icy_manipulator_freeze: float = 1.5
+## Executioner's Capsule: a melee hit kills any non-boss left below this share of its health.
+@export var equipment_executioners_capsule_threshold: float = 0.15
+## Whispersilk Cloak: seconds enemies overlook the player after each kill of theirs.
+@export var equipment_whispersilk_cloak_duration: float = 2.0
 
 
 # ============================================================
@@ -1158,6 +1215,26 @@ func rank_level_requirement(rank: int) -> int:
 ## The heavy spin and the chain's third stage, which land far less often.
 @export var camera_shake_melee_heavy_strength: float = 0.2
 @export var camera_shake_melee_duration: float = 0.16
+
+# ============================================================
+# GRAPHICS - BLOOM
+# ============================================================
+## What GraphicsSettings.apply_glow puts on the map's environment when the player has
+## Bloom / Glow on. The Sky3D environment ships with no glow at all, and the engine's
+## defaults bloom the whole daytime sky - the point is the opposite: only what is brighter
+## than `graphics_glow_hdr_threshold` blooms, which is the hot core of a spell and the sun.
+@export var graphics_glow_intensity: float = 0.9
+@export var graphics_glow_strength: float = 1.0
+## Bloom lifts EVERYTHING by this fraction, threshold or not, so it stays off: a spell
+## glowing is the effect, the whole frame glowing is fog.
+@export var graphics_glow_bloom: float = 0.0
+@export var graphics_glow_hdr_threshold: float = 1.0
+@export var graphics_glow_hdr_scale: float = 2.0
+## Screen: never brighter than white, so it cannot wash a noon sky out - and, unlike soft
+## light, it still shows against a DARK one. Soft light was tried first and is a contrast
+## blend: on the night half of the Sky3D cycle it added nothing at all (measured with
+## tools/tests/vfx_showcase.tscn -- <out.png> --glow, mean pixel change 0.3/255).
+@export var graphics_glow_blend_mode: Environment.GlowBlendMode = Environment.GLOW_BLEND_MODE_SCREEN
 
 # ============================================================
 # RUN REWARDS

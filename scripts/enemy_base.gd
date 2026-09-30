@@ -130,7 +130,8 @@ var blind_timer: float = 0.0
 var curse_timer: float = 0.0
 var curse_mult: float = 1.0
 var pacified_timer: float = 0.0
-## Fear (black_2): runs AWAY from whatever frightened it instead of fighting.
+## Fleeing: runs AWAY from whatever frightened it instead of fighting. Set by apply_fear, which
+## no spell calls since Contagion replaced Fear in black's second slot.
 var flee_timer: float = 0.0
 var flee_from: Vector3 = Vector3.ZERO
 ## Roar (green_4): forced onto one target regardless of what is closer. The taunt
@@ -157,6 +158,26 @@ var burn_timer: float = 0.0
 var burn_dps: float = 0.0
 var burn_tick: float = 0.0
 var burn_source: Node3D = null
+## Contagion (black_2): a plague that burns like a burn and, every spread interval, jumps to
+## the nearest uninfected enemy. Replicated, so every screen can see who is sick.
+var contagion_timer: float = 0.0
+var _contagion_tick: float = 0.0
+var _contagion_spread_timer: float = 0.0
+var _contagion_source: Node3D = null
+## Shared by every victim of one cast - what caps how far one cast can run, and what each
+## new victim is infected with. See SpellEffects.cast_black_contagion.
+var _contagion_outbreak: Dictionary = {}
+var _contagion_fx: GPUParticles3D = null
+## The plague's colour: a sick green over black's violet. Here rather than on SpellEffects,
+## which already depends on this class - the dependency only runs one way.
+const CONTAGION_TINT := Color(0.6, 0.95, 0.35)
+
+## The most health this enemy has, for anything reading it through HealthReader. Kill's
+## boss clause asks for a boss's health RATIO, and with no maximum to divide by HealthReader
+## answered "unreadable" - so Kill refused every boss at any health, forever.
+var max_health: float:
+	get:
+		return enemy_data.health if enemy_data != null else health
 ## Exalted Strike marked this enemy: the killing blow exiles it instead of leaving a
 ## corpse. Set by take_damage, read by die().
 var _exile_on_death: bool = false
@@ -402,7 +423,7 @@ func _build_synchronizer() -> void:
 	if not Net.is_active():
 		return
 	var config := SceneReplicationConfig.new()
-	for property: String in [":position", ":rotation", ":health", ":velocity", ":is_dying"]:
+	for property: String in [":position", ":rotation", ":health", ":velocity", ":is_dying", ":contagion_timer"]:
 		config.add_property(NodePath(property))
 		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
 	var sync := MultiplayerSynchronizer.new()
@@ -585,6 +606,12 @@ func _physics_process(delta: float) -> void:
 		if burn_timer <= 0.0:
 			burn_dps = 0.0
 			burn_source = null
+	if contagion_timer > 0.0:
+		_tick_contagion(delta)
+		# The plague can kill from inside this frame, exactly as the burn above can.
+		if is_dying:
+			return
+	_sync_contagion_fx()
 
 	# Boss special attack. Runs before the normal movement/attack block because a
 	# committed special overrides both - the boss is rooted for its whole duration.
@@ -745,6 +772,8 @@ func _tracks_target_while_attacking() -> bool:
 func _update_puppet() -> void:
 	if health_bar != null and enemy_data != null:
 		health_bar.set_health(health, enemy_data.health)
+	# The plague's look, from the replicated timer - the plague itself only runs on the server.
+	_sync_contagion_fx()
 	if is_dying:
 		_play_puppet_death()
 		return
@@ -1779,7 +1808,7 @@ func request_damage(amount: float, attacker_peer: int, is_melee: bool, exile_on_
 ## kills the enemy, it leaves no corpse. It rides on the damage rather than being a
 ## separate call because the kill and the exile have to be the same decision - checking
 ## health first and exiling second would race a simultaneous hit from another player.
-func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false, exile_on_kill: bool = false) -> void:
+func take_damage(amount: float, source: Node3D = null, is_melee: bool = false, exile_on_kill: bool = false) -> void:
 	if is_dying:
 		return
 	# Some colours hold their formation under fire and some do not (SquadDoctrine's
@@ -1801,6 +1830,14 @@ func take_damage(amount: float, source: Node3D = null, _is_melee: bool = false, 
 		health_bar.set_health(health, enemy_data.health)
 	var spawn_pos = global_position + Vector3(randf_range(-0.3, 0.3), 1.5, randf_range(-0.3, 0.3))
 	NetFx.damage_number(spawn_pos, amount, Color(1.0, 0.95, 0.2), "")
+	# Executioner's Capsule: a melee hit from its wearer finishes off anything it leaves this
+	# close to death. Never a boss - Kill's boss window is the one way to execute those.
+	if health > 0.0 and is_melee and not is_boss() and is_instance_valid(source) \
+			and source.has_method("melee_execute_threshold"):
+		var threshold: float = float(source.melee_execute_threshold())
+		if threshold > 0.0 and enemy_data != null and health <= enemy_data.health * threshold:
+			NetFx.damage_number(spawn_pos + Vector3(0.0, 0.4, 0.0), 0.0, Color(0.75, 0.3, 0.95), "Executed")
+			health = 0.0
 	if health <= 0.0:
 		# The only point that knows both that this hit was fatal and who threw it. die() takes
 		# no source, and SignalBus.enemy_died carries none either - it is a team-wide "one
@@ -1836,6 +1873,11 @@ func die() -> void:
 	# seconds its death animation runs, and a squad measuring its march speed off a dead
 	# mage would keep walking at the dead mage's pace.
 	leave_formation()
+	# A corpse is not sick - and the replicated timer going to 0 is what clears the haze on
+	# every client's copy too.
+	contagion_timer = 0.0
+	_contagion_outbreak = {}
+	_sync_contagion_fx()
 	# Exiled rather than killed: same rewards, no body left behind. See exile().
 	if _exile_on_death:
 		exile()
@@ -2051,7 +2093,7 @@ func apply_blind(duration: float) -> void:
 	blind_timer = duration
 
 ## Vulnerability: this enemy takes `mult` times damage for `duration`. Wall of Souls' mark
-## (black_4) and Fear's flee window (black_2) both land here.
+## (black_4) lands here - and Fear's flee window did, while black had Fear.
 ##
 ## Keeps the HIGHER multiplier and the LONGER duration rather than overwriting, the same way
 ## apply_burn keeps the higher dps. Overwriting meant whichever of black's two debuffs landed
@@ -2124,10 +2166,9 @@ func movement_speed_mult() -> float:
 # Player.execute_spell). Clients see the consequence through the enemy's replicated
 # transform and health.
 
-## Fear (black_2). The enemy turns and runs from `origin` for `duration`, attacking
-## nothing on the way. This is the colour's answer to being surrounded, so it has to
-## actually create distance rather than only stopping the attacks - which is why it
-## moves the body instead of setting `pacified_timer`.
+## Flee. The enemy turns and runs from `origin` for `duration`, attacking nothing on the
+## way. Built for black's old Fear, kept for whatever wants it next: it moves the body rather
+## than setting `pacified_timer`, because a flee has to actually create distance.
 func apply_fear(duration: float, origin: Vector3) -> void:
 	if is_immune_to_control():
 		return
@@ -2204,6 +2245,120 @@ func apply_burn(duration: float, dps: float, source: Node3D = null) -> void:
 	burn_source = source
 	if burn_tick <= 0.0:
 		burn_tick = BURN_TICK_INTERVAL
+
+
+## Contagion (black_2). `outbreak` is the cast's shared record - how many more enemies it may
+## still reach, and the duration, damage and jump radius every victim gets. Re-infecting a
+## sick enemy only refreshes it; it is the SPREAD that the outbreak counts.
+func apply_contagion(outbreak: Dictionary, source: Node3D = null) -> void:
+	if is_dying or outbreak.is_empty():
+		return
+	var fresh: bool = contagion_timer <= 0.0
+	contagion_timer = maxf(contagion_timer, float(outbreak.get("duration", 0.0)))
+	_contagion_outbreak = outbreak
+	_contagion_source = source
+	if fresh:
+		_contagion_tick = BURN_TICK_INTERVAL
+		_contagion_spread_timer = GameSettings.spell_black_contagion_spread_interval
+	_sync_contagion_fx()
+
+
+## One frame of plague: the damage, on the burn's tick, and the jump, on its own clock.
+func _tick_contagion(delta: float) -> void:
+	contagion_timer -= delta
+	_contagion_tick -= delta
+	if _contagion_tick <= 0.0:
+		_contagion_tick = BURN_TICK_INTERVAL
+		take_damage(float(_contagion_outbreak.get("dps", 0.0)) * BURN_TICK_INTERVAL, _contagion_source)
+		if is_dying:
+			return
+	_contagion_spread_timer -= delta
+	if _contagion_spread_timer <= 0.0:
+		_contagion_spread_timer = GameSettings.spell_black_contagion_spread_interval
+		_spread_contagion()
+	if contagion_timer <= 0.0:
+		contagion_timer = 0.0
+		_contagion_outbreak = {}
+		_contagion_source = null
+
+
+## Jumps to the nearest enemy that is not sick yet, if the outbreak has any reach left. The
+## jump is drawn - a plague that moves invisibly reads as enemies randomly taking damage.
+func _spread_contagion() -> void:
+	if int(_contagion_outbreak.get("left", 0)) <= 0:
+		return
+	var radius: float = float(_contagion_outbreak.get("radius", 0.0))
+	var best: EnemyBase = null
+	var best_distance: float = radius
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var other := node as EnemyBase
+		if other == null or other == self or other.is_dying or other.contagion_timer > 0.0:
+			continue
+		var distance: float = global_position.distance_to(other.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = other
+	if best == null:
+		return
+	_contagion_outbreak["left"] = int(_contagion_outbreak["left"]) - 1
+	best.apply_contagion(_contagion_outbreak, _contagion_source)
+	var from: Vector3 = global_position + Vector3(0.0, 1.1, 0.0)
+	var to: Vector3 = best.global_position + Vector3(0.0, 1.1, 0.0)
+	if from.distance_to(to) > 0.05:
+		NetFx.beam(from, (to - from).normalized(), from.distance_to(to), CONTAGION_TINT)
+
+
+## A sick green haze rising off an infected enemy, built and cleared to follow
+## `contagion_timer` - on the server from the plague itself, on a client from the replicated
+## timer.
+func _sync_contagion_fx() -> void:
+	var sick: bool = contagion_timer > 0.0 and not is_dying
+	if sick and _contagion_fx == null:
+		_contagion_fx = GPUParticles3D.new()
+		_contagion_fx.name = "ContagionFx"
+		_contagion_fx.amount = 10
+		_contagion_fx.lifetime = 1.1
+		_contagion_fx.draw_pass_1 = SpellFx.premul_particle_mesh(0.3, "smoke")
+		var haze := ParticleProcessMaterial.new()
+		haze.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+		haze.emission_sphere_radius = 0.45
+		haze.direction = Vector3.UP
+		haze.spread = 30.0
+		haze.gravity = Vector3(0.0, 0.5, 0.0)
+		haze.initial_velocity_min = 0.1
+		haze.initial_velocity_max = 0.4
+		haze.scale_min = 0.5
+		haze.scale_max = 1.0
+		haze.color_ramp = SpellFx._premul_ramp(CONTAGION_TINT)
+		_contagion_fx.process_material = haze
+		_contagion_fx.position = Vector3(0.0, 1.0, 0.0)
+		add_child(_contagion_fx)
+	elif not sick and _contagion_fx != null:
+		_contagion_fx.emitting = false
+		var fading: GPUParticles3D = _contagion_fx
+		_contagion_fx = null
+		get_tree().create_timer(1.2).timeout.connect(func() -> void:
+			if is_instance_valid(fading):
+				fading.queue_free())
+
+
+## The Icy Manipulator's freeze, from a melee hit. Bosses are slowed instead of frozen - the
+## same line Frost Breath draws, because a frozen boss is not a fight.
+func apply_equipment_freeze(duration: float) -> void:
+	if is_dying:
+		return
+	if is_boss():
+		apply_frost_slow(duration)
+		return
+	freeze_timer = maxf(freeze_timer, duration)
+
+
+## A client's melee hit asking for that freeze - status lives on the server, like damage.
+@rpc("any_peer", "call_local", "reliable")
+func request_freeze(duration: float) -> void:
+	if not Net.is_server():
+		return
+	apply_equipment_freeze(minf(duration, GameSettings.equipment_icy_manipulator_freeze))
 
 
 ## Kill (black_3) and Exalted Strike (white_1). Removes the enemy WITHOUT leaving a

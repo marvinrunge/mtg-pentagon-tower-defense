@@ -211,3 +211,88 @@ Two checks worth automating alongside it: that every spell spawns at least one v
 identity yet, then Phase 3's impact flash and hit-stop, then Phase 4. Phase 2's shaders are
 the largest and least urgent — good textures in the Phase 1 builders already get most of
 the way there.
+
+
+---
+
+## Phase 6 — Epic: from readable to spectacular
+
+**Status: planned, deliberately not started.** Agreed on 2026-09-30 to come AFTER the
+gameplay rework (skill tree, black, equipment), so the effects are built for the spells as
+they will stay rather than redone twice.
+
+Phases 1-5 are about every spell being legible. This one is about the look the reference
+videos have (Hogwarts Legacy's spells, a Protego shield shimmering as it takes hits): effects
+that feel like they have weight and light, not like coloured shapes.
+
+### Already done: bloom
+
+The first lever turned out to be a bug. The map's Sky3D environment had **no glow at all**,
+and the Bloom / Glow switch in the options reached for a `world_environment` group nothing
+had joined since the move to Sky3D - so no spell in the game had ever bloomed.
+`GraphicsSettings.apply_glow` configures it now from `GameSettings`' GRAPHICS - BLOOM block:
+only what is brighter than the HDR threshold blooms (the hot cores of spells, the sun), with
+a screen blend so a noon sky cannot wash out. Every later step in this phase builds on it:
+an effect only glows if its core is pushed above that threshold.
+
+### What makes an effect read as epic
+
+| Ingredient | What it is | In this project |
+|---|---|---|
+| A hot core, and bloom | One small part far above 1.0 in HDR, blooming; everything else dimmer | Bloom exists; effects need an explicit "core" layer above the threshold |
+| Shaped motion | Meshes with scrolling noise - swirls, crescents, spears - that erode away instead of fading flat | `SpellFx` is all quads and particles today |
+| Distortion | The air bending: heat haze, a shockwave's ripple, a shield's refraction | No screen-texture shader yet |
+| Magic circles | A rune ring on the ground or at the hand while casting, turning | Nothing yet - the cheapest "this is magic" signal there is |
+| Timing and weight | Charge, release, afterglow; a hit flash, a few frames of hit-stop, a shake, a mark left behind | The four beats exist (Phase 1); hit-stop and hit flash are still Phase 3 |
+
+### The pieces to build
+
+1. **Shield shader** (Protego). One shader for every shield: a fresnel rim that burns at the
+   silhouette, a slowly drifting hexagon or rune pattern, a ripple from each point of impact
+   (up to ~6 hit positions passed as uniforms and aged out), a glowing line where the dome
+   cuts the ground (depth-based intersection), a faint refraction of what is behind it, and a
+   dissolve for raising and dropping it. Users: Circle of Protection, Reprisal Ward, the
+   Rhystic Study shield, boss shields, the Frost Globe.
+2. **Magic circles.** Rune rings generated per colour - rings, glyph bands and the colour's
+   mana symbol, drawn procedurally so there are five dialects from one generator - on the
+   ground under a rooted cast and as a small disc at the hand for a moving one, spinning up
+   during the wind-up and flaring on release.
+3. **Effect meshes.** Built in code, no DCC tool needed: a crescent for Doom Blade and the
+   melee finishers, a twisted cylinder for Suction and Rain of Ember's column, a spear for
+   Lightning Bolt, ice crystals growing out of the ground for Frost Breath. Each with a
+   scrolling-noise erosion material, premultiplied like the rest of the layer.
+4. **Distortion.** One screen-space refraction shader for heat haze (red), shockwave rings
+   (Unsummon, Wrath of God, boss slams) and the shield's surface.
+5. **Flipbooks.** Animated sheets for fire, smoke and explosions instead of single-frame
+   puffs - generated, or from the texture database in `docs/VFX_TEXTURES.md`.
+6. **Hero moments.** One signature beat per colour's biggest spell: Wrath of God as a light
+   pillar from the sky, Kill as a moment of desaturation and a crack of violet over the
+   target, Lightning Bolt as a branching strike with a screen flicker, Titanic Brawl as
+   ground cracks and thrown rock, Zombify as hands out of a green sigil.
+
+### How this gets made without art work from the developer
+
+| Who | Does |
+|---|---|
+| Claude | Writes the shaders, the particle systems and the effect meshes in code; generates the procedural textures (noise, rune circles, flipbooks, gradients) the way `tools/build_vfx_textures.gd` already does; renders `tools/tests/vfx_showcase.tscn` at four times of day - with `-- <out.png> --glow` for the game's bloom - and judges and iterates on the frames before anything is shown |
+| The developer | Looks at a screenshot sheet per colour and says more / less / different. Optionally picks texture packs for what is photographic (smoke, explosions, scorch marks), where authored art beats generated art |
+
+Limits worth knowing up front: no image model is involved, so everything generated is
+procedural; and anything downloaded - a CC0 pack such as Kenney's Particle Pack - needs the
+developer's go-ahead per download.
+
+### Budget and fallbacks
+
+Distortion and depth-intersection read the screen and depth textures, which the
+Compatibility renderer does not offer: those layers switch off below the High preset, and
+each effect keeps a readable unshaded form without them. Particle counts ride one
+multiplier from the preset (Phase 5). Everything stays premultiplied - see
+`scripts/spell_fx.gd` - so the new layers survive the bright half of the day/night cycle.
+
+### Order
+
+1. A prototype that fixes the look before anything is rolled out: the shield shader on
+   Circle of Protection, and a magic circle under one cast. Judged on screenshots.
+2. Once that look is agreed: colour by colour through the 25 spells, one screenshot sheet
+   each.
+3. The hero moments last, because they lean on everything above.
