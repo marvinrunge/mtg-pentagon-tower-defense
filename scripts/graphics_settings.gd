@@ -30,6 +30,7 @@ var render_scale: float = 1.0
 var shadows_enabled: bool = true
 var msaa_level: int = 0 # 0 = Off, 1 = MSAA 2x, 2 = MSAA 4x
 var glow_enabled: bool = true
+var terrain_parallax: bool = true
 var vsync_enabled: bool = true
 var show_fps: bool = false
 var preset: int = Preset.HIGH
@@ -49,6 +50,7 @@ func _ready() -> void:
 	apply_render_scale(render_scale)
 	apply_msaa(msaa_level)
 	apply_vsync(vsync_enabled)
+	apply_terrain_parallax(terrain_parallax)
 	# shadows/glow touch scene nodes (the sun light, the world environment)
 	# that don't exist yet at autoload _ready() - the main scene applies those
 	# itself once its tree is up, via apply_scene_dependent().
@@ -155,6 +157,18 @@ func configure_glow(environment: Environment, enabled: bool) -> void:
 	environment.glow_blend_mode = GameSettings.graphics_glow_blend_mode
 
 
+## Relief on the ground close to the camera - stones that stand out of the mud and hide what
+## is behind them as the view moves. A patch to TerraBrush's terrain shader, steered through
+## global shader parameters (project.godot [shader_globals]), so this needs no handle on the
+## terrain at all and takes effect the same frame, scene loaded or not.
+func apply_terrain_parallax(enabled: bool) -> void:
+	terrain_parallax = enabled
+	RenderingServer.global_shader_parameter_set(&"terrain_parallax_strength", 1.0 if enabled else 0.0)
+	RenderingServer.global_shader_parameter_set(&"terrain_parallax_depth", GameSettings.graphics_terrain_parallax_depth)
+	RenderingServer.global_shader_parameter_set(&"terrain_parallax_range", GameSettings.graphics_terrain_parallax_range)
+	_changed(&"terrain_parallax")
+
+
 func apply_vsync(enabled: bool) -> void:
 	vsync_enabled = enabled
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if enabled else DisplayServer.VSYNC_DISABLED)
@@ -180,18 +194,21 @@ func apply_preset(p: int) -> void:
 			apply_shadows(false)
 			apply_msaa(0)
 			apply_glow(false)
+			apply_terrain_parallax(false)
 			set_pending_rendering_method("gl_compatibility")
 		Preset.MEDIUM:
 			apply_render_scale(0.8)
 			apply_shadows(true)
 			apply_msaa(1)
 			apply_glow(true)
+			apply_terrain_parallax(false)
 			set_pending_rendering_method("mobile")
 		Preset.HIGH:
 			apply_render_scale(1.0)
 			apply_shadows(true)
 			apply_msaa(2)
 			apply_glow(true)
+			apply_terrain_parallax(true)
 			set_pending_rendering_method("forward_plus")
 		Preset.CUSTOM:
 			pass
@@ -267,6 +284,7 @@ func _save() -> void:
 		"shadows_enabled": shadows_enabled,
 		"msaa_level": msaa_level,
 		"glow_enabled": glow_enabled,
+		"terrain_parallax": terrain_parallax,
 		"vsync_enabled": vsync_enabled,
 		"show_fps": show_fps,
 		"preset": preset,
@@ -299,6 +317,7 @@ func _load() -> void:
 	shadows_enabled = bool(cfg.get_value(SECTION, "shadows_enabled", shadows_enabled))
 	msaa_level = int(cfg.get_value(SECTION, "msaa_level", msaa_level))
 	glow_enabled = bool(cfg.get_value(SECTION, "glow_enabled", glow_enabled))
+	terrain_parallax = bool(cfg.get_value(SECTION, "terrain_parallax", terrain_parallax))
 	vsync_enabled = bool(cfg.get_value(SECTION, "vsync_enabled", vsync_enabled))
 	show_fps = bool(cfg.get_value(SECTION, "show_fps", show_fps))
 	preset = int(cfg.get_value(SECTION, "preset", preset))

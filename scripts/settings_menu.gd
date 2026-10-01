@@ -27,6 +27,7 @@ var _render_scale_value: Label
 var _shadows_check: CheckBox
 var _msaa_option: OptionButton
 var _glow_check: CheckBox
+var _parallax_check: CheckBox
 var _renderer_option: OptionButton
 var _restart_label: Label
 var _restart_button: Button
@@ -206,6 +207,10 @@ func _build_graphics_tab(column: VBoxContainer) -> void:
 		func(on: bool) -> void:
 			GraphicsSettings.apply_glow(on)
 			_mark_custom())
+	_parallax_check = _check(column, "Ground Relief (Parallax)", GraphicsSettings.terrain_parallax,
+		func(on: bool) -> void:
+			GraphicsSettings.apply_terrain_parallax(on)
+			_mark_custom())
 	_check(column, "VSync", GraphicsSettings.vsync_enabled,
 		func(on: bool) -> void: GraphicsSettings.apply_vsync(on))
 	_check(column, "Show FPS Counter", GraphicsSettings.show_fps,
@@ -251,6 +256,7 @@ func _on_preset_selected(index: int) -> void:
 	_shadows_check.button_pressed = GraphicsSettings.shadows_enabled
 	_msaa_option.select(GraphicsSettings.msaa_level)
 	_glow_check.button_pressed = GraphicsSettings.glow_enabled
+	_parallax_check.button_pressed = GraphicsSettings.terrain_parallax
 	_renderer_option.select(maxi(GraphicsSettings.RENDERER_METHODS.find(GraphicsSettings.chosen_rendering_method()), 0))
 	_applying_preset = false
 	_refresh_restart_notice()

@@ -1251,6 +1251,14 @@ func rank_level_requirement(rank: int) -> int:
 ## tools/tests/vfx_showcase.tscn -- <out.png> --glow, mean pixel change 0.3/255).
 @export var graphics_glow_blend_mode: Environment.GlowBlendMode = Environment.GLOW_BLEND_MODE_SCREEN
 
+## Terrain parallax (the TerraBrush shader patch, see GraphicsSettings.apply_terrain_parallax).
+## Depth is how far, in metres, the darkest point of a ground texture's height map sits below
+## its brightest: enough for stones to stand out of the mud, not so much that the ground looks
+## like it is made of pebbles. Range is how far from the camera it reaches - it fades out over
+## the last 40% of that, and nothing beyond pays for it.
+@export var graphics_terrain_parallax_depth: float = 0.1
+@export var graphics_terrain_parallax_range: float = 30.0
+
 # ============================================================
 # RUN REWARDS
 # ============================================================

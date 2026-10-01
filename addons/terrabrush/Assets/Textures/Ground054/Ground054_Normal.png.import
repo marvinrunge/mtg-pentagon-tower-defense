@@ -3,27 +3,28 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bg2iisv5bl6ev"
-path="res://.godot/imported/Ground054_Normal.png-203f86dc15f1924f22ca2c2fe2f01251.ctex"
+path.bptc="res://.godot/imported/Ground054_Normal.png-203f86dc15f1924f22ca2c2fe2f01251.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://addons/terrabrush/Assets/Textures/Ground054/Ground054_Normal.png"
-dest_files=["res://.godot/imported/Ground054_Normal.png-203f86dc15f1924f22ca2c2fe2f01251.ctex"]
+dest_files=["res://.godot/imported/Ground054_Normal.png-203f86dc15f1924f22ca2c2fe2f01251.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=2
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

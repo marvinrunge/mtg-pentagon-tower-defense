@@ -26,6 +26,8 @@ void vertex() {
 }
 
 void fragment() {
+	// PROJECT PATCH: the view direction (towards the camera) and distance, for the parallax.
+	vec3 viewWorld = normalize((INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz);
 	calculateHeightmapFragment(
 		_worldVertex,
 		_worldNormal,
@@ -35,6 +37,8 @@ void fragment() {
 		NORMAL_MAP,
 		METALLIC,
 		SPECULAR,
-		ROUGHNESS
+		ROUGHNESS,
+		viewWorld,
+		length(VERTEX)
 	);
 }

@@ -199,3 +199,18 @@ equipment={
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+
+[shader_globals]
+
+terrain_parallax_strength={
+"type": "float",
+"value": 1.0
+}
+terrain_parallax_depth={
+"type": "float",
+"value": 0.1
+}
+terrain_parallax_range={
+"type": "float",
+"value": 30.0
+}

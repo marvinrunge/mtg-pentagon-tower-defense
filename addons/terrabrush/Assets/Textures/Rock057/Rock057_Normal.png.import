@@ -3,27 +3,28 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ba6np2wf33diw"
-path="res://.godot/imported/Rock057_Normal.png-8a84c6d915b5aff27deda914f2c03125.ctex"
+path.bptc="res://.godot/imported/Rock057_Normal.png-8a84c6d915b5aff27deda914f2c03125.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://addons/terrabrush/Assets/Textures/Rock057/Rock057_Normal.png"
-dest_files=["res://.godot/imported/Rock057_Normal.png-8a84c6d915b5aff27deda914f2c03125.ctex"]
+dest_files=["res://.godot/imported/Rock057_Normal.png-8a84c6d915b5aff27deda914f2c03125.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=2
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

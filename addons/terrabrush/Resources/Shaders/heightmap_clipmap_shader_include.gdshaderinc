@@ -7,18 +7,18 @@ uniform sampler2DArray LockTextures : hint_default_black;
 #endif
 uniform sampler2DArray WaterTextures : hint_default_transparent, repeat_disable;
 uniform float WaterFactor = 1;
-uniform sampler2DArray Textures : source_color, filter_linear_mipmap;
+uniform sampler2DArray Textures : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2DArray TexturesNearest : source_color, filter_nearest_mipmap;
 uniform sampler2DArray Splatmaps : repeat_disable;
 uniform int[100] TexturesDetail;
 uniform int NumberOfTextures;
-uniform sampler2DArray Normals : filter_linear_mipmap;
+uniform sampler2DArray Normals : filter_linear_mipmap_anisotropic;
 uniform sampler2DArray NormalsNearest : filter_nearest_mipmap;
 uniform bool HasNormalTextures;
-uniform sampler2DArray RoughnessTextures : filter_linear_mipmap;
+uniform sampler2DArray RoughnessTextures : filter_linear_mipmap_anisotropic;
 uniform sampler2DArray RoughnessTexturesNearest : filter_nearest_mipmap;
 uniform bool HasRoughnessTextures;
-uniform sampler2DArray HeightTextures : filter_linear_mipmap;
+uniform sampler2DArray HeightTextures : filter_linear_mipmap_anisotropic;
 uniform sampler2DArray HeightTexturesNearest : filter_nearest_mipmap;
 uniform bool HasHeightTextures;
 uniform bool UseAntitile = true;
@@ -39,6 +39,53 @@ uniform bool ApplyMetaInfoTextures = false;
 uniform sampler2DArray MetaInfoTextures: filter_nearest;
 uniform vec4[100] MetaInfoColors;
 #endif
+
+// PROJECT PATCH (mtg-pentagon-tower-defense): parallax occlusion on the planar texture layers,
+// near the camera only. Driven by global shader parameters (project.godot [shader_globals]) so
+// the game can switch it from the graphics settings without reaching into TerraBrush's own
+// material - see GraphicsSettings.apply_terrain_parallax. Re-apply after a TerraBrush update.
+global uniform float terrain_parallax_strength;
+global uniform float terrain_parallax_depth;
+global uniform float terrain_parallax_range;
+const int PARALLAX_MIN_STEPS = 6;
+const int PARALLAX_MAX_STEPS = 16;
+
+// Where the view ray meets this layer's height map, as a UV.
+//
+// The relief is sunk along the SURFACE normal, so the ray reaches depth `d` after
+// t = d / dot(view, normal), at the point P - view * t; projected back onto the surface along
+// the normal that is P - view * t + normal * d. The texture is projected straight down, so only
+// the xz of that shift moves the UV. On flat ground this is the textbook view.xz / view.y; on a
+// hill it is what keeps a slope seen face-on from shifting at all. The first version divided by
+// view.y on hills too, read every slope facing the camera as a grazing view, and gave it the
+// largest shift there is - which swam with every turn of the camera.
+vec2 parallaxUV(vec2 uv, float layer, vec3 viewWorld, vec3 surfaceNormal, float uvPerMetre, float depthMetres, vec2 dx, vec2 dy) {
+	float viewDotNormal = max(dot(viewWorld, surfaceNormal), 0.2);
+	vec2 fullShift = (surfaceNormal.xz - viewWorld.xz / viewDotNormal) * depthMetres * uvPerMetre;
+	int stepCount = int(mix(float(PARALLAX_MAX_STEPS), float(PARALLAX_MIN_STEPS), clamp(viewDotNormal, 0.0, 1.0)));
+	float stepDepth = 1.0 / float(stepCount);
+	vec2 stepUV = fullShift * stepDepth;
+
+	vec2 current = uv;
+	float rayDepth = 0.0;
+	float surfaceDepth = 1.0 - textureGrad(HeightTextures, vec3(current, layer), dx, dy).r;
+	for (int s = 0; s < PARALLAX_MAX_STEPS; s++) {
+		if (s >= stepCount || rayDepth >= surfaceDepth) {
+			break;
+		}
+		current += stepUV;
+		rayDepth += stepDepth;
+		surfaceDepth = 1.0 - textureGrad(HeightTextures, vec3(current, layer), dx, dy).r;
+	}
+
+	vec2 previous = current - stepUV;
+	float after = surfaceDepth - rayDepth;
+	float before = (1.0 - textureGrad(HeightTextures, vec3(previous, layer), dx, dy).r) - (rayDepth - stepDepth);
+	float denominator = after - before;
+	float weight = abs(denominator) > 0.0001 ? clamp(after / denominator, 0.0, 1.0) : 0.0;
+	return mix(current, previous, weight);
+}
+// END PROJECT PATCH
 
 const int ALPHA_CHANNEL_USAGE_NONE = 0;
 const int ALPHA_CHANNEL_USAGE_ROUGHNESS = 1;
@@ -258,7 +305,9 @@ void calculateHeightmapFragment(
 	inout vec3 normalMap,
 	inout float metallic,
 	inout float specular,
-	inout float roughness
+	inout float roughness,
+	vec3 viewWorld,
+	float viewDistance
 ) {
 	vec3 zoneUV = calculateZoneUV(worldVertex);
 
@@ -320,6 +369,26 @@ void calculateHeightmapFragment(
         float splatmapLayers = (textureZoneUV.z * ceil(float(NumberOfTextures) / 4.0));
 
 		float maxSlopeValue = 0.0;
+
+		// PROJECT PATCH: parallax, faded out over the last 40% of its range so it never pops.
+		// The derivatives are taken here, in uniform control flow, for the height samples in
+		// the march - inside the loop they would be undefined after the first `continue`.
+		float parallaxDepth = 0.0;
+		vec3 surfaceNormal = normalize(worldNormal);
+		if (HasHeightTextures && terrain_parallax_strength > 0.0) {
+			float parallaxFade = 1.0 - smoothstep(terrain_parallax_range * 0.6, terrain_parallax_range, viewDistance);
+			// Off on steep slopes (full up to ~26 degrees, gone by ~41): the straight-down
+			// projection already stretches the texture into streaks there, and relief marched
+			// through a streak only drags it further. And off at the most grazing angles to the
+			// surface itself, where any shift is out of all proportion to the pixel it lands on.
+			parallaxFade *= smoothstep(0.75, 0.9, surfaceNormal.y);
+			parallaxFade *= smoothstep(0.1, 0.3, dot(viewWorld, surfaceNormal));
+			parallaxDepth = terrain_parallax_depth * terrain_parallax_strength * parallaxFade;
+		}
+		vec2 worldDx = dFdx(worldVertex.xz);
+		vec2 worldDy = dFdy(worldVertex.xz);
+		// END PROJECT PATCH
+
         for (int i = 0; i < NumberOfTextures; i++) {
             int textureDetail = TexturesDetail[i];
             vec2 worldVertexUV = worldVertex.xz * (float(textureDetail) * (1.0 / ZonesSize));
@@ -351,6 +420,16 @@ void calculateHeightmapFragment(
             if (channelValue <= 0.0001) {
                 continue;
             }
+
+			// PROJECT PATCH: a layer barely present is left flat, and the depth grows with its
+			// weight rather than switching on at a threshold, so blend edges show no seam.
+			float layerParallaxDepth = parallaxDepth * smoothstep(0.02, 0.15, channelValue);
+			if (layerParallaxDepth > 0.001 && TexturesTriplanar[i] != 1) {
+				float uvPerMetre = float(textureDetail) * (1.0 / ZonesSize);
+				textureUV.xy = parallaxUV(textureUV.xy, float(i), viewWorld, surfaceNormal, uvPerMetre, layerParallaxDepth,
+					worldDx * uvPerMetre, worldDy * uvPerMetre);
+			}
+			// END PROJECT PATCH
 
             vec4 currentTexture = vec4(0);
             vec4 currentNormal = vec4(0);
