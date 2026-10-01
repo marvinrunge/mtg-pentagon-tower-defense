@@ -65,6 +65,11 @@ var _burst: bool = false
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 const RETARGET_INTERVAL := 0.4
+const IDLE_CLIP := "idle"
+## True while a ghoul with nothing to chase is on its way back to the player who raised it.
+## Kept between frames so it has two edges: it sets off past the far radius and only stops
+## inside the near one, instead of stuttering along a single line.
+var _returning: bool = false
 ## The ghouls' own green - the tint, the burst and the Soul Orb all share it.
 const UNDEAD_TINT := Color(0.35, 1.0, 0.45)
 const DECOY_TINT := Color(0.4, 0.75, 1.0)
@@ -231,21 +236,25 @@ func _build_health_bar() -> void:
 	add_child(bar)
 
 
-## Running while it moves and holding still while it does not - read off velocity, so a
-## client whose copy only receives the replicated velocity picks the same clip the server's
-## does. The zombie clips run forward, so a standing ghoul holds the first frame instead of
-## walking on the spot, which is exactly what the old fighting zombie did.
+## Running while it moves and idling while it does not - read off velocity, so a client
+## whose copy only receives the replicated velocity picks the same clip the server's does.
+## The idle clip comes from tools/locomotion_pass.gd; a rig without one holds the first frame
+## of its run instead of running on the spot.
 func _update_animation() -> void:
 	if _anim == null or _move_clip == "":
 		return
 	var moving: bool = Vector2(velocity.x, velocity.z).length() > 0.4
-	if moving:
-		if _anim.current_animation != _move_clip or not _anim.is_playing():
-			_anim.play(_move_clip)
-	elif _anim.is_playing():
-		_anim.play(_move_clip)
-		_anim.seek(0.0, true)
-		_anim.pause()
+	var wanted: String = _move_clip
+	if not moving:
+		if not _anim.has_animation(IDLE_CLIP):
+			if _anim.is_playing():
+				_anim.play(_move_clip)
+				_anim.seek(0.0, true)
+				_anim.pause()
+			return
+		wanted = IDLE_CLIP
+	if _anim.current_animation != wanted or not _anim.is_playing():
+		_anim.play(wanted, 0.2)
 
 
 func _physics_process(delta: float) -> void:
@@ -281,10 +290,9 @@ func _physics_process(delta: float) -> void:
 		_acquire_target()
 
 	if not is_instance_valid(_target):
-		velocity.x = 0.0
-		velocity.z = 0.0
-		move_and_slide()
+		_follow_owner(delta)
 		return
+	_returning = false
 
 	var to_target: Vector3 = _target.global_position - global_position
 	to_target.y = 0.0
@@ -295,6 +303,30 @@ func _physics_process(delta: float) -> void:
 	velocity.x = direction.x * move_speed
 	velocity.z = direction.z * move_speed
 	rotation.y = lerp_angle(rotation.y, atan2(direction.x, direction.z), 10.0 * delta)
+	move_and_slide()
+
+
+## Nothing to chase: stay with the player who raised it. A ghoul left standing where its
+## corpse lay is a ghoul the player walks away from and never sees burst; this keeps the pack
+## at heel, so it is around the player when the next enemy comes into reach.
+func _follow_owner(delta: float) -> void:
+	var to_owner: Vector3 = Vector3.ZERO
+	if is_instance_valid(owner_player):
+		to_owner = owner_player.global_position - global_position
+		to_owner.y = 0.0
+	var distance: float = to_owner.length()
+	if distance > GameSettings.spell_black_zombify_follow_far:
+		_returning = true
+	elif distance <= GameSettings.spell_black_zombify_follow_near:
+		_returning = false
+	if _returning and distance > 0.01:
+		var direction: Vector3 = to_owner / distance
+		velocity.x = direction.x * move_speed
+		velocity.z = direction.z * move_speed
+		rotation.y = lerp_angle(rotation.y, atan2(direction.x, direction.z), 10.0 * delta)
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
 	move_and_slide()
 
 

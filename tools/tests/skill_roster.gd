@@ -64,7 +64,7 @@ func _process(_delta: float) -> void:
 	if _frames < 90:
 		return
 	_done = true
-	_run()
+	await _run()
 	get_tree().quit()
 
 
@@ -123,6 +123,15 @@ func _check(label: String, condition: bool, detail: String = "") -> void:
 		_failures.append(label)
 
 
+## Offset from the player to a spot on the ground under the crosshair ray, `distance` metres
+## along it: where an enemy has to stand to be in the sights. Straight ahead of the character
+## is NOT that spot - the camera looks over the right shoulder.
+func _under_crosshair(distance: float) -> Vector3:
+	var spot: Vector3 = _player.aim_origin() + _player.aim_direction() * distance
+	spot.y = _player.global_position.y
+	return spot - _player.global_position
+
+
 ## Casts through the same entry point the game uses on the server, so the test exercises
 ## the real match statement rather than calling the implementations directly.
 func _cast(spell_id: String) -> void:
@@ -142,7 +151,7 @@ func _run() -> void:
 	_check_white()
 	_check_blue()
 	_check_black()
-	_check_red()
+	await _check_red()
 	_check_green()
 	_check_auras()
 	_check_aura_ranks()
@@ -277,13 +286,10 @@ func _check_black() -> void:
 		"line=%.0f aside=%.0f" % [in_line.health, aside.health])
 	_clear_enemies()
 
-	# Contagion aims like Kill - whatever the camera is pointing at - and then has to SPREAD,
+	# Contagion aims like Kill - whatever the crosshair is on - and then has to SPREAD,
 	# which is the whole spell: one sick enemy is only a damage-over-time.
-	var aim: Vector3 = -_player.camera.global_basis.z
-	aim.y = 0.0
-	aim = aim.normalized()
-	var patient_zero: EnemyBase = _spawn_enemy(aim * 8.0)
-	var neighbour: EnemyBase = _spawn_enemy(aim * 8.0 + _player.transform.basis.x * 2.0)
+	var patient_zero: EnemyBase = _spawn_enemy(_under_crosshair(11.0))
+	var neighbour: EnemyBase = _spawn_enemy(_under_crosshair(11.0) + _player.transform.basis.x * 2.0)
 	var sick_before: float = patient_zero.health
 	_cast("black_2")
 	_check("black_2 Contagion infects its target", patient_zero.contagion_timer > 0.0,
@@ -295,8 +301,15 @@ func _check_black() -> void:
 	_check("black_2 Contagion spreads", neighbour.contagion_timer > 0.0, "neighbour never caught it")
 	_clear_enemies()
 
-	# Kill picks whatever the CAMERA is pointing at, so the victim goes there.
-	var doomed: EnemyBase = _spawn_enemy(aim * 8.0)
+	# Kill takes what the CROSSHAIR is on - not the enemy straight ahead of the character,
+	# which over the shoulder camera is 0.85 m beside it. That bystander, nearer and dead
+	# ahead, is exactly what the old feet-based "most in front" rule used to pick instead.
+	var target_far: EnemyBase = _spawn_enemy(_under_crosshair(30.0))
+	var dead_ahead: EnemyBase = _spawn_enemy(-_player.transform.basis.z * 9.0)
+	_check("black_3 Kill picks the enemy under the crosshair", _player.aim_target(45.0) == target_far,
+		"picked %s" % ("the bystander" if _player.aim_target(45.0) == dead_ahead else "nothing"))
+	_clear_enemies()
+	var doomed: EnemyBase = _spawn_enemy(_under_crosshair(11.0))
 	# Kill's boss clause reads the target's health RATIO, and an enemy used to have no maximum
 	# to divide by - HealthReader answered "unreadable" and Kill refused every boss forever.
 	_check("black_3 Kill can read an enemy's health", HealthReader.ratio(doomed) >= 0.0,
@@ -351,8 +364,38 @@ func _check_red() -> void:
 	print("RED")
 	# Fireball goes through the projectile pool, so what it proves is that a projectile
 	# left the pool - the explosion itself is the pool's own tested path.
+	# Thrown from the left hand, it still has to fly AT the crosshair: a bolt parallel to the
+	# view from a hand off to one side lands that far off target, which was the long-standing
+	# "Fireball goes a bit left".
+	# The crosshair on the mark's chest, as a player would hold it: level, the ray runs at
+	# head height and can pass clean over a short enemy.
+	var level_pitch: float = _player.camera_pivot.rotation.x
+	var drop: float = _player.aim_origin().y - (_player.global_position.y + 1.0)
+	_player.camera_pivot.rotation.x = -atan2(drop, 18.0)
+	var mark: EnemyBase = _spawn_enemy(_under_crosshair(18.0))
+	# Jolt takes a few steps to put a freshly spawned body into the ray queries, so without
+	# this the crosshair ray passes straight through the mark it was spawned under. (In a
+	# real game an enemy has been walking for seconds before anyone aims at it.)
+	for i: int in 10:
+		await get_tree().physics_frame
+	_player._charge_muzzle = _player.global_position + Vector3(0.0, 1.4, 0.0) - _player.transform.basis.x * 0.4
+	var muzzle: Vector3 = _player._charge_muzzle
 	_cast("red_1")
-	_check("red_1 Fireball", true)
+	var bolt: Projectile = null
+	for p: Projectile in ProjectilePool.pool:
+		if p.active and p.proj_type == 4 and p.global_position.distance_to(muzzle) < 0.5:
+			bolt = p
+	var miss: float = INF
+	if bolt != null:
+		var closest: PackedVector3Array = Geometry3D.get_closest_points_between_segments(
+			muzzle, muzzle + bolt.direction * 60.0, mark.global_position, mark.global_position + Vector3.UP * 1.8)
+		miss = closest[0].distance_to(closest[1])
+	_check("red_1 Fireball flies at the crosshair", miss < 0.3, "passes %.2f m from the mark" % miss)
+	_player.camera_pivot.rotation.x = level_pitch
+	for p: Projectile in ProjectilePool.pool:
+		if p.active and p.has_method("deactivate"):
+			p.deactivate()
+	_clear_enemies()
 
 	_player._dash_timer = 0.0
 	# The dash lives in SpellEffects now, like every other spell body.

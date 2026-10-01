@@ -96,6 +96,15 @@ var _charge_orb: Node3D = null
 ## several tenths of a second later, so the position has to be captured at release time -
 ## by then the orb is mid-throw-out and the hands have moved on.
 var _charge_muzzle: Vector3 = Vector3.ZERO
+## [origin, direction] of the aim ray a client sent with the spell resolving right now, or
+## empty. Only ever set for the length of one _run_spell_effect - see aim_origin().
+var _aim_override: Array = []
+## Physics layers the aim ray stops on: 3 "Enemies" and 5 "Environment" (the terrain and the
+## lanes). Not layer 1 - that is the players, and Wall of Frost sits on it too.
+const AIM_ENEMY_MASK: int = 1 << 2
+const AIM_WORLD_MASK: int = 1 << 4
+## How tall an enemy's body counts as when the crosshair is near rather than on it.
+const AIM_BODY_HEIGHT: float = 1.8
 var charge_timer: float = 0.0
 ## Set again from GameSettings on every charge; seeded here so the HUD reads a real
 ## window even from a charge_changed emitted before the player has ever held one.
@@ -1469,18 +1478,32 @@ func execute_spell(spell_id: String, charge_pct: float = 1.0) -> void:
 	# which is how a client's channel ended the instant the host was not pressing anything.
 	var held: bool = is_local and Input.is_action_pressed("cast_spell")
 	if Net.is_active() and not Net.is_server():
-		_request_spell.rpc_id(1, spell_id, charge_pct, held, blood_cost)
+		# The aim ray and the charge orb's position go along with the spell: both only exist
+		# on this machine, and the server's guesses at them are why a client's Fireball left
+		# from the camera and flew wherever the host's copy of that camera happened to point.
+		_request_spell.rpc_id(1, spell_id, charge_pct, held, blood_cost,
+			aim_origin(), aim_direction(), _charge_muzzle)
+		_charge_muzzle = Vector3.ZERO
 		return
 	pay_life(blood_cost)
 	_run_spell_effect(spell_id, charge_pct, held)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _request_spell(spell_id: String, charge_pct: float, held: bool = false, blood_cost: float = 0.0) -> void:
+func _request_spell(spell_id: String, charge_pct: float, held: bool = false, blood_cost: float = 0.0,
+		aim_from: Vector3 = Vector3.ZERO, aim_dir: Vector3 = Vector3.ZERO, muzzle: Vector3 = Vector3.ZERO) -> void:
 	if not Net.is_server():
 		return
 	pay_life(blood_cost)
+	# Taken on trust only within reason: a ray from the far side of the map, or a muzzle
+	# nowhere near the hands, is ignored and the server's own guess stands in.
+	var limit: float = GameSettings.player_aim_origin_max_offset
+	if aim_dir.length_squared() > 0.25 and aim_from.distance_to(global_position) <= limit:
+		_aim_override = [aim_from, aim_dir.normalized()]
+	if muzzle != Vector3.ZERO and muzzle.distance_to(global_position) <= limit:
+		_charge_muzzle = muzzle
 	_run_spell_effect(spell_id, charge_pct, held)
+	_aim_override = []
 
 
 ## Phyrexian Arena: what casting `spell_id` right now would cost in life. 0 when it is not
@@ -2256,14 +2279,92 @@ func _return_to_seat() -> void:
 ## lands somewhere sensible instead of at the origin.
 func _aim_point(max_distance: float, mask: int = 1) -> Vector3:
 	var space_state := get_world_3d().direct_space_state
-	var start: Vector3 = camera.global_position
-	var end: Vector3 = start - camera.global_basis.z * max_distance
+	var start: Vector3 = aim_origin()
+	var end: Vector3 = start + aim_direction() * max_distance
 	var query := PhysicsRayQueryParameters3D.create(start, end, mask)
 	query.exclude = [get_rid()]
 	var result: Dictionary = space_state.intersect_ray(query)
 	if result:
 		return result.position
 	return global_position - transform.basis.z * minf(max_distance, 10.0)
+
+
+## The aim ray: from the camera, straight through the crosshair at the centre of the screen.
+## Every spell that aims starts from these two, so what the crosshair covers is what gets
+## hit - the bugs this replaced were a Fireball flying parallel to the view from a hand 0.85 m
+## to the side of it, and a Kill that measured "in the sights" from the character's feet.
+##
+## On the server, while a CLIENT's spell resolves, these answer with the ray that client sent
+## along with it (see _request_spell): the server's copy of a remote camera has no pitch -
+## look input never leaves the machine it was typed on - so it points somewhere else.
+func aim_origin() -> Vector3:
+	if not _aim_override.is_empty():
+		return _aim_override[0]
+	return camera.global_position
+
+
+func aim_direction() -> Vector3:
+	if not _aim_override.is_empty():
+		return _aim_override[1]
+	return -camera.global_basis.z.normalized()
+
+
+## Where the crosshair ray first meets the world, or a far point along it when it meets
+## nothing. For things that FLY at the crosshair, unlike _aim_point, whose fallback is a
+## spot on the ground for things that land: a bolt aimed at the open sky has to keep going
+## that way, not dive for a point ten metres in front of the caster.
+func aim_hit_point(max_distance: float) -> Vector3:
+	var origin: Vector3 = aim_origin()
+	var end: Vector3 = origin + aim_direction() * max_distance
+	var query := PhysicsRayQueryParameters3D.create(origin, end, AIM_ENEMY_MASK | AIM_WORLD_MASK)
+	query.exclude = [get_rid()]
+	var result: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	return result.position if result else end
+
+
+## The enemy under the crosshair within `range_units` of the character, or null.
+##
+## First whatever the ray actually touches; failing that, the enemy whose body passes
+## closest to the ray, if it is within `player_aim_assist_degrees` and nothing solid stands
+## in between. Measured against the body's whole height rather than one point, so a short
+## goblin and a tall boss are equally easy to put the crosshair on.
+func aim_target(range_units: float) -> Node3D:
+	var origin: Vector3 = aim_origin()
+	var dir: Vector3 = aim_direction()
+	# The ray starts at the camera, a few metres BEHIND the character, and the range is the
+	# character's - so the ray is lengthened by that gap or a target at the edge falls short.
+	var reach: float = range_units + origin.distance_to(global_position)
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + dir * reach, AIM_ENEMY_MASK | AIM_WORLD_MASK)
+	query.exclude = [get_rid()]
+	var hit: Dictionary = space.intersect_ray(query)
+	if hit:
+		var node: Node = hit.collider as Node
+		while node != null and not node.is_in_group("enemies"):
+			node = node.get_parent()
+		if node is Node3D and global_position.distance_to((node as Node3D).global_position) <= range_units:
+			return node
+	var best: Node3D = null
+	var best_angle: float = deg_to_rad(GameSettings.player_aim_assist_degrees)
+	for enemy: Node3D in _enemies_in_radius(global_position, range_units):
+		if enemy.get("is_dying") == true:
+			continue
+		var feet: Vector3 = enemy.global_position
+		var head: Vector3 = feet + Vector3.UP * AIM_BODY_HEIGHT * enemy.scale.y
+		var closest: PackedVector3Array = Geometry3D.get_closest_points_between_segments(
+			origin, origin + dir * reach, feet, head)
+		var along: float = (closest[0] - origin).length()
+		if along < 0.1:
+			continue
+		var angle: float = atan2(closest[0].distance_to(closest[1]), along)
+		if angle >= best_angle:
+			continue
+		var sight := PhysicsRayQueryParameters3D.create(origin, closest[1], AIM_WORLD_MASK)
+		if space.intersect_ray(sight):
+			continue
+		best_angle = angle
+		best = enemy
+	return best
 
 
 ## Every living enemy within `radius` of `center`, nearest first. Sorted because several

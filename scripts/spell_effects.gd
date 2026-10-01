@@ -19,17 +19,29 @@ class_name SpellEffects
 ## the default aim mask includes layer 1, which is the player layer but also, so that the
 ## player collides with it, the layer Wall of Frost sits on.
 const ENVIRONMENT_MASK: int = 1 << 4
+## How far along the crosshair ray a Fireball looks for something to fly at.
+const FIREBALL_AIM_DISTANCE: float = 200.0
 
 
 static func cast_red_fireball(caster: Player, charge_pct: float) -> void:
-	var dir = -caster.camera.global_basis.z.normalized()
 	# From the caster's HANDS, where the orb was, rather than from the camera. Spawning at the
 	# camera is why a charged Fireball never looked thrown: the bolt simply appeared in front
 	# of the view, with no relationship to the ball the player had spent three seconds
-	# building. Falls back to the camera when there was no orb - a tapped cast, or a remote
-	# player's spell arriving over the wire with no local charge behind it.
-	var spawn_pos: Vector3 = caster._charge_muzzle if caster._charge_muzzle != Vector3.ZERO else caster.camera.global_position - caster.camera.global_basis.z * 1.5
+	# building. Falls back to the chest when there was no orb - a tapped cast.
+	var aim_dir: Vector3 = caster.aim_direction()
+	var spawn_pos: Vector3 = caster._charge_muzzle
+	if spawn_pos == Vector3.ZERO:
+		spawn_pos = caster.global_position + Vector3(0.0, 1.3, 0.0) + aim_dir * 0.8
 	caster._charge_muzzle = Vector3.ZERO
+	# AT the point under the crosshair, not parallel to the view. The hands are off to one
+	# side of the camera, so a bolt flying parallel to it lands that same offset to the side
+	# of whatever was aimed at - the "Fireball always goes a bit left". A point closer than
+	# the hands (the crosshair on the ground at the caster's feet) would send it backwards,
+	# so that one case keeps the plain view direction.
+	var target: Vector3 = caster.aim_hit_point(FIREBALL_AIM_DISTANCE)
+	var dir: Vector3 = aim_dir
+	if (target - spawn_pos).dot(aim_dir) > 1.0:
+		dir = (target - spawn_pos).normalized()
 	# Charge and rank multiply INTO each other: a rank-5 Fireball held to full is the
 	# biggest single thing red can do, and that is the intended top of the colour.
 	var radius = GameSettings.spell_red_fireball_base_radius * (0.8 + 0.7 * charge_pct) * caster._rank_area()
@@ -87,13 +99,8 @@ static func _slam_ground(caster: Player) -> void:
 
 
 static func cast_red_rain_ember(caster: Player) -> void:
-	var space_state = caster.get_world_3d().direct_space_state
-	var start = caster.camera.global_position
-	var end = start - caster.camera.global_basis.z * 40.0
-	var query = PhysicsRayQueryParameters3D.create(start, end, 1)
-	var result = space_state.intersect_ray(query)
-	var target_pos = result.position if result else (caster.global_position - caster.transform.basis.z * 8.0)
-	
+	var target_pos: Vector3 = caster._aim_point(40.0)
+
 	caster._place_networked({
 		"kind": "dot_zone", "type": "fire_rain", "position": target_pos,
 		"radius": GameSettings.spell_red_rain_ember_radius * caster._rank_area(),
@@ -375,27 +382,6 @@ static func cast_black_doom_blade(caster: Player) -> void:
 	caster._play_sound(&"spell_doom_blade", caster.global_position)
 
 
-## The enemy the player is most directly looking at within `range_units`, or null. Whatever
-## is in the sights rather than whatever is nearest: a single-target spell that picked its
-## own victim would be a different skill. Kill and Contagion both aim this way.
-static func _looked_at_enemy(caster: Player, range_units: float, min_alignment: float = 0.55) -> Node3D:
-	var target: Node3D = null
-	var forward: Vector3 = -caster.camera.global_basis.z
-	forward.y = 0.0
-	forward = forward.normalized()
-	var best_dot: float = min_alignment
-	for enemy: Node3D in caster._enemies_in_radius(caster.global_position, range_units):
-		var to_enemy: Vector3 = enemy.global_position - caster.global_position
-		to_enemy.y = 0.0
-		if to_enemy.length_squared() < 0.01:
-			continue
-		var alignment: float = forward.dot(to_enemy.normalized())
-		if alignment > best_dot:
-			best_dot = alignment
-			target = enemy
-	return target
-
-
 ## black_2, Contagion (replaced Fear). A plague on the enemy in the sights that burns it and
 ## jumps to the nearest uninfected enemy every second - see EnemyBase.apply_contagion. It is
 ## black's area damage, but slow and dependent on the crowd rather than instant like red's
@@ -405,7 +391,7 @@ static func _looked_at_enemy(caster: Player, range_units: float, min_alignment: 
 ## however dense the wave is.
 static func cast_black_contagion(caster: Player) -> void:
 	var reach: float = GameSettings.spell_black_contagion_range * caster._rank_area()
-	var target: Node3D = _looked_at_enemy(caster, reach)
+	var target: Node3D = caster.aim_target(reach)
 	if target == null:
 		# Nothing in the sights: whatever stands nearest the point being aimed at.
 		var near: Array[Node3D] = caster._enemies_in_radius(caster._aim_point(reach), 6.0)
@@ -435,8 +421,9 @@ static func cast_black_contagion(caster: Player) -> void:
 ## black_3. The only outright delete in the game. Bosses are executed ONLY below the
 ## threshold - without that clause this one skill would end every wave boss on sight.
 static func cast_black_kill(caster: Player) -> void:
-	var target: Node3D = _looked_at_enemy(caster, GameSettings.spell_black_kill_range * caster._rank_area())
+	var target: Node3D = caster.aim_target(GameSettings.spell_black_kill_range * caster._rank_area())
 	if target == null:
+		caster._notify("No enemy in the sights")
 		return
 	if target.has_method("is_boss") and target.is_boss():
 		var ratio: float = HealthReader.ratio(target)
@@ -463,7 +450,7 @@ static func cast_black_kill(caster: Player) -> void:
 ## where the placement rule is explained.
 static func cast_black_wall_of_souls(caster: Player) -> void:
 	var center: Vector3 = caster._aim_point(20.0)
-	var facing: Vector3 = -caster.camera.global_basis.z
+	var facing: Vector3 = caster.aim_direction()
 	facing.y = 0.0
 	var info: Dictionary = {
 		"kind": "soul_wall", "position": center,

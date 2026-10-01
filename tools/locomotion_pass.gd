@@ -1,6 +1,6 @@
 extends RefCounted
-## Gives every built character its "run" clip and the stride measurement on both of its
-## locomotion clips. Preloaded by path, never by class_name (see tools/animation_impact.gd).
+## Gives every built character its "run" and "idle" clips and the stride measurement on both
+## of its locomotion clips. Preloaded by path, never by class_name (see tools/animation_impact.gd).
 ##
 ## A SEPARATE PASS over the finished libraries, rather than a step inside
 ## CharacterBuilder._build_character, for two reasons - and the second is the load-bearing
@@ -66,9 +66,10 @@ static func apply_to(output_name: String, class_suffix: String, config: Dictiona
 		root.free()
 		return false
 
-	if not _add_run(library, config, anim_player, root, skeleton):
-		root.free()
-		return false
+	for clip_name: String in ["run", CharacterBuilder.IDLE_CLIP]:
+		if not _add_looped_clip(library, clip_name, config, anim_player, root, skeleton):
+			root.free()
+			return false
 
 	var strides: Dictionary = {}
 	for clip_name: String in CharacterBuilder.LOCOMOTION_CLIPS:
@@ -87,27 +88,29 @@ static func apply_to(output_name: String, class_suffix: String, config: Dictiona
 	return true
 
 
-static func _add_run(library: AnimationLibrary, config: Dictionary, anim_player: AnimationPlayer, root: Node3D, skeleton: Skeleton3D) -> bool:
-	var run_source: String = CharacterBuilder._clip_source(config, "run")
-	if run_source == "":
-		push_error("No run source defined for set '%s'" % config["set"])
+## Adds one looping clip from the set's source - "run", or "idle" for a character standing
+## still (a raised ghoul with nothing to chase used to freeze on the first frame of its walk).
+static func _add_looped_clip(library: AnimationLibrary, clip_name: String, config: Dictionary, anim_player: AnimationPlayer, root: Node3D, skeleton: Skeleton3D) -> bool:
+	var source: String = CharacterBuilder._clip_source(config, clip_name)
+	if source == "":
+		push_error("No %s source defined for set '%s'" % [clip_name, config["set"]])
 		return false
-	var raw_run: Animation = CharacterBuilder._extract_animation(run_source)
-	if raw_run == null:
-		push_error("Could not extract run clip from %s" % run_source)
+	var raw: Animation = CharacterBuilder._extract_animation(source)
+	if raw == null:
+		push_error("Could not extract %s clip from %s" % [clip_name, source])
 		return false
 
 	# Same treatment, in the same order, that the builder gives every other clip: loop it,
 	# pin the hips so the character does not walk off its own collision capsule, then drop
 	# it onto this character's own ground plane.
-	var run: Animation = raw_run.duplicate(true)
-	run.loop_mode = Animation.LOOP_LINEAR
-	CharacterBuilder._strip_horizontal_root_motion(run, "mixamorig_Hips")
+	var clip: Animation = raw.duplicate(true)
+	clip.loop_mode = Animation.LOOP_LINEAR
+	CharacterBuilder._strip_horizontal_root_motion(clip, "mixamorig_Hips")
 	var template := AnimationLibrary.new()
-	template.add_animation("run", run)
+	template.add_animation(clip_name, clip)
 	var grounded: AnimationLibrary = CharacterBuilder._ground_correct_library(template, anim_player, root, skeleton)
 	# Idempotent: a re-run after a source swap should replace the clip, not error out.
-	if library.has_animation("run"):
-		library.remove_animation("run")
-	library.add_animation("run", grounded.get_animation("run"))
+	if library.has_animation(clip_name):
+		library.remove_animation(clip_name)
+	library.add_animation(clip_name, grounded.get_animation(clip_name))
 	return true

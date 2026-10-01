@@ -69,6 +69,8 @@ const RACE_BY_COLOR := {
 ## travelling - but that measurement cannot be taken from inside this builder (it needs a
 ## live scene tree) and is applied afterwards by tools/locomotion_pass.gd.
 const LOCOMOTION_CLIPS: Array[String] = ["walk", "run"]
+## Standing still. Loops like the locomotion clips but has no stride - nothing travels on it.
+const IDLE_CLIP := "idle"
 
 ## animation-set name -> clip slot -> source fbx (or OWN_MESH_CLIP).
 ##
@@ -88,6 +90,8 @@ const CLIP_SETS := {
 		"attack": ANIM_ROOT + "standing_melee/attack.fbx",
 		"hit": ANIM_ROOT + "sword_and_shield/hit.fbx",
 		"death": ANIM_ROOT + "sword_and_shield/death.fbx",
+		# Standing still - a raised ghoul waiting for something to chase. See LocomotionPass.
+		"idle": UNUSED_ROOT + "standing_melee/standing idle.fbx",
 	},
 	# Mixamo's standing-melee pack has no death clip of its own (same gap noted
 	# for the fire/frost giant bosses) - borrows the shared fallback.
@@ -97,6 +101,8 @@ const CLIP_SETS := {
 		"attack": ANIM_ROOT + "standing_melee/attack.fbx",
 		"hit": ANIM_ROOT + "standing_melee/hit.fbx",
 		"death": ANIM_ROOT + "common/death_fallback.fbx",
+		# Standing still - a raised ghoul waiting for something to chase. See LocomotionPass.
+		"idle": UNUSED_ROOT + "standing_melee/standing idle.fbx",
 	},
 	# Walk/attack borrowed from standing_melee per the user's explicit request
 	# (2026-08-25) that melee zombies move/attack like goblin-melee; hit/death
@@ -109,6 +115,8 @@ const CLIP_SETS := {
 		"attack": ANIM_ROOT + "standing_melee/attack.fbx",
 		"hit": ANIM_ROOT + "zombie/hit.fbx",
 		"death": ANIM_ROOT + "common/death_fallback.fbx",
+		# Standing still - a raised ghoul waiting for something to chase. See LocomotionPass.
+		"idle": UNUSED_ROOT + "zombie/zombie idle.fbx",
 	},
 	"bow": {
 		"walk": ANIM_ROOT + "bow/walk.fbx",
@@ -116,6 +124,8 @@ const CLIP_SETS := {
 		"attack": ANIM_ROOT + "bow/attack.fbx",
 		"hit": ANIM_ROOT + "bow/hit.fbx",
 		"death": ANIM_ROOT + "bow/death.fbx",
+		# Standing still - a raised ghoul waiting for something to chase. See LocomotionPass.
+		"idle": UNUSED_ROOT + "bow/Standing Idle 01.fbx",
 	},
 	"crossbow": {
 		"walk": ANIM_ROOT + "crossbow/walk.fbx",
@@ -130,6 +140,8 @@ const CLIP_SETS := {
 		# compresses far more kindly into enemy_hit_react_duration than 1.77s did.
 		"hit": ANIM_ROOT + "bow/hit.fbx",
 		"death": ANIM_ROOT + "crossbow/death.fbx",
+		# Standing still - a raised ghoul waiting for something to chase. See LocomotionPass.
+		"idle": UNUSED_ROOT + "crossbow/Rifle Aiming Idle.fbx",
 	},
 	"goblin_ranged": {
 		# No run of its own - the mesh came bundled with a walk only. Borrows the zombie
@@ -139,6 +151,8 @@ const CLIP_SETS := {
 		"attack": ANIM_ROOT + "common/throw_object.fbx",
 		"hit": ANIM_ROOT + "zombie/hit.fbx",
 		"death": ANIM_ROOT + "common/death_fallback.fbx",
+		# Standing still - a raised ghoul waiting for something to chase. See LocomotionPass.
+		"idle": UNUSED_ROOT + "zombie/zombie idle.fbx",
 	},
 	"zombie_ranged": {
 		"walk": ANIM_ROOT + "zombie/walk.fbx",
@@ -146,6 +160,8 @@ const CLIP_SETS := {
 		"attack": ANIM_ROOT + "common/throw_object.fbx",
 		"hit": ANIM_ROOT + "zombie/hit.fbx",
 		"death": ANIM_ROOT + "common/death_fallback.fbx",
+		# Standing still - a raised ghoul waiting for something to chase. See LocomotionPass.
+		"idle": UNUSED_ROOT + "zombie/zombie idle.fbx",
 	},
 	# "attack" is deliberately absent - every mage gets a different one, added
 	# per-character in _build_character (config.attack below).
@@ -154,6 +170,8 @@ const CLIP_SETS := {
 		"run": UNUSED_ROOT + "mage/Standing Run Forward.fbx",
 		"hit": ANIM_ROOT + "mage/hit.fbx",
 		"death": ANIM_ROOT + "mage/death.fbx",
+		# Standing still - a raised ghoul waiting for something to chase. See LocomotionPass.
+		"idle": UNUSED_ROOT + "standing_melee/unarmed idle.fbx",
 	},
 }
 
@@ -395,7 +413,7 @@ static func _build_template_library(clip_set: Dictionary, mesh_fbx_path: String)
 		if anim == null:
 			push_error("Could not extract clip '%s' from %s" % [clip_name, source_path if source_path != OWN_MESH_CLIP else mesh_fbx_path])
 			return null
-		anim.loop_mode = Animation.LOOP_LINEAR if clip_name in LOCOMOTION_CLIPS else Animation.LOOP_NONE
+		anim.loop_mode = Animation.LOOP_LINEAR if clip_name in LOCOMOTION_CLIPS or clip_name == IDLE_CLIP else Animation.LOOP_NONE
 		_strip_horizontal_root_motion(anim, "mixamorig_Hips")
 		library.add_animation(clip_name, anim)
 	return library

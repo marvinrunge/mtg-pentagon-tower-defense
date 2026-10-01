@@ -104,6 +104,15 @@ extends Node
 @export var player_camera_height: float = 1.80
 @export var player_camera_distance: float = 3.2
 
+## How far, in degrees, the crosshair may sit off an enemy's body and still pick it for a
+## single-target spell (Kill, Contagion). Small on purpose: this forgives a twitchy mouse on
+## a distant target, it does not choose one - the old 57-degree cone is how Kill used to
+## take whichever enemy happened to be beside the one in the sights.
+@export var player_aim_assist_degrees: float = 4.0
+## Furthest a client's aim ray may start from its own character before the server ignores
+## it and falls back on its own copy of that camera. The real rig sits ~3.5 m back.
+@export var player_aim_origin_max_offset: float = 8.0
+
 # ============================================================
 # PLAYER ANIMATION
 # ============================================================
@@ -578,7 +587,9 @@ func get_tier_cost(tier_index: int) -> int:
 ## Kill (black_3). The boss clause is what stops an instant delete trivialising the wave
 ## bosses; the cooldown (spell_database.gd) is still the longest in the game for the same
 ## reason, if no longer a whole minute.
-@export var spell_black_kill_range: float = 22.0
+## Doubled from 22 on 2026-10-01: an execute you have to walk up to was the wrong shape for
+## the one spell that picks a single target off a whole wave.
+@export var spell_black_kill_range: float = 45.0
 @export var spell_black_kill_boss_threshold: float = 0.33
 ## Wall of Souls (black_4)
 @export var spell_black_wall_length: float = 14.0
@@ -595,6 +606,10 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_black_zombify_speed: float = 7.0
 @export var spell_black_zombify_burst_damage: float = 90.0
 @export var spell_black_zombify_burst_radius: float = 3.5
+## With nothing to chase a ghoul stays with the player who raised it: it sets off once it is
+## further than `follow_far` away and stops again inside `follow_near`.
+@export var spell_black_zombify_follow_near: float = 5.0
+@export var spell_black_zombify_follow_far: float = 9.0
 
 # --- RED: aggression ---
 ## Fire Dash (red_2). Escape and damage in one, which is why the trail is worth as much
