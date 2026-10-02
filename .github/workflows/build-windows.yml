@@ -1,7 +1,11 @@
 name: Build Windows executable
 
-# Produces a single self-contained .exe (the pack is embedded, so there is no loose
-# .pck to lose) and uploads it as a downloadable artifact.
+# Produces the .exe (the pack is embedded, so there is no loose .pck to lose) plus the
+# GDExtension DLLs Godot writes beside it, and uploads them as ONE zip.
+#
+# The DLLs are not optional: TerraBrush (the terrain) and webrtc_native are GDExtensions,
+# and the exporter never embeds those in the pack. An .exe shipped on its own boots to the
+# menu and then dies on PLAY with "Resource of unrecognized type: TextureSetResource".
 #
 # PUSHING A TAG is what publishes a build to a tester: the .exe is attached to a GitHub
 # Release, and everyone watching the repo for releases is mailed a link. See
@@ -140,11 +144,23 @@ jobs:
           # far larger, so anything small means the pack did not get embedded.
           test "$SIZE" -gt 20000000 || { echo "::error::Executable is suspiciously small - pack may not be embedded"; exit 1; }
 
+          # The exe alone does not run this game - see the header. Every extension the
+          # project declares must have its Windows release library beside the exe.
+          for ext in $(find addons -name '*.gdextension'); do
+            for lib in $(grep -oE 'windows\.release\.x86_64 *= *"res://[^"]+"' "$ext" | sed -E 's/.*res:\/\///; s/"//'); do
+              test -f "build/windows/$(basename "$lib")" || { echo "::error::$(basename "$lib") (from $ext) was not exported next to the exe"; exit 1; }
+            done
+          done
+          ls -l build/windows
+
+          # One file to hand out, so the DLLs cannot be left behind by accident.
+          (cd build/windows && zip -q -r "../../${EXPORT_NAME}-windows.zip" .)
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.EXPORT_NAME }}-windows
-          path: build/windows/*.exe
+          path: ${{ env.EXPORT_NAME }}-windows.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -162,12 +178,12 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/windows/*.exe
+          files: ${{ env.EXPORT_NAME }}-windows.zip
           generate_release_notes: true
           body: |
             **Windows, 64-bit — ${{ steps.verify.outputs.size_mb }} MB.**
-            Download `${{ env.EXPORT_NAME }}.exe` from the Assets below and run it. No
-            installer, no dependencies, nothing to unpack.
+            Download `${{ env.EXPORT_NAME }}-windows.zip` from the Assets below, unzip it
+            anywhere (keep the .dll files next to the .exe) and run the .exe. No installer.
 
             Windows will most likely say **"Windows protected your PC"** the first time.
             Click **More info → Run anyway**. That warning appears because the build is
@@ -175,7 +191,7 @@ jobs:
 
             <sub>Built from `${{ github.sha }}` by GitHub Actions.</sub>
 
-      # The question this answers is "is the .exe REALLY on the release" - asked of the
+      # The question this answers is "is the build REALLY on the release" - asked of the
       # API, not of the upload step, which reports success for its own request rather than
       # for the state of the release afterwards. A missing binary is now a red run instead
       # of something to notice by eye days later.
@@ -190,11 +206,12 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
+          ASSET="${EXPORT_NAME}-windows.zip"
           ASSETS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           echo "Assets attached to ${TAG}:"
           echo "${ASSETS:-  (none)}"
-          if ! echo "$ASSETS" | grep -qx "${EXPORT_NAME}.exe"; then
-            echo "::error::${EXPORT_NAME}.exe is not attached to release ${TAG} - the download would be source only."
+          if ! echo "$ASSETS" | grep -qx "$ASSET"; then
+            echo "::error::$ASSET is not attached to release ${TAG} - the download would be source only."
             exit 1
           fi
-          echo "OK - ${EXPORT_NAME}.exe is on the release."
+          echo "OK - $ASSET is on the release."

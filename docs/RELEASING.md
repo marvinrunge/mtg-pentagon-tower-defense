@@ -23,7 +23,7 @@ git tag -a v0.3.0 -m "Skill sounds, boss entrance"
 git push origin v0.3.0
 ```
 
-That is the entire process. The tag triggers the workflow, which builds the `.exe`,
+That is the entire process. The tag triggers the workflow, which builds the game (`.exe` + extension DLLs, zipped),
 creates the Release, attaches the binary, and writes the changelog from the commits since
 the previous tag.
 
@@ -54,7 +54,7 @@ The workflow asks the API after uploading and **fails the run** if the binary is
 attached, so a release with nothing to download can no longer pass quietly. Look for:
 
 ```
-OK - MTG-Pentagon-Tower-Defense.exe is on the release.
+OK - MTG-Pentagon-Tower-Defense-windows.zip is on the release.
 ```
 
 Beware of one thing when checking by eye: **every** GitHub release shows *Source code
