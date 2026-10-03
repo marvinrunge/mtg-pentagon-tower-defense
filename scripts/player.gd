@@ -3657,6 +3657,11 @@ func _physics_process(delta: float) -> void:
 			# giant for the rest of the run, and their Ironbark never wore off.
 			_update_skill_timers(delta)
 			_update_shields(delta)
+			# The post-revive grace. Damage lands here, so this is the copy that has to
+			# count it down; it was only ticked in the local branch below, so a client
+			# who got up stayed invulnerable on the host for the rest of the run.
+			if _invulnerable_timer > 0.0:
+				_invulnerable_timer -= delta
 			# Their down timer, which only this machine advances: a client's avatar is a
 			# puppet here and its owner is not allowed to decide when it gets back up.
 			if is_downed:
