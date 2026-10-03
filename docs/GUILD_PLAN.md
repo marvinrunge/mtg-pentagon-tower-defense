@@ -35,11 +35,22 @@ exactly where the old passives stood.
 
 | Guild | Colours | Node | Effect |
 |---|---|---|---|
-| Azorius | W + U | **Detention** | Enemies you freeze, stun or knock back deal 30% less damage for 5s afterwards. Control that protects. |
-| Dimir | U + B | **Dimir Cutpurse** | Enemies that die frozen, stunned or cursed (Wall of Souls, Contagion) drop double mana. Controlled death pays. |
+| Azorius | W + U | **Azorius Justiciar** | Enemies you freeze, stun or knock back deal 30% less damage for 5s afterwards. Control that protects. |
+| Dimir | U + B | **Dimir Guildmage** | Enemies that die frozen, stunned or cursed (Wall of Souls, Contagion) rise immediately as your own ghoul, exactly like one Zombify raised - control feeds the same graveyard black already works from. |
 | Rakdos | B + R | **Mayhem Devil** ✅ | Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time. Without this, a ghoul still runs in and still pops - it just does not hurt anything. |
-| Gruul | R + G | **Rampage** | After Titanic Brawl or Fire Dash, your next three melee hits deal +50% and knock back further. |
-| Selesnya | G + W | **Conclave** | Every shield and heal you cast on yourself lands on your myrs within 10m as well. |
+| Gruul | R + G | **Rubblebelt Rioters** | After Titanic Brawl or Fire Dash, your next three melee hits deal +50% and knock back further. |
+| Selesnya | G + W | **Trostani, Selesnya's Voice** | Every shield and heal you cast on yourself lands on your myrs within 10m as well. |
+
+> **Checked against real two-colour cards, not just evocative words.** Detention Sphere,
+> Mind Rot, Goblin Bombardment, Rampage and Conclave Tribunal/Naturalists are all real
+> Magic cards or keywords, and every one of them is mono-coloured - wrong for a slot that
+> is specifically "visibly neither one colour nor the other." Azorius Justiciar (hybrid
+> W/U), Dimir Guildmage, Mayhem Devil (hybrid B/R), Rubblebelt Rioters and Trostani,
+> Selesnya's Voice are the real two-colour cards for each pair. Dimir's EFFECT changed
+> too, not just its name - raising the kill as a ghoul is black's own reanimation
+> mechanic (Zombify, `TemporaryAlly`) rather than an unrelated mana payout, and it is what
+> Dimir Guildmage's own ability (return a creature card from the graveyard) is actually
+> about.
 
 > **Rakdos shipped as Mayhem Devil, not Hellbent** - the burn-death-chain idea this
 > row originally proposed. Nothing had coded Hellbent yet, and a player asked specifically
@@ -57,8 +68,10 @@ exactly where the old passives stood.
 - `Player.guild_ranks: Dictionary`, carried in `build_snapshot` / `export_build` like
   `equipped_items`, so the server resolves a client's guild effects. ✅
 - Each effect is a hook in code that already exists: Azorius in
-  `EnemyBase.apply_stun`/freeze/`apply_knockback`, Dimir in `RunState.on_enemy_killed`,
-  Rakdos in `TemporaryAlly._explode` ✅, Gruul in `Player._melee_strike`, Selesnya in
+  `EnemyBase.apply_stun`/freeze/`apply_knockback`, Dimir in `EnemyBase.die()` (reads its
+  own `freeze_timer`/`stun_timer`/`contagion_timer` at the moment of death, then raises a
+  `TemporaryAlly` the same way `SpellEffects.cast_black_zombify` does), Rakdos in
+  `TemporaryAlly._explode` ✅, Gruul in `Player._melee_strike`, Selesnya in
   `Player.grant_protection_shield` / `heal`.
 - `tools/tests/skill_roster.gd` gets a GUILDS section: one observable consequence per node.
 
