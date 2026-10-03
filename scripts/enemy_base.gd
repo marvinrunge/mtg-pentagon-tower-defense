@@ -790,6 +790,10 @@ func _play_puppet_death() -> void:
 	if _puppet_death_played or visual_anim_player == null:
 		return
 	_puppet_death_played = true
+	# die() drops the collision layer on the server only; without this the client's copy
+	# stays solid and the joined player cannot walk through corpses.
+	collision_layer = 0
+	collision_mask = ENVIRONMENT_LAYER
 	if health_bar != null:
 		health_bar.visible = false
 	remove_from_group("enemies")
