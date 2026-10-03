@@ -67,6 +67,7 @@ static func cast_green_titanic_leap(caster: Player) -> void:
 	caster.velocity = forward.normalized() * GameSettings.spell_green_leap_speed
 	caster.velocity.y = GameSettings.spell_green_leap_rise
 	caster._leap_timer = GameSettings.spell_green_leap_duration
+	caster._start_rampage()
 	# Dust off the take-off. The slam at the far end already had its ring; the launch that
 	# throws the character across the arena had nothing at all.
 	caster._spawn_ring(caster.global_position, Player.FX_GREEN, 2.0)
@@ -96,6 +97,8 @@ static func _slam_ground(caster: Player) -> void:
 			if offset.length_squared() < 0.01:
 				offset = -caster.transform.basis.z
 			enemy.apply_knockback(offset.normalized() * GameSettings.spell_green_leap_knockback)
+			if enemy.has_method("apply_control_weaken"):
+				enemy.apply_control_weaken(caster)
 
 
 static func cast_red_rain_ember(caster: Player) -> void:
@@ -197,6 +200,7 @@ static func cast_white_rally_the_fallen(caster: Player) -> void:
 	# The caster is healed too, but never revived by their own cast - a downed player
 	# cannot cast anything, so that branch could only ever be dead code.
 	caster.heal(heal_amount)
+	caster._share_self_heal_with_myrs(heal_amount)
 	# The solo floor: nobody to revive means the cast instead wards the caster - the
 	# next would-be death inside the window is refused. See die().
 	caster._phoenix_ward_timer = GameSettings.spell_white_rally_ward_duration * caster._rank_duration()
@@ -232,6 +236,8 @@ static func cast_blue_unsummon(caster: Player) -> void:
 			enemy.apply_knockback(away.normalized() * push + Vector3.UP * lift)
 		if enemy.has_method("apply_stun") and not (enemy.has_method("is_immune_to_control") and enemy.is_immune_to_control()):
 			enemy.apply_stun(stun)
+		if enemy.has_method("apply_control_weaken"):
+			enemy.apply_control_weaken(caster)
 		pushed += 1
 	# A blast of air down the cone, not a ring around the caster. Unsummon pushes in ONE
 	# direction, and a ring told the player it had happened in every direction - including
@@ -263,6 +269,8 @@ static func cast_blue_frostwave(caster: Player) -> void:
 				enemy.apply_frost_slow(GameSettings.spell_blue_frostwave_boss_slow * caster._rank_duration())
 		elif "freeze_timer" in enemy:
 			enemy.freeze_timer = maxf(enemy.freeze_timer, freeze)
+			if enemy.has_method("apply_control_weaken"):
+				enemy.apply_control_weaken(caster)
 	caster._spawn_ring(caster.global_position, Color(0.55, 0.85, 1.0), radius)
 	# The settle beat: the ground it froze stays frozen for a few seconds after the wave
 	# has gone, which is what makes the radius legible AFTER the fact.
@@ -533,6 +541,7 @@ static func cast_red_fire_dash(caster: Player) -> void:
 	caster._dash_trail_dps = GameSettings.spell_red_dash_trail_dps * caster.get_spell_damage_multiplier() * caster._rank_damage()
 	caster._dash_trail_duration = GameSettings.spell_red_dash_trail_duration * caster._rank_duration()
 	caster._dash_trail_radius = GameSettings.spell_red_dash_trail_radius * caster._rank_area()
+	caster._start_rampage()
 	caster._play_sound(&"spell_fire_dash", caster.global_position)
 
 
@@ -646,6 +655,7 @@ static func cast_green_giant_growth(caster: Player) -> void:
 	# Gaining maximum health should ARRIVE as health, or the buff reads as a downgrade
 	# for the first few seconds while the bar sits at a lower fraction than before.
 	caster.heal(caster._giant_bonus_hp, false)
+	caster._share_self_heal_with_myrs(caster._giant_bonus_hp)
 	# Giant Growth had NO effect of any kind: the character silently got bigger, which
 	# reads as a rendering glitch rather than as a spell. The ring is sized to what the
 	# player has just become, so the growth is announced at the scale it actually is.

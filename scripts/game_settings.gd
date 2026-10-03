@@ -376,6 +376,19 @@ extends Node
 ## design knob of its own, not a point on the ladder every spell rank already climbs.
 @export var guild_investment_requirement: int = 5
 
+## Azorius Justiciar (white+blue): an enemy you freeze, stun or knock back deals this
+## much less damage for guild_azorius_weaken_duration seconds afterwards.
+@export var guild_azorius_weaken_mult: float = 0.3
+@export var guild_azorius_weaken_duration: float = 5.0
+## Gruul: Rubblebelt Rioters (red+green) - after Titanic Brawl or Fire Dash, this many of
+## the player's next melee hits are empowered.
+@export var guild_gruul_rampage_hits: int = 3
+@export var guild_gruul_rampage_damage_mult: float = 1.5
+@export var guild_gruul_rampage_knockback_mult: float = 1.5
+## Selesnya: Trostani, Selesnya's Voice (green+white) - the radius a self-shield or
+## self-heal also reaches the caster's own myrs at.
+@export var guild_selesnya_radius: float = 10.0
+
 ## How long a chargeable spell (SpellDatabase "chargeable") can be held before it fires
 ## on its own, and therefore how long a full-power cast takes to build. The release
 ## scales the payload by how much of this window was actually held - Fireball's radius

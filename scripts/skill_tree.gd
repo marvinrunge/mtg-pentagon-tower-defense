@@ -21,19 +21,44 @@ const AURA_BRANCHES: Array[int] = [6, 7]
 ## own menu (EquipmentMenu). The gaps between the colours sat free after that for real
 ## guild nodes (docs/GUILD_PLAN.md Stage 1) - GUILD_BRANCH below is the first one back.
 const BRANCH_COUNT: int = 8
-## A guild node's own branch index, same slot the keyword passives used to sit in. Only
-## one guild node exists so far (Rakdos), so one index is enough; a second would need a
-## way to tell two guild nodes on the same branch apart.
+## A guild node's own branch index, same slot the keyword passives used to sit in. One
+## index is enough for all five: each node's record is keyed by (its first colour,
+## GUILD_BRANCH), and the five pairs below never repeat a first colour, so no two guild
+## records ever collide on that key. A node whose pair shared a first colour with another
+## would need a branch index of its own.
 const GUILD_BRANCH: int = 8
-## Rakdos (black + red): Zombify's ghouls run at an enemy and burst for real damage only
-## once this is owned. Without it they still rush a target and pop on arrival - the
-## burst is just the one thing it adds, not the whole ghoul.
+## docs/GUILD_PLAN.md Stage 1 - all five allied guilds. Every id, hook and number here is
+## cross-referenced in that doc; look there before changing one without the other.
 const GUILD_NODES: Array[Dictionary] = [
+	{
+		"id": "guild_azorius",
+		"name": "Azorius Justiciar",
+		"colors": ["white", "blue"],
+		"desc": "Enemies you freeze, stun or knock back deal 30% less damage for 5s afterwards.",
+	},
+	{
+		"id": "guild_dimir",
+		"name": "Dimir Guildmage",
+		"colors": ["blue", "black"],
+		"desc": "Enemies that die frozen, stunned or cursed (Wall of Souls, Contagion) rise immediately as your own ghoul, exactly like one Zombify raised.",
+	},
 	{
 		"id": "guild_rakdos",
 		"name": "Mayhem Devil",
 		"colors": ["black", "red"],
 		"desc": "Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time, instead of fizzling out harmlessly.",
+	},
+	{
+		"id": "guild_gruul",
+		"name": "Rubblebelt Rioters",
+		"colors": ["red", "green"],
+		"desc": "After Titanic Brawl or Fire Dash, your next three melee hits deal +50% and knock back further.",
+	},
+	{
+		"id": "guild_selesnya",
+		"name": "Trostani, Selesnya's Voice",
+		"colors": ["green", "white"],
+		"desc": "Every shield and heal you cast on yourself lands on your myrs within 10m as well.",
 	},
 ]
 const CENTER_INFO: Dictionary = {

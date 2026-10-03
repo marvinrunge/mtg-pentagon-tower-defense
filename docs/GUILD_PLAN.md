@@ -16,7 +16,7 @@ the bisectors between the colour spokes. They were numbers that belonged to no c
 are equipment now (`scripts/equipment_database.gd`, dropped by bosses, worn from the **I**
 menu). The five spots between the colours are empty and waiting for Stage 1.
 
-## Stage 1 - the five allied guilds (1 of 5 shipped)
+## Stage 1 - the five allied guilds ✅ all shipped
 
 The pairs of colours that sit next to each other on the pentagon (and in the lane order
 W-U-B-R-G) - Magic's allied guilds. One node each, on the bisector between the two spokes,
@@ -28,18 +28,18 @@ exactly where the old passives stood.
 |---|---|---|
 | Reachable | Only when a node of BOTH neighbouring colours is owned (the old passives needed either one) | A guild is a two-colour reward; reachable from one side it was a free stat for everyone |
 | Gate | 5 invested in each of the two colours (`Player.color_investment`) | Same ladder as everything else, so there is nothing new to learn |
-| Ranks | 1-3, one skill point each | Special enough to feel like a keystone, cheap enough that a two-colour build can afford it |
+| Ranks | 1, one skill point ✅ (proposed 1-3; shipped binary - a guild node is one passive, not a ladder) | Special enough to feel like a keystone, cheap enough that a two-colour build can afford it |
 | Shape | Round, gold rim | Passive (round), and visibly neither colour |
 
 ### The five nodes
 
 | Guild | Colours | Node | Effect |
 |---|---|---|---|
-| Azorius | W + U | **Azorius Justiciar** | Enemies you freeze, stun or knock back deal 30% less damage for 5s afterwards. Control that protects. |
-| Dimir | U + B | **Dimir Guildmage** | Enemies that die frozen, stunned or cursed (Wall of Souls, Contagion) rise immediately as your own ghoul, exactly like one Zombify raised - control feeds the same graveyard black already works from. |
+| Azorius | W + U | **Azorius Justiciar** ✅ | Enemies you freeze, stun or knock back deal 30% less damage for 5s afterwards. Control that protects. |
+| Dimir | U + B | **Dimir Guildmage** ✅ | Enemies that die frozen, stunned or cursed (Wall of Souls, Contagion) rise immediately as your own ghoul, exactly like one Zombify raised - control feeds the same graveyard black already works from. Not bosses - same rule Zombify's own cast follows. |
 | Rakdos | B + R | **Mayhem Devil** ✅ | Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time. Without this, a ghoul still runs in and still pops - it just does not hurt anything. |
-| Gruul | R + G | **Rubblebelt Rioters** | After Titanic Brawl or Fire Dash, your next three melee hits deal +50% and knock back further. |
-| Selesnya | G + W | **Trostani, Selesnya's Voice** | Every shield and heal you cast on yourself lands on your myrs within 10m as well. |
+| Gruul | R + G | **Rubblebelt Rioters** ✅ | After Titanic Brawl or Fire Dash, your next three melee hits deal +50% and knock back further. |
+| Selesnya | G + W | **Trostani, Selesnya's Voice** ✅ | Every shield and heal you cast on yourself lands on your myrs within 10m as well. |
 
 > **Checked against real two-colour cards, not just evocative words.** Detention Sphere,
 > Mind Rot, Goblin Bombardment, Rampage and Conclave Tribunal/Naturalists are all real
@@ -59,21 +59,45 @@ exactly where the old passives stood.
 > become a different node if the gap is ever reused - the five-pair, one-node-each shape
 > of Stage 1 does not have room for both under Rakdos.
 
-### Implementation sketch
+### Implementation ✅ all five shipped
 
-- `SkillTree`: a `KIND_GUILD` node at the old `PASSIVE_BRANCH` position (restore a branch
-  index 8, drawn on the bisector), reachability = AND of the two neighbours. ✅ (Rakdos only
-  so far - GUILD_BRANCH is one index, reused by every guild node once there is more than
-  one; see the comment above `GUILD_NODES` in `scripts/skill_tree.gd`.)
-- `Player.guild_ranks: Dictionary`, carried in `build_snapshot` / `export_build` like
-  `equipped_items`, so the server resolves a client's guild effects. ✅
-- Each effect is a hook in code that already exists: Azorius in
-  `EnemyBase.apply_stun`/freeze/`apply_knockback`, Dimir in `EnemyBase.die()` (reads its
-  own `freeze_timer`/`stun_timer`/`contagion_timer` at the moment of death, then raises a
-  `TemporaryAlly` the same way `SpellEffects.cast_black_zombify` does), Rakdos in
-  `TemporaryAlly._explode` ✅, Gruul in `Player._melee_strike`, Selesnya in
-  `Player.grant_protection_shield` / `heal`.
-- `tools/tests/skill_roster.gd` gets a GUILDS section: one observable consequence per node.
+- `SkillTree`: a `KIND_GUILD` node per entry in `GUILD_NODES`, each drawn on the bisector
+  between its two colours' axes (`GUILD_BRANCH`), reachable only once BOTH colours clear
+  `GameSettings.guild_investment_requirement` (`_guild_reachable`). One branch index
+  serves all five because no two pairs share a first colour - see the comment above
+  `GUILD_NODES` in `scripts/skill_tree.gd`.
+- `Player.guild_ranks: Dictionary` (id -> 0 or 1), carried in `build_snapshot` /
+  `export_build` / `_build_fingerprint` like `aura_ranks`, so the server resolves a
+  client's guild effects and a reconnect keeps them. `has_guild`, `get_guild_rank`,
+  `grant_guild_rank`.
+- Each effect is a hook in code that already existed, checked against `has_guild` at the
+  one or two places it needed to fire:
+  - **Azorius** - `EnemyBase.apply_control_weaken(source)`, called from every place that
+    already applies a freeze, stun or knockback (`SpellEffects.cast_green_titanic_leap`'s
+    slam, `cast_blue_unsummon`, `cast_blue_frostwave`, `Player._rhystic_shatter`, the Icy
+    Manipulator melee proc and its `request_freeze` RPC, and `Player.
+    _apply_basic_attack_knockback`). Reuses `damage_penalty`/`penalty_timer`, the same
+    flat reduction Pacifism already uses, rather than a weaken multiplier of its own.
+  - **Dimir** - `EnemyBase.die()` snapshots `freeze_timer`/`stun_timer`/`curse_timer`/
+    `contagion_timer` before any of them reset, then `_raise_as_dimir_ghoul()` finds a
+    team-mate who owns the node and raises the kill through `request_effect("undead")` -
+    the same networked spawn `SpellEffects.cast_black_zombify` uses, not a local
+    `add_child` (see the corpse-collision fix this doc's git history grew out of for why
+    that distinction matters online). Bosses excluded, matching Zombify's own exclusion.
+  - **Rakdos** - `TemporaryAlly._explode`, gated on `owner_player.has_guild("guild_rakdos")`.
+    A ghoul Dimir raised explodes too, if its raiser also owns Rakdos - the two nodes
+    compose for free.
+  - **Gruul** - `Player._start_rampage()` (called from the two charge-in spells' launch
+    half) arms `_rampage_hits_left`; `_apply_melee_damage` spends one per impact FRAME,
+    not per enemy a cleave connects with - the same unit Exalted Strike's own charge
+    spends, for the same reason.
+  - **Selesnya** - `Player._share_self_heal_with_myrs(amount)`, called after the two
+    direct `caster.heal(...)` self-heals (Rally the Fallen, Giant Growth). Circle of
+    Protection and Rally's ALLY half need nothing extra: both already loop over
+    `_allies_in_radius`, which already includes the `"myrs"` group.
+- `tools/tests/skill_roster.gd` still wants a GUILDS section: one observable consequence
+  per node. Not added yet - everything above was verified by reading the call graph, not
+  by running the five effects in the editor.
 
 ## Stage 2 - the five enemy guilds
 

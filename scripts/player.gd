@@ -73,6 +73,10 @@ var _exalted_reach_bonus: float = 0.0
 var _dash_trail_dps: float = 0.0
 var _dash_trail_duration: float = 0.0
 var _dash_trail_radius: float = 0.0
+## Rubblebelt Rioters (red+green guild node): set by _start_rampage after Titanic Brawl or
+## Fire Dash, consumed one per melee impact frame in _apply_melee_damage - see there for
+## why that is "a hit" rather than per enemy a cleave connects with.
+var _rampage_hits_left: int = 0
 var aura_ranks: Dictionary = {}
 ## Guild nodes bought from the gaps between the colours (docs/GUILD_PLAN.md Stage 1),
 ## keyed by id. Binary rather than a ladder like spell/aura ranks - a guild node is one
@@ -2054,6 +2058,8 @@ func _rhystic_shatter() -> void:
 				enemy.apply_frost_slow(freeze)
 		elif "freeze_timer" in enemy:
 			enemy.freeze_timer = maxf(enemy.freeze_timer, freeze)
+			if enemy.has_method("apply_control_weaken"):
+				enemy.apply_control_weaken(self)
 	NetFx.ring(global_position, FX_BLUE, radius)
 	NetFx.impact(global_position + Vector3(0.0, 1.0, 0.0), FX_BLUE, 1.2)
 	NetFx.sound(&"spell_frostwave", global_position)
@@ -2145,6 +2151,20 @@ func emit_shield_changed() -> void:
 ## Returns the health ACTUALLY restored, which is what the scoreboard records: a 200-point
 ## heal on a player missing 20 is worth 20, and counting the request instead would let one
 ## overheal outrank a run of well-timed ones.
+## Trostani, Selesnya's Voice (green+white guild node): a heal cast only on the caster
+## reaches their own myrs too, within this range. Circle of Protection and Rally the
+## Fallen's ALLY half already loop over _allies_in_radius, which includes "myrs" - so
+## this is only for the few calls that heal the caster directly, outside that loop.
+func _share_self_heal_with_myrs(amount: float) -> void:
+	if amount <= 0.0 or not has_guild("guild_selesnya"):
+		return
+	for myr: Node3D in get_tree().get_nodes_in_group("myrs"):
+		if not is_instance_valid(myr) or not myr.has_method("heal"):
+			continue
+		if global_position.distance_to(myr.global_position) <= GameSettings.guild_selesnya_radius:
+			myr.heal(amount)
+
+
 func heal(amount: float, show_damage_number: bool = true) -> float:
 	if hp >= max_hp:
 		return 0.0
@@ -3528,6 +3548,14 @@ func _apply_melee_damage(damage_mult: float) -> int:
 		reach += _exalted_reach_bonus
 		_spawn_cast_flash(Color(1.0, 0.97, 0.75), 2.0)
 
+	# Rubblebelt Rioters: one impact frame is "a hit", the same unit Exalted Strike's
+	# charge spends above - a cleave that connects with three enemies on one swing must
+	# not burn three of the three charges this grants.
+	if _rampage_hits_left > 0 and not is_kick:
+		_rampage_hits_left -= 1
+		dmg *= GameSettings.guild_gruul_rampage_damage_mult
+		knockback *= GameSettings.guild_gruul_rampage_knockback_mult
+
 	var space_state = get_world_3d().direct_space_state
 	var start = camera.global_position
 	var end = start - camera.global_basis.z * reach
@@ -3571,8 +3599,10 @@ func _melee_strike(enemy: Node3D, dmg: float, exile: bool) -> void:
 		if Net.is_server():
 			if enemy.has_method("apply_equipment_freeze"):
 				enemy.apply_equipment_freeze(freeze)
+			if enemy.has_method("apply_control_weaken"):
+				enemy.apply_control_weaken(self)
 		elif enemy.has_method("request_freeze"):
-			enemy.request_freeze.rpc_id(1, freeze)
+			enemy.request_freeze.rpc_id(1, freeze, Net.local_id())
 		NetFx.impact(enemy.global_position + Vector3(0.0, 1.2, 0.0), FX_BLUE, 0.8)
 
 
@@ -3580,6 +3610,14 @@ func _melee_strike(enemy: Node3D, dmg: float, exile: bool) -> void:
 ## player's simply kills it. 0 without the capsule. Asked by EnemyBase on the server.
 func melee_execute_threshold() -> float:
 	return equipment_value("executioners_capsule")
+
+## Rubblebelt Rioters (red+green guild node): called from the two charge-in spells'
+## launch half (cast_green_titanic_leap, cast_red_fire_dash). A no-op without the node,
+## so every caller can call it unconditionally.
+func _start_rampage() -> void:
+	if has_guild("guild_gruul"):
+		_rampage_hits_left = GameSettings.guild_gruul_rampage_hits
+
 
 func _apply_basic_attack_knockback(enemy: Node3D, strength: float = -1.0) -> void:
 	if not enemy.has_method("apply_knockback"):
@@ -3591,6 +3629,8 @@ func _apply_basic_attack_knockback(enemy: Node3D, strength: float = -1.0) -> voi
 	if knockback_direction.length_squared() <= 0.001:
 		knockback_direction = -transform.basis.z
 	enemy.apply_knockback(knockback_direction.normalized() * strength)
+	if enemy.has_method("apply_control_weaken"):
+		enemy.apply_control_weaken(self)
 
 
 func _heavy_lunge_distance(progress: float) -> float:

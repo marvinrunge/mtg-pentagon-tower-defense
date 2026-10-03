@@ -1878,6 +1878,12 @@ func _react_to_hit(damage_dealt: float) -> void:
 		_impact_timer = -1.0
 
 func die() -> void:
+	# Dimir Guildmage's own question - "did this thing die under control?" - captured
+	# before anything below resets the timers it reads (contagion_timer two lines down,
+	# the rest never reset by die() itself but easiest kept next to the one that is).
+	var died_controlled: bool = (
+		freeze_timer > 0.0 or stun_timer > 0.0 or curse_timer > 0.0 or contagion_timer > 0.0
+	)
 	# The slot goes back before anything else happens: a corpse holds one for the couple of
 	# seconds its death animation runs, and a squad measuring its march speed off a dead
 	# mage would keep walking at the dead mage's pace.
@@ -1899,6 +1905,8 @@ func die() -> void:
 		# mana in this enemy's own colour. Banked here rather than dropped, because the
 		# pool is shared and there is nobody for a pickup to belong to.
 		RunState.on_enemy_killed(enemy_data, elite_modifier != "", global_position)
+		if died_controlled:
+			_raise_as_dimir_ghoul()
 
 	# Dying mid-windup drops the telegraph without dealing its damage - and the same
 	# goes for an ordinary swing whose impact frame has not arrived yet.
@@ -2097,6 +2105,24 @@ func apply_root(duration: float) -> void:
 
 func apply_stun(duration: float) -> void:
 	stun_timer = duration
+
+## Azorius Justiciar (white+blue guild node): an enemy a player freezes, stuns or knocks
+## back deals less damage for a while afterwards. `source` is whichever player caused the
+## control effect - every caller already has one in scope - and this is a no-op for
+## anyone who does not own the node, so every caller can call it unconditionally.
+##
+## Reuses `damage_penalty`/`penalty_timer` rather than a multiplier of its own: that is
+## the same flat reduction Pacifism and the melee stab debuff already use, and the merge
+## rule (keep the larger of either) matches apply_doom_curse's reasoning on the other
+## side of the ledger - two different control effects landing a moment apart should not
+## halve the enemy's damage twice over.
+func apply_control_weaken(source: Node3D) -> void:
+	if enemy_data == null or source == null or not is_instance_valid(source):
+		return
+	if not source.has_method("has_guild") or not source.has_guild("guild_azorius"):
+		return
+	damage_penalty = maxf(damage_penalty, enemy_data.attack_damage * GameSettings.guild_azorius_weaken_mult)
+	penalty_timer = maxf(penalty_timer, GameSettings.guild_azorius_weaken_duration)
 
 func apply_blind(duration: float) -> void:
 	blind_timer = duration
@@ -2363,11 +2389,48 @@ func apply_equipment_freeze(duration: float) -> void:
 
 
 ## A client's melee hit asking for that freeze - status lives on the server, like damage.
+## `attacker_peer` is who swung, 0 for an older/absent caller - needed for Azorius
+## Justiciar's weaken, which otherwise has no way to know whose guild node to ask about.
 @rpc("any_peer", "call_local", "reliable")
-func request_freeze(duration: float) -> void:
+func request_freeze(duration: float, attacker_peer: int = 0) -> void:
 	if not Net.is_server():
 		return
 	apply_equipment_freeze(minf(duration, GameSettings.equipment_icy_manipulator_freeze))
+	apply_control_weaken(PlayerRegistry.by_peer(attacker_peer))
+
+
+## Dimir Guildmage (blue+black guild node): dying frozen, stunned, cursed (Wall of Souls)
+## or diseased (Contagion) raises the same ghoul Zombify would, no cast spent. Credited
+## to whichever player on the team owns the node - nothing upstream of die() tracks WHICH
+## player applied the control that killed this enemy, and the five-player game is co-op,
+## so one player building towards Dimir benefits the team the same way one player finding
+## a piece of equipment does.
+##
+## Goes through the same `request_effect("undead")` path Zombify's own cast uses
+## (SpellEffects.cast_black_zombify), not a local add_child: that is what lets every peer
+## see the ghoul, exactly the bug ../temporary_ally.gd's class comment and the earlier
+## black-mage-raise fix both exist to avoid repeating.
+func _raise_as_dimir_ghoul() -> void:
+	var raiser: Node3D = null
+	for player: Node3D in get_tree().get_nodes_in_group("player"):
+		if is_instance_valid(player) and player.has_method("has_guild") and player.has_guild("guild_dimir"):
+			raiser = player
+			break
+	if raiser == null or enemy_data == null or is_boss():
+		return
+	var main: Node = get_tree().current_scene
+	if main == null or not main.has_method("request_effect"):
+		return
+	main.request_effect({
+		"kind": "undead",
+		"position": global_position,
+		"hp": GameSettings.spell_black_zombify_hp,
+		"duration": GameSettings.spell_black_zombify_duration,
+		"damage": GameSettings.spell_black_zombify_burst_damage,
+		"caster": raiser.get_multiplayer_authority() if Net.is_active() else 1,
+		"color": enemy_data.color_identity,
+		"class": enemy_data.enemy_class,
+	})
 
 
 ## Kill (black_3) and Exalted Strike (white_1). Removes the enemy WITHOUT leaving a
