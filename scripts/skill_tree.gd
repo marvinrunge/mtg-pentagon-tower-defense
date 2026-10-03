@@ -31,7 +31,7 @@ const GUILD_BRANCH: int = 8
 const GUILD_NODES: Array[Dictionary] = [
 	{
 		"id": "guild_rakdos",
-		"name": "Goblin Bombardment",
+		"name": "Mayhem Devil",
 		"colors": ["black", "red"],
 		"desc": "Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time, instead of fizzling out harmlessly.",
 	},

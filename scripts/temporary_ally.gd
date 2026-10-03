@@ -11,7 +11,7 @@ class_name TemporaryAlly
 ## stand and trade blows with an animation it did not have, playing its walk cycle on the
 ## spot while numbers came off its target; bursting needs no attack animation at all.
 ##
-## The burst only HURTS anything once its raiser owns Goblin Bombardment, the black+red
+## The burst only HURTS anything once its raiser owns Mayhem Devil, the black+red
 ## guild node (see TemporaryAlly._explode and docs/GUILD_PLAN.md Stage 1) - without it a
 ## ghoul still runs in and still pops, it is just a distraction with no payoff. Zombify
 ## alone was the area damage black was missing; now that is the guild node's to add.
@@ -381,7 +381,7 @@ func _expire() -> void:
 ## raised it - so what it kills counts as theirs and leaves an ordinary corpse to raise.
 ## Server only; the visuals go out through NetFx so every screen sees the same burst.
 ##
-## The damage itself is Goblin Bombardment (black+red guild node, docs/GUILD_PLAN.md
+## The damage itself is Mayhem Devil (black+red guild node, docs/GUILD_PLAN.md
 ## Stage 1), not Zombify - without it a ghoul still runs at an enemy and still ends the
 ## same way, it just does not hurt anything on the way out. Checked on owner_player
 ## rather than on `self`: a ghoul is a TemporaryAlly, not a Player, and has no skill tree

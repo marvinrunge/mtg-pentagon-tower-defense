@@ -37,11 +37,11 @@ exactly where the old passives stood.
 |---|---|---|---|
 | Azorius | W + U | **Detention** | Enemies you freeze, stun or knock back deal 30% less damage for 5s afterwards. Control that protects. |
 | Dimir | U + B | **Mind Rot** | Enemies that die frozen, stunned or cursed (Wall of Souls, Contagion) drop double mana. Controlled death pays. |
-| Rakdos | B + R | **Goblin Bombardment** ✅ | Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time. Without this, a ghoul still runs in and still pops - it just does not hurt anything. |
+| Rakdos | B + R | **Mayhem Devil** ✅ | Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time. Without this, a ghoul still runs in and still pops - it just does not hurt anything. |
 | Gruul | R + G | **Rampage** | After Titanic Brawl or Fire Dash, your next three melee hits deal +50% and knock back further. |
 | Selesnya | G + W | **Conclave** | Every shield and heal you cast on yourself lands on your myrs within 10m as well. |
 
-> **Rakdos shipped as Goblin Bombardment, not Hellbent** - the burn-death-chain idea this
+> **Rakdos shipped as Mayhem Devil, not Hellbent** - the burn-death-chain idea this
 > row originally proposed. Nothing had coded Hellbent yet, and a player asked specifically
 > for Zombify's ghoul burst to move off the base spell and behind its own passive, which
 > needed exactly this slot (black+red, round, gated on both colours). Hellbent is free to
