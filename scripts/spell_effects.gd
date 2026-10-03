@@ -476,7 +476,9 @@ static func cast_black_wall_of_souls(caster: Player) -> void:
 ## black_5. Turns the corpse registry - which until now existed only to cap how many dead
 ## bodies stayed in the scene - into a resource.
 static func cast_black_zombify(caster: Player) -> void:
-	var corpses: Array[EnemyBase] = EnemyBase.corpses()
+	var corpses: Array[EnemyBase] = EnemyBase.corpses().filter(
+		func(corpse: EnemyBase) -> bool: return not corpse.is_boss()
+	)
 	if corpses.is_empty():
 		caster._notify("No corpses to raise")
 		return
