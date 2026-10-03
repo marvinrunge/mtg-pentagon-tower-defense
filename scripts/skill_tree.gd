@@ -13,14 +13,29 @@ const CENTER_BRANCH: int = -1
 ## it - the fork in docs/SKILL_DESIGN.md drawn as a fork. 6 is the Attunement (the stat
 ## line), 7 the Manifestation (the visible one).
 const AURA_BRANCHES: Array[int] = [6, 7]
-## One past the last real branch index, for the radial keyboard navigation's wrap.
+## One past the last ordinary branch index (0-5 plus the two aura branches).
 ##
 ## There used to be a ninth: the five keyword passives (Flying, Double Strike, Haste,
 ## Trample, Vigilance) sat on the bisectors between the colours. They were numbers that
 ## belonged to no colour, and they are equipment now - found on bosses, worn from their
-## own menu (EquipmentMenu). The gaps between the colours are kept free for real guild
-## nodes; see docs/GUILD_PLAN.md.
+## own menu (EquipmentMenu). The gaps between the colours sat free after that for real
+## guild nodes (docs/GUILD_PLAN.md Stage 1) - GUILD_BRANCH below is the first one back.
 const BRANCH_COUNT: int = 8
+## A guild node's own branch index, same slot the keyword passives used to sit in. Only
+## one guild node exists so far (Rakdos), so one index is enough; a second would need a
+## way to tell two guild nodes on the same branch apart.
+const GUILD_BRANCH: int = 8
+## Rakdos (black + red): Zombify's ghouls run at an enemy and burst for real damage only
+## once this is owned. Without it they still rush a target and pop on arrival - the
+## burst is just the one thing it adds, not the whole ghoul.
+const GUILD_NODES: Array[Dictionary] = [
+	{
+		"id": "guild_rakdos",
+		"name": "Goblin Bombardment",
+		"colors": ["black", "red"],
+		"desc": "Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time, instead of fizzling out harmlessly.",
+	},
+]
 const CENTER_INFO: Dictionary = {
 	"id": "melee_combo",
 	"name": "Blade Dance",
@@ -353,6 +368,18 @@ func _build_ui() -> void:
 			# made them an end-of-run reward rather than a skill.
 			_create_icon_node(color, AURA_BRANCHES[half], aura_info)
 
+	# Guild nodes, one per entry in GUILD_NODES. Not inside the per-colour loop above:
+	# a guild node is drawn at the bisector between TWO colours, not within one wedge, so
+	# it is laid out separately below (see _layout_nodes). The record's own "colour" is
+	# just the first of the pair - every colour-keyed lookup (mana pip, tint) needs some
+	# valid colour, and which of the two is cosmetic since the node is round and reads
+	# as neither.
+	for guild_data: Dictionary in GUILD_NODES:
+		var guild_info: Dictionary = guild_data.duplicate()
+		guild_info["is_guild"] = true
+		guild_info["cost"] = GameSettings.spell_rank_point_cost
+		_create_icon_node(String(guild_info["colors"][0]), GUILD_BRANCH, guild_info)
+
 	_build_selection_ring()
 	_build_detail_panel()
 	_board.resized.connect(_layout_nodes)
@@ -409,7 +436,7 @@ func _bind_hovered_to_slot(slot_index: int) -> void:
 	if record.is_empty():
 		return
 	var info: Dictionary = record["info"]
-	if bool(info.get("is_affinity", false)) or bool(info.get("is_aura", false)) or bool(info.get("is_center", false)):
+	if bool(info.get("is_affinity", false)) or bool(info.get("is_aura", false)) or bool(info.get("is_center", false)) or bool(info.get("is_guild", false)):
 		return
 	var player = PlayerRegistry.get_local()
 	if player == null or not player.has_method("assign_quick_slot"):
@@ -542,6 +569,28 @@ func _layout_nodes() -> void:
 				line.points = PackedVector2Array([points[edge[0]], points[edge[1]]])
 			else:
 				line.points = PackedVector2Array()
+	# Guild nodes sit on the bisector between their two colours' axes, so they are
+	# positioned from both angles rather than from the single-colour loop above.
+	for guild_data: Dictionary in GUILD_NODES:
+		var colors: Array = guild_data["colors"]
+		var idx_a: int = COLOR_NAMES.find(String(colors[0]))
+		var idx_b: int = COLOR_NAMES.find(String(colors[1]))
+		if idx_a < 0 or idx_b < 0:
+			continue
+		var angle_a: float = -PI * 0.5 + TAU * float(idx_a) / float(COLOR_NAMES.size())
+		var angle_b: float = -PI * 0.5 + TAU * float(idx_b) / float(COLOR_NAMES.size())
+		# The two colours are always adjacent on the pentagon (the allied-guild pairs),
+		# so the short way around is always the right way - no wraparound case to handle.
+		var mid_angle: float = lerp_angle(angle_a, angle_b, 0.5)
+		var guild_point: Vector2 = center + Vector2(cos(mid_angle), sin(mid_angle)) * outer_radius
+		var guild_record: Dictionary = _find_record(String(colors[0]), GUILD_BRANCH)
+		if guild_record.is_empty():
+			continue
+		var guild_button: TextureButton = guild_record["button"]
+		guild_button.size = Vector2(44.0, 44.0) * icon_scale
+		guild_button.position = guild_point - guild_button.size * 0.5
+		_place_badge(guild_record, guild_button)
+
 	if not _hovered_record.is_empty():
 		var hovered_layout: Dictionary = _find_record(
 			String(_hovered_record["color"]), int(_hovered_record["branch_index"]))
@@ -659,9 +708,12 @@ func update_ui() -> void:
 const KIND_AURA := "aura"
 const KIND_AFFINITY := "affinity"
 const KIND_SPELL := "spell"
+const KIND_GUILD := "guild"
 
 
 func _node_kind(info: Dictionary) -> String:
+	if bool(info.get("is_guild", false)):
+		return KIND_GUILD
 	if bool(info.get("is_aura", false)):
 		return KIND_AURA
 	if bool(info.get("is_affinity", false)):
@@ -672,6 +724,8 @@ func _node_kind(info: Dictionary) -> String:
 ## How many ranks of this node the player owns. Zero means undiscovered or merely unbought.
 func _node_rank(player: Node, color: String, info: Dictionary) -> int:
 	match _node_kind(info):
+		KIND_GUILD:
+			return player.get_guild_rank(String(info["id"]))
 		KIND_AURA:
 			return _aura_rank_of(player, String(info["id"]))
 		KIND_AFFINITY:
@@ -686,6 +740,9 @@ func _node_reachable(player: Node, color: String, branch_index: int, info: Dicti
 		KIND_AFFINITY:
 			# Joined to the hub, so every colour opens the same way and always can.
 			return true
+		KIND_GUILD:
+			# Joined to BOTH its colours rather than to one neighbour - see _guild_reachable.
+			return _guild_reachable(player, info)
 		_:
 			return _is_reachable(player, color, branch_index)
 
@@ -707,8 +764,9 @@ func _node_gate_met(player: Node, color: String, branch_index: int, info: Dictio
 	match _node_kind(info):
 		KIND_AURA:
 			return _gate_met(player, color, info)
-		KIND_AFFINITY:
-			# Joined to the hub: the price is the only thing in the way.
+		KIND_AFFINITY, KIND_GUILD:
+			# Both colours' investment is already what makes a guild node REACHABLE
+			# (see _guild_reachable) - once it is, the price is the only thing left.
 			return true
 		_:
 			return _investment_met(player, color, branch_index)
@@ -741,7 +799,7 @@ func _shows_mana_pip(_info: Dictionary, state: String, _rank: int) -> bool:
 ## is a circle: always on, never on the bar. `bright` is an owned node, drawn untinted.
 func _node_material(info: Dictionary, bright: bool) -> ShaderMaterial:
 	var kind: String = _node_kind(info)
-	if kind == KIND_AURA or kind == KIND_AFFINITY:
+	if kind == KIND_AURA or kind == KIND_AFFINITY or kind == KIND_GUILD:
 		return IconStyle.circle_material(bright)
 	return IconStyle.rounded_material(bright)
 
@@ -759,6 +817,10 @@ func _apply_badge(record: Dictionary, player: Node, color: String, info: Diction
 			_set_badge(record, "%d" % rank, _rank_tint(rank))
 		KIND_SPELL:
 			_set_spell_badge(record, player, String(info["id"]), rank)
+		KIND_GUILD:
+			# Binary, not a ladder: owning it at all is maxing it, so it reads gold like
+			# a maxed spell rather than "1/5" against a cap that does not apply to it.
+			_set_badge(record, "Unlocked", Color(1.0, 0.85, 0.35))
 		_:
 			_set_badge(record, _rank_text(rank), _rank_tint(rank))
 
@@ -835,7 +897,7 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	# The two outer nodes used to be exempt, back when they were capstones and the fork
 	# between them was meant to be visible from the start. They are ordinary skills now, so
 	# they are withheld like every other one.
-	if not bool(info["is_affinity"]) and not _is_reachable(player, color, branch_index):
+	if not bool(info["is_affinity"]) and not _node_reachable(player, color, branch_index, info):
 		_detail_title.text = "%s - Undiscovered" % COLOR_DISPLAY[color]
 		_detail_title.add_theme_color_override("font_color", COLOR_HEX[color] * Color(1, 1, 1, 0.7))
 		_detail_status.text = "Unlock a connected skill to reveal this"
@@ -845,6 +907,22 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	var available_mana: int = int(mana_pool.get(COLOR_MANA[color], 0))
 	_detail_title.text = "%s - %s" % [COLOR_DISPLAY[color], info["name"]]
 	_detail_title.add_theme_color_override("font_color", COLOR_HEX[color])
+
+	if bool(info.get("is_guild", false)):
+		var guild_colors: Array = info.get("colors", [])
+		if guild_colors.size() == 2:
+			_detail_title.text = "%s + %s - %s" % [
+				COLOR_DISPLAY[String(guild_colors[0])], COLOR_DISPLAY[String(guild_colors[1])], info["name"]
+			]
+		# Gold, same read as a maxed node - "visibly neither colour" per docs/GUILD_PLAN.md.
+		_detail_title.add_theme_color_override("font_color", Color(0.85, 0.72, 0.4))
+		var guild_rank: int = player.get_guild_rank(String(info["id"]))
+		_detail_status.text = (
+			"Unlocked" if guild_rank > 0
+			else "Unlock for %d point  |  Points %d" % [GameSettings.spell_rank_point_cost, _skill_points(player)]
+		)
+		_detail_body.text = info["desc"]
+		return
 
 	if bool(info.get("is_aura", false)):
 		var aura_id: String = String(info["id"])
@@ -908,6 +986,18 @@ func _on_node_pressed(color: String, branch_index: int, info: Dictionary) -> voi
 
 	if bool(info.get("is_center", false)):
 		# Nothing to buy: the hub shows the team level, and Blade Dance is granted at 10.
+		return
+
+	if bool(info.get("is_guild", false)):
+		var guild_id: String = String(info["id"])
+		if player.get_guild_rank(guild_id) > 0:
+			return
+		if not _guild_reachable(player, info):
+			return
+		if _pay(player, GameSettings.spell_rank_point_cost) and player.has_method("grant_guild_rank"):
+			player.grant_guild_rank(guild_id)
+			update_ui()
+			SoundBank.play(&"skill_unlock")
 		return
 
 	if bool(info.get("is_aura", false)):
@@ -1017,6 +1107,21 @@ func _is_reachable(player: Node, color: String, branch_index: int) -> bool:
 		if _branch_owned(player, color, neighbour):
 			return true
 	return false
+
+
+## A guild node asks BOTH its colours, not one neighbour on the graph - "a guild is a
+## two-colour reward" (docs/GUILD_PLAN.md Stage 1), so investment in just one of the pair
+## must not open it.
+func _guild_reachable(player: Node, info: Dictionary) -> bool:
+	if GameSettings.debug_free_skills:
+		return true
+	var colors: Array = info.get("colors", [])
+	if colors.size() != 2:
+		return false
+	return (
+		player.color_investment(String(colors[0])) >= GameSettings.guild_investment_requirement
+		and player.color_investment(String(colors[1])) >= GameSettings.guild_investment_requirement
+	)
 
 
 ## Whether the player already holds the node at `branch_index` of `color`. The hub counts as

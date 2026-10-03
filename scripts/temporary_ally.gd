@@ -9,8 +9,12 @@ class_name TemporaryAlly
 ## A ghoul does not fight. It SPRINTS at the nearest enemy and bursts on contact - or
 ## wherever it stands when its time runs out, or when something kills it first. It used to
 ## stand and trade blows with an animation it did not have, playing its walk cycle on the
-## spot while numbers came off its target; bursting needs no attack animation at all, and it
-## is the area damage black was missing.
+## spot while numbers came off its target; bursting needs no attack animation at all.
+##
+## The burst only HURTS anything once its raiser owns Goblin Bombardment, the black+red
+## guild node (see TemporaryAlly._explode and docs/GUILD_PLAN.md Stage 1) - without it a
+## ghoul still runs in and still pops, it is just a distraction with no payoff. Zombify
+## alone was the area damage black was missing; now that is the guild node's to add.
 ##
 ## It is deliberately NOT an EnemyBase with a flipped team. EnemyBase carries a wave
 ## registration, a colour identity, mana and XP on death, an elite modifier and a boss
@@ -376,26 +380,34 @@ func _expire() -> void:
 ## The burst: everything around the ghoul takes its damage, credited to the player who
 ## raised it - so what it kills counts as theirs and leaves an ordinary corpse to raise.
 ## Server only; the visuals go out through NetFx so every screen sees the same burst.
+##
+## The damage itself is Goblin Bombardment (black+red guild node, docs/GUILD_PLAN.md
+## Stage 1), not Zombify - without it a ghoul still runs at an enemy and still ends the
+## same way, it just does not hurt anything on the way out. Checked on owner_player
+## rather than on `self`: a ghoul is a TemporaryAlly, not a Player, and has no skill tree
+## of its own to ask.
 func _explode() -> void:
 	if _burst or not Net.is_server():
 		return
 	_burst = true
-	var radius: float = GameSettings.spell_black_zombify_burst_radius
-	var damage: float = attack_damage * Player.anthem_damage_mult(self)
-	var credited: Node3D = owner_player if is_instance_valid(owner_player) else null
 	var centre: Vector3 = global_position
-	for enemy: Node in get_tree().get_nodes_in_group("enemies"):
-		var body := enemy as Node3D
-		if body == null or not is_instance_valid(body) or body.is_queued_for_deletion():
-			continue
-		if body.global_position.distance_to(centre) > radius:
-			continue
-		if body.has_method("take_damage"):
-			body.take_damage(damage, credited)
-	var at: Vector3 = centre + Vector3(0.0, 1.0, 0.0)
-	NetFx.ring(centre, UNDEAD_TINT, radius)
-	NetFx.impact(at, UNDEAD_TINT, radius * 0.5)
-	NetFx.decal("decal_blight", Color(0.12, 0.3, 0.1, 0.75), radius * 0.8, centre, 0)
-	NetFx.sound(&"zombie_burst", at)
-	NetFx.shake(0.12, 0.2, centre, 0)
+	var credited: Node3D = owner_player if is_instance_valid(owner_player) else null
+	if kind == "undead" and is_instance_valid(owner_player) and owner_player.has_method("has_guild") \
+			and owner_player.has_guild("guild_rakdos"):
+		var radius: float = GameSettings.spell_black_zombify_burst_radius
+		var damage: float = attack_damage * Player.anthem_damage_mult(self)
+		for enemy: Node in get_tree().get_nodes_in_group("enemies"):
+			var body := enemy as Node3D
+			if body == null or not is_instance_valid(body) or body.is_queued_for_deletion():
+				continue
+			if body.global_position.distance_to(centre) > radius:
+				continue
+			if body.has_method("take_damage"):
+				body.take_damage(damage, credited)
+		var at: Vector3 = centre + Vector3(0.0, 1.0, 0.0)
+		NetFx.ring(centre, UNDEAD_TINT, radius)
+		NetFx.impact(at, UNDEAD_TINT, radius * 0.5)
+		NetFx.decal("decal_blight", Color(0.12, 0.3, 0.1, 0.75), radius * 0.8, centre, 0)
+		NetFx.sound(&"zombie_burst", at)
+		NetFx.shake(0.12, 0.2, centre, 0)
 	queue_free()

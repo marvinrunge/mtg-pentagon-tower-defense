@@ -370,6 +370,11 @@ extends Node
 ## any more - see color_investment_ladder.
 @export var affinity_spell_rank_requirements: Array[int] = [1, 5, 10, 15, 25]
 @export var aura_skill_point_cost: int = 3
+## Guild nodes (docs/GUILD_PLAN.md Stage 1): how much BOTH neighbouring colours need
+## invested before one is reachable. Matches color_investment_ladder's own step 3 (the
+## plan's literal "5 in each colour"), kept as its own number because a guild gate is a
+## design knob of its own, not a point on the ladder every spell rank already climbs.
+@export var guild_investment_requirement: int = 5
 
 ## How long a chargeable spell (SpellDatabase "chargeable") can be held before it fires
 ## on its own, and therefore how long a full-power cast takes to build. The release

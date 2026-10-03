@@ -16,7 +16,7 @@ the bisectors between the colour spokes. They were numbers that belonged to no c
 are equipment now (`scripts/equipment_database.gd`, dropped by bosses, worn from the **I**
 menu). The five spots between the colours are empty and waiting for Stage 1.
 
-## Stage 1 - the five allied guilds
+## Stage 1 - the five allied guilds (1 of 5 shipped)
 
 The pairs of colours that sit next to each other on the pentagon (and in the lane order
 W-U-B-R-G) - Magic's allied guilds. One node each, on the bisector between the two spokes,
@@ -37,19 +37,28 @@ exactly where the old passives stood.
 |---|---|---|---|
 | Azorius | W + U | **Detention** | Enemies you freeze, stun or knock back deal 30% less damage for 5s afterwards. Control that protects. |
 | Dimir | U + B | **Mind Rot** | Enemies that die frozen, stunned or cursed (Wall of Souls, Contagion) drop double mana. Controlled death pays. |
-| Rakdos | B + R | **Hellbent** | Burning enemies that die explode for a share of their maximum health around them - so a plague in a burning pack becomes a chain of explosions. |
+| Rakdos | B + R | **Goblin Bombardment** ✅ | Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time. Without this, a ghoul still runs in and still pops - it just does not hurt anything. |
 | Gruul | R + G | **Rampage** | After Titanic Brawl or Fire Dash, your next three melee hits deal +50% and knock back further. |
 | Selesnya | G + W | **Conclave** | Every shield and heal you cast on yourself lands on your myrs within 10m as well. |
+
+> **Rakdos shipped as Goblin Bombardment, not Hellbent** - the burn-death-chain idea this
+> row originally proposed. Nothing had coded Hellbent yet, and a player asked specifically
+> for Zombify's ghoul burst to move off the base spell and behind its own passive, which
+> needed exactly this slot (black+red, round, gated on both colours). Hellbent is free to
+> become a different node if the gap is ever reused - the five-pair, one-node-each shape
+> of Stage 1 does not have room for both under Rakdos.
 
 ### Implementation sketch
 
 - `SkillTree`: a `KIND_GUILD` node at the old `PASSIVE_BRANCH` position (restore a branch
-  index 8, drawn on the bisector), reachability = AND of the two neighbours.
+  index 8, drawn on the bisector), reachability = AND of the two neighbours. ✅ (Rakdos only
+  so far - GUILD_BRANCH is one index, reused by every guild node once there is more than
+  one; see the comment above `GUILD_NODES` in `scripts/skill_tree.gd`.)
 - `Player.guild_ranks: Dictionary`, carried in `build_snapshot` / `export_build` like
-  `equipped_items`, so the server resolves a client's guild effects.
+  `equipped_items`, so the server resolves a client's guild effects. ✅
 - Each effect is a hook in code that already exists: Azorius in
   `EnemyBase.apply_stun`/freeze/`apply_knockback`, Dimir in `RunState.on_enemy_killed`,
-  Rakdos in `EnemyBase.die` (burn state), Gruul in `Player._melee_strike`, Selesnya in
+  Rakdos in `TemporaryAlly._explode` ✅, Gruul in `Player._melee_strike`, Selesnya in
   `Player.grant_protection_shield` / `heal`.
 - `tools/tests/skill_roster.gd` gets a GUILDS section: one observable consequence per node.
 

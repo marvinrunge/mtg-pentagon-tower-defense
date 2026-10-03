@@ -74,6 +74,10 @@ var _dash_trail_dps: float = 0.0
 var _dash_trail_duration: float = 0.0
 var _dash_trail_radius: float = 0.0
 var aura_ranks: Dictionary = {}
+## Guild nodes bought from the gaps between the colours (docs/GUILD_PLAN.md Stage 1),
+## keyed by id. Binary rather than a ladder like spell/aura ranks - a guild node is one
+## passive, not five - so a value is always 0 or 1; see has_guild/grant_guild_rank.
+var guild_ranks: Dictionary = {}
 var affinity_ranks: Dictionary = {
 	"white": 0,
 	"blue": 0,
@@ -647,6 +651,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				spell_ranks.clear()
 				reset_quick_slots()
 				aura_ranks.clear()
+				guild_ranks.clear()
 				for color: String in affinity_ranks:
 					affinity_ranks[color] = 0
 				_applied_green_affinity_rank = -1
@@ -814,6 +819,7 @@ func export_build() -> Dictionary:
 		"spell_ranks": spell_ranks.duplicate(true),
 		"affinity_ranks": affinity_ranks.duplicate(true),
 		"aura_ranks": aura_ranks.duplicate(true),
+		"guild_ranks": guild_ranks.duplicate(true),
 		"quick_slots": quick_slots.duplicate(),
 		"unlocked_spells_in_path": unlocked_spells_in_path.duplicate(),
 		"chosen_color_path": chosen_color_path,
@@ -838,6 +844,7 @@ func apply_build(build: Dictionary) -> void:
 	spell_ranks = (build.get("spell_ranks", {}) as Dictionary).duplicate(true)
 	affinity_ranks = (build.get("affinity_ranks", affinity_ranks) as Dictionary).duplicate(true)
 	aura_ranks = (build.get("aura_ranks", {}) as Dictionary).duplicate(true)
+	guild_ranks = (build.get("guild_ranks", {}) as Dictionary).duplicate(true)
 	_set_equipped_from(build.get("equipped_items", []))
 	melee_combo_extended = bool(build.get("melee_combo_extended", melee_combo_extended))
 	chosen_color_path = String(build.get("chosen_color_path", ""))
@@ -1812,6 +1819,7 @@ func build_snapshot() -> Dictionary:
 		"unlocked": unlocked_spells_in_path,
 		"spells": spell_ranks,
 		"auras": aura_ranks,
+		"guilds": guild_ranks,
 		"affinity": affinity_ranks,
 		"equipment": equipped_items,
 		"combo": melee_combo_extended,
@@ -1843,7 +1851,7 @@ func _publish_build() -> void:
 ## nothing had changed. The snapshot is now built only on the frame the fingerprint moves.
 func _build_fingerprint() -> int:
 	return hash([
-		spell_ranks, aura_ranks, affinity_ranks, equipped_items,
+		spell_ranks, aura_ranks, guild_ranks, affinity_ranks, equipped_items,
 		unlocked_spells_in_path, chosen_color_path, melee_combo_extended,
 	])
 
@@ -1887,6 +1895,7 @@ func _apply_build(build: Dictionary) -> void:
 		unlocked_spells_in_path.append(String(spell_id))
 	spell_ranks = (build.get("spells", {}) as Dictionary).duplicate()
 	aura_ranks = (build.get("auras", {}) as Dictionary).duplicate()
+	guild_ranks = (build.get("guilds", {}) as Dictionary).duplicate()
 	affinity_ranks = (build.get("affinity", {}) as Dictionary).duplicate()
 	_set_equipped_from(build.get("equipment", []))
 	melee_combo_extended = bool(build.get("combo", false))
@@ -1917,6 +1926,23 @@ func get_aura_rank_mult(aura_id: String, curve: String = "damage") -> float:
 
 func has_aura(aura_id: String) -> bool:
 	return get_aura_rank(aura_id) > 0
+
+
+func get_guild_rank(guild_id: String) -> int:
+	return int(guild_ranks.get(guild_id, 0))
+
+
+func has_guild(guild_id: String) -> bool:
+	return get_guild_rank(guild_id) > 0
+
+
+## Buys the one rank a guild node has. No colour to select_color_path into, unlike a
+## spell or an aura - a guild node belongs to two colours at once and picks neither.
+func grant_guild_rank(guild_id: String) -> bool:
+	if has_guild(guild_id):
+		return false
+	guild_ranks[guild_id] = 1
+	return true
 
 
 ## A number that changes when the set of owned auras or their ranks does.
