@@ -732,6 +732,32 @@ func _physics_process(delta: float) -> void:
 
 	_update_visual_animation()
 
+## The black mage's raise: a new weak enemy of this colour beside the caster.
+##
+## It goes through the MainController's enemy spawner like every wave enemy. Instantiating it
+## here and add_child-ing it put it on the host alone: the host fought something no client
+## could see, and nothing it did reached them.
+func _raise_revived_enemy(enemy_type: String, power: float) -> void:
+	if not Net.is_server():
+		return
+	var main: Node = get_tree().current_scene
+	if main == null or not main.has_method("request_enemy"):
+		return
+	var revived_data: EnemyData = EnemyDatabase.get_enemy_data("Black", enemy_type)
+	var spot: Vector3 = global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
+	var new_enemy: Node3D = main.request_enemy({
+		"position": (main as Node3D).to_local(spot),
+		"color": "Black",
+		"type": enemy_type,
+	})
+	if new_enemy == null:
+		return
+	new_enemy.health = revived_data.health * GameSettings.enemy_black_mage_revive_hp_mult * power
+	var wm: Node = main.get_node_or_null("WaveManager")
+	if wm:
+		wm.register_enemy()
+
+
 ## Turns towards whatever this enemy is currently attacking. No-ops without a live
 ## target, so callers do not each need their own validity check.
 func _face_target(delta: float) -> void:
@@ -1304,17 +1330,7 @@ func _resolve_miniboss_special() -> void:
 			# The signature raise, upgraded from a lone weak melee to a real Ranged unit -
 			# a body that can actually threaten the crystal from where it lands, rather
 			# than one more goblin walking in from the back of the fight.
-			var revived_data: EnemyData = EnemyDatabase.get_enemy_data("Black", "Ranged")
-			var enemy_scene: PackedScene = load("res://scenes/misc/enemy.tscn") as PackedScene
-			var new_enemy: Node3D = enemy_scene.instantiate()
-			new_enemy.position = global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
-			new_enemy.set_meta("target_crystal", target_crystal)
-			get_parent().add_child(new_enemy)
-			new_enemy.setup(revived_data)
-			new_enemy.health = revived_data.health * GameSettings.enemy_black_mage_revive_hp_mult * power
-			var wm: Node = get_tree().current_scene.get_node_or_null("WaveManager")
-			if wm:
-				wm.register_enemy()
+			_raise_revived_enemy("Ranged", power)
 		"Green":
 			# Every ally in range rather than breaking on the first - the ordinary cast is
 			# one Giant Growth, the special is a whole rally.
@@ -1509,18 +1525,7 @@ func perform_mage_spell() -> void:
 		"Black":
 			# Revive weak enemy
 			# Just spawn a new weak melee of the same color
-			var revived_data = EnemyDatabase.get_enemy_data("Black", "Melee")
-			var enemy_scene: PackedScene = load("res://scenes/misc/enemy.tscn") as PackedScene
-			var new_enemy = enemy_scene.instantiate()
-			new_enemy.position = global_position + Vector3(randf_range(-2, 2), 0, randf_range(-2, 2))
-			new_enemy.set_meta("target_crystal", target_crystal)
-			get_parent().add_child(new_enemy)
-			# Needs to be setup after adding to tree usually, but we can call setup directly
-			new_enemy.setup(revived_data)
-			new_enemy.health = revived_data.health * GameSettings.enemy_black_mage_revive_hp_mult
-			var wm = get_tree().current_scene.get_node_or_null("WaveManager")
-			if wm:
-				wm.register_enemy()
+			_raise_revived_enemy("Melee", 1.0)
 		"Green":
 			# Buff enemy (Giant Growth)
 			var enemies = get_tree().get_nodes_in_group("enemies")
