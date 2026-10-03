@@ -789,9 +789,8 @@ func get_tier_cost(tier_index: int) -> int:
 # five pieces. One number per item, which is all any of them needs.
 ## Chance a slain wave boss drops a piece the team does not have yet.
 @export var equipment_boss_drop_chance: float = 0.6
-## How many pieces one player may wear at once. 0 = no limit (the current rule; a slot
-## system is still an open question, and this is the one knob it would need).
-@export var equipment_max_equipped: int = 0
+## How many pieces one player may wear at once. 0 = no limit.
+@export var equipment_max_equipped: int = 2
 ## Swiftfoot Boots: movement speed bonus.
 @export var equipment_swiftfoot_boots_speed: float = 0.2
 ## Cobbled Wings: extra jump height, and holding jump on the way down glides at this

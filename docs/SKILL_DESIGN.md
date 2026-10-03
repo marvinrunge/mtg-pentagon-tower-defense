@@ -352,8 +352,8 @@ their own menu (**I**). What a player wears is part of their build and survives 
 | Whispersilk Cloak | Enemies overlook you for 2s after each of your kills | Black, Blue |
 
 Every number is in `GameSettings`' EQUIPMENT block; the table itself is
-`scripts/equipment_database.gd`. **Open question:** a wear limit (`equipment_max_equipped`,
-0 = none today) - slots per body part, a flat number, or none at all.
+`scripts/equipment_database.gd`. A player may wear at most two pieces at once
+(`equipment_max_equipped = 2`; 0 would mean no limit).
 
 The gaps between the colours are free now for real **guild nodes** - see
 `docs/GUILD_PLAN.md`.
