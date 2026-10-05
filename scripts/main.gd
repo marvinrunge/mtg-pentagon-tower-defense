@@ -114,6 +114,14 @@ func _ready() -> void:
 			mana_sources.append(mana)
 			enemy_spawners.append(spawner)
 
+	# Per-biome fog colour, fog thickness and exposure, following the camera. Needs the
+	# spawners, which give each lane's direction from the crystal.
+	if sky:
+		var atmosphere := BiomeAtmosphere.new()
+		atmosphere.name = "BiomeAtmosphere"
+		atmosphere.setup(crystal_anchor.global_position, enemy_spawners, LANE_NAMES)
+		sky.add_child(atmosphere)
+
 	# Set before the navmesh bake rather than after it. The bake runs on a thread now and
 	# takes a couple of seconds on the terrain, and a spawn command the server sends while a
 	# client is still baking is discarded if the spawner has no function yet.
