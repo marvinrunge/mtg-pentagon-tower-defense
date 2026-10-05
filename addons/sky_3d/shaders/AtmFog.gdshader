@@ -19,6 +19,11 @@ uniform float fog_end = 1000.;
 // dusk and night - and only its hue is pulled toward this tint, by biome_tint_amount.
 uniform vec3 biome_tint = vec3(1.0);
 uniform float biome_tint_amount = 0.0;
+// PROJECT PATCH: the least colour the fog may have. The scatter falls to almost nothing
+// after dusk while the moon still lights the ground, so a near-black fog over moonlit
+// terrain only dimmed it and read as no fog at all. BiomeAtmosphere sets this from the
+// moonlight, so at night the fog becomes moonlit mist.
+uniform vec3 fog_color_floor = vec3(0.0);
 uniform vec3 sun_direction = vec3(.25, -.25, .25);
 uniform vec3 moon_direction = vec3(.45, -.25, .45);
 
@@ -152,6 +157,7 @@ void fragment() {
 	float sr, sm;
 	calc_simple_optical_depth(ray_direction.y + atm_level_params.z, sr, sm, atm_level_params.xy);
 	vec3 scatter = calc_atmospheric_scatter(sr, sm, mu, v_angle_mult.xyz, ray_distance);
+	scatter = max(scatter, fog_color_floor);
 	float scatter_luma = dot(scatter, vec3(0.2126, 0.7152, 0.0722));
 	scatter = mix(scatter, biome_tint * scatter_luma, biome_tint_amount);
 

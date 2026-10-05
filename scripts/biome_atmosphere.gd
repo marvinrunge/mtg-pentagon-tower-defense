@@ -20,31 +20,39 @@ class_name BiomeAtmosphere
 ##   density_mult  multiplier on the fog_density authored on the SkyDome
 ##   fog_start     metres from the camera where the fog begins
 ##   fog_end       metres where it reaches full strength
+##   fog_falloff   how fast the fog thins above eye level; lower climbs higher up slopes and sky
 ##   exposure      multiplier on the environment's tonemap exposure - the whole frame
 const BIOMES: Dictionary = {
 	"White": {
 		"tint": Color(1.0, 0.93, 0.78), "brightness": 1.1, "amount": 0.45,
-		"density_mult": 1.0, "fog_start": 50.0, "fog_end": 100.0, "exposure": 1.0,
+		"density_mult": 1.0, "fog_start": 50.0, "fog_end": 100.0, "fog_falloff": 3.0,
+		"exposure": 1.0,
 	},
 	"Blue": {
 		"tint": Color(0.55, 0.78, 1.0), "brightness": 1.0, "amount": 0.55,
-		"density_mult": 1.15, "fog_start": 45.0, "fog_end": 100.0, "exposure": 1.0,
+		"density_mult": 1.15, "fog_start": 45.0, "fog_end": 100.0, "fog_falloff": 3.0,
+		"exposure": 1.0,
 	},
 	# Thick black fog with a faint violet cast, and dim: the swamp should feel like it is
 	# always half night. Brightness this low means the fog stays near-black even at noon,
-	# so distant terrain and the horizon sink into darkness rather than into haze.
+	# so distant terrain and the horizon sink into darkness rather than into haze. It starts
+	# at the camera and is near-opaque by ~50 m, so the lane ahead fades out of the dark, and
+	# its low falloff carries it up the mountains instead of leaving them clear above it.
 	"Black": {
 		"tint": Color(0.35, 0.30, 0.42), "brightness": 0.06, "amount": 1.0,
-		"density_mult": 2.0, "fog_start": 18.0, "fog_end": 85.0, "exposure": 0.72,
+		"density_mult": 5.0, "fog_start": 0.0, "fog_end": 45.0, "fog_falloff": 0.8,
+		"exposure": 0.72,
 	},
 	"Red": {
 		"tint": Color(1.0, 0.55, 0.32), "brightness": 1.0, "amount": 0.55,
-		"density_mult": 1.15, "fog_start": 45.0, "fog_end": 100.0, "exposure": 1.0,
+		"density_mult": 1.15, "fog_start": 45.0, "fog_end": 100.0, "fog_falloff": 3.0,
+		"exposure": 1.0,
 	},
-	# Thick, mossy forest haze.
+	# Thick, mossy forest haze that hangs between the trees, not just on the horizon.
 	"Green": {
 		"tint": Color(0.55, 0.85, 0.45), "brightness": 0.9, "amount": 0.65,
-		"density_mult": 1.9, "fog_start": 20.0, "fog_end": 90.0, "exposure": 1.0,
+		"density_mult": 3.5, "fog_start": 5.0, "fog_end": 60.0, "fog_falloff": 1.8,
+		"exposure": 1.0,
 	},
 }
 
@@ -60,12 +68,19 @@ const BIOMES: Dictionary = {
 ## seconds, which also hides the jump when the camera teleports (respawn, recall).
 @export var settle_rate: float = 1.5
 
+## How bright the fog is at night, as a share of the moonlight. Sky3D's scatter goes almost
+## black after dusk while the moon still lights the ground brightly, which left a fog that
+## only dimmed the lane and read as gone; this gives it a moonlit colour to fall back on.
+## The floor goes in before the biome tint, so each biome's hue and brightness still apply.
+@export var night_fog_strength: float = 0.1
+
 const _LUMA := Vector3(0.2126, 0.7152, 0.0722)
 
 var _sky3d: Node = null
 var _dome: Node = null
 var _fog_material: ShaderMaterial = null
 var _environment: Environment = null
+var _moon: DirectionalLight3D = null
 
 var _center := Vector2.ZERO
 var _lane_angles: PackedFloat32Array = []
@@ -102,13 +117,14 @@ func _ready() -> void:
 		return
 	_fog_material = _dome.fog_material as ShaderMaterial
 	_environment = (_sky3d as WorldEnvironment).environment
+	_moon = _sky3d.get("moon") as DirectionalLight3D
 
 	# Whatever the scene was authored with is the hub's look, and the base every biome's
 	# multipliers apply to.
 	_hub_profile = {
 		"tint": Color(1, 1, 1), "brightness": 1.0, "amount": 0.0,
 		"density_mult": 1.0, "fog_start": float(_dome.fog_start),
-		"fog_end": float(_dome.fog_end), "exposure": 1.0,
+		"fog_end": float(_dome.fog_end), "fog_falloff": float(_dome.fog_falloff), "exposure": 1.0,
 	}
 	_base_density = float(_dome.fog_density)
 	_base_exposure = _environment.tonemap_exposure if _environment != null else 1.0
@@ -170,8 +186,14 @@ func _apply() -> void:
 	var hue := Vector3(tint.r, tint.g, tint.b) / luma * float(_current["brightness"])
 	_fog_material.set_shader_parameter("biome_tint", hue)
 	_fog_material.set_shader_parameter("biome_tint_amount", float(_current["amount"]))
+	var floor_color := Vector3.ZERO
+	if _moon != null and _moon.visible:
+		var moon: Color = _moon.light_color
+		floor_color = Vector3(moon.r, moon.g, moon.b) * _moon.light_energy * night_fog_strength
+	_fog_material.set_shader_parameter("fog_color_floor", floor_color)
 	_dome.fog_density = _base_density * float(_current["density_mult"])
 	_dome.fog_start = float(_current["fog_start"])
 	_dome.fog_end = maxf(float(_current["fog_end"]), float(_current["fog_start"]) + 1.0)
+	_dome.fog_falloff = float(_current["fog_falloff"])
 	if _environment != null:
 		_environment.tonemap_exposure = _base_exposure * float(_current["exposure"])
