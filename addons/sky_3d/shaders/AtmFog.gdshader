@@ -14,6 +14,11 @@ uniform float fog_mie_depth = 0.;
 uniform float fog_falloff = 3.;
 uniform float fog_start = 0.;
 uniform float fog_end = 1000.;
+// PROJECT PATCH (mtg-pentagon-tower-defense): a per-biome colour for the fog, set by
+// BiomeAtmosphere. The scatter keeps its own brightness - so the fog still follows day,
+// dusk and night - and only its hue is pulled toward this tint, by biome_tint_amount.
+uniform vec3 biome_tint = vec3(1.0);
+uniform float biome_tint_amount = 0.0;
 uniform vec3 sun_direction = vec3(.25, -.25, .25);
 uniform vec3 moon_direction = vec3(.45, -.25, .45);
 
@@ -147,6 +152,8 @@ void fragment() {
 	float sr, sm;
 	calc_simple_optical_depth(ray_direction.y + atm_level_params.z, sr, sm, atm_level_params.xy);
 	vec3 scatter = calc_atmospheric_scatter(sr, sm, mu, v_angle_mult.xyz, ray_distance);
+	float scatter_luma = dot(scatter, vec3(0.2126, 0.7152, 0.0722));
+	scatter = mix(scatter, biome_tint * scatter_luma, biome_tint_amount);
 
 	vec4 fog_color = vec4(scatter, fog_factor);
 	fog_color.a = clamp(fog_color.a, 0.0, 1.0);
