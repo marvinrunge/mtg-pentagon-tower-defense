@@ -30,9 +30,11 @@ const BIOMES: Dictionary = {
 		"tint": Color(0.55, 0.78, 1.0), "brightness": 1.0, "amount": 0.55,
 		"density_mult": 1.15, "fog_start": 45.0, "fog_end": 100.0, "exposure": 1.0,
 	},
-	# Thick, violet-black and dim: the swamp should feel like it is always half night.
+	# Thick black fog with a faint violet cast, and dim: the swamp should feel like it is
+	# always half night. Brightness this low means the fog stays near-black even at noon,
+	# so distant terrain and the horizon sink into darkness rather than into haze.
 	"Black": {
-		"tint": Color(0.38, 0.32, 0.48), "brightness": 0.4, "amount": 0.75,
+		"tint": Color(0.35, 0.30, 0.42), "brightness": 0.06, "amount": 1.0,
 		"density_mult": 2.0, "fog_start": 18.0, "fog_end": 85.0, "exposure": 0.72,
 	},
 	"Red": {
