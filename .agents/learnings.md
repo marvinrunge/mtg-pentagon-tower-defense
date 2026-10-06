@@ -2,6 +2,13 @@
 
 Add only durable facts that were confirmed by a command or controlling code path.
 
+- 2026-10-06: **Bosses now fight in three phases; see `docs/BOSS_DESIGN.md`.** Facts found on the way:
+  - **Boss telegraphs and special clips never reached clients.** Enemy AI runs on the server only (`_physics_process` returns into `_update_puppet` on a client), and `_begin_special` spawned the `AttackIndicator` there and nowhere else, while a puppet animates purely from replicated velocity - so a client saw the boss stand still and took a hit with no tell. Everything visible now goes through `EnemyBase._emit_boss_fx` / `_net_boss_fx`, and `_puppet_hold_timer` stops the puppet overwriting the clip.
+  - **`Player.apply_slow` on a remote avatar did nothing.** Movement is driven by the owning peer, so the host's copy of the timer was never read. It now hands the slow to the owner (`_net_apply_slow`). The Blue mage's slow had the same gap.
+  - **The old Enrage modifier double-dipped.** `_check_boss_enrage` multiplied `attack_damage` and `_resolve_special` multiplied by the Enrage mult again (1.4 became 1.96). The step is applied once now, in `_check_boss_phase`.
+  - **`Array.filter()` returns an untyped `Array`.** Assigning it back to a typed `Array[AttackIndicator]` is a runtime SCRIPT ERROR, not a parse error - only `boss_soak.tscn` running the real loop caught it.
+  - **Godot 4.7 runs in the cloud container**: `Godot_v4.7-stable_linux.x86_64.zip` from the GitHub release downloads fine, and `--headless --import` imports the whole project (a few minutes). The import rewrites three `assets/weapons/bosses/*.glb.import` files and drops the `MCPRuntimeProbe` autoload from `project.godot` - revert both before committing.
+
 - 2026-10-05: **Sky3D's fog looked "gone" at night although its opacity never changes.** Its colour is the atmosphere's scatter, which falls to ~0 after dusk, while `moon_light_energy = 5` lights the terrain brighter than the noon sun - a near-black fog over moonlit ground only dims it and keeps every detail. Fixed with a `fog_color_floor` uniform patched into `AtmFog.gdshader`, set by `BiomeAtmosphere` from the moon light (`night_fog_strength`). Above eye level `fog_falloff` (default 3) thins the fog fast, which left mountains clear in thick-fog biomes; it is per biome now. `tools/tests/fog_shot.tscn -- <folder> Black,Green 13,19.5,23` screenshots a lane at chosen hours to check this.
 
 - 2026-10-01: **The terrain's look is set in places a scene diff hides, and in two patches to TerraBrush's shader.** Each of the points below was a visible bug first (blocky up close, shimmering far off, blurred at grazing angles, swimming on hills).

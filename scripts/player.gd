@@ -2083,9 +2083,23 @@ func spend_skill_points(amount: int) -> bool:
 
 
 func apply_slow(duration: float) -> void:
+	# Movement is driven by whoever plays this avatar, so a slow set on the host's copy of a
+	# client's player changed nothing that client could feel. It is handed to the owner.
+	if Net.is_active() and not is_local:
+		if Net.is_server():
+			_net_apply_slow.rpc_id(get_multiplayer_authority(), duration)
+		return
 	if is_control_immune():
 		return
 	slow_timer = maxf(slow_timer, duration)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _net_apply_slow(duration: float) -> void:
+	# Only the host decides what happens to a player; anything else asking is ignored.
+	if multiplayer.get_remote_sender_id() != MultiplayerPeer.TARGET_PEER_SERVER or not is_local:
+		return
+	apply_slow(duration)
 
 ## Everything currently standing between the player and their health bar. The two shields
 ## are spent as one pool in take_damage - Rhystic, then Circle of Protection - so they are

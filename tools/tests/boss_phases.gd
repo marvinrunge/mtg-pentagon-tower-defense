@@ -1,0 +1,555 @@
+extends Node
+## Regression test: the three-phase boss fights - phases, the new shapes, combos, movement,
+## the punish window, and each colour's own mechanic.
+##
+## Run with:  godot --headless --path . res://tools/tests/boss_phases.tscn
+##
+## Two halves. The STATIC half reads BossDatabase and checks the promises the design makes
+## (every phase brings something new, phase 2 reaches a player who stands off, every tell is
+## readable). The LIVE half spawns real bosses on the real map and drives each mechanic by
+## hand - _begin_special / _resolve_special / _process_special - rather than waiting out real
+## windups, the same approach boss_specials.gd and boss_modifiers.gd take.
+
+var _frames: int = 0
+var _done: bool = false
+var _failures: Array[String] = []
+var _scene: Node = null
+var _fakes: Array[Node] = []
+
+
+func _process(_delta: float) -> void:
+	if _done:
+		return
+	_frames += 1
+	if _frames < 60:
+		return
+	_done = true
+	_run()
+	get_tree().quit()
+
+
+func _check(label: String, condition: bool, detail: String = "") -> void:
+	if condition:
+		print("  ok   %s" % label)
+	else:
+		print("  FAIL %s %s" % [label, detail])
+		_failures.append(label)
+
+
+## A minimal stand-in for a Player: in the "player" group, takes damage and slows, and has the
+## hp/max_hp pair weakest_player reads. Far cheaper than the real Player scene for a hit test.
+class _FakePlayer:
+	extends Node3D
+	var damage_taken: float = 0.0
+	var slowed: float = 0.0
+	var hp: float = 100.0
+	var max_hp: float = 100.0
+	func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false, _exile_on_kill: bool = false) -> void:
+		damage_taken += amount
+	func apply_slow(duration: float) -> void:
+		slowed = maxf(slowed, duration)
+
+
+const ORIGIN := Vector3(0.0, 0.0, 60.0)
+
+
+func _spawn_boss(color: String, modifier: String = "") -> EnemyBase:
+	var scene: PackedScene = load("res://scenes/misc/enemy.tscn") as PackedScene
+	var boss: EnemyBase = scene.instantiate()
+	boss.set_meta("enemy_color", color)
+	boss.set_meta("enemy_type", "Boss")
+	if modifier != "":
+		boss.set_meta("boss_modifier", modifier)
+	_scene.add_child(boss)
+	boss.global_position = ORIGIN
+	boss.rotation.y = 0.0
+	return boss
+
+
+## A fake player `offset` away from the test origin (the boss's +Z is forward at yaw 0).
+func _fake_player(offset: Vector3) -> _FakePlayer:
+	var fake := _FakePlayer.new()
+	fake.add_to_group("player")
+	_scene.add_child(fake)
+	fake.global_position = ORIGIN + offset
+	_fakes.append(fake)
+	return fake
+
+
+func _clear_fakes() -> void:
+	for fake: Node in _fakes:
+		if is_instance_valid(fake):
+			fake.remove_from_group("player")
+			fake.free()
+	_fakes.clear()
+
+
+## Real players on the map would be picked by the player-targeting rules; the test boss stands
+## well away from the base, but they are taken out of the group for the run to be certain.
+func _bench_real_players() -> void:
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		node.remove_from_group("player")
+
+
+func _index_of(color: String, display_name: String, phase: int) -> int:
+	var specials: Array = BossDatabase.get_specials(color)
+	for i: int in range(specials.size()):
+		var config: Dictionary = specials[i]
+		if String(config["display_name"]) == display_name and BossDatabase.special_in_phase(config, phase):
+			return i
+	return -1
+
+
+func _set_phase(boss: EnemyBase, phase: int) -> void:
+	var ratio: float = 0.5 if phase == 2 else 0.2
+	boss.take_damage(boss.health - boss.enemy_data.health * ratio)
+	boss._pending_phase_transition = false
+
+
+func _run() -> void:
+	_scene = get_tree().current_scene
+	if _scene == null:
+		print("TEST RESULT: FAIL (no scene)")
+		return
+	_bench_real_players()
+
+	print("STATIC")
+	for color: String in ["Red", "Blue", "Green", "White", "Black"]:
+		_check_static(color)
+	print("SHAPES")
+	_check_shapes()
+	print("PHASES")
+	_check_phase_thresholds()
+	_check_transition()
+	print("RED")
+	_check_meteors()
+	_check_unbound_whirlwind()
+	print("BLUE")
+	_check_ice_lances_and_absolute_zero()
+	print("GREEN")
+	_check_leap()
+	_check_saplings()
+	print("WHITE")
+	_check_shield_wall()
+	_check_consecration()
+	print("BLACK")
+	_check_charge()
+	_check_raise_dead()
+	print("NETWORK")
+	_check_fx_payload_is_plain_data()
+
+	if _failures.is_empty():
+		print("TEST RESULT: PASS")
+		return
+	print("TEST RESULT: FAIL")
+	for failure: String in _failures:
+		print("  " + failure)
+
+
+# --- Static --------------------------------------------------------------------------------
+
+func _names_in_phase(color: String, phase: int) -> Array[String]:
+	var names: Array[String] = []
+	for config: Dictionary in BossDatabase.get_specials(color):
+		if BossDatabase.special_in_phase(config, phase):
+			names.append("%s/%s" % [config["display_name"], str(config.get("phases", []))])
+	return names
+
+
+func _check_static(color: String) -> void:
+	var p1: Array[String] = _names_in_phase(color, 1)
+	var p2: Array[String] = _names_in_phase(color, 2)
+	var p3: Array[String] = _names_in_phase(color, 3)
+	_check("%s phase 2 brings in something new" % color, p2.any(func(n: String) -> bool: return not p1.has(n)), str(p2))
+	_check("%s phase 3 brings in something new" % color, p3.any(func(n: String) -> bool: return not p2.has(n)), str(p3))
+
+	var phase_config: Dictionary = BossDatabase.get_phase_config(color)
+	_check("%s names both later phases" % color,
+		(phase_config.get("titles", {}) as Dictionary).has(2) and (phase_config.get("titles", {}) as Dictionary).has(3))
+
+	# Phase 2's job for four of the five: answer a player who stands off. Black's answer is
+	# different by design - it raises the dead around it instead - so it is checked for that.
+	if color == "Black":
+		_check("Black phase 2 raises the dead", BossDatabase.get_specials(color).any(func(c: Dictionary) -> bool:
+			return String(c.get("kind", "")) == "raise_dead" and BossDatabase.special_in_phase(c, 2)))
+	else:
+		var reach: float = 0.0
+		for config: Dictionary in BossDatabase.get_specials(color):
+			if BossDatabase.special_in_phase(config, 2) and not BossDatabase.special_in_phase(config, 1):
+				reach = maxf(reach, float(config.get("max_range", 0.0)))
+		_check("%s phase 2 reaches a player standing off" % color, reach >= 14.0, "%.1f" % reach)
+
+	# Every followup has a readable tell of its own.
+	for config: Dictionary in BossDatabase.get_specials(color):
+		for followup: Dictionary in config.get("followups", []):
+			_check("%s '%s' followup has a windup" % [color, config["display_name"]],
+				float(followup.get("windup", 0.0)) > 0.0)
+
+
+# --- Shapes --------------------------------------------------------------------------------
+
+func _check_shapes() -> void:
+	var boss: EnemyBase = _spawn_boss("Blue")
+	var ring: Dictionary = {"shape": "ring", "inner_radius": 3.0, "radius": 12.0}
+	_check("a ring's middle is safe", not boss._offset_in_shape(Vector3(1.5, 0, 0), ring, 0.0))
+	_check("a ring's band is not", boss._offset_in_shape(Vector3(0, 0, 7.0), ring, 0.0))
+	_check("outside a ring is safe", not boss._offset_in_shape(Vector3(13.0, 0, 0), ring, 0.0))
+
+	var line: Dictionary = {"shape": "line", "length": 14.0, "width": 1.6}
+	_check("a line hits along its length", boss._offset_in_shape(Vector3(0.3, 0, 10.0), line, 0.0))
+	_check("a line misses beside it", not boss._offset_in_shape(Vector3(1.5, 0, 5.0), line, 0.0))
+	_check("a line misses behind its origin", not boss._offset_in_shape(Vector3(0, 0, -3.0), line, 0.0))
+	_check("a line follows its yaw", boss._offset_in_shape(Vector3(10.0, 0, 0.0), line, PI * 0.5))
+
+	var fan: Dictionary = {"shape": "line", "lines": [-25.0, 0.0, 25.0], "length": 14.0, "width": 1.6}
+	var off_axis: Vector3 = Vector3(sin(deg_to_rad(25.0)), 0, cos(deg_to_rad(25.0))) * 9.0
+	_check("a fan hits on its side lance", boss._offset_in_shape(off_axis, fan, 0.0))
+	var between: Vector3 = Vector3(sin(deg_to_rad(12.5)), 0, cos(deg_to_rad(12.5))) * 9.0
+	_check("a fan misses between its lances", not boss._offset_in_shape(between, fan, 0.0))
+
+	var cross: Dictionary = {"shape": "cross", "length": 16.0, "width": 2.0}
+	_check("a cross hits on an arm, either side", boss._offset_in_shape(Vector3(-7.0, 0, 0.2), cross, 0.0))
+	_check("a cross misses on the diagonal", not boss._offset_in_shape(Vector3(4.0, 0, 4.0), cross, 0.0))
+
+	var cone: Dictionary = {"shape": "cone", "radius": 7.5, "angle": 130.0}
+	_check("a cone misses behind", not boss._offset_in_shape(Vector3(0, 0, -3.0), cone, 0.0))
+	_check("a cone turned 180 degrees hits behind", boss._offset_in_shape(Vector3(0, 0, -3.0), cone, PI))
+	boss.free()
+
+
+# --- Phases --------------------------------------------------------------------------------
+
+func _check_phase_thresholds() -> void:
+	var boss: EnemyBase = _spawn_boss("Red")
+	_check("a boss starts in phase 1", boss.boss_phase == 1)
+	boss.take_damage(boss.health - boss.enemy_data.health * (GameSettings.boss_phase2_threshold - 0.01))
+	_check("crossing the first threshold enters phase 2", boss.boss_phase == 2, "%d" % boss.boss_phase)
+	_check("...and queues a transition", boss._pending_phase_transition)
+	var meteor: int = _index_of("Red", "Meteor Strike", 2)
+	_check("phase 2's new special is ready soon after",
+		boss._special_cooldowns[meteor] <= GameSettings.boss_phase_special_delay + 0.01,
+		"%.1f" % boss._special_cooldowns[meteor])
+	boss.heal(boss.enemy_data.health)
+	_check("healing back up does not leave phase 2", boss.boss_phase == 2)
+	boss.free()
+
+	var jump: EnemyBase = _spawn_boss("Blue")
+	jump.take_damage(jump.enemy_data.health * 0.8)
+	_check("one big hit across both lines goes straight to phase 3", jump.boss_phase == 3, "%d" % jump.boss_phase)
+	jump.free()
+
+	var enraged: EnemyBase = _spawn_boss("Green", "Enrage")
+	enraged.take_damage(enraged.health - enraged.enemy_data.health * 0.7)
+	_check("Enrage reaches phase 2 early", enraged.boss_phase == 2, "%d" % enraged.boss_phase)
+	var plain: EnemyBase = _spawn_boss("Green")
+	plain.take_damage(plain.health - plain.enemy_data.health * 0.7)
+	_check("...where a plain boss is still in phase 1", plain.boss_phase == 1, "%d" % plain.boss_phase)
+	enraged.free()
+	plain.free()
+
+
+func _check_transition() -> void:
+	var boss: EnemyBase = _spawn_boss("Red")
+	var fake: _FakePlayer = _fake_player(Vector3(0, 0, 4.0))
+	boss.take_damage(boss.health - boss.enemy_data.health * 0.5)
+	var banners: Array[String] = []
+	var probe: Callable = func(_lane: String, message: String, _tint: Color) -> void: banners.append(message)
+	SignalBus.lane_warning_requested.connect(probe)
+	boss._begin_phase_transition()
+	SignalBus.lane_warning_requested.disconnect(probe)
+	_check("the transition is a telegraphed special", boss._is_special_active and boss._cast_is_transition)
+	_check("the transition holds the boss for its full length",
+		boss._cast_end_time >= GameSettings.boss_phase_transition_seconds - 0.001, "%.2f" % boss._cast_end_time)
+	_check("the phase is announced by name", not banners.is_empty() and banners[0].contains("KINDLED"), str(banners))
+	boss._resolve_special()
+	_check("the shockwave hits whoever stayed close", fake.damage_taken > 0.0)
+	boss.free()
+	_clear_fakes()
+
+
+# --- Red -----------------------------------------------------------------------------------
+
+func _count_hazards() -> int:
+	var effects: Node = _scene.get_node_or_null("Effects")
+	if effects == null:
+		return 0
+	return effects.get_children().filter(func(n: Node) -> bool: return n is BossHazard and not n.is_queued_for_deletion()).size()
+
+
+func _check_meteors() -> void:
+	var boss: EnemyBase = _spawn_boss("Red")
+	_set_phase(boss, 2)
+	var near: _FakePlayer = _fake_player(Vector3(0, 0, 6.0))
+	var far: _FakePlayer = _fake_player(Vector3(18.0, 0, 0.0))
+	var meteor: int = _index_of("Red", "Meteor Strike", 2)
+	_check("Meteor Strike is legal against a player standing off", boss._special_eligible(boss._specials[meteor], 30.0))
+	var hazards_before: int = _count_hazards()
+	boss._begin_special(meteor)
+	var strike: Dictionary = boss._cast_strikes[0]
+	_check("a meteor falls under every player, plus one more", (strike["centers"] as Array).size() == 3,
+		"%d" % (strike["centers"] as Array).size())
+	boss._resolve_special()
+	_check("the far player is hit", far.damage_taken > 0.0)
+	_check("the near player is hit", near.damage_taken > 0.0)
+	_check("every meteor leaves burning ground", _count_hazards() - hazards_before == 3,
+		"%d" % (_count_hazards() - hazards_before))
+	boss.free()
+	_clear_fakes()
+
+
+func _check_unbound_whirlwind() -> void:
+	var boss: EnemyBase = _spawn_boss("Red")
+	_set_phase(boss, 3)
+	_fake_player(Vector3(0, 0, 8.0))
+	var index: int = _index_of("Red", "Unbound Whirlwind", 3)
+	_check("phase 3 drops the standing Whirlwind", not BossDatabase.special_in_phase(boss._specials[0], 3))
+	boss._begin_special(index)
+	_check("the Unbound Whirlwind lands three times", boss._cast_strikes.size() == 3, "%d" % boss._cast_strikes.size())
+	_check("it walks while it spins", String(boss._cast_move.get("mode", "")) == "follow")
+	for strike: Dictionary in boss._cast_strikes:
+		_check("each spin has its own readable tell",
+			float(strike["hit"]) - float(strike["tele"]) >= GameSettings.boss_modifier_min_windup_seconds - 0.001)
+	# Run the whole timeline: it should end exhausted.
+	for _step: int in range(400):
+		if not boss._is_special_active:
+			break
+		boss._process_special(0.05)
+	_check("surviving it leaves the giant exposed", boss._exhausted_timer > 0.0, "%.2f" % boss._exhausted_timer)
+	var health_before: float = boss.health
+	boss.take_damage(100.0)
+	_check("an exposed boss takes extra damage", absf((health_before - boss.health) - 150.0) < 0.5,
+		"%.1f" % (health_before - boss.health))
+	boss.free()
+	_clear_fakes()
+
+
+# --- Blue ----------------------------------------------------------------------------------
+
+func _check_ice_lances_and_absolute_zero() -> void:
+	var boss: EnemyBase = _spawn_boss("Blue")
+	_set_phase(boss, 3)
+	var fake: _FakePlayer = _fake_player(Vector3(0, 0, 8.0))
+	var lances: int = _index_of("Blue", "Ice Lances", 3)
+	boss._begin_special(lances)
+	_check("Ice Lances draws three lances", boss._telegraphs_for(boss._cast_strikes[0]).size() == 3)
+	boss._resolve_special()
+	_check("the centre lance hits the player it was aimed at", fake.damage_taken > 0.0)
+	boss._cancel_special()
+
+	var zero: int = _index_of("Blue", "Absolute Zero", 3)
+	fake.damage_taken = 0.0
+	fake.global_position = ORIGIN + Vector3(0, 0, 1.5)
+	boss._begin_special(zero)
+	_check("Absolute Zero is a ring with a followup", boss._cast_strikes.size() == 2)
+	boss._resolve_special()
+	_check("standing inside Absolute Zero is safe", fake.damage_taken == 0.0, "%.1f" % fake.damage_taken)
+	var second: Dictionary = boss._cast_strikes[1]
+	_check("the followup comes after the ring lands", float(second["tele"]) >= float(boss._cast_strikes[0]["hit"]))
+	boss._cancel_special()
+
+	var sweep: Dictionary = boss._specials[0]
+	fake.slowed = 0.0
+	fake.global_position = ORIGIN + Vector3(0, 0, 4.0)
+	boss._begin_special(0)
+	var hazards_before: int = _count_hazards()
+	boss._resolve_special()
+	_check("Glacial Sweep slows whoever it catches", fake.slowed >= float(sweep["slow"]) - 0.01, "%.1f" % fake.slowed)
+	_check("from phase 2 it leaves a frozen ring", _count_hazards() - hazards_before == 1)
+	boss.free()
+	_clear_fakes()
+
+
+# --- Green ---------------------------------------------------------------------------------
+
+func _check_leap() -> void:
+	var boss: EnemyBase = _spawn_boss("Green")
+	_set_phase(boss, 3)
+	_fake_player(Vector3(0, 0, 5.0))
+	var far: _FakePlayer = _fake_player(Vector3(0, 0, 16.0))
+	var leap: int = _index_of("Green", "Uprooting Leap", 3)
+	boss._begin_special(leap)
+	var strike: Dictionary = boss._cast_strikes[0]
+	var landing: Vector3 = (strike["centers"] as Array)[0]
+	_check("the leap lands on the farthest player", landing.distance_to(far.global_position) < 0.1)
+	_check("the leap travels there", String(boss._cast_move.get("mode", "")) == "leap")
+	_check("phase 3 adds two aftershock rings", boss._cast_strikes.size() == 3, "%d" % boss._cast_strikes.size())
+	_check("an aftershock rolls out from the landing",
+		String((boss._cast_strikes[1]["cfg"] as Dictionary).get("anchor", "")) == "same")
+	boss._resolve_special()
+	_check("the landing slows the player it hits", far.slowed > 0.0)
+	boss.free()
+	_clear_fakes()
+
+
+func _sapling_count() -> int:
+	return get_tree().get_nodes_in_group("enemies").filter(func(e: Node) -> bool:
+		return e.has_meta("sapling") and not (e as EnemyBase).is_dying).size()
+
+
+func _check_saplings() -> void:
+	var boss: EnemyBase = _spawn_boss("Green")
+	var before: int = _sapling_count()
+	boss.take_damage(boss.health - boss.enemy_data.health * 0.5)
+	boss._begin_phase_transition()
+	boss._resolve_special()
+	_check("phase 2 grows the saplings", _sapling_count() - before == GameSettings.boss_sapling_count,
+		"%d" % (_sapling_count() - before))
+	var sapling: EnemyBase = null
+	for e: Node in get_tree().get_nodes_in_group("enemies"):
+		if e.has_meta("sapling") and (e as EnemyBase).sapling_boss == boss:
+			sapling = e
+			break
+	_check("a sapling knows its treant", sapling != null)
+	if sapling != null:
+		_check("a sapling is rooted", sapling.enemy_data.speed == 0.0)
+		_check("a sapling is smaller than a Green melee", sapling.scale.y < EnemyDatabase.get_enemy_data("Green", "Melee").model_scale)
+		var health_before: float = boss.health
+		sapling._wither_sapling()
+		_check("a sapling left standing heals the treant", boss.health > health_before,
+			"%.1f -> %.1f" % [health_before, boss.health])
+		_check("a withered sapling pays nothing", sapling._skip_kill_rewards)
+	boss.free()
+
+
+# --- White ---------------------------------------------------------------------------------
+
+func _check_shield_wall() -> void:
+	var boss: EnemyBase = _spawn_boss("White")
+	var front: _FakePlayer = _fake_player(Vector3(0, 0, 5.0))
+	var behind: _FakePlayer = _fake_player(Vector3(0, 0, -5.0))
+	var before: float = boss.health
+	boss.take_damage(100.0, front)
+	_check("phase 1 has no shield", absf((before - boss.health) - 100.0) < 0.5)
+	_set_phase(boss, 2)
+	before = boss.health
+	boss.take_damage(100.0, front)
+	var expected: float = 100.0 * (1.0 - GameSettings.boss_shield_wall_reduction)
+	_check("the shield turns aside a hit from the front", absf((before - boss.health) - expected) < 0.5,
+		"%.1f" % (before - boss.health))
+	before = boss.health
+	boss.take_damage(100.0, behind)
+	_check("a hit from behind lands in full", absf((before - boss.health) - 100.0) < 0.5,
+		"%.1f" % (before - boss.health))
+	boss.free()
+	_clear_fakes()
+
+
+func _check_consecration() -> void:
+	var boss: EnemyBase = _spawn_boss("White")
+	_set_phase(boss, 3)
+	var index: int = _index_of("White", "Consecration", 3)
+	_check("Consecration is legal once hurt", boss._special_eligible(boss._specials[index], 999.0))
+	var twin: int = _index_of("White", "Twin Slash", 3)
+	boss._begin_special(twin)
+	_check("Twin Slash swings back the other way",
+		absf(float(boss._cast_strikes[1]["cfg"].get("yaw_offset", 0.0)) - 180.0) < 0.1)
+	boss._cancel_special()
+
+	# Left alone, it heals.
+	boss._begin_special(index)
+	var health_before: float = boss.health
+	for _step: int in range(200):
+		if not boss._is_special_active:
+			break
+		boss._process_special(0.05)
+	_check("an unbroken Consecration heals", boss.health > health_before,
+		"%.1f -> %.1f" % [health_before, boss.health])
+
+	# Hit hard enough while kneeling, it breaks and leaves him open.
+	boss._special_cooldowns[index] = 0.0
+	boss._begin_special(index)
+	# From behind HIS facing, wherever kneeling turned him - the shield is still up.
+	var behind: _FakePlayer = _fake_player(-boss._yaw_forward(boss.rotation.y) * 5.0)
+	boss.take_damage(boss.enemy_data.health * 0.09, behind)
+	boss._process_special(0.05)
+	_check("enough damage breaks the Consecration", not boss._is_special_active)
+	_check("a broken Consecration leaves him exposed", boss._exhausted_timer > 0.0)
+	boss.free()
+	_clear_fakes()
+
+
+# --- Black ---------------------------------------------------------------------------------
+
+func _check_charge() -> void:
+	var boss: EnemyBase = _spawn_boss("Black")
+	var fake: _FakePlayer = _fake_player(Vector3(0, 0, 6.0))
+	boss.current_target = fake
+	_check("the charge is legal at mid range", boss._special_eligible(boss._specials[0], 6.0))
+	boss._begin_special(0)
+	boss._resolve_special()
+	_check("the charge hits what stands on its line", fake.damage_taken > 0.0)
+	_check("and then actually runs the line", String(boss._cast_move.get("mode", "")) == "charge")
+
+	_set_phase(boss, 3)
+	boss._cancel_special()
+	var weak: _FakePlayer = _fake_player(Vector3(8.0, 0, 0.0))
+	weak.hp = 20.0
+	var hunt: int = _index_of("Black", "The Hunt", 3)
+	boss._begin_special(hunt)
+	_check("the Hunt goes for the weakest player", boss._cast_target == weak)
+	_check("the Hunt charges twice", boss._cast_strikes.size() == 2)
+	boss.free()
+	_clear_fakes()
+
+
+func _check_raise_dead() -> void:
+	var boss: EnemyBase = _spawn_boss("Black")
+	_set_phase(boss, 2)
+	var index: int = _index_of("Black", "Raise Dead", 2)
+	_check("nothing to raise, nothing to cast", not boss._special_eligible(boss._specials[index], 0.0)
+		or not boss._raisable_corpses(boss._specials[index]).is_empty())
+
+	var scene: PackedScene = load("res://scenes/misc/enemy.tscn") as PackedScene
+	var victim: EnemyBase = scene.instantiate()
+	victim.set_meta("enemy_color", "Red")
+	victim.set_meta("enemy_type", "Melee")
+	_scene.add_child(victim)
+	victim.global_position = ORIGIN + Vector3(3.0, 0, 0)
+	victim.take_damage(99999.0)
+	_check("a corpse lies near him", boss._raisable_corpses(boss._specials[index]).has(victim))
+	_check("Raise Dead is legal with a corpse near", boss._special_eligible(boss._specials[index], 0.0))
+
+	var enemies_before: int = get_tree().get_nodes_in_group("enemies").size()
+	boss._begin_special(index)
+	var raising: int = (boss._cast_strikes[0].get("corpses", []) as Array).size()
+	_check("the telegraph marks every corpse it will raise",
+		boss._telegraphs_for(boss._cast_strikes[0]).size() == raising)
+	boss._resolve_special()
+	_check("the corpse is used up", not is_instance_valid(victim) or victim.is_queued_for_deletion())
+	_check("every corpse it marked gets back up", get_tree().get_nodes_in_group("enemies").size() == enemies_before + raising,
+		"%d -> %d, %d marked" % [enemies_before, get_tree().get_nodes_in_group("enemies").size(), raising])
+
+	# Lifelink from phase 2: a landed hit heals him.
+	var fake: _FakePlayer = _fake_player(Vector3(0, 0, 2.0))
+	boss.current_target = fake
+	boss.take_damage(boss.enemy_data.health * 0.1)
+	var health_before: float = boss.health
+	boss._begin_special(1)
+	boss._resolve_special()
+	_check("phase 2's hits feed him", fake.damage_taken > 0.0 and boss.health > health_before,
+		"%.1f -> %.1f" % [health_before, boss.health])
+	boss.free()
+	_clear_fakes()
+
+
+# --- Network -------------------------------------------------------------------------------
+
+## Everything a telegraph description holds has to survive an RPC: no node, no resource.
+func _check_fx_payload_is_plain_data() -> void:
+	var plain: bool = true
+	for color: String in ["Red", "Blue", "Green", "White", "Black"]:
+		var boss: EnemyBase = _spawn_boss(color)
+		_set_phase(boss, 3)
+		_fake_player(Vector3(0, 0, 6.0))
+		for i: int in range(boss._specials.size()):
+			if not BossDatabase.special_in_phase(boss._specials[i], 3):
+				continue
+			boss._begin_special(i)
+			for desc: Dictionary in boss._telegraphs_for(boss._cast_strikes[0]):
+				for key: Variant in desc:
+					if typeof(desc[key]) == TYPE_OBJECT:
+						plain = false
+			boss._cancel_special()
+		boss.free()
+		_clear_fakes()
+	_check("telegraph descriptions are plain data", plain)

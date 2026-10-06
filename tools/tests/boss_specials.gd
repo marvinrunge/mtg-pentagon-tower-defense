@@ -1,5 +1,5 @@
 extends Node
-## Regression test: bosses attack only with telegraphed specials, and every boss has two.
+## Regression test: bosses attack only with telegraphed specials, and every boss opens with two.
 ##
 ## Run with:  godot --headless --path . res://tools/tests/boss_specials.tscn
 ##
@@ -69,35 +69,52 @@ func _run() -> void:
 
 
 func _check_boss(color: String) -> void:
-	var specials: Array = BossDatabase.get_specials(color)
-	_check("%s has two specials" % color, specials.size() == 2, "%d" % specials.size())
+	var all_specials: Array = BossDatabase.get_specials(color)
+	# Phase 1 is the fight this test was written for: one big attack and one melee one. The
+	# later phases add more (boss_phases.gd covers those), but phase 1 must stay exactly this.
+	var specials: Array = all_specials.filter(func(c: Dictionary) -> bool: return BossDatabase.special_in_phase(c, 1))
+	_check("%s has two phase-1 specials" % color, specials.size() == 2, "%d" % specials.size())
 	if specials.size() < 2:
 		return
 
 	var clips: Array[String] = []
-	var melee_count: int = 0
 	for config: Dictionary in specials:
 		clips.append(String(config.get("clip", "special")))
-		# Every special needs a tell the player can act on, whatever else it does.
-		_check("%s '%s' lands mid-clip" % [color, config["display_name"]],
-			float(config["impact_fraction"]) > 0.05 and float(config["impact_fraction"]) < 0.95,
-			"%.2f" % config["impact_fraction"])
+	var melee_count: int = 0
+	for config: Dictionary in all_specials:
+		# Every special needs a tell the player can act on, whatever else it does: either a
+		# share of its clip, or a fixed windup that is at least the floor.
+		if config.has("windup"):
+			_check("%s '%s' has a readable fixed windup" % [color, config["display_name"]],
+				float(config["windup"]) >= GameSettings.boss_modifier_min_windup_seconds,
+				"%.2f" % config["windup"])
+		else:
+			_check("%s '%s' lands mid-clip" % [color, config["display_name"]],
+				float(config.get("impact_fraction", 0.0)) > 0.05 and float(config.get("impact_fraction", 0.0)) < 0.95,
+				"%.2f" % config.get("impact_fraction", 0.0))
 		if bool(config.get("hits_crystal", false)):
 			melee_count += 1
 	# The two must use DIFFERENT clips, or the second is invisible - it would look like the
 	# first one played twice.
-	_check("%s specials use different clips" % color, clips[0] != clips[1], str(clips))
+	_check("%s phase-1 specials use different clips" % color, clips[0] != clips[1], str(clips))
+	# Across every phase, not just phase 1: a phase special that could also hit the crystal
+	# would be a second, undodgeable crystal-breaker.
 	_check("%s has exactly one crystal-breaker" % color, melee_count == 1, "%d" % melee_count)
 
 	var boss: EnemyBase = _spawn_boss(color)
 	_check("%s boss is a boss" % color, boss.is_boss())
-	_check("%s boss loaded both specials" % color, boss._specials.size() == 2,
+	_check("%s boss loaded every special" % color, boss._specials.size() == all_specials.size(),
 		"%d" % boss._specials.size())
 	# The clips have to EXIST on this boss's own rig, or _special_eligible refuses forever and
-	# the boss never attacks at all.
-	for clip: String in clips:
-		_check("%s rig has a '%s' clip" % [color, clip],
-			boss.visual_anim_player != null and boss.visual_anim_player.has_animation(clip))
+	# the boss never attacks at all. Followups play clips of their own, so they count too.
+	for config: Dictionary in all_specials:
+		var needed: Array[String] = [String(config.get("clip", "special"))]
+		for followup: Dictionary in config.get("followups", []):
+			if followup.has("clip"):
+				needed.append(String(followup["clip"]))
+		for clip: String in needed:
+			_check("%s rig has a '%s' clip for %s" % [color, clip, config["display_name"]],
+				boss.visual_anim_player != null and boss.visual_anim_player.has_animation(clip))
 
 	# Range bands: the melee one reaches point blank, the big one is held off it, and between
 	# them they leave no gap a boss could stand in and do nothing.
@@ -115,6 +132,9 @@ func _check_boss(color: String) -> void:
 	_check("%s melee special recycles quickly" % color,
 		float(melee.get("cooldown", GameSettings.boss_special_cooldown)) < 3.0,
 		"%.1fs" % melee.get("cooldown", GameSettings.boss_special_cooldown))
+	# ...and it is in play in every phase, or a phase would have no way to break the crystal.
+	_check("%s melee special is in every phase" % color,
+		BossDatabase.special_in_phase(melee, 2) and BossDatabase.special_in_phase(melee, 3))
 	boss.free()
 
 

@@ -215,6 +215,7 @@ fixed, tunable duration (`wave_miniboss_special_windup`) instead.
 | miniboss stats, cadence, or the escort bonus | `GameSettings`' Minibosses block |
 | which colour/class gets picked as the miniboss | `WaveManager._roll_miniboss` / `_assign_miniboss` |
 | the glow, or a Mage miniboss's special | `EnemyBase.apply_miniboss` / `_perform_miniboss_special` |
+| the wave bosses themselves - attacks, phases, modifiers | see `docs/BOSS_DESIGN.md` |
 
 ## Multiplayer
 

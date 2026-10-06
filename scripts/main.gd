@@ -654,6 +654,11 @@ func _spawn_enemy(data: Variant) -> Node:
 		enemy.set_meta("miniboss", true)
 	if String(info.get("boss_modifier", "")) != "":
 		enemy.set_meta("boss_modifier", String(info["boss_modifier"]))
+	# A treant's sapling: a stationary, smaller Green melee that heals its boss if it is left
+	# standing. Has to travel in the spawn arguments like everything else here, so a client's
+	# copy is rebuilt small and rooted too.
+	if bool(info.get("sapling", false)):
+		enemy.set_meta("sapling", true)
 	# setup() has to wait for _ready, and the client reaches this the same way, so the
 	# colour/class pair travels in the spawn argument rather than as a pre-applied
 	# resource that could not replicate.
@@ -734,6 +739,11 @@ func _spawn_effect(data: Variant) -> Node:
 			node = ally
 		"bolt_telegraph":
 			node = _build_bolt_telegraph(float(info["radius"]), float(info["delay"]))
+		"boss_hazard":
+			node = BossHazard.create(
+				String(info["style"]), float(info["radius"]), float(info.get("inner_radius", 0.0)),
+				float(info["duration"]), float(info.get("dps", 0.0)), float(info.get("slow", 0.0))
+			)
 		_:
 			push_warning("Unknown networked effect: %s" % info.get("kind", ""))
 			return null
