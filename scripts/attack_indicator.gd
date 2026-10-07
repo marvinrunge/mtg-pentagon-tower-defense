@@ -21,6 +21,18 @@ class_name AttackIndicator
 
 enum Shape { CIRCLE, CONE, RING, LINE }
 
+## How a telegraph is drawn - GameSettings.attack_indicator_style, chosen in the options:
+##   classic  the original flat outline with a growing fill
+##   rim      a glowing rim, a faint interior and a bright front sweeping through it
+##   themed   the rim plus a pattern in the boss's colour (embers, frost, roots, runes, smoke)
+##   late     the rim style, but hidden for the first half of the windup
+## Everything but classic is one mesh and assets/shaders/boss_telegraph.gdshader.
+const STYLES: Array[String] = ["themed", "rim", "late", "classic"]
+const _SHADER_STYLE := {"rim": 1, "themed": 2, "late": 3}
+## Boss colour -> the shader's pattern. A telegraph with no colour (Lightning Bolt's) has none.
+const _PATTERNS := {"Red": 1, "Blue": 2, "Green": 3, "White": 4, "Black": 5}
+const TELEGRAPH_SHADER: Shader = preload("res://assets/shaders/boss_telegraph.gdshader")
+
 const OUTLINE_ALPHA := 0.22
 const FILL_ALPHA := 0.5
 ## Segments per full circle; a cone uses a proportional slice of this.
@@ -39,6 +51,8 @@ var _inner_radius: float = 0.0
 ## used - the server holding the reference and calling resolve() works on one machine
 ## and leaves a permanent decal on every other one (see MainController._build_bolt_telegraph).
 var _auto_resolve: bool = false
+## Set for every style but classic: the one material the whole telegraph is drawn with.
+var _shader_material: ShaderMaterial = null
 
 static func spawn(
 	parent: Node3D,
@@ -61,6 +75,7 @@ static func spawn(
 ##   angle          cone only, in degrees
 ##   length, width  line only. Opens along +Z from the origin, or both ways from it
 ##                  when `centered` is true (the arms of a cross)
+##   palette        the boss's colour, which picks the themed style's pattern
 static func spawn_shape(
 	parent: Node3D,
 	params: Dictionary,
@@ -112,6 +127,10 @@ func _build_from(params: Dictionary, tint: Color) -> void:
 	_shape = int(params.get("shape", Shape.CIRCLE)) as Shape
 	_radius = float(params.get("radius", 1.0))
 	_inner_radius = clampf(float(params.get("inner_radius", 0.0)), 0.0, _radius * 0.95)
+	var style: String = String(params.get("style", GameSettings.attack_indicator_style))
+	if _SHADER_STYLE.has(style):
+		_build_styled(params, tint, int(_SHADER_STYLE[style]))
+		return
 	_outline_material = _make_material(tint, OUTLINE_ALPHA)
 	_fill_material = _make_material(tint, FILL_ALPHA)
 
@@ -142,6 +161,44 @@ func _build_from(params: Dictionary, tint: Color) -> void:
 			_fill_node.scale = Vector3(0.01, 1.0, 0.01)
 	add_child(outline)
 	add_child(_fill_node)
+
+## Every style but classic: the whole zone as one mesh, drawn by the telegraph shader.
+func _build_styled(params: Dictionary, tint: Color, style: int) -> void:
+	var mesh_node := MeshInstance3D.new()
+	mesh_node.name = "Telegraph"
+	var length: float = float(params.get("length", _radius))
+	var width: float = float(params.get("width", 1.0))
+	var centered: bool = bool(params.get("centered", false))
+	var sweep: float = TAU if _shape == Shape.CIRCLE else deg_to_rad(float(params.get("angle", 360.0)))
+	match _shape:
+		Shape.RING:
+			mesh_node.mesh = _build_ring_mesh(_inner_radius, _radius)
+		Shape.LINE:
+			mesh_node.mesh = _build_line_mesh(length, width, centered)
+		_:
+			mesh_node.mesh = _build_arc_mesh(_radius, sweep)
+
+	_shader_material = ShaderMaterial.new()
+	_shader_material.shader = TELEGRAPH_SHADER
+	var shape_code: int = 0
+	match _shape:
+		Shape.CONE:
+			shape_code = 1
+		Shape.RING:
+			shape_code = 2
+		Shape.LINE:
+			shape_code = 3
+	var values: Dictionary = {
+		"tint": tint, "shape": shape_code, "radius": _radius, "inner_radius": _inner_radius,
+		"half_angle": sweep * 0.5, "line_length": length, "line_width": width, "centered": centered,
+		"style": style, "pattern": int(_PATTERNS.get(String(params.get("palette", "")), 0)),
+		"progress": 0.0, "flash": 0.0, "fade": 1.0,
+	}
+	for key: String in values:
+		_shader_material.set_shader_parameter(key, values[key])
+	mesh_node.material_override = _shader_material
+	add_child(mesh_node)
+
 
 func _make_material(tint: Color, alpha: float) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
@@ -214,6 +271,8 @@ func _mesh_from(vertices: PackedVector3Array) -> ArrayMesh:
 func _process(delta: float) -> void:
 	_elapsed += delta
 	var progress: float = clampf(_elapsed / _duration, 0.0, 1.0)
+	if _shader_material:
+		_shader_material.set_shader_parameter("progress", progress)
 	if _fill_node:
 		var s: float = maxf(progress, 0.01)
 		match _shape:
@@ -233,6 +292,13 @@ func _process(delta: float) -> void:
 ## out rather than vanishing, so the player can see what area was struck.
 func resolve() -> void:
 	set_process(false)
+	if _shader_material:
+		_shader_material.set_shader_parameter("progress", 1.0)
+		var flash_tween := create_tween()
+		flash_tween.tween_method(func(v: float) -> void: _shader_material.set_shader_parameter("flash", v), 1.0, 0.0, 0.25)
+		flash_tween.parallel().tween_method(func(v: float) -> void: _shader_material.set_shader_parameter("fade", v), 1.0, 0.0, 0.3)
+		flash_tween.tween_callback(queue_free)
+		return
 	if _fill_node:
 		match _shape:
 			Shape.RING:

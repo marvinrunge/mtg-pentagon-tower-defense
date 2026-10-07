@@ -31,6 +31,34 @@ what each boss is meant to feel like and where every piece of that lives.
   three): name and modifier, phase and its title, health, lines where the next phases begin,
   and the regeneration tag. The lane-warning banner moves below it.
 
+## How attacks are announced
+
+Two layers, deliberately independent:
+
+- **Ground telegraphs** (`AttackIndicator`) mark the exact danger zone. They can be switched
+  off in the options ("Show Attack Hitbox Indicators"), and drawn in one of four styles
+  ("Attack Indicator Style", `GameSettings.attack_indicator_style`):
+  - *Themed* (default): a glowing rim plus a pattern in the boss's colour that creeps in -
+    embers, frost facets, roots, runes, smoke (`assets/shaders/boss_telegraph.gdshader`).
+  - *Glowing Rim*: rim, faint interior, a bright front sweeping through it.
+  - *Late Reveal*: the rim style, invisible for the first half of the windup.
+  - *Classic*: the original flat outline and growing fill.
+- **World tells** (`BossTell`) are part of the attack itself and are shown whatever the
+  options say. Only attacks aimed somewhere other than the boss's own feet have one, because
+  those are the ones the boss's body cannot announce:
+
+  | Tell | Used by |
+  | --- | --- |
+  | `meteor`: fireball falling at an angle, its shadow growing below | Meteor Strike |
+  | `ice_spikes`: spikes breaking the ground, nearest the boss first | Ice Lances, Absolute Zero |
+  | `root_spikes`: the same in roots | the treant's aftershocks |
+  | `light_walls`: a wall of light rising along each arm | Judgment |
+  | `leap_shadow`: the treant's shadow growing where it lands, roots twitching | Uprooting Leap |
+  | `dust`: dust kicked up along the line it is about to run | Charging Headbutt, The Hunt |
+
+`tools/tests/telegraph_styles_shot.tscn` renders every style next to the others, plus a
+column with the ground telegraphs off, for eight attacks.
+
 ## The five bosses
 
 Base numbers after the colour modifiers (`EnemyDatabase`): Red 480 HP / speed 1.56, Blue 800 /
@@ -134,7 +162,8 @@ What a strike draws is exactly what it hits: `EnemyBase._offset_in_shape` and
 | phase thresholds, transition, shield, saplings, raise dead | `GameSettings`' Boss phases block |
 | modifiers (Riot, Enrage, ...) | `GameSettings`' Boss modifiers block, `EnemyBase.apply_boss_modifier` |
 | how a special plays out | `EnemyBase`, the BOSS SPECIAL ATTACK section |
-| how a telegraph looks | `AttackIndicator` |
+| how a telegraph looks | `AttackIndicator`, `assets/shaders/boss_telegraph.gdshader` |
+| the world tells (meteor, spikes, walls of light...) | `BossTell`, the `tell` key in `BossDatabase.SPECIALS` |
 | regeneration delay and rate | `GameSettings`' Boss phases block, `EnemyBase._tick_boss_regen` |
 | the boss bar | `HUD.refresh_boss_bars` and friends in `scripts/hud.gd` |
 | burning / frozen ground | `BossHazard` |

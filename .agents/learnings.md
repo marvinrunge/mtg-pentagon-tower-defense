@@ -2,6 +2,12 @@
 
 Add only durable facts that were confirmed by a command or controlling code path.
 
+- 2026-10-07: **Boss telegraphs have styles and world tells; screenshots of them can be rendered in the cloud container.**
+  - **A new `class_name` is invisible to a headless test run until the project has been imported once** (`--headless --import` rebuilds `global_script_class_cache.cfg`). Without it every script naming the class fails to parse with "Could not find type", and a windowed shot tool just hangs on the parse error instead of quitting.
+  - **`xvfb-run -a -s "-screen 0 1280x720x24" godot --rendering-driver opengl3 --path . res://tools/tests/<shot>.tscn -- out.png` renders real frames** (Mesa llvmpipe). Slow - the first frame of a new shader takes minutes, and `telegraph_styles_shot.tscn` (40 tiles) about 25 minutes; pass `quick` after the output path for a 6-tile check first. A headless run has a 64-pixel viewport, so anything laid out against the screen size has to be checked windowed.
+  - **Flat telegraphs disappear into rising ground.** They are meshes at the boss's (or target's) height, not projected decals, so on a slope the uphill part is under the terrain. The base platform (y=0.5 around z=18) is flat; a few metres further out it is not. Shots stage there for that reason; in play it is a real limitation of the decal approach, not new with the styles.
+  - **Particles with no texture draw as hard squares.** `EmberFx.particle_mesh(size, null, ...)` is fine for fog-sized blobs under other effects but reads as a beige box on its own; BossTell's dust uses `assets/vfx/volcano_smoke_puff.png`.
+
 - 2026-10-06: **Bosses now fight in three phases; see `docs/BOSS_DESIGN.md`.** Facts found on the way:
   - **Boss telegraphs and special clips never reached clients.** Enemy AI runs on the server only (`_physics_process` returns into `_update_puppet` on a client), and `_begin_special` spawned the `AttackIndicator` there and nowhere else, while a puppet animates purely from replicated velocity - so a client saw the boss stand still and took a hit with no tell. Everything visible now goes through `EnemyBase._emit_boss_fx` / `_net_boss_fx`, and `_puppet_hold_timer` stops the puppet overwriting the clip.
   - **`Player.apply_slow` on a remote avatar did nothing.** Movement is driven by the owning peer, so the host's copy of the timer was never read. It now hands the slow to the owner (`_net_apply_slow`). The Blue mage's slow had the same gap.

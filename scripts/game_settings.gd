@@ -1274,6 +1274,9 @@ func rank_level_requirement(rank: int) -> int:
 # Ground decals marking a boss special attack's danger zone during its windup.
 # Turning this off removes the visual tell, making specials much harder to dodge.
 @export var show_attack_indicators: bool = true
+## How a telegraph is drawn when shown at all - see AttackIndicator.STYLES. Set from the
+## options menu through UserSettings.
+@export var attack_indicator_style: String = "themed"
 @export var attack_indicator_height: float = 0.08
 @export var camera_shake_enabled: bool = true
 @export var camera_shake_strength_mult: float = 1.0

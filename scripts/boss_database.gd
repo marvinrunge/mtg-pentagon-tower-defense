@@ -106,6 +106,9 @@ const MODEL_SCALES := {
 ##   exhaust          {time, mult}: after the whole thing ends the boss stands open for
 ##                    `time` seconds and takes `mult` times damage. The punish window.
 ##   kind             raise_dead | consecrate - the two that are not a hit at all
+##   tell             a tell in the world beside the ground telegraph, for attacks the boss's
+##                    body cannot announce on its own - see BossTell. Shown even with
+##                    the ground telegraphs switched off
 const SPECIALS := {
 	# --- RED: pressure and tempo --------------------------------------------------------
 	"Red": [
@@ -141,6 +144,7 @@ const SPECIALS := {
 		# leaves burning ground, so the field fills up the longer the fight runs.
 		{
 			"display_name": "Meteor Strike",
+			"tell": "meteor",
 			"clip": "attack",
 			"phases": [2, 3],
 			"priority": 1,
@@ -216,6 +220,7 @@ const SPECIALS := {
 		# most of a lane. Stepping BETWEEN them is the dodge.
 		{
 			"display_name": "Ice Lances",
+			"tell": "ice_spikes",
 			"clip": "attack",
 			"phases": [2, 3],
 			"priority": 1,
@@ -237,6 +242,7 @@ const SPECIALS := {
 		# still have to find.
 		{
 			"display_name": "Absolute Zero",
+			"tell": "ice_spikes",
 			"clip": "special",
 			"phases": [3],
 			"priority": 2,
@@ -292,6 +298,7 @@ const SPECIALS := {
 		# standing off, and whoever it lands on is slowed. It stays stuck in the ground after.
 		{
 			"display_name": "Uprooting Leap",
+			"tell": "leap_shadow",
 			"clip": "special",
 			"phases": [2],
 			"shape": "circle",
@@ -311,6 +318,7 @@ const SPECIALS := {
 		# step into the gap between them rather than running from both.
 		{
 			"display_name": "Uprooting Leap",
+			"tell": "leap_shadow",
 			"clip": "special",
 			"phases": [3],
 			"shape": "circle",
@@ -324,8 +332,8 @@ const SPECIALS := {
 			"max_range": 20.0,
 			"slow": 1.5,
 			"followups": [
-				{"delay": 0.0, "windup": 0.8, "anchor": "same", "shape": "ring", "inner_radius": 5.0, "radius": 8.0, "damage_mult": 1.2},
-				{"delay": 0.0, "windup": 0.8, "anchor": "same", "shape": "ring", "inner_radius": 8.0, "radius": 11.0, "damage_mult": 1.0},
+				{"delay": 0.0, "windup": 0.8, "anchor": "same", "shape": "ring", "inner_radius": 5.0, "radius": 8.0, "damage_mult": 1.2, "tell": "root_spikes"},
+				{"delay": 0.0, "windup": 0.8, "anchor": "same", "shape": "ring", "inner_radius": 8.0, "radius": 11.0, "damage_mult": 1.0, "tell": "root_spikes"},
 			],
 			"exhaust": {"time": 2.0, "mult": 1.5},
 			"tint": Color(0.4, 0.85, 0.25),
@@ -364,6 +372,7 @@ const SPECIALS := {
 		# are long - the dodge is the diagonal, not distance.
 		{
 			"display_name": "Judgment",
+			"tell": "light_walls",
 			"clip": "special",
 			"phases": [2, 3],
 			"priority": 1,
@@ -423,6 +432,7 @@ const SPECIALS := {
 		# its far end, rather than headbutting the air in front of it.
 		{
 			"display_name": "Charging Headbutt",
+			"tell": "dust",
 			"clip": "special",
 			"phases": [1, 2],
 			"shape": "line",
@@ -472,6 +482,7 @@ const SPECIALS := {
 		# them again.
 		{
 			"display_name": "The Hunt",
+			"tell": "dust",
 			"clip": "special",
 			"phases": [3],
 			"shape": "line",
@@ -486,7 +497,8 @@ const SPECIALS := {
 			"dash_time": 0.35,
 			"followups": [
 				{"delay": 0.1, "windup": 0.8, "clip": "special", "anchor": "retarget", "target": "weakest_player",
-				 "shape": "line", "length": 10.0, "width": 2.5, "damage_mult": 1.7, "move": "charge", "dash_time": 0.35},
+				 "shape": "line", "length": 10.0, "width": 2.5, "damage_mult": 1.7, "move": "charge", "dash_time": 0.35,
+				 "tell": "dust"},
 			],
 			"exhaust": {"time": 2.0, "mult": 1.5},
 			"tint": Color(0.6, 0.2, 0.9),

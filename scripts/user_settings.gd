@@ -37,6 +37,7 @@ const SECTIONS: Dictionary = {
 	&"show_damage_numbers": "interface",
 	&"show_enemy_health_bars": "interface",
 	&"show_attack_indicators": "interface",
+	&"attack_indicator_style": "interface",
 	&"camera_shake_enabled": "interface",
 	&"show_minimap": "interface",
 	&"minimap_size": "interface",
@@ -52,6 +53,7 @@ var music_enabled: bool = true
 var show_damage_numbers: bool = true
 var show_enemy_health_bars: bool = true
 var show_attack_indicators: bool = true
+var attack_indicator_style: String = "themed"
 var camera_shake_enabled: bool = true
 var show_minimap: bool = true
 var minimap_size: float = 200.0
@@ -123,6 +125,11 @@ func _apply(key: StringName) -> void:
 		&"show_attack_indicators":
 			GameSettings.show_attack_indicators = show_attack_indicators
 			SignalBus.attack_indicators_visibility_changed.emit(show_attack_indicators)
+		&"attack_indicator_style":
+			# An old or hand-edited file must not leave telegraphs in a style nothing draws.
+			if not AttackIndicator.STYLES.has(attack_indicator_style):
+				attack_indicator_style = "themed"
+			GameSettings.attack_indicator_style = attack_indicator_style
 		&"camera_shake_enabled":
 			GameSettings.camera_shake_enabled = camera_shake_enabled
 

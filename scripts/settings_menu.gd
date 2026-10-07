@@ -102,6 +102,17 @@ func _build_gameplay_tab(column: VBoxContainer) -> void:
 		func(on: bool) -> void: UserSettings.set_value(&"show_enemy_health_bars", on))
 	_check(column, "Show Attack Hitbox Indicators", UserSettings.show_attack_indicators,
 		func(on: bool) -> void: UserSettings.set_value(&"show_attack_indicators", on))
+	_label(column, "Attack Indicator Style")
+	var style_option := OptionButton.new()
+	var style_names: Dictionary = {"themed": "Themed", "rim": "Glowing Rim", "late": "Late Reveal", "classic": "Classic"}
+	for style: String in AttackIndicator.STYLES:
+		style_option.add_item(String(style_names.get(style, style)))
+		style_option.set_item_metadata(style_option.item_count - 1, style)
+		if style == UserSettings.attack_indicator_style:
+			style_option.select(style_option.item_count - 1)
+	style_option.item_selected.connect(func(index: int) -> void:
+		UserSettings.set_value(&"attack_indicator_style", String(style_option.get_item_metadata(index))))
+	column.add_child(style_option)
 	_check(column, "Camera Shake", UserSettings.camera_shake_enabled,
 		func(on: bool) -> void: UserSettings.set_value(&"camera_shake_enabled", on))
 

@@ -103,6 +103,8 @@ var _cast_target: Node3D = null
 var _cast_move: Dictionary = {}
 ## Every telegraph this boss has standing, so dying can take them all down.
 var _cast_indicators: Array[AttackIndicator] = []
+## ...and every BossTell beside them - the meteors, spikes and walls of light.
+var _cast_tells: Array[BossTell] = []
 var _cast_is_transition: bool = false
 ## Named, MTG-flavoured trait - see GameSettings' Boss modifiers block and
 ## apply_boss_modifier(). Empty for an ordinary boss and for every non-boss enemy.
@@ -1426,6 +1428,10 @@ func _telegraphs_for(strike: Dictionary) -> Array:
 			desc["follow"] = bool(strike["follow"])
 			desc["windup"] = windup
 			desc["tint"] = tint
+			# Which pattern the themed style draws, and which world tell (if any) goes with it.
+			desc["palette"] = enemy_data.color_identity if enemy_data != null else ""
+			if config.has("tell") and not bool(strike["follow"]):
+				desc["tell"] = String(config["tell"])
 			telegraphs.append(desc)
 	return telegraphs
 
@@ -2096,6 +2102,14 @@ func _show_boss_fx(payload: Dictionary) -> void:
 
 
 func _spawn_telegraph(desc: Dictionary) -> void:
+	# The world tell first, and whatever the indicator setting says: it is not a HUD element,
+	# it is the meteor itself - turning the ground decals off must not take it with them.
+	var tell: BossTell = BossTell.spawn(get_tree().current_scene, desc)
+	if tell != null:
+		for i: int in range(_cast_tells.size() - 1, -1, -1):
+			if not is_instance_valid(_cast_tells[i]):
+				_cast_tells.remove_at(i)
+		_cast_tells.append(tell)
 	var windup: float = float(desc.get("windup", 1.0))
 	var tint: Color = desc.get("tint", Color(1.0, 0.4, 0.1))
 	var indicator: AttackIndicator = null
@@ -2124,6 +2138,10 @@ func _cancel_local_fx() -> void:
 		if is_instance_valid(indicator):
 			indicator.cancel()
 	_cast_indicators.clear()
+	for tell: BossTell in _cast_tells:
+		if is_instance_valid(tell):
+			tell.queue_free()
+	_cast_tells.clear()
 	_puppet_hold_timer = 0.0
 
 
@@ -2159,7 +2177,7 @@ func _request_camera_shake(is_heavy: bool) -> void:
 ## Dying, being exiled or having a Consecration broken mid-special drops every telegraph
 ## without dealing its damage.
 func _cancel_special() -> void:
-	var had_fx: bool = _is_special_active or not _cast_indicators.is_empty()
+	var had_fx: bool = _is_special_active or not _cast_indicators.is_empty() or not _cast_tells.is_empty()
 	_cancel_local_fx()
 	if had_fx and Net.is_active() and Net.is_server():
 		_net_boss_cancel.rpc()

@@ -139,6 +139,8 @@ func _run() -> void:
 	_check_regeneration()
 	print("BOSS BAR")
 	_check_boss_bar()
+	print("TELLS AND STYLES")
+	_check_tells_and_styles()
 	print("NETWORK")
 	_check_fx_payload_is_plain_data()
 
@@ -637,3 +639,72 @@ func _check_boss_bar() -> void:
 	boss.free()
 	hud.refresh_boss_bars()
 	_check("the bar goes once the boss does", not hud._boss_bar_box.visible)
+
+
+# --- World tells and telegraph styles ----------------------------------------------------------
+
+func _live_tells(boss: EnemyBase) -> Array:
+	return boss._cast_tells.filter(func(t: BossTell) -> bool: return is_instance_valid(t) and not t.is_queued_for_deletion())
+
+
+func _check_tells_and_styles() -> void:
+	var keep_style: String = GameSettings.attack_indicator_style
+	var keep_shown: bool = GameSettings.show_attack_indicators
+
+	var boss: EnemyBase = _spawn_boss("Red")
+	_set_phase(boss, 2)
+	_fake_player(Vector3(-5, 0, 6))
+	_fake_player(Vector3(6, 0, 9))
+	var meteor: int = _index_of("Red", "Meteor Strike", 2)
+
+	GameSettings.show_attack_indicators = false
+	boss._begin_special(meteor)
+	var centers: int = (boss._cast_strikes[0]["centers"] as Array).size()
+	_check("a meteor falls for every strike centre", _live_tells(boss).size() == centers,
+		"%d tells, %d centres" % [_live_tells(boss).size(), centers])
+	_check("the tells stay with the ground telegraphs switched off", boss._cast_indicators.is_empty() and not _live_tells(boss).is_empty())
+	var tell: BossTell = _live_tells(boss)[0]
+	_check("a meteor tell has a fireball and a shadow", tell._fireball != null and tell._shadow != null)
+	tell.freeze_at(0.5)
+	_check("the meteor is still in the air halfway through", tell._fireball.global_position.y > tell.global_position.y + 3.0)
+	boss._cancel_special()
+	_check("cancelling takes the tells down too", _live_tells(boss).is_empty())
+
+	GameSettings.show_attack_indicators = true
+	for style: String in AttackIndicator.STYLES:
+		GameSettings.attack_indicator_style = style
+		boss._special_cooldowns[meteor] = 0.0
+		boss._begin_special(meteor)
+		var indicator: AttackIndicator = boss._cast_indicators[0]
+		_check("the %s style draws" % style, indicator != null and indicator.get_child_count() > 0)
+		_check("the %s style uses %s" % [style, "the classic meshes" if style == "classic" else "the telegraph shader"],
+			(indicator._shader_material == null) == (style == "classic"))
+		boss._cancel_special()
+	boss.free()
+	_clear_fakes()
+
+	# Every attack that names a tell gets one, and only those do.
+	var kinds_seen: Dictionary = {}
+	for color: String in ["Red", "Blue", "Green", "White", "Black"]:
+		var b: EnemyBase = _spawn_boss(color)
+		_set_phase(b, 3)
+		_fake_player(Vector3(0, 0, 7))
+		b.current_target = _fakes[0]
+		for i: int in range(b._specials.size()):
+			var config: Dictionary = b._specials[i]
+			if not BossDatabase.special_in_phase(config, 3) and not BossDatabase.special_in_phase(config, 2):
+				continue
+			b._begin_special(i)
+			var named: bool = config.has("tell")
+			if named:
+				kinds_seen[String(config["tell"])] = true
+				_check("%s '%s' raises its %s tell" % [color, config["display_name"], config["tell"]], not _live_tells(b).is_empty())
+			elif String(config.get("kind", "")) == "":
+				_check("%s '%s' has no world tell" % [color, config["display_name"]], _live_tells(b).is_empty())
+			b._cancel_special()
+		b.free()
+		_clear_fakes()
+	_check("every tell kind is used by some attack", kinds_seen.size() >= 5, str(kinds_seen.keys()))
+
+	GameSettings.attack_indicator_style = keep_style
+	GameSettings.show_attack_indicators = keep_shown
