@@ -22,6 +22,14 @@ what each boss is meant to feel like and where every piece of that lives.
 - **Phase 3 turns a known attack into a new one.** The player has to unlearn something.
 - **Exposed.** After its signature special each boss stands open for a moment, rooted and
   taking extra damage. What earns that window is different for every boss.
+- **Regeneration.** A boss nothing has hurt for 8 s (`boss_regen_delay`) heals 2 % of its
+  maximum health per second (`boss_regen_pct_per_second`) until it is hit again. Hitting it
+  once and leaving to farm no longer keeps the damage done. Any damage counts as engaging -
+  burns and zones too - and healing never undoes a phase already reached. It shows as
+  "REGENERATING" over the boss and on its bar.
+- **The boss bar.** A large bar across the top of the screen for every boss alive (up to
+  three): name and modifier, phase and its title, health, lines where the next phases begin,
+  and the regeneration tag. The lane-warning banner moves below it.
 
 ## The five bosses
 
@@ -127,6 +135,8 @@ What a strike draws is exactly what it hits: `EnemyBase._offset_in_shape` and
 | modifiers (Riot, Enrage, ...) | `GameSettings`' Boss modifiers block, `EnemyBase.apply_boss_modifier` |
 | how a special plays out | `EnemyBase`, the BOSS SPECIAL ATTACK section |
 | how a telegraph looks | `AttackIndicator` |
+| regeneration delay and rate | `GameSettings`' Boss phases block, `EnemyBase._tick_boss_regen` |
+| the boss bar | `HUD.refresh_boss_bars` and friends in `scripts/hud.gd` |
 | burning / frozen ground | `BossHazard` |
 
 ## Multiplayer
@@ -138,6 +148,8 @@ The boss AI runs on the server only. Everything a player has to **see** travels:
   resolve themselves when their fill completes, and holds the boss's clip instead of falling
   back to walk-or-stand. A cancel (death, broken Consecration) travels too.
 - **Phase banners and the fog surge** travel with `_net_phase_banner`.
+- **The boss bar** reads health, `boss_phase` and `boss_regenerating` off the boss node; the
+  last two are added to a boss's synchronizer (on change only).
 - **Hazards, saplings and raised dead** are spawned through the existing `request_effect` /
   `request_enemy` spawners.
 - **Slows** on a remote player are handed to the peer that drives that player
@@ -155,12 +167,15 @@ godot --headless --path . res://tools/tests/boss_soak.tscn
 
 - `boss_specials`: the phase-1 pair, one crystal-breaker, every clip exists on its rig.
 - `boss_modifiers`: the six modifiers, including Enrage's earlier phases.
-- `boss_phases`: every shape's hit test, phase thresholds and transitions, and each colour's
-  mechanic driven by hand.
+- `boss_phases`: every shape's hit test, phase thresholds and transitions, each colour's
+  mechanic driven by hand, regeneration, and the HUD's boss bar.
 - `boss_soak`: each boss fights two stand-in players through all three phases in the real
   game loop at 3x speed. It checks that every boss reaches phase 3, uses a phase special by
   itself, roars, gets exposed and (Red, Green, White) reaches the player standing off. Read
   the log for script errors too, not only the verdict.
+
+`telegraph_shot.tscn` and `boss_bar_shot.tscn` render the telegraphs and the boss bar to a
+PNG for a look by eye (windowed; on Linux `xvfb-run ... --rendering-driver opengl3` works).
 
 Headless runs that load `main.tscn` crash on exit after printing their verdict. Read the
 `TEST RESULT` line, not the exit code.

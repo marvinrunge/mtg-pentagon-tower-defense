@@ -113,7 +113,13 @@ var _enrage_active: bool = false
 
 # --- Boss phases ---
 ## 1, 2 or 3. One-way - see _check_boss_phase and GameSettings' Boss phases block.
+## Replicated, so a client's boss bar can name the phase.
 var boss_phase: int = 1
+## True while the boss heals itself for having been left alone - see _tick_boss_regen.
+## Replicated for the same reason.
+var boss_regenerating: bool = false
+## Seconds since anything last hurt this boss.
+var _since_boss_hit: float = 0.0
 var _pending_phase_transition: bool = false
 ## BossDatabase.PHASES for this boss's colour.
 var _phase_config: Dictionary = {}
@@ -485,6 +491,13 @@ func _build_synchronizer() -> void:
 	for property: String in [":position", ":rotation", ":health", ":velocity", ":is_dying", ":contagion_timer"]:
 		config.add_property(NodePath(property))
 		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+	# What the HUD's boss bar shows beyond health. Only on bosses, and only when it changes -
+	# both move a handful of times a fight. setup() has run by now, so is_boss() is settled
+	# and every peer builds the same property list for the same enemy.
+	if is_boss():
+		for property: String in [":boss_phase", ":boss_regenerating"]:
+			config.add_property(NodePath(property))
+			config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE)
 	var sync := MultiplayerSynchronizer.new()
 	sync.name = "Sync"
 	sync.replication_config = config
@@ -534,6 +547,9 @@ func _physics_process(delta: float) -> void:
 		if _sapling_timer <= 0.0:
 			_wither_sapling()
 			return
+
+	if is_boss():
+		_tick_boss_regen(delta)
 
 	if elite_regeneration_per_second > 0.0 and health < enemy_data.health:
 		heal(elite_regeneration_per_second * delta, false)
@@ -1774,7 +1790,50 @@ func _label_point() -> Vector3:
 	return global_position + Vector3(0.0, 1.7 * scale.y + 0.4, 0.0)
 
 
+# --- Regeneration ------------------------------------------------------------------------
+
+## A boss nobody is fighting heals. Hitting it once and walking off to farm used to cost the
+## team nothing - the damage stayed done and the fight could be finished whenever suited.
+## Now, boss_regen_delay seconds after the last hit of any kind, it starts healing
+## boss_regen_pct_per_second of its maximum health until someone engages it again.
+##
+## Any damage counts as engaging, burns and zones included: what this punishes is leaving,
+## not the choice of how to fight. Phases stay one-way - healing back over a threshold does
+## not undo the phase it already reached.
+func _tick_boss_regen(delta: float) -> void:
+	if is_dying or enemy_data == null:
+		boss_regenerating = false
+		return
+	_since_boss_hit += delta
+	var healing: bool = _since_boss_hit >= GameSettings.boss_regen_delay and health < enemy_data.health
+	if healing and not boss_regenerating:
+		NetFx.damage_number(_label_point(), 0.0, Color(0.45, 1.0, 0.55), "REGENERATING")
+	boss_regenerating = healing
+	if healing:
+		heal(enemy_data.health * GameSettings.boss_regen_pct_per_second * delta, false)
+
+
 # --- Phases ------------------------------------------------------------------------------
+
+## The health shares at which this boss enters phase 2 and phase 3. Public for the HUD's
+## boss bar, which marks them.
+func phase_thresholds() -> Array[float]:
+	return _phase_thresholds()
+
+
+## What the boss bar calls this boss, and the phase it is in.
+func boss_display_name() -> String:
+	return String(_phase_config.get("name", "BOSS"))
+
+
+func phase_title() -> String:
+	return String((_phase_config.get("titles", {}) as Dictionary).get(boss_phase, ""))
+
+
+## The boss's own colour, as its shockwave and phase banner use it.
+func boss_tint() -> Color:
+	return (_phase_config.get("shockwave", {}) as Dictionary).get("tint", Color(1.0, 0.85, 0.4))
+
 
 func _phase_thresholds() -> Array[float]:
 	if boss_modifier == "Enrage":
@@ -2688,6 +2747,9 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false, e
 		amount *= curse_mult
 	if is_boss():
 		amount = _boss_incoming_damage(amount, source)
+		if amount > 0.0:
+			_since_boss_hit = 0.0
+			boss_regenerating = false
 	var damage_dealt: float = minf(maxf(amount, 0.0), maxf(health, 0.0))
 	health -= amount
 	if is_boss():

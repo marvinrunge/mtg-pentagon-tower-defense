@@ -135,6 +135,10 @@ func _run() -> void:
 	print("BLACK")
 	_check_charge()
 	_check_raise_dead()
+	print("REGENERATION")
+	_check_regeneration()
+	print("BOSS BAR")
+	_check_boss_bar()
 	print("NETWORK")
 	_check_fx_payload_is_plain_data()
 
@@ -558,3 +562,78 @@ func _check_fx_payload_is_plain_data() -> void:
 		boss.free()
 		_clear_fakes()
 	_check("telegraph descriptions are plain data", plain)
+
+
+# --- Regeneration ----------------------------------------------------------------------------
+
+func _check_regeneration() -> void:
+	var boss: EnemyBase = _spawn_boss("Red")
+	boss._tick_boss_regen(30.0)
+	_check("a boss at full health has nothing to regenerate", not boss.boss_regenerating)
+	boss.take_damage(boss.enemy_data.health * 0.5)
+	var hurt: float = boss.health
+	for _i: int in range(int(GameSettings.boss_regen_delay / 0.5) - 1):
+		boss._tick_boss_regen(0.5)
+	_check("no regeneration before the delay", boss.health == hurt and not boss.boss_regenerating,
+		"%.1f -> %.1f" % [hurt, boss.health])
+	boss._tick_boss_regen(0.5)
+	boss._tick_boss_regen(1.0)
+	_check("left alone past the delay, it regenerates", boss.boss_regenerating and boss.health > hurt,
+		"%.1f -> %.1f" % [hurt, boss.health])
+	var expected: float = boss.enemy_data.health * GameSettings.boss_regen_pct_per_second
+	_check("at the configured rate", absf((boss.health - hurt) - expected) < expected * 0.6,
+		"healed %.1f, ~%.1f per second" % [boss.health - hurt, expected])
+	boss.take_damage(1.0)
+	_check("any hit stops it at once", not boss.boss_regenerating and boss._since_boss_hit == 0.0)
+	var phase_before: int = boss.boss_phase
+	boss.heal(boss.enemy_data.health)
+	_check("healing back up never undoes a phase", boss.boss_phase == phase_before)
+	boss.free()
+
+
+# --- Boss bar ----------------------------------------------------------------------------------
+
+func _check_boss_bar() -> void:
+	var hud: Node = _scene.get_node_or_null("HUD")
+	_check("the HUD is there to test", hud != null and hud.has_method("refresh_boss_bars"))
+	if hud == null:
+		return
+	hud.refresh_boss_bars()
+	_check("no boss, no bar", not hud._boss_bar_box.visible)
+
+	var boss: EnemyBase = _spawn_boss("Blue", "Enrage")
+	hud.refresh_boss_bars()
+	var row: Dictionary = hud._boss_rows[0]
+	_check("a boss gets a bar", hud._boss_bar_box.visible and (row["panel"] as Control).visible)
+	var name_text: String = (row["name"] as Label).text
+	_check("the bar names the boss and its modifier", name_text.contains("FROST GIANT") and name_text.contains("ENRAGE"), name_text)
+	_check("the bar starts in phase 1", (row["phase"] as Label).text.begins_with("PHASE 1"), (row["phase"] as Label).text)
+
+	boss.take_damage(boss.health - boss.enemy_data.health * 0.6)
+	hud.refresh_boss_bars()
+	var phase_text: String = (row["phase"] as Label).text
+	_check("the bar names the new phase", phase_text.contains("PHASE 2") and phase_text.contains("WINTER'S GRIP"), phase_text)
+	_check("the bar shows the boss's health", absf((row["bar"] as ProgressBar).value - boss.health) < 0.5)
+	_check("Enrage's earlier phase lines are the ones marked",
+		absf(boss.phase_thresholds()[0] - GameSettings.boss_modifier_enrage_phase2_threshold) < 0.001)
+	_check("not regenerating, no regen tag", (row["regen"] as Label).modulate.a == 0.0)
+	boss.boss_regenerating = true
+	hud.refresh_boss_bars()
+	_check("regenerating shows on the bar", (row["regen"] as Label).modulate.a > 0.0)
+
+	var second: EnemyBase = _spawn_boss("Black")
+	hud.refresh_boss_bars()
+	_check("two bosses, two bars", (hud._boss_rows[1]["panel"] as Control).visible)
+	var viewport_width: float = hud.get_viewport().get_visible_rect().size.x
+	var box_rect: Rect2 = Rect2(hud._boss_bar_box.position, Vector2(hud._boss_bar_box.size.x, 1.0))
+	# A headless run has a token 64-pixel viewport; on-screen only means something at a real size.
+	if viewport_width >= 640.0:
+		_check("the bars sit on screen", box_rect.position.x >= 0.0 and box_rect.end.x <= viewport_width,
+			"%s in %.0f" % [box_rect, viewport_width])
+	_check("the bars clear the crystal readout", box_rect.position.x > hud.health_bar.get_global_rect().end.x,
+		"%.0f vs %.0f" % [box_rect.position.x, hud.health_bar.get_global_rect().end.x])
+	_check("the banner moves below the bars", hud._warning_panel.position.y >= hud._boss_bar_box.position.y + hud._boss_bar_box.get_combined_minimum_size().y)
+	second.free()
+	boss.free()
+	hud.refresh_boss_bars()
+	_check("the bar goes once the boss does", not hud._boss_bar_box.visible)

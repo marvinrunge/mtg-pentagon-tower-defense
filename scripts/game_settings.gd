@@ -1203,6 +1203,12 @@ func rank_level_requirement(rank: int) -> int:
 @export var boss_sapling_scale_mult: float = 0.4
 @export var boss_sapling_ring_radius: float = 4.5
 
+## Regeneration: a boss nothing has hurt for boss_regen_delay seconds heals this share of its
+## maximum health per second until it is hit again. Hit-and-run used to be free - see
+## EnemyBase._tick_boss_regen.
+@export var boss_regen_delay: float = 8.0
+@export var boss_regen_pct_per_second: float = 0.02
+
 ## Black's Raise Dead: what a raised corpse gets back of an ordinary Black melee's health.
 @export var boss_raise_dead_health_mult: float = 0.5
 

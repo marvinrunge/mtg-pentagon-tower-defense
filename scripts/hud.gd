@@ -187,6 +187,24 @@ var _minimap_preferred_side: float = 200.0
 
 ## The shield band is a function of all three of these, and the three arrive on two different
 ## signals at different times - so they are kept rather than read from whichever one fired.
+# --- Boss bars -------------------------------------------------------------------------
+#
+# A large bar across the top of the screen for every boss alive: name, phase, health, the
+# lines where the next phases begin, and whether it is regenerating. Read straight off the
+# boss nodes - health, boss_phase and boss_regenerating all replicate - so it is the same on
+# every screen. Rows are built once and rebound, never created mid-fight.
+const BOSS_BAR_ROWS: int = 3
+const BOSS_BAR_MAX_WIDTH: float = 560.0
+const BOSS_BAR_TOP: float = 14.0
+const BOSS_BAR_SCAN_SECONDS: float = 0.1
+const BOSS_REGEN_TINT: Color = Color(0.45, 1.0, 0.55)
+## Where the lane-warning banner sits when no boss bar is in its way (see _build_wave_ui).
+const WARNING_PANEL_TOP: float = 112.0
+var _boss_bar_box: VBoxContainer = null
+var _boss_rows: Array[Dictionary] = []
+var _boss_scan_timer: float = 0.0
+var _boss_pulse: float = 0.0
+
 var _player_hp: float = 0.0
 var _player_max_hp: float = 1.0
 var _player_shield: float = 0.0
@@ -291,6 +309,12 @@ func _ready() -> void:
 	update_mana({})
 
 func _process(delta: float) -> void:
+	_boss_pulse += delta
+	_boss_scan_timer -= delta
+	if _boss_scan_timer <= 0.0:
+		_boss_scan_timer = BOSS_BAR_SCAN_SECONDS
+		refresh_boss_bars()
+
 	if fps_label.visible:
 		_fps_update_timer -= delta
 		if _fps_update_timer <= 0.0:
@@ -1160,6 +1184,7 @@ func _build_wave_ui() -> void:
 
 	_build_mission_panel(root)
 	_build_tab_panel(root)
+	_build_boss_bars(root)
 
 
 ## The panel Tab holds up: who is doing what, and what has been announced.
@@ -1457,6 +1482,178 @@ func _on_lane_warning_requested(_lane_name: String, message: String, lane_color:
 	_warning_tween.tween_interval(1.8)
 	_warning_tween.tween_property(_warning_panel, "modulate:a", 0.0, 0.45)
 	_warning_tween.tween_callback(_warning_panel.hide)
+
+
+func _build_boss_bars(root: Control) -> void:
+	_boss_bar_box = VBoxContainer.new()
+	_boss_bar_box.name = "BossBars"
+	_boss_bar_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_boss_bar_box.add_theme_constant_override("separation", 6)
+	root.add_child(_boss_bar_box)
+	for _i: int in range(BOSS_BAR_ROWS):
+		_boss_rows.append(_build_boss_row())
+	_boss_bar_box.hide()
+
+
+func _build_boss_row() -> Dictionary:
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var panel_style: StyleBoxFlat = _make_panel_style(Color(0.035, 0.04, 0.05, 0.9), Color.WHITE)
+	panel.add_theme_stylebox_override("panel", panel_style)
+	_boss_bar_box.add_child(panel)
+
+	var margin := MarginContainer.new()
+	for side: String in ["left", "right"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	for side: String in ["top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 6)
+	panel.add_child(margin)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 4)
+	margin.add_child(rows)
+
+	var header := HBoxContainer.new()
+	rows.add_child(header)
+	var name_label: Label = _boss_label(18)
+	header.add_child(name_label)
+	var regen_label: Label = _boss_label(14)
+	regen_label.text = "REGENERATING"
+	regen_label.add_theme_color_override("font_color", BOSS_REGEN_TINT)
+	regen_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	regen_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	header.add_child(regen_label)
+	var phase_label: Label = _boss_label(15)
+	phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	header.add_child(phase_label)
+
+	var bar := ProgressBar.new()
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0.0, 18.0)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var back := StyleBoxFlat.new()
+	back.bg_color = Color(0.08, 0.08, 0.1, 0.95)
+	back.set_corner_radius_all(4)
+	bar.add_theme_stylebox_override("background", back)
+	var fill := StyleBoxFlat.new()
+	fill.set_corner_radius_all(4)
+	bar.add_theme_stylebox_override("fill", fill)
+	rows.add_child(bar)
+
+	# The lines where phase 2 and phase 3 begin, drawn over the bar.
+	var markers: Array[ColorRect] = []
+	for _j: int in range(2):
+		var marker := ColorRect.new()
+		marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.add_child(marker)
+		markers.append(marker)
+	var value_label: Label = _boss_label(13)
+	value_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bar.add_child(value_label)
+
+	panel.hide()
+	return {
+		"panel": panel, "panel_style": panel_style, "name": name_label, "phase": phase_label,
+		"regen": regen_label, "bar": bar, "fill": fill, "markers": markers, "value": value_label,
+	}
+
+
+func _boss_label(font_size: int) -> Label:
+	var label := Label.new()
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_constant_override("outline_size", 4)
+	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.9))
+	return label
+
+
+## Rebinds the rows to whichever bosses are alive. Public so a test can ask for it without
+## waiting out the scan timer.
+func refresh_boss_bars() -> void:
+	if _boss_bar_box == null:
+		return
+	var bosses: Array[EnemyBase] = []
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as EnemyBase
+		if enemy != null and enemy.is_boss() and not enemy.is_dying and enemy.enemy_data != null:
+			bosses.append(enemy)
+	# Stable order, so two bosses never swap rows mid-fight.
+	bosses.sort_custom(func(a: EnemyBase, b: EnemyBase) -> bool: return a.get_instance_id() < b.get_instance_id())
+
+	# Out of the way while a menu is up, like the rest of the gameplay HUD.
+	if bosses.is_empty() or not _open_menus.is_empty():
+		_boss_bar_box.hide()
+		_place_warning_panel(0.0)
+		return
+	for i: int in range(_boss_rows.size()):
+		var row: Dictionary = _boss_rows[i]
+		if i < bosses.size():
+			_bind_boss_row(row, bosses[i])
+			(row["panel"] as Control).show()
+		else:
+			(row["panel"] as Control).hide()
+	_boss_bar_box.show()
+	_layout_boss_bars()
+
+
+func _bind_boss_row(row: Dictionary, boss: EnemyBase) -> void:
+	var tint: Color = boss.boss_tint()
+	var name_text: String = boss.boss_display_name()
+	if boss.boss_modifier != "":
+		name_text += "  -  " + boss.boss_modifier.to_upper()
+	(row["name"] as Label).text = name_text
+	(row["name"] as Label).add_theme_color_override("font_color", tint)
+	var title: String = boss.phase_title()
+	(row["phase"] as Label).text = "PHASE %d%s" % [boss.boss_phase, "  -  " + title if title != "" else ""]
+	(row["panel_style"] as StyleBoxFlat).border_color = Color(tint.r, tint.g, tint.b, 0.85)
+
+	var bar: ProgressBar = row["bar"]
+	bar.max_value = maxf(boss.max_health, 1.0)
+	bar.value = clampf(boss.health, 0.0, bar.max_value)
+	(row["value"] as Label).text = "%d / %d" % [ceili(maxf(boss.health, 0.0)), roundi(boss.max_health)]
+
+	var regenerating: bool = boss.boss_regenerating
+	var regen: Label = row["regen"]
+	regen.modulate.a = (0.55 + 0.45 * sin(_boss_pulse * 6.0)) if regenerating else 0.0
+	(row["fill"] as StyleBoxFlat).bg_color = tint.lerp(BOSS_REGEN_TINT, 0.45) if regenerating else tint
+
+	var thresholds: Array[float] = boss.phase_thresholds()
+	var markers: Array[ColorRect] = row["markers"]
+	for j: int in range(markers.size()):
+		var marker: ColorRect = markers[j]
+		var ratio: float = thresholds[j] if j < thresholds.size() else 0.0
+		marker.position = Vector2(bar.size.x * ratio - 1.0, 0.0)
+		marker.size = Vector2(2.0, bar.size.y)
+		# Bright while that phase is still ahead, faint once the boss has reached it.
+		marker.color = Color(1.0, 1.0, 1.0, 0.85) if boss.boss_phase <= j + 1 else Color(1.0, 1.0, 1.0, 0.25)
+
+
+## Centred across the top, but never over the crystal readout in the top-left corner.
+func _layout_boss_bars() -> void:
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var width: float = clampf(viewport_size.x * 0.42, 300.0, BOSS_BAR_MAX_WIDTH)
+	var x: float = (viewport_size.x - width) * 0.5
+	# Measured on what is actually drawn there - the crystal bar and the mana row. Their
+	# MarginContainer stretches across the whole screen and would push the bar off it.
+	for corner: Control in [health_bar, mana_label_g]:
+		if corner != null and corner.is_visible_in_tree():
+			x = maxf(x, corner.get_global_rect().end.x + HUD_GAP)
+	width = minf(width, viewport_size.x - x - HUD_GAP)
+	_boss_bar_box.position = Vector2(x, BOSS_BAR_TOP)
+	_boss_bar_box.size = Vector2(width, 0.0)
+	_boss_bar_box.reset_size()
+	_boss_bar_box.size.x = width
+	_place_warning_panel(_boss_bar_box.position.y + _boss_bar_box.get_combined_minimum_size().y)
+
+
+## The lane-warning banner moves down below the boss bars rather than covering them.
+func _place_warning_panel(boss_bars_bottom: float) -> void:
+	if _warning_panel == null:
+		return
+	var top: float = maxf(WARNING_PANEL_TOP, boss_bars_bottom + 10.0)
+	if not is_equal_approx(_warning_panel.position.y, top):
+		_warning_panel.position = Vector2(_warning_panel.position.x, top)
 
 
 ## Levels are shared, so this fires for everyone at once - worth announcing on the same
