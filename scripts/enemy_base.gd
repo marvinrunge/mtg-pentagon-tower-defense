@@ -322,7 +322,9 @@ func setup(data: EnemyData) -> void:
 	# Visuals. Bosses have their own dedicated models; if one is missing they fall
 	# back to the scaled-up melee model that stood in for them previously.
 	var visual_scene: PackedScene = null
-	if data.enemy_class == "Boss":
+	# A sapling wears its boss's own model - a small treant, not a borrowed elf - so it reads
+	# as the boss's offspring at a glance.
+	if data.enemy_class == "Boss" or has_meta("sapling"):
 		visual_scene = BossDatabase.get_visual_scene(data.color_identity)
 	if visual_scene == null:
 		if (data.enemy_class == "Melee" or data.enemy_class == "Boss") and MELEE_VISUAL_SCENES.has(data.color_identity):
@@ -355,9 +357,10 @@ func setup(data: EnemyData) -> void:
 		visual.material = mat
 		add_child(visual)
 
-	# A treant's sapling: smaller than its rank-and-file, rooted where it grew, and on a clock.
+	# A treant's sapling: a small copy of the treant, rooted where it grew, and on a clock.
+	# Sized off the boss rather than off a Green melee, so it stays in proportion to its parent.
 	if has_meta("sapling"):
-		data.model_scale *= GameSettings.boss_sapling_scale_mult
+		data.model_scale = BossDatabase.get_model_scale(data.color_identity, 2.5) * GameSettings.boss_sapling_scale_mult
 		data.speed = 0.0
 		_sapling_timer = GameSettings.boss_sapling_heal_delay
 

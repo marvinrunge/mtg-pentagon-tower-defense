@@ -654,7 +654,7 @@ func _spawn_enemy(data: Variant) -> Node:
 		enemy.set_meta("miniboss", true)
 	if String(info.get("boss_modifier", "")) != "":
 		enemy.set_meta("boss_modifier", String(info["boss_modifier"]))
-	# A treant's sapling: a stationary, smaller Green melee that heals its boss if it is left
+	# A treant's sapling: a small, stationary copy of the treant that heals its boss if it is left
 	# standing. Has to travel in the spawn arguments like everything else here, so a client's
 	# copy is rebuilt small and rooted too.
 	if bool(info.get("sapling", false)):

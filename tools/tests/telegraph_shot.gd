@@ -89,11 +89,12 @@ func _shoot_all() -> void:
 	_caption.add_theme_constant_override("outline_size", 10)
 	layer.add_child(_caption)
 
-	var rows: int = int(ceil(float(SHOTS.size() + 1) / float(COLUMNS)))
+	var rows: int = int(ceil(float(SHOTS.size() + 2) / float(COLUMNS)))
 	_sheet = Image.create(TILE.x * COLUMNS, TILE.y * rows, false, Image.FORMAT_RGB8)
 	for i: int in range(SHOTS.size()):
 		await _shoot(i, SHOTS[i])
 	await _shoot_hazards(SHOTS.size())
+	await _shoot_saplings(SHOTS.size() + 1)
 
 	var out_path: String = "telegraphs.png"
 	var args: PackedStringArray = OS.get_cmdline_user_args()
@@ -153,6 +154,34 @@ func _shoot_hazards(tile: int) -> void:
 	for _i: int in range(20):
 		await get_tree().process_frame
 	await _capture(tile, "HAZARDS  -  fire patch, frost ring")
+
+
+## The treant entering phase 2: its saplings - small copies of itself - grown around it.
+## Framed closer and lower than the telegraph tiles: this one is about the models.
+func _shoot_saplings(tile: int) -> void:
+	for node: Node in _scene.find_children("*", "BossHazard", true, false):
+		node.queue_free()
+	var spot: Vector3 = STAGE + Vector3(-7.0, 0.0, 9.0)
+	var scene: PackedScene = load("res://scenes/misc/enemy.tscn") as PackedScene
+	var boss: EnemyBase = scene.instantiate()
+	boss.set_meta("enemy_color", "Green")
+	boss.set_meta("enemy_type", "Boss")
+	_scene.get_node("Enemies").add_child(boss)
+	boss.global_position = spot
+	boss.rotation.y = PI
+	boss.set_physics_process(false)
+	boss.take_damage(boss.health - boss.enemy_data.health * 0.5)
+	boss._pending_phase_transition = false
+	boss._grow_saplings()
+	for _i: int in range(10):
+		await get_tree().process_frame
+	for enemy: Node in get_tree().get_nodes_in_group("enemies"):
+		if enemy.has_meta("sapling"):
+			(enemy as Node3D).set_physics_process(false)
+			(enemy as Node3D).rotation.y = PI
+	_camera.global_position = spot + Vector3(0.0, 6.5, -13.0)
+	_camera.look_at(spot + Vector3(0.0, 2.0, 0.0))
+	await _capture(tile, "GREEN  -  treant and its saplings")
 
 
 func _make_stand(at: Vector3) -> Node3D:

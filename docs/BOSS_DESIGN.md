@@ -62,7 +62,8 @@ The biggest and toughest. Long tells, huge damage, and it brings the forest.
 | 2 *THE FOREST WAKES* | Rooted Slam becomes **Uprooting Leap**: jumps onto the *farthest* player within 20; the zone is drawn where it lands. Slows whoever it hits. Three **saplings** grow around it. |
 | 3 *EARTHQUAKE* | Every landing sends two **aftershock** rings outward (5–8, then 8–11), 0.8 s apart. |
 
-Saplings are stationary, smaller Green melee tagged SAPLING. Any still standing after 10 s
+Saplings are small copies of the treant (its own model at 40 % of its size, Green melee
+stats), rooted where they grow and tagged SAPLING. Any still standing after 10 s
 heals the treant by 5 % of its maximum health and withers (no rewards).
 Exposed: 2 s, x1.5, after each leap.
 

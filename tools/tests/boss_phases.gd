@@ -402,7 +402,12 @@ func _check_saplings() -> void:
 	_check("a sapling knows its treant", sapling != null)
 	if sapling != null:
 		_check("a sapling is rooted", sapling.enemy_data.speed == 0.0)
-		_check("a sapling is smaller than a Green melee", sapling.scale.y < EnemyDatabase.get_enemy_data("Green", "Melee").model_scale)
+		var wears_treant: bool = sapling.get_children().any(func(c: Node) -> bool:
+			return c.scene_file_path == BossDatabase.VISUAL_SCENES["Green"])
+		_check("a sapling wears the treant's own model", wears_treant)
+		_check("a sapling is a small copy of its treant", sapling.scale.y < boss.scale.y * 0.5,
+			"%.2f vs boss %.2f" % [sapling.scale.y, boss.scale.y])
+		_check("a sapling can still swing", sapling.visual_anim_player != null and sapling.visual_anim_player.has_animation("attack"))
 		var health_before: float = boss.health
 		sapling._wither_sapling()
 		_check("a sapling left standing heals the treant", boss.health > health_before,

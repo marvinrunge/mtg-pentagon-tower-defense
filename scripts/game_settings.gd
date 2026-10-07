@@ -1192,14 +1192,15 @@ func rank_level_requirement(rank: int) -> int:
 @export var boss_shield_wall_reduction: float = 0.7
 @export var boss_shield_wall_arc_degrees: float = 120.0
 
-## Green's saplings (phase 2): stationary, smaller Green melee that each heal the treant by
+## Green's saplings (phase 2): stationary small treants (the boss's own model, at
+## boss_sapling_scale_mult of the boss's size, with Green melee stats) that each heal the treant by
 ## boss_sapling_heal_pct of its maximum health if they are still standing after
 ## boss_sapling_heal_delay seconds. Ordinary Green melee health, so a player who turns to them
 ## can clear one well inside the window.
 @export var boss_sapling_count: int = 3
 @export var boss_sapling_heal_delay: float = 10.0
 @export var boss_sapling_heal_pct: float = 0.05
-@export var boss_sapling_scale_mult: float = 0.7
+@export var boss_sapling_scale_mult: float = 0.4
 @export var boss_sapling_ring_radius: float = 4.5
 
 ## Black's Raise Dead: what a raised corpse gets back of an ordinary Black melee's health.
