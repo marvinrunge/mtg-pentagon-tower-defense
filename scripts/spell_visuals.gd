@@ -892,9 +892,10 @@ static func flame_burst(radius: float) -> GPUParticles3D:
 ## `length` long. Stop it with `stop_stream`, which lets it gutter out instead of vanishing.
 ##
 ## Layers: three flame-jet cones (flame_jet.gdshader) - the jet, a narrower, shorter, hotter
-## core inside it, and a wide faint haze around it - then embers streaking out, smoke climbing
-## off the tips, and a light that flickers with it. No flipbook billows: at the jet's speed
-## they read as orange balls thrown along it, not as fire.
+## core inside it, and a wide faint haze around it - then billows of flame rolling down it
+## and blooming at its end, embers streaking out, smoke climbing off the tips, air shimmer,
+## and a light that flickers with it. The billows are braked and swell as they go: thrown
+## fast and small, as they once were, they read as orange balls, not as fire.
 static func fire_stream(length: float) -> Node3D:
 	var root := Node3D.new()
 	root.name = "FireStream"
@@ -936,6 +937,58 @@ static func fire_stream(length: float) -> Node3D:
 	ep.particle_flag_align_y = true
 	embers.draw_pass_1 = SpellFx.streak_mesh(0.08, 0.45)
 	root.add_child(embers)
+
+	# Billows of flame rolling down the jet: born small at the hands, braked as they go so
+	# they swell and pile up toward the end of the cone, burning out into soot there. Slow
+	# and growing, unlike the jet - fast small ones read as balls thrown along it.
+	var billows: GPUParticles3D = ExplosionFx.flipbook_particles(ExplosionFx.FIRE_FLIPBOOK, 2.6, 26, 0.75)
+	billows.name = "Billows"
+	billows.one_shot = false
+	var bp: ParticleProcessMaterial = billows.process_material
+	bp.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	bp.emission_sphere_radius = 0.25
+	bp.direction = Vector3(0.0, 0.0, -1.0)
+	bp.spread = 16.0
+	bp.initial_velocity_min = length * 1.5
+	bp.initial_velocity_max = length * 2.1
+	bp.damping_min = length * 1.6
+	bp.damping_max = length * 2.4
+	bp.gravity = Vector3(0.0, 1.8, 0.0)
+	bp.scale_min = 0.7
+	bp.scale_max = 1.2
+	bp.scale_curve = SpellFx._curve_texture([Vector2(0.0, 0.45), Vector2(0.45, 0.9), Vector2(1.0, 1.3)])
+	# Faded in rather than born opaque: inside the jet's bright core a fresh puff is only its
+	# dark-rimmed outline, a row of little rings along the cone.
+	var billow_gradient: Gradient = EmberFx.fire_gradient()
+	billow_gradient.set_color(0, Color(1.0, 0.85, 0.42, 0.0))
+	billow_gradient.add_point(0.2, Color(1.0, 0.7, 0.25, 1.0))
+	var billow_ramp := GradientTexture1D.new()
+	billow_ramp.gradient = billow_gradient
+	bp.color_ramp = billow_ramp
+	billows.position = Vector3(0.0, 0.0, -0.9)
+	root.add_child(billows)
+
+	# And the cloud the jet ends in: puffs blooming at the tip and drifting up, so the cone
+	# finishes in a mass of fire instead of thinning to its point.
+	var plume: GPUParticles3D = ExplosionFx.flipbook_particles(ExplosionFx.FIRE_FLIPBOOK, 3.4, 12, 0.9)
+	plume.name = "Plume"
+	plume.one_shot = false
+	var pp: ParticleProcessMaterial = plume.process_material
+	pp.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pp.emission_box_extents = Vector3(length * 0.16, 0.3, length * 0.12)
+	pp.direction = Vector3(0.0, 0.4, -1.0)
+	pp.spread = 35.0
+	pp.initial_velocity_min = 0.8
+	pp.initial_velocity_max = 2.0
+	pp.gravity = Vector3(0.0, 2.2, 0.0)
+	pp.scale_min = 0.6
+	pp.scale_max = 1.1
+	pp.scale_curve = SpellFx._curve_texture([Vector2(0.0, 0.4), Vector2(0.35, 1.0), Vector2(1.0, 1.4)])
+	var plume_ramp := GradientTexture1D.new()
+	plume_ramp.gradient = EmberFx.fire_gradient()
+	pp.color_ramp = plume_ramp
+	plume.position = Vector3(0.0, 0.2, -length * 0.8)
+	root.add_child(plume)
 
 	# Air shimmering over the whole jet and climbing off it.
 	var heat: Node3D = SpellFx.heat_haze(Vector3(length * 0.18, 0.25, length * 0.42), 1.8, 26, 0.9, 1.4, 0.014)
