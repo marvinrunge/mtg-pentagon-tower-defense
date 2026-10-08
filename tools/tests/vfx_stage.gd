@@ -12,7 +12,8 @@ extends Node3D
 ## A shot tool's scene root uses a script that `extends "res://tools/tests/vfx_stage.gd"`,
 ## calls build_stage() in _ready, waits ready_frames(), then shoots. Being the current scene
 ## it also stands in for the two MainController calls effects make on it - request_effect and
-## request_enemy - by building the node locally, which is all single-player does anyway.
+## request_enemy - by building the node locally (request_effect through the map's own
+## MainController.build_effect), which is all single-player does anyway.
 ##
 ## Lit for mid-afternoon. `--glow` among the user args turns on the game's bloom.
 
@@ -58,20 +59,10 @@ func ground_at(xz: Vector2) -> Vector3:
 # --- MainController's spawning, for effects that ask the scene for it --------------------
 
 func request_effect(info: Dictionary) -> Node3D:
-	var node: Node3D = null
-	match String(info.get("kind", "")):
-		"boss_hazard":
-			node = BossHazard.create(
-				String(info["style"]), float(info["radius"]), float(info.get("inner_radius", 0.0)),
-				float(info["duration"]), float(info.get("dps", 0.0)), float(info.get("slow", 0.0)))
-		"dot_zone":
-			var zone := DoTZone.new()
-			zone.setup(String(info["type"]), float(info["radius"]), float(info["dps"]), float(info["duration"]), null)
-			node = zone
+	var node: Node3D = MainController.build_effect(info, NetFx.player_for(int(info.get("caster", 0))))
 	if node == null:
 		return null
 	get_node("Effects").add_child(node)
-	node.global_position = info.get("position", Vector3.ZERO)
 	return node
 
 

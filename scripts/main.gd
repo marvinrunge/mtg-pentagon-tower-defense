@@ -703,7 +703,13 @@ func request_effect(info: Dictionary) -> Node3D:
 
 func _spawn_effect(data: Variant) -> Node:
 	var info: Dictionary = data
-	var caster: Node3D = NetFx.player_for(int(info.get("caster", 0)))
+	return build_effect(info, NetFx.player_for(int(info.get("caster", 0))))
+
+
+## The node a placement describes, not yet in the tree. Static so a scene other than the
+## map - the effect render stage in tools/tests/vfx_stage.gd - builds exactly what the
+## game builds.
+static func build_effect(info: Dictionary, caster: Node3D) -> Node3D:
 	var node: Node3D = null
 	match String(info.get("kind", "")):
 		"dot_zone":
@@ -760,7 +766,7 @@ func _spawn_effect(data: Variant) -> Node:
 ## The telegraph resolves ITSELF, on every peer, off the same delay the server used. The
 ## caster used to hold the reference and call resolve() when its own timer fired, which
 ## works on one machine and leaves a permanent blue ring on every other one.
-func _build_bolt_telegraph(radius: float, delay: float) -> Node3D:
+static func _build_bolt_telegraph(radius: float, delay: float) -> Node3D:
 	var anchor := Node3D.new()
 	anchor.name = "BoltTelegraph"
 	var indicator: AttackIndicator = AttackIndicator.spawn(
