@@ -124,6 +124,8 @@ const EVENT_FILES := {
 	&"aura_orb_frost": ["generated/aura_orb_frost/aura_orb_frost_2.mp3"],
 	## Aura: Orb of Fire
 	&"aura_orb_fire": ["generated/aura_orb_fire/aura_orb_fire_2.mp3"],
+	## Aura: Lightning Orb - Lightning Bolt's own crack, mixed right down (EVENT_GAIN_DB).
+	&"aura_orb_lightning": ["lightning-bolt.wav"],
 	## Aura: Healing Orb
 	&"aura_orb_heal": ["generated/aura_orb_heal/aura_orb_heal_3.mp3"],
 	## Aura: Grave Pact
@@ -186,6 +188,7 @@ const LOOPING_EVENTS: Array[StringName] = [
 const EVENT_GAIN_DB: Dictionary = {
 	&"aura_orb_frost": -11.0,
 	&"aura_orb_fire": -11.0,
+	&"aura_orb_lightning": -16.0,
 	&"aura_orb_heal": -11.0,
 	&"aura_grave_pact": -8.0,
 	&"zombie_burst": -4.0,
@@ -198,6 +201,7 @@ const EVENT_GAIN_DB: Dictionary = {
 const RETRIGGER_GROUPS: Dictionary = {
 	&"aura_orb_frost": &"aura_orb",
 	&"aura_orb_fire": &"aura_orb",
+	&"aura_orb_lightning": &"aura_orb",
 	&"aura_orb_heal": &"aura_orb",
 	&"aura_grave_pact": &"aura_orb",
 }

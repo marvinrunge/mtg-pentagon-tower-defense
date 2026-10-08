@@ -710,7 +710,7 @@ func get_tier_cost(tier_index: int) -> int:
 # They share one small halo above the player's LEFT shoulder - the camera looks over the
 # right one, so that side of the frame is never the aim line. They used to circle the
 # player up to three metres out at head height, straight through the camera's view.
-## Radius of the halo. At least 0.6: each orb takes a quarter of the ring, and
+## Radius of the halo. At least 0.6: each orb takes a fifth of the ring, and
 ## tools/tests/orb_orbits.gd needs a clear gap between neighbours that a smaller ring
 ## cannot give.
 @export var aura_orb_radius: float = 0.62
@@ -740,6 +740,18 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_orb_of_fire_range: float = 14.0
 @export var aura_orb_of_fire_burn_dps: float = 18.0
 @export var aura_orb_of_fire_burn_duration: float = 4.0
+## Metres per second the ball of fire flies at. The hit lands when it arrives.
+@export var aura_orb_of_fire_bolt_speed: float = 26.0
+## Lightning Orb - red's second Manifestation. An arc into the nearest enemy that leaps on to
+## the nearest one not yet struck, `chains` times (one more at rank 3 and at rank 5), each
+## jump dealing `chain_falloff` of the one before. Lower per hit than Orb of Fire and no burn:
+## its damage is in the spread, so it is the orb for a crowd, fire the orb for one target.
+@export var aura_lightning_orb_damage: float = 28.0
+@export var aura_lightning_orb_interval: float = 2.0
+@export var aura_lightning_orb_range: float = 13.0
+@export var aura_lightning_orb_chains: int = 2
+@export var aura_lightning_orb_chain_range: float = 6.0
+@export var aura_lightning_orb_chain_falloff: float = 0.8
 ## Healing Orb - white's Manifestation. Always picks the LOWEST-health ally in range,
 ## which is what makes it feel like a healer rather than a regeneration stat. The amount
 ## is a multiple of player_max_hp, like every white/green HP number.
@@ -1169,6 +1181,49 @@ func rank_level_requirement(rank: int) -> int:
 # telegraph stays readable instead of the hit landing before the animation reads.
 @export var boss_special_windup_scale_with_anim: bool = true
 
+# --- Boss phases -------------------------------------------------------------------------
+#
+# Every boss fights in three phases, split at these shares of its maximum health. A phase
+# change is one-way (like Enrage always was) and is never skipped over silently: a hit big
+# enough to cross both lines at once goes straight to phase 3 with one transition, not two.
+# What each phase actually changes lives per colour in BossDatabase.SPECIALS / PHASES.
+@export var boss_phase2_threshold: float = 0.66
+@export var boss_phase3_threshold: float = 0.33
+## The transition: the boss stops, roars, and lets out a telegraphed shockwave. It waits for
+## whatever special is already in flight to finish rather than cutting it off.
+@export var boss_phase_shockwave_radius: float = 8.0
+@export var boss_phase_shockwave_damage_mult: float = 0.6
+@export var boss_phase_shockwave_windup: float = 1.2
+@export var boss_phase_transition_seconds: float = 1.6
+## A special that has just come into play is ready this soon after the transition, so the new
+## phase announces itself with its new attack rather than waiting out a full cooldown.
+@export var boss_phase_special_delay: float = 2.0
+
+## White's Shield Wall (phase 2 on): damage arriving from in front of the paladin, inside this
+## arc, is reduced by this much. Walk round him. Gone while he is exhausted.
+@export var boss_shield_wall_reduction: float = 0.7
+@export var boss_shield_wall_arc_degrees: float = 120.0
+
+## Green's saplings (phase 2): stationary small treants (the boss's own model, at
+## boss_sapling_scale_mult of the boss's size, with Green melee stats) that each heal the treant by
+## boss_sapling_heal_pct of its maximum health if they are still standing after
+## boss_sapling_heal_delay seconds. Ordinary Green melee health, so a player who turns to them
+## can clear one well inside the window.
+@export var boss_sapling_count: int = 3
+@export var boss_sapling_heal_delay: float = 10.0
+@export var boss_sapling_heal_pct: float = 0.05
+@export var boss_sapling_scale_mult: float = 0.4
+@export var boss_sapling_ring_radius: float = 4.5
+
+## Regeneration: a boss nothing has hurt for boss_regen_delay seconds heals this share of its
+## maximum health per second until it is hit again. Hit-and-run used to be free - see
+## EnemyBase._tick_boss_regen.
+@export var boss_regen_delay: float = 8.0
+@export var boss_regen_pct_per_second: float = 0.02
+
+## Black's Raise Dead: what a raised corpse gets back of an ordinary Black melee's health.
+@export var boss_raise_dead_health_mult: float = 0.5
+
 # --- Boss modifiers ----------------------------------------------------------------------
 #
 # A named, MTG-flavoured trait a boss can spawn with - Elite's own equivalent
@@ -1207,13 +1262,13 @@ func rank_level_requirement(rank: int) -> int:
 @export var boss_modifier_bloodthirst_melee_cooldown_mult: float = 0.55
 @export var boss_modifier_bloodthirst_big_cooldown_mult: float = 1.4
 
-## Enrage: latches on permanently the first time the boss drops below this fraction of its
-## max health, then both specials recycle faster and hit harder for the rest of the fight -
-## the classic "phase 2." One-way, like a squad breaking ranks - flickering in and out at
-## the threshold would read as a bug, not a mechanic.
-@export var boss_modifier_enrage_health_threshold: float = 0.3
-@export var boss_modifier_enrage_cooldown_mult: float = 0.7
-@export var boss_modifier_enrage_damage_mult: float = 1.4
+## Enrage: now that every boss has phases, Enrage is a boss that gets to them EARLY and hits
+## harder once it is there. Its phase 2 begins at the first share of max health and its phase 3
+## at the second (instead of boss_phase2_threshold / boss_phase3_threshold), and reaching
+## phase 3 latches a permanent damage step on top. One-way, like every phase change.
+@export var boss_modifier_enrage_phase2_threshold: float = 0.75
+@export var boss_modifier_enrage_health_threshold: float = 0.45
+@export var boss_modifier_enrage_damage_mult: float = 1.25
 
 ## Lifelink: heals a share of a special's nominal damage back whenever that special lands
 ## on at least one player. Flat per resolve rather than per player hit, so it does not
@@ -1231,6 +1286,9 @@ func rank_level_requirement(rank: int) -> int:
 # Ground decals marking a boss special attack's danger zone during its windup.
 # Turning this off removes the visual tell, making specials much harder to dodge.
 @export var show_attack_indicators: bool = true
+## How a telegraph is drawn when shown at all - see AttackIndicator.STYLES. Set from the
+## options menu through UserSettings.
+@export var attack_indicator_style: String = "themed"
 @export var attack_indicator_height: float = 0.08
 @export var camera_shake_enabled: bool = true
 @export var camera_shake_strength_mult: float = 1.0

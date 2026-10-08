@@ -112,7 +112,8 @@ Red is the damage colour and the only one with no defensive option at all.
 | **Fire Cone** ✅ | Channelled | **Held**, not cast. Burns and **slows** everything in a cone ahead while the button is held, and refills before it can be used again. Movement is allowed. | Damage/sec, cone length, refill time | Channel state plus refill timer |
 | **Lightning Bolt** ✅ | Targeted | Very high damage in a **small** area, called down from above. **Bosses and elites take roughly double** — red's one answer to a single big target. | Damage, elite multiplier, radius (slightly) | `AttackIndicator` for the telegraph |
 | **Fire Dash** ✅ | Movement | Dashes forward, leaving a **burning trail** behind. Escape and damage in one. | Distance, trail damage, trail duration | `DoTZone` spawned along the path |
-| **Aura: Orb of Fire** ✅ | Aura | An orb orbits the caster, firing fireballs at nearby enemies for damage and **burn**. | Fire rate, damage, burn duration | `ProjectilePool`, `DoTZone` |
+| **Aura: Orb of Fire** ✅ | Aura | An orb orbits the caster, hurling balls of fire with a tail at nearby enemies for damage and **burn**; the hit lands when the ball does. | Fire rate, damage, burn duration | `OrbitingOrb`, `SpellVisuals.fire_bolt` |
+| **Aura: Lightning Orb** ✅ | Aura | Red's third aura, off Lightning Bolt. An orb arcs lightning into the nearest enemy that **chains** on to the nearest ones not yet struck (2 jumps, +1 at ranks 3 and 5), each jump at 80% of the last. Fire is the orb for one target, lightning the orb for a crowd. | Damage, fire rate, chain reach (and jumps at 3 and 5) | `OrbitingOrb`, `SpellVisuals.chain_lightning` |
 
 > **Fire Cone is the interesting one.** It is a short refill meter rather than a normal
 > cooldown spell.
@@ -480,7 +481,7 @@ problem to resolve. It is the most interesting fork in the tree, so make it the 
 | White | **Glorious Anthem** · 35 recharging shield, ×1.15 damage | **Healing Orb** · heals the lowest-health ally every 2s |
 | Blue | **Rhystic Study** · ×0.7 cooldowns, 15 shield per cast | **Winter Orb** · orbits and fires ice, damage + slow |
 | Black | **Phyrexian Arena** · ×1.25 damage, ×1.15 speed, −1.5% HP/s | **Grave Pact** · kills leave souls that heal and stack damage |
-| Red | **Fervor** · ×1.15 attack and movement speed | **Orb of Fire** · orbits and fires bolts, damage + burn |
+| Red | **Fervor** · ×1.15 attack and movement speed | **Orb of Fire** · orbits and throws fire, damage + burn; **Lightning Orb** · chain lightning |
 | Green | **Sylvan Library** · ×1.35 max HP, +3 HP/s | **Stampede** · enemies near you take damage while you move |
 
 One capstone per run, as today — `Player.unlocked_capstone_aura` is already a single
@@ -533,8 +534,8 @@ each is worth knowing about before adding the twenty-sixth:
 
 - **`TemporaryAlly`** — reusable summoned ally class for Zombify and future temporary allies.
   Anything in the `decoys` group is targetable by enemies exactly as a myr is.
-- **`OrbitingOrb`** — one orbit and three payloads, for Winter Orb, Orb of Fire and
-  Healing Orb. There is no second implementation of an orbit anywhere.
+- **`OrbitingOrb`** — one orbit and five payloads, for Winter Orb, Orb of Fire, Lightning
+  Orb, Healing Orb and Grave Pact. There is no second implementation of an orbit anywhere.
 - **`FrostGlobe`** — cover. The whole skill is one collision-layer choice, explained in
   the file.
 - **`SoulWall`** — the marking wall, laid perpendicular to where the player is looking.
@@ -699,7 +700,7 @@ holds the ones that need positioning or are situationally stronger.
 | **White** | Exalted Strike · Circle of Protection | Reprisal Ward · Wrath of God · Rally the Fallen | Glorious Anthem **or** Healing Orb |
 | **Blue** | Unsummon · Frost Breath | Wall of Frost · Suction · Displace | Rhystic Study **or** Winter Orb |
 | **Black** | Doom Blade · Contagion | Kill · Wall of Souls · Zombify | Phyrexian Arena **or** Grave Pact |
-| **Red** | Fireball · Fire Dash | Rain of Ember · Fire Cone · Lightning Bolt | Fervor **or** Orb of Fire |
+| **Red** | Fireball · Fire Dash | Rain of Ember · Fire Cone · Lightning Bolt | Fervor, Orb of Fire, Lightning Orb |
 | **Green** | Leap Slam · Giant Growth | Fog · Roar · Ironbark | Kodama's Reach **or** Stampede |
 
 **Active is square, passive is round.** A spell - anything that can go on the hotbar - wears

@@ -80,24 +80,68 @@ var _locomotion: Dictionary = {}
 var _locomotion_speed: float = 0.0
 
 # --- Boss special attack (telegraphed and dodgeable) ---
-## Every special this boss has, and a cooldown per entry. Two, for every boss: the big
-## telegraphed area attack and a short-range melee one. See BossDatabase.SPECIALS.
+## Every special this boss has across all three phases, and a cooldown per entry. See
+## BossDatabase.SPECIALS - index 0 is the big phase-1 attack and index 1 the melee one.
 var _specials: Array = []
 var _special_cooldowns: Array[float] = []
+## Indices into _specials in the order _pick_special considers them (priority, then index).
+var _special_order: Array[int] = []
 ## The one currently being played, once _begin_special has chosen it.
 var _special_config: Dictionary = {}
 var _special_index: int = -1
+## Seconds until the MAIN strike lands, and until the whole special is over.
 var _special_windup_timer: float = 0.0
 var _special_total_timer: float = 0.0
 var _is_special_active: bool = false
 var _special_resolved: bool = false
-var _special_indicator: AttackIndicator
+## The special as a timeline - the main strike and its followups. See _start_cast.
+var _cast_strikes: Array[Dictionary] = []
+var _cast_elapsed: float = 0.0
+var _cast_end_time: float = 0.0
+var _cast_target: Node3D = null
+## How the boss is moving during the special, if at all: a leap, a charge or a follow.
+var _cast_move: Dictionary = {}
+## Every telegraph this boss has standing, so dying can take them all down.
+var _cast_indicators: Array[AttackIndicator] = []
+## ...and every BossTell beside them - the meteors, spikes and walls of light.
+var _cast_tells: Array[BossTell] = []
+var _cast_is_transition: bool = false
 ## Named, MTG-flavoured trait - see GameSettings' Boss modifiers block and
 ## apply_boss_modifier(). Empty for an ordinary boss and for every non-boss enemy.
 var boss_modifier: String = ""
-## One-way latch for Enrage: true from the moment health first drops under the threshold,
-## never reverts. See _check_boss_enrage().
+## One-way latch for Enrage: true from the moment the boss reaches phase 3, never reverts.
+## See _check_boss_phase().
 var _enrage_active: bool = false
+
+# --- Boss phases ---
+## 1, 2 or 3. One-way - see _check_boss_phase and GameSettings' Boss phases block.
+## Replicated, so a client's boss bar can name the phase.
+var boss_phase: int = 1
+## True while the boss heals itself for having been left alone - see _tick_boss_regen.
+## Replicated for the same reason.
+var boss_regenerating: bool = false
+## Seconds since anything last hurt this boss.
+var _since_boss_hit: float = 0.0
+var _pending_phase_transition: bool = false
+## BossDatabase.PHASES for this boss's colour.
+var _phase_config: Dictionary = {}
+## The punish window after a special that carries `exhaust`: rooted and taking more damage.
+var _exhausted_timer: float = 0.0
+var _exhausted_mult: float = 1.0
+## White's Consecration: kneeling, healing at the end unless the team breaks it.
+var _channel_active: bool = false
+var _channel_damage: float = 0.0
+var _channel_broken: bool = false
+var _shield_feedback_ready_msec: int = 0
+var _saplings_grown: bool = false
+## A client holds whatever clip the server's boss_fx started for this long, instead of
+## dropping back to walk-or-stand from the replicated velocity.
+var _puppet_hold_timer: float = 0.0
+## Set on a treant's sapling, on the server: whom it heals if it is left standing.
+var sapling_boss: Node3D = null
+var _sapling_timer: float = -1.0
+## A sapling that withered on its own was not killed, and pays nothing.
+var _skip_kill_rewards: bool = false
 
 # --- Miniboss special (Mage only, telegraphed and dodgeable) ---
 ## Deliberately separate state from the boss special block above rather than reusing it: a
@@ -286,7 +330,9 @@ func setup(data: EnemyData) -> void:
 	# Visuals. Bosses have their own dedicated models; if one is missing they fall
 	# back to the scaled-up melee model that stood in for them previously.
 	var visual_scene: PackedScene = null
-	if data.enemy_class == "Boss":
+	# A sapling wears its boss's own model - a small treant, not a borrowed elf - so it reads
+	# as the boss's offspring at a glance.
+	if data.enemy_class == "Boss" or has_meta("sapling"):
 		visual_scene = BossDatabase.get_visual_scene(data.color_identity)
 	if visual_scene == null:
 		if (data.enemy_class == "Melee" or data.enemy_class == "Boss") and MELEE_VISUAL_SCENES.has(data.color_identity):
@@ -319,11 +365,21 @@ func setup(data: EnemyData) -> void:
 		visual.material = mat
 		add_child(visual)
 
+	# A treant's sapling: a small copy of the treant, rooted where it grew, and on a clock.
+	# Sized off the boss rather than off a Green melee, so it stays in proportion to its parent.
+	if has_meta("sapling"):
+		data.model_scale = BossDatabase.get_model_scale(data.color_identity, 2.5) * GameSettings.boss_sapling_scale_mult
+		data.speed = 0.0
+		_sapling_timer = GameSettings.boss_sapling_heal_delay
+
 	scale = Vector3(data.model_scale, data.model_scale, data.model_scale)
 	aggro_area.scale = Vector3.ONE / maxf(data.model_scale, 0.01)
 	health_bar = _health_bar_scene.instantiate() as EnemyHealthBar
 	add_child(health_bar)
 	health_bar.set_health(health, data.health)
+	if has_meta("sapling"):
+		# Says what it is before anyone has to work it out: the thing to kill before it heals.
+		health_bar.set_modifier_tag("SAPLING", Color(0.45, 0.95, 0.35))
 
 	if data.enemy_class == "Boss":
 		# Announced out loud, in its own voice. A boss that walks in with the same
@@ -336,9 +392,20 @@ func setup(data: EnemyData) -> void:
 		# the unchanged cadence and the size never reads in the animation.
 		data.attack_speed /= maxf(_anim_speed_scale, 0.01)
 		_specials = BossDatabase.get_specials(data.color_identity)
+		_phase_config = BossDatabase.get_phase_config(data.color_identity)
 		_special_cooldowns.clear()
-		for _entry in _specials:
+		_special_order.clear()
+		for i: int in range(_specials.size()):
 			_special_cooldowns.append(GameSettings.boss_special_first_delay)
+			_special_order.append(i)
+		# Priority first, then the order BossDatabase lists them in - the index tie-break is
+		# what keeps this deterministic, since sort_custom is not stable.
+		_special_order.sort_custom(func(a: int, b: int) -> bool:
+			var pa: int = int((_specials[a] as Dictionary).get("priority", 0))
+			var pb: int = int((_specials[b] as Dictionary).get("priority", 0))
+			if pa != pb:
+				return pa > pb
+			return a < b)
 		if has_meta("boss_modifier"):
 			apply_boss_modifier(String(get_meta("boss_modifier")))
 
@@ -426,6 +493,13 @@ func _build_synchronizer() -> void:
 	for property: String in [":position", ":rotation", ":health", ":velocity", ":is_dying", ":contagion_timer"]:
 		config.add_property(NodePath(property))
 		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+	# What the HUD's boss bar shows beyond health. Only on bosses, and only when it changes -
+	# both move a handful of times a fight. setup() has run by now, so is_boss() is settled
+	# and every peer builds the same property list for the same enemy.
+	if is_boss():
+		for property: String in [":boss_phase", ":boss_regenerating"]:
+			config.add_property(NodePath(property))
+			config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE)
 	var sync := MultiplayerSynchronizer.new()
 	sync.name = "Sync"
 	sync.replication_config = config
@@ -464,11 +538,20 @@ func _physics_process(delta: float) -> void:
 	# exactly what a client still has work to do about - it has a death clip to play that
 	# the server started on its own copy and cannot play on this one.
 	if not Net.is_server():
-		_update_puppet()
+		_update_puppet(delta)
 		return
 	if is_dying:
 		_settle_corpse(delta)
 		return
+
+	if _sapling_timer > 0.0:
+		_sapling_timer -= delta
+		if _sapling_timer <= 0.0:
+			_wither_sapling()
+			return
+
+	if is_boss():
+		_tick_boss_regen(delta)
 
 	if elite_regeneration_per_second > 0.0 and health < enemy_data.health:
 		heal(elite_regeneration_per_second * delta, false)
@@ -618,8 +701,22 @@ func _physics_process(delta: float) -> void:
 	for i: int in range(_special_cooldowns.size()):
 		if _special_cooldowns[i] > 0.0:
 			_special_cooldowns[i] -= delta
+	# Exhausted: open, reeling and rooted until the window closes. See _begin_exhaust.
+	if _exhausted_timer > 0.0:
+		_exhausted_timer -= delta
+		if _exhausted_timer <= 0.0:
+			_exhausted_mult = 1.0
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		return
 	if _is_special_active:
 		_process_special(delta)
+		return
+	# A phase change waits for the special in flight to finish, then takes the next turn.
+	if _pending_phase_transition:
+		_begin_phase_transition()
+		_process_special(0.0)
 		return
 	var ready_special: int = _pick_special(dist_to_target)
 	if ready_special >= 0:
@@ -795,13 +892,17 @@ func _tracks_target_while_attacking() -> bool:
 ##
 ## Together these are why a joining player reported being unable to hurt anything: the
 ## damage was landing perfectly well on the host, and absolutely none of it was visible.
-func _update_puppet() -> void:
+func _update_puppet(delta: float) -> void:
 	if health_bar != null and enemy_data != null:
 		health_bar.set_health(health, enemy_data.health)
 	# The plague's look, from the replicated timer - the plague itself only runs on the server.
 	_sync_contagion_fx()
 	if is_dying:
 		_play_puppet_death()
+		return
+	# A boss special, transition or exhaust the server told us about: its clip keeps playing.
+	if _puppet_hold_timer > 0.0:
+		_puppet_hold_timer -= delta
 		return
 	_update_visual_animation()
 
@@ -992,187 +1093,557 @@ func _rest_visual_animation() -> void:
 # ============================================================
 # BOSS SPECIAL ATTACK
 #
-# A special is a committed, telegraphed swing: the boss roots itself, an
-# AttackIndicator draws the danger zone on the ground, and the damage only lands
-# once the indicator has filled. That fill window is the dodge - move out of the
-# circle, or out of the arc for the cone shapes, and the hit misses entirely.
+# A special is a committed, telegraphed attack: the boss commits to a target and a facing,
+# AttackIndicators draw every danger zone on the ground, and the damage only lands once a
+# zone's fill completes. That fill window is the dodge.
+#
+# A special is played as a short TIMELINE of strikes rather than as one hit: the main strike,
+# then any `followups` chained after it (a second charge, aftershock rings, a backswing).
+# Each strike draws its own telegraph when it starts and lands when that telegraph fills, so
+# every hit in a combo has a tell of its own. The boss is rooted for the whole timeline unless
+# the special moves it (a charge, a leap, a whirlwind that walks).
+#
+# Everything a player SEES of this goes through _emit_boss_fx, which shows it here and sends
+# the same description to every client: the AI only runs on the server, so a telegraph drawn
+# only here would be a hit the other four players never saw coming.
 # ============================================================
 
-## Which special to start now, or -1. Walked in order, so the big one wins wherever both are
-## legal - a boss at mid range should open with the attack the player has to move for.
+## Which special to start now, or -1. Walked in priority order (see BossDatabase.SPECIALS),
+## only over the specials this phase has in play - so the attack the player has to move for
+## wins wherever several are legal.
 func _pick_special(dist_to_target: float) -> int:
 	if _specials.is_empty() or _is_special_active:
 		return -1
 	if freeze_timer > 0.0 or stun_timer > 0.0 or root_timer > 0.0 or blind_timer > 0.0 or pacified_timer > 0.0:
 		return -1
-	if not is_instance_valid(current_target) or visual_anim_player == null:
+	if visual_anim_player == null:
 		return -1
-	for i: int in range(_specials.size()):
+	for i: int in _special_order:
 		if _special_cooldowns[i] > 0.0:
 			continue
-		if _special_eligible(_specials[i], dist_to_target):
+		var config: Dictionary = _specials[i]
+		if not BossDatabase.special_in_phase(config, boss_phase):
+			continue
+		if _special_eligible(config, dist_to_target):
 			return i
 	return -1
 
 
 func _special_eligible(config: Dictionary, dist_to_target: float) -> bool:
 	# Needs a real clip to telegraph with; the placeholder-box fallback has none.
-	if not visual_anim_player.has_animation(String(config.get("clip", "special"))):
+	if visual_anim_player == null or not visual_anim_player.has_animation(String(config.get("clip", "special"))):
 		return false
-	# The big area attack is only ever aimed at something that can DODGE. The crystal cannot,
-	# so pointing it there would burn the cooldown on a guaranteed whiff. The melee special is
+	match String(config.get("kind", "")):
+		"raise_dead":
+			return not _raisable_corpses(config).is_empty()
+		"consecrate":
+			# Nothing to heal at full health, and kneeling then would hand the team a free window.
+			return enemy_data != null and health < enemy_data.health * 0.95
+	var rule: String = String(config.get("target", "current"))
+	if rule != "current":
+		# Aimed at a player by rule rather than at whoever the boss is walking towards - which is
+		# exactly what lets these reach a player standing off while the boss heads for the crystal.
+		return _rule_target(rule, float(config.get("min_range", 0.0)), _special_max_range(config)) != null
+	if not is_instance_valid(current_target):
+		return false
+	# The big area attacks are only ever aimed at something that can DODGE. The crystal cannot,
+	# so pointing one there would burn the cooldown on a guaranteed whiff. The melee special is
 	# the exception - it is flagged hits_crystal, because a boss with no ordinary swing left
 	# still has to be able to break the thing it walked across the map for.
 	var target_is_dodger: bool = current_target.is_in_group("player") or current_target.is_in_group("myrs")
 	var may_hit_crystal: bool = bool(config.get("hits_crystal", false)) and current_target == target_crystal
 	if not target_is_dodger and not may_hit_crystal:
 		return false
-	# min_range keeps the two apart: the big one is held back at point-blank so the melee one
-	# owns that band, and neither is started from further away than it could reach.
-	var reach: float = float(config.get("radius", 5.0)) * 0.9
-	return dist_to_target >= float(config.get("min_range", 0.0)) and dist_to_target <= reach
+	# min_range keeps them apart: the big one is held back at point-blank so the melee one owns
+	# that band, and nothing is started from further away than it could reach.
+	return dist_to_target >= float(config.get("min_range", 0.0)) and dist_to_target <= _special_max_range(config)
+
+
+## How far away a special may be started from. Explicit when the special says so, otherwise
+## what its shape actually reaches (with a little held back, so a target at the very edge is
+## not a guaranteed miss).
+func _special_max_range(config: Dictionary) -> float:
+	if config.has("max_range"):
+		return float(config["max_range"])
+	match String(config.get("shape", "circle")):
+		"line", "cross":
+			return float(config.get("length", 5.0)) * 0.9
+		"ring":
+			return float(config.get("radius", 5.0))
+	return float(config.get("radius", 5.0)) * 0.9
+
 
 func _begin_special(index: int) -> void:
+	# Duplicated (deep) rather than the shared reference _specials[index] itself:
+	# BossDatabase.SPECIALS is one Dictionary per colour, reused by every boss of that colour,
+	# and a modifier's reach bump mutates THIS boss's copy for THIS cast only. Mutating the
+	# shared one in place would widen the special for every other boss of the same colour, in
+	# every other match, permanently.
+	_start_cast((_specials[index] as Dictionary).duplicate(true), index)
+
+
+## Commits to a special: picks its target, locks the facing, lays out the timeline of strikes
+## and starts the first one. `index` is -1 for a phase transition, which has no cooldown.
+func _start_cast(config: Dictionary, index: int, min_duration: float = 0.0, clip_speed: float = -1.0) -> void:
+	if _is_special_active:
+		_cancel_special()
 	_special_index = index
-	# Duplicated rather than the shared reference _specials[index] itself: BossDatabase.
-	# SPECIALS is one Dictionary per colour, reused by every boss of that colour, and a
-	# modifier's radius bump below mutates THIS boss's copy for THIS cast only. Mutating
-	# the shared one in place would widen the special for every other boss of the same
-	# colour, in every other match, permanently.
-	_special_config = (_specials[index] as Dictionary).duplicate()
-	if boss_modifier != "":
-		var radius_mult: float = _boss_modifier_radius_mult()
-		if radius_mult != 1.0:
-			_special_config["radius"] = float(_special_config.get("radius", 5.0)) * radius_mult
-	var clip: String = String(_special_config.get("clip", "special"))
-	var anim: Animation = visual_anim_player.get_animation(clip)
-	var clip_length: float = anim.length if anim else 1.5
-	var playback_speed: float = maxf(_anim_speed_scale, 0.05)
-	var impact_fraction: float = clampf(float(_special_config.get("impact_fraction", 0.5)), 0.05, 0.95)
+	_special_config = config
+	_apply_modifier_reach(_special_config)
+
+	var clip: String = String(config.get("clip", "special"))
+	var anim: Animation = null
+	if visual_anim_player != null and visual_anim_player.has_animation(clip):
+		anim = visual_anim_player.get_animation(clip)
+	var playback_speed: float = clip_speed if clip_speed > 0.0 else maxf(_anim_speed_scale, 0.05)
+	var clip_time: float = (anim.length if anim else 1.5) / playback_speed
+	var windup: float = _strike_windup(config, clip_time)
 
 	_is_special_active = true
 	_special_resolved = false
-	_special_total_timer = clip_length / playback_speed
-	_special_windup_timer = _special_total_timer * impact_fraction
-	if boss_modifier != "":
-		# The one thing no modifier may do: make a telegraph effectively undodgeable. A
-		# small boss (short clip) combined with a speed-up modifier is exactly the
-		# combination that could otherwise push this under reflex range.
-		_special_windup_timer = maxf(_special_windup_timer, GameSettings.boss_modifier_min_windup_seconds)
-		_special_total_timer = maxf(_special_total_timer, _special_windup_timer)
+	_cast_elapsed = 0.0
+	_cast_strikes.clear()
+	_cast_move = {}
+	_channel_active = String(config.get("kind", "")) == "consecrate"
+	_channel_damage = 0.0
+	_channel_broken = false
+	_special_windup_timer = windup
+
+	# Lock facing at commit time. The cone and line shapes are dodged by leaving them, so the
+	# boss must not keep tracking the target once the telegraph is drawn.
+	_cast_target = _commit_target(config)
+	_face_now(_cast_target)
+
+	_cast_strikes.append({"cfg": config, "tele": 0.0, "hit": windup})
+	var last_hit: float = windup
+	var tail: float = _strike_tail(config)
+	for followup: Dictionary in config.get("followups", []):
+		if not followup.has("tint"):
+			followup["tint"] = config.get("tint", Color(1.0, 0.4, 0.1))
+		var tele: float = last_hit + tail + float(followup.get("delay", 0.0))
+		var hit: float = tele + _strike_windup(followup, 0.0)
+		_cast_strikes.append({"cfg": followup, "tele": tele, "hit": hit})
+		last_hit = hit
+		tail = _strike_tail(followup)
+
+	_cast_end_time = maxf(maxf(clip_time, last_hit + tail + 0.35), min_duration)
+	if _channel_active:
+		_cast_end_time = windup + 0.15
+	_special_total_timer = _cast_end_time
 
 	if is_dying:
 		return
-	visual_anim_player.play(clip, -1, playback_speed)
+	_start_strike(0, clip, playback_speed)
 
-	# Lock facing at commit time. The cone shapes are dodged by leaving the arc, so
-	# the boss must not keep tracking the target once the indicator is drawn.
-	if is_instance_valid(current_target):
-		var to_target: Vector3 = current_target.global_position - global_position
-		if Vector2(to_target.x, to_target.z).length_squared() > 0.01:
-			rotation.y = atan2(to_target.x, to_target.z)
 
-	var shape: AttackIndicator.Shape = AttackIndicator.Shape.CIRCLE
-	if String(_special_config.get("shape", "circle")) == "cone":
-		shape = AttackIndicator.Shape.CONE
-	_special_indicator = AttackIndicator.spawn(
-		self,
-		shape,
-		float(_special_config.get("radius", 5.0)),
-		float(_special_config.get("angle", 360.0)),
-		_special_windup_timer,
-		_special_config.get("tint", Color(1.0, 0.4, 0.1)),
-		enemy_data.model_scale
-	)
+## Seconds from a strike's tell to its hit. A FIXED `windup` for attacks aimed at a spot on
+## the ground; otherwise a share of the clip, so a bigger, slower boss winds up longer.
+##
+## Floored at boss_modifier_min_windup_seconds for every strike, whatever shrank it - a small
+## boss's short clip, a Riot speed-up, a quick followup. That floor is the one number this
+## whole system is not allowed to push a telegraph below, so "faster" never quietly becomes
+## "undodgeable".
+func _strike_windup(config: Dictionary, clip_time: float) -> float:
+	var windup: float
+	if config.has("windup"):
+		windup = float(config["windup"])
+		if boss_modifier == "Riot":
+			windup /= GameSettings.boss_modifier_riot_anim_speed_mult
+	else:
+		windup = clip_time * clampf(float(config.get("impact_fraction", 0.5)), 0.05, 0.95)
+	return maxf(windup, GameSettings.boss_modifier_min_windup_seconds)
+
+
+## How long a strike keeps the boss busy after it lands - a charge is still running.
+func _strike_tail(config: Dictionary) -> float:
+	if String(config.get("move", "")) == "charge":
+		return float(config.get("dash_time", 0.35))
+	return 0.0
+
+
+## Annihilator's reach bump, onto this cast's own copy: every radius and length, followups
+## included. A ring's SAFE middle is deliberately left alone.
+func _apply_modifier_reach(config: Dictionary) -> void:
+	var mult: float = _boss_modifier_radius_mult()
+	if mult == 1.0:
+		return
+	var parts: Array = [config]
+	parts.append_array(config.get("followups", []))
+	for part: Dictionary in parts:
+		for key: String in ["radius", "length"]:
+			if part.has(key):
+				part[key] = float(part[key]) * mult
+
+
+## Who this special is aimed at, chosen once at commit time.
+func _commit_target(config: Dictionary) -> Node3D:
+	var rule: String = String(config.get("target", "current"))
+	if rule == "current":
+		return current_target if is_instance_valid(current_target) else null
+	if rule == "each_player":
+		rule = "nearest_player"
+	return _rule_target(rule, float(config.get("min_range", 0.0)), _special_max_range(config))
+
+
+func _face_now(target: Node3D) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	var to_target: Vector3 = target.global_position - global_position
+	if Vector2(to_target.x, to_target.z).length_squared() > 0.01:
+		rotation.y = atan2(to_target.x, to_target.z)
+
+
+## Starts strike `i`: works out where it lands, starts any movement it carries, and puts its
+## telegraphs on every screen.
+func _start_strike(i: int, clip: String = "", clip_speed: float = 1.0) -> void:
+	var strike: Dictionary = _cast_strikes[i]
+	strike["started"] = true
+	var config: Dictionary = strike["cfg"]
+	var yaw: float = rotation.y
+	var centers: Array = [global_position]
+	var follow: bool = false
+
+	match String(config.get("anchor", "self")):
+		"follow":
+			follow = true
+		"same":
+			if i > 0:
+				centers = (_cast_strikes[i - 1]["centers"] as Array).duplicate()
+				yaw = float(_cast_strikes[i - 1]["yaw"])
+		"target":
+			centers = _target_centers(config)
+			if not centers.is_empty():
+				var to_first: Vector3 = (centers[0] as Vector3) - global_position
+				if Vector2(to_first.x, to_first.z).length_squared() > 0.01:
+					yaw = atan2(to_first.x, to_first.z)
+		"retarget":
+			var fresh: Node3D = _rule_target(String(config.get("target", "nearest_player")), 0.0, maxf(_special_max_range(config), 20.0))
+			_face_now(fresh)
+			yaw = rotation.y
+			centers = [global_position]
+	yaw += deg_to_rad(float(config.get("yaw_offset", 0.0)))
+
+	if String(config.get("kind", "")) == "raise_dead":
+		var corpses: Array = _raisable_corpses(config)
+		strike["corpses"] = corpses
+		centers = []
+		for corpse: Node3D in corpses:
+			centers.append(corpse.global_position)
+
+	strike["centers"] = centers
+	strike["yaw"] = yaw
+	strike["follow"] = follow
+
+	match String(config.get("move", "")):
+		"leap":
+			if not centers.is_empty():
+				var travel: Vector3 = (centers[0] as Vector3) - global_position
+				travel.y = 0.0
+				var flight: float = maxf(float(strike["hit"]) - float(strike["tele"]), 0.05)
+				_cast_move = {"mode": "leap", "velocity": travel / flight, "until": float(strike["hit"])}
+		"follow":
+			_cast_move = {"mode": "follow", "mult": float(config.get("follow_speed_mult", 0.6))}
+
+	if i > 0 and clip == "":
+		clip = String(config.get("clip", ""))
+		if clip != "":
+			clip_speed = _followup_clip_speed(clip, float(strike["hit"]) - float(strike["tele"]))
+
+	_emit_boss_fx({
+		"clip": clip,
+		"speed": clip_speed,
+		"hold": maxf(_cast_end_time - _cast_elapsed, 0.0),
+		"telegraphs": _telegraphs_for(strike),
+	})
+
+
+## A followup's own clip, played so its swing roughly meets the hit rather than at the boss's
+## ordinary pace - a 0.7 second backswing on a clip that normally takes two would otherwise
+## land with the arm still raised.
+func _followup_clip_speed(clip: String, windup: float) -> float:
+	if visual_anim_player == null or not visual_anim_player.has_animation(clip):
+		return _anim_speed_scale
+	var anim: Animation = visual_anim_player.get_animation(clip)
+	return clampf(anim.length * 0.45 / maxf(windup, 0.05), 0.6, 2.5)
+
+
+## Where an anchor-"target" strike lands: under its target, or - for each_player - under
+## every player in range, plus `extra_random` more beside random ones.
+func _target_centers(config: Dictionary) -> Array:
+	var centers: Array = []
+	if String(config.get("target", "current")) != "each_player":
+		if _cast_target != null and is_instance_valid(_cast_target):
+			centers.append(_cast_target.global_position)
+		return centers
+	var pool: Array[Node3D] = _players_in_band(float(config.get("min_range", 0.0)), _special_max_range(config))
+	for player: Node3D in pool:
+		centers.append(player.global_position)
+	if pool.is_empty():
+		return centers
+	for _n: int in range(int(config.get("extra_random", 0))):
+		var near: Node3D = pool[randi() % pool.size()]
+		var angle: float = randf() * TAU
+		centers.append(near.global_position + Vector3(sin(angle), 0.0, cos(angle)) * randf_range(2.5, 5.0))
+	return centers
+
+
+## The telegraph descriptions for one strike - one per centre, and one per arm of a fan of
+## lines or a cross. Plain data, so the same list can travel to every client.
+func _telegraphs_for(strike: Dictionary) -> Array:
+	var config: Dictionary = strike["cfg"]
+	var windup: float = maxf(float(strike["hit"]) - float(strike["tele"]), 0.05)
+	var tint: Color = config.get("tint", Color(1.0, 0.4, 0.1))
+	var base: Dictionary = {
+		"radius": float(config.get("radius", 5.0)),
+		"inner_radius": float(config.get("inner_radius", 0.0)),
+		"angle": float(config.get("angle", 360.0)),
+		"length": float(config.get("length", 5.0)),
+		"width": float(config.get("width", 1.0)),
+	}
+	# [shape, yaw offset, centred]
+	var parts: Array = []
+	match String(config.get("shape", "circle")):
+		"ring":
+			parts.append([AttackIndicator.Shape.RING, 0.0, false])
+		"cone":
+			parts.append([AttackIndicator.Shape.CONE, 0.0, false])
+		"line":
+			for offset: float in config.get("lines", [0.0]):
+				parts.append([AttackIndicator.Shape.LINE, deg_to_rad(offset), false])
+		"cross":
+			parts.append([AttackIndicator.Shape.LINE, 0.0, true])
+			parts.append([AttackIndicator.Shape.LINE, PI * 0.5, true])
+		_:
+			parts.append([AttackIndicator.Shape.CIRCLE, 0.0, false])
+
+	var telegraphs: Array = []
+	for center: Vector3 in strike["centers"]:
+		for part: Array in parts:
+			var desc: Dictionary = base.duplicate()
+			desc["shape"] = int(part[0])
+			desc["centered"] = bool(part[2])
+			desc["at"] = center
+			desc["yaw"] = float(strike["yaw"]) + float(part[1])
+			desc["yaw_local"] = float(part[1]) + deg_to_rad(float(config.get("yaw_offset", 0.0)))
+			desc["follow"] = bool(strike["follow"])
+			desc["windup"] = windup
+			desc["tint"] = tint
+			# Which pattern the themed style draws, and which world tell (if any) goes with it.
+			desc["palette"] = enemy_data.color_identity if enemy_data != null else ""
+			if config.has("tell") and not bool(strike["follow"]):
+				desc["tell"] = String(config["tell"])
+			telegraphs.append(desc)
+	return telegraphs
+
 
 func _process_special(delta: float) -> void:
-	# Rooted for the whole special: these clips carry their own footwork, and the
-	# danger zone is drawn where the boss stood when it committed.
-	velocity.x = 0.0
-	velocity.z = 0.0
+	_cast_elapsed += delta
+	if not _cast_strikes.is_empty():
+		_special_windup_timer = maxf(float(_cast_strikes[0]["hit"]) - _cast_elapsed, 0.0)
+	_apply_cast_motion(delta)
+
+	if _channel_broken:
+		_break_channel()
+		return
+
+	for i: int in range(_cast_strikes.size()):
+		var strike: Dictionary = _cast_strikes[i]
+		if not bool(strike.get("started", false)):
+			if _cast_elapsed < float(strike["tele"]):
+				break
+			_start_strike(i)
+		if not bool(strike.get("done", false)) and _cast_elapsed >= float(strike["hit"]):
+			if i == 0:
+				_resolve_special()
+			else:
+				_hit_strike(strike)
+			# A landed hit can end everything: Reprisal Ward reflects damage straight back, and
+			# a fatal reflect runs die() - and with it _cancel_special - inline.
+			if not _is_special_active:
+				return
+
+	_special_total_timer = maxf(_cast_end_time - _cast_elapsed, 0.0)
+	if _cast_elapsed >= _cast_end_time:
+		for i: int in range(_cast_strikes.size()):
+			if not bool(_cast_strikes[i].get("done", false)):
+				if not bool(_cast_strikes[i].get("started", false)):
+					_start_strike(i)
+				if i == 0:
+					_resolve_special()
+				else:
+					_hit_strike(_cast_strikes[i])
+				if not _is_special_active:
+					return
+		_finish_cast()
+
+
+## Rooted, unless the special itself moves the boss. These clips carry their own footwork,
+## and a danger zone is drawn where the boss stood when it committed.
+func _apply_cast_motion(_delta: float) -> void:
+	var motion: Vector3 = Vector3.ZERO
+	match String(_cast_move.get("mode", "")):
+		"leap", "charge":
+			if _cast_elapsed < float(_cast_move.get("until", 0.0)):
+				motion = _cast_move["velocity"]
+		"follow":
+			if is_instance_valid(current_target):
+				var to_target: Vector3 = current_target.global_position - global_position
+				to_target.y = 0.0
+				if to_target.length() > 1.0:
+					motion = to_target.normalized() * enemy_data.speed * movement_speed_mult() * float(_cast_move.get("mult", 0.6))
+					rotation.y = atan2(motion.x, motion.z)
+	velocity.x = motion.x
+	velocity.z = motion.z
 	move_and_slide()
 
-	if not _special_resolved:
-		_special_windup_timer -= delta
-		if _special_windup_timer <= 0.0:
-			_resolve_special()
 
-	_special_total_timer -= delta
-	if _special_total_timer <= 0.0:
-		if not _special_resolved:
-			_resolve_special()
-		_is_special_active = false
-
+## The main strike landing - also what pays the cooldown. Public in all but name: the tests
+## call it directly to land a special without waiting out its windup.
 func _resolve_special() -> void:
 	_special_resolved = true
 	if _special_index >= 0 and _special_index < _special_cooldowns.size():
-		var cooldown: float = float(_special_config.get("cooldown", GameSettings.boss_special_cooldown))
-		if boss_modifier != "":
-			cooldown *= _boss_modifier_cooldown_mult(_special_index)
-		_special_cooldowns[_special_index] = cooldown
-	# Sounded from the boss's own feet rather than from whatever it caught: every
-	# special is a slam, a sweep or a landing centred on the boss, and it makes that
-	# noise whether or not anyone was still standing in the circle.
-	SoundBank.play_at(&"heavy_landing", global_position)
+		_special_cooldowns[_special_index] = _special_cooldown_for(_special_index)
+	if _cast_strikes.is_empty():
+		return
+	_hit_strike(_cast_strikes[0])
+	if _cast_is_transition and not is_dying:
+		_on_phase_entered()
 
-	if _special_indicator and is_instance_valid(_special_indicator):
-		_special_indicator.resolve()
-	_special_indicator = null
+
+func _special_cooldown_for(index: int) -> float:
+	var config: Dictionary = _specials[index]
+	var cooldown: float = float(config.get("cooldown", GameSettings.boss_special_cooldown))
+	var by_phase: Dictionary = config.get("cooldown_by_phase", {})
+	for phase: int in by_phase:
+		if boss_phase >= phase:
+			cooldown = float(by_phase[phase])
+	if boss_modifier != "":
+		cooldown *= _boss_modifier_cooldown_mult(index)
+	return cooldown
+
+
+## One strike landing: whoever is still inside its shape is hit, and everything the strike
+## carries - a slow, burning ground, a charge, a heal - happens here.
+func _hit_strike(strike: Dictionary) -> void:
+	if bool(strike.get("done", false)):
+		return
+	strike["done"] = true
+	var config: Dictionary = strike["cfg"]
+	match String(config.get("kind", "")):
+		"raise_dead":
+			_raise_dead(strike)
+			return
+		"consecrate":
+			_finish_consecration()
+			return
+	if bool(strike.get("follow", false)):
+		# A strike riding on a moving boss lands wherever the boss has got to.
+		strike["centers"] = [global_position]
+		strike["yaw"] = rotation.y
+	var centers: Array = strike["centers"]
+	var sound_at: Vector3 = centers[0] if not centers.is_empty() else global_position
+	# Sounded from the strike itself rather than from whatever it caught: it makes that noise
+	# whether or not anyone was still standing in it.
+	NetFx.sound(StringName(config.get("sound", "heavy_landing")), sound_at)
 
 	var damage: float = enemy_data.attack_damage
-	damage *= float(_special_config.get("damage_mult", GameSettings.boss_special_damage_mult))
+	damage *= float(config.get("damage_mult", GameSettings.boss_special_damage_mult))
 	damage *= GameSettings.get_player_scaling_factor(get_tree())
-	if boss_modifier == "Enrage":
-		damage *= _boss_modifier_enrage_damage_mult()
 
-	var hit_player: bool = false
-	for target in _special_targets_in_shape():
-		if target.has_method("take_damage"):
-			target.take_damage(damage, self, true)
-			if target.is_in_group("player"):
-				hit_player = true
+	var hit_players: Array[Node3D] = []
+	for target: Node3D in _targets_in_strike(strike):
+		if not target.has_method("take_damage"):
+			continue
+		target.take_damage(damage, self, true)
+		if target.is_in_group("player"):
+			hit_players.append(target)
+			if float(config.get("slow", 0.0)) > 0.0 and target.has_method("apply_slow"):
+				target.apply_slow(float(config["slow"]))
+	if is_dying:
+		return
 
-	# Lifelink: a share of the nominal damage back, once per resolve rather than once per
-	# player it actually caught - a per-target heal would make this scale up for free
-	# against a bigger team, which is not the trade the keyword promises.
-	if boss_modifier == "Lifelink" and hit_player:
-		heal(damage * GameSettings.boss_modifier_lifelink_pct)
+	if not hit_players.is_empty():
+		var lifelink: float = _phase_lifelink_pct()
+		if lifelink > 0.0:
+			heal(damage * lifelink * hit_players.size())
+		# Lifelink the modifier: a share of the nominal damage back, once per strike rather
+		# than once per player it caught - a per-target heal would make this scale up for free
+		# against a bigger team, which is not the trade the keyword promises.
+		if boss_modifier == "Lifelink":
+			heal(damage * GameSettings.boss_modifier_lifelink_pct)
 
-	# The crystal is not in _special_targets_in_shape - that set is players and myrs, the
-	# things that can move out of the way. It is hit here instead, and only by a special
-	# flagged hits_crystal, which is the melee one. Without this a boss stripped of its
-	# ordinary swing would walk up to the objective and stand there doing nothing.
-	if bool(_special_config.get("hits_crystal", false)) and is_instance_valid(target_crystal):
-		var to_crystal: Vector3 = target_crystal.global_position - global_position
+	# The crystal is not in _targets_in_strike - that set is players and myrs, the things that
+	# can move out of the way. It is hit here instead, and only by a strike flagged
+	# hits_crystal, which is the melee one. Without this a boss stripped of its ordinary swing
+	# would walk up to the objective and stand there doing nothing.
+	if bool(config.get("hits_crystal", false)) and is_instance_valid(target_crystal):
+		var to_crystal: Vector3 = target_crystal.global_position - sound_at
 		to_crystal.y = 0.0
-		if to_crystal.length() <= float(_special_config.get("radius", 5.0)):
-			SoundBank.play_at(&"blunt_hit", target_crystal.global_position)
+		if to_crystal.length() <= float(config.get("radius", 5.0)):
+			NetFx.sound(&"blunt_hit", target_crystal.global_position)
 			SignalBus.crystal_damaged.emit(
 				damage * elite_crystal_damage_multiplier * _crystal_ward_multiplier()
 			)
 
-	# Felt even on a clean dodge, just softer - a slam this size landing next to
-	# you should register.
-	var radius: float = float(_special_config.get("radius", 5.0))
-	if hit_player:
-		_request_camera_shake(true)
-	elif _is_player_within(radius * 1.6):
-		_request_camera_shake(false)
+	var hazard: Dictionary = config.get("hazard", {})
+	if not hazard.is_empty() and boss_phase >= int(config.get("hazard_from_phase", 1)):
+		_spawn_hazards(hazard, centers)
 
-func _special_targets_in_shape() -> Array[Node3D]:
+	if String(config.get("move", "")) == "charge":
+		# The charge runs the line it telegraphed, after the line has already struck - anyone
+		# caught in it was caught at the moment it filled, which is what the tell promised.
+		var dash: float = maxf(float(config.get("dash_time", 0.35)), 0.05)
+		var direction: Vector3 = _yaw_forward(float(strike["yaw"]))
+		_cast_move = {
+			"mode": "charge",
+			"velocity": direction * float(config.get("length", 10.0)) / dash,
+			"until": _cast_elapsed + dash,
+		}
+
+	_shake_for_strike(config, sound_at, hit_players)
+
+
+func _spawn_hazards(hazard: Dictionary, centers: Array) -> void:
+	var main: Node = get_tree().current_scene
+	if main == null or not main.has_method("request_effect"):
+		return
+	var dps: float = enemy_data.attack_damage * float(hazard.get("dps_mult", 0.0)) * GameSettings.get_player_scaling_factor(get_tree())
+	for center: Vector3 in centers:
+		main.request_effect({
+			"kind": "boss_hazard",
+			"position": center,
+			"style": String(hazard.get("style", "fire")),
+			"radius": float(hazard.get("radius", 2.5)),
+			"inner_radius": float(hazard.get("inner_radius", 0.0)),
+			"duration": float(hazard.get("duration", 4.0)),
+			"dps": dps,
+			"slow": float(hazard.get("slow", 0.0)),
+		})
+
+
+## Felt by whoever it hit, hard, and - softer - by anyone it only just missed: a slam this
+## size landing next to you should register. Through NetFx, so it is felt on the screen of
+## the player it happened to rather than only on the host's.
+func _shake_for_strike(config: Dictionary, at: Vector3, hit_players: Array[Node3D]) -> void:
+	if not GameSettings.camera_shake_enabled:
+		return
+	var heavy: float = GameSettings.camera_shake_heavy_strength * GameSettings.camera_shake_strength_mult
+	var light: float = GameSettings.camera_shake_light_strength * GameSettings.camera_shake_strength_mult
+	for player: Node3D in hit_players:
+		NetFx.shake(heavy, GameSettings.camera_shake_heavy_duration, player.global_position, player.get_multiplayer_authority())
+	if not hit_players.is_empty():
+		return
+	var reach: float = maxf(float(config.get("radius", 5.0)), float(config.get("length", 0.0))) * 1.6
+	for player: Node3D in _living_players():
+		if _flat_distance(at, player.global_position) <= reach:
+			NetFx.shake(light, GameSettings.camera_shake_light_duration, player.global_position, player.get_multiplayer_authority())
+
+
+## Players and myrs inside this strike's shape - the things that could have moved out of it.
+func _targets_in_strike(strike: Dictionary) -> Array[Node3D]:
 	var results: Array[Node3D] = []
-	var radius: float = float(_special_config.get("radius", 5.0))
-	var is_cone: bool = String(_special_config.get("shape", "circle")) == "cone"
-	var half_angle: float = deg_to_rad(float(_special_config.get("angle", 360.0))) * 0.5
-
-	# +Z is forward for these enemies (they turn with atan2(dir.x, dir.z)), and the
-	# basis has to be normalized because the boss carries a large model scale.
-	var forward: Vector3 = global_transform.basis.z
-	forward.y = 0.0
-	if forward.length_squared() < 0.0001:
-		return results
-	forward = forward.normalized()
-
+	var config: Dictionary = strike["cfg"]
+	var centers: Array = strike["centers"]
 	var candidates: Array = []
 	candidates.append_array(get_tree().get_nodes_in_group("player"))
 	candidates.append_array(get_tree().get_nodes_in_group("myrs"))
@@ -1184,22 +1655,495 @@ func _special_targets_in_shape() -> Array[Node3D]:
 		# A phased myr (Blue's Propaganda stack) is not there to be hit - see Myr.is_targetable.
 		if candidate.has_method("is_targetable") and not candidate.is_targetable():
 			continue
-		var offset: Vector3 = (candidate as Node3D).global_position - global_position
-		offset.y = 0.0
-		if offset.length() > radius:
-			continue
-		if is_cone and offset.length_squared() > 0.0001:
-			if forward.angle_to(offset.normalized()) > half_angle:
-				continue
-		results.append(candidate as Node3D)
+		for center: Vector3 in centers:
+			var offset: Vector3 = (candidate as Node3D).global_position - center
+			offset.y = 0.0
+			if _offset_in_shape(offset, config, float(strike["yaw"])):
+				results.append(candidate as Node3D)
+				break
 	return results
 
-func _is_player_within(distance: float) -> bool:
-	for player in get_tree().get_nodes_in_group("player"):
-		if player is Node3D and is_instance_valid(player):
-			if global_position.distance_to((player as Node3D).global_position) <= distance:
+
+## Whether a point `offset` from a strike's centre is inside its shape, the shape facing `yaw`.
+## The same geometry AttackIndicator draws - what is drawn is exactly what hits.
+func _offset_in_shape(offset: Vector3, config: Dictionary, yaw: float) -> bool:
+	var dist: float = offset.length()
+	var radius: float = float(config.get("radius", 5.0))
+	match String(config.get("shape", "circle")):
+		"ring":
+			return dist <= radius and dist >= float(config.get("inner_radius", 0.0))
+		"cone":
+			if dist > radius:
+				return false
+			if dist < 0.01:
 				return true
-	return false
+			var half_angle: float = deg_to_rad(float(config.get("angle", 360.0))) * 0.5
+			return _yaw_forward(yaw).angle_to(offset.normalized()) <= half_angle
+		"line":
+			for line_offset: float in config.get("lines", [0.0]):
+				if _offset_in_line(offset, yaw + deg_to_rad(line_offset), config, false):
+					return true
+			return false
+		"cross":
+			return _offset_in_line(offset, yaw, config, true) or _offset_in_line(offset, yaw + PI * 0.5, config, true)
+	return dist <= radius
+
+
+func _offset_in_line(offset: Vector3, yaw: float, config: Dictionary, centered: bool) -> bool:
+	var direction: Vector3 = _yaw_forward(yaw)
+	var along: float = offset.dot(direction)
+	var across: float = (offset - direction * along).length()
+	if across > float(config.get("width", 1.0)) * 0.5:
+		return false
+	var length: float = float(config.get("length", 5.0))
+	if centered:
+		return absf(along) <= length * 0.5
+	return along >= -0.5 and along <= length
+
+
+## +Z is forward for these enemies (they turn with atan2(dir.x, dir.z)).
+func _yaw_forward(yaw: float) -> Vector3:
+	return Vector3(sin(yaw), 0.0, cos(yaw))
+
+
+func _flat_distance(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
+
+
+func _living_players() -> Array[Node3D]:
+	var players: Array[Node3D] = []
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var player := node as Node3D
+		if player == null or not is_instance_valid(player) or player.is_queued_for_deletion():
+			continue
+		if "is_downed" in player and player.is_downed:
+			continue
+		players.append(player)
+	return players
+
+
+func _players_in_band(min_range: float, max_range: float) -> Array[Node3D]:
+	var band: Array[Node3D] = []
+	for player: Node3D in _living_players():
+		var dist: float = _flat_distance(global_position, player.global_position)
+		if dist >= min_range and dist <= max_range:
+			band.append(player)
+	return band
+
+
+## A player chosen by `rule` among those between `min_range` and `max_range`, or null.
+func _rule_target(rule: String, min_range: float, max_range: float) -> Node3D:
+	var pool: Array[Node3D] = _players_in_band(min_range, max_range)
+	if pool.is_empty():
+		return null
+	if rule == "random_player":
+		return pool[randi() % pool.size()]
+	var best: Node3D = null
+	var best_score: float = INF
+	for player: Node3D in pool:
+		var score: float = _flat_distance(global_position, player.global_position)
+		match rule:
+			"farthest_player":
+				score = -score
+			"weakest_player":
+				score = _health_ratio_of(player)
+		if score < best_score:
+			best_score = score
+			best = player
+	return best
+
+
+func _health_ratio_of(player: Node3D) -> float:
+	if "hp" in player and "max_hp" in player and float(player.max_hp) > 0.0:
+		return float(player.hp) / float(player.max_hp)
+	return 1.0
+
+
+## Everything a strike is over: rooted again, and - if the special carries one - open to
+## punishment for a moment.
+func _finish_cast() -> void:
+	var config: Dictionary = _special_config
+	var was_transition: bool = _cast_is_transition
+	_is_special_active = false
+	_cast_move = {}
+	_cast_is_transition = false
+	_channel_active = false
+	if not was_transition and String(config.get("kind", "")) != "consecrate":
+		_begin_exhaust(config.get("exhaust", {}))
+	update_path(true)
+
+
+## The punish window: rooted, reeling, and taking `mult` times damage for `time` seconds.
+## Every boss earns its own - surviving the Unbound Whirlwind, the Absolute Zero combo, a
+## leap that sticks it in the ground, a broken Consecration, the end of the Hunt.
+func _begin_exhaust(spec: Dictionary) -> void:
+	var duration: float = float(spec.get("time", 0.0))
+	if duration <= 0.0 or is_dying:
+		return
+	_exhausted_timer = duration
+	_exhausted_mult = float(spec.get("mult", 1.5))
+	var clip: String = _reaction_clip
+	var speed: float = _anim_speed_scale
+	if clip != "" and visual_anim_player != null:
+		var anim: Animation = visual_anim_player.get_animation(clip)
+		if anim != null:
+			speed = clampf(anim.length / duration, 0.2, 2.0)
+	_emit_boss_fx({"clip": clip, "speed": speed, "hold": duration, "telegraphs": []})
+	NetFx.damage_number(_label_point(), 0.0, Color(1.0, 0.85, 0.3), "EXPOSED")
+
+
+func _label_point() -> Vector3:
+	return global_position + Vector3(0.0, 1.7 * scale.y + 0.4, 0.0)
+
+
+# --- Regeneration ------------------------------------------------------------------------
+
+## A boss nobody is fighting heals. Hitting it once and walking off to farm used to cost the
+## team nothing - the damage stayed done and the fight could be finished whenever suited.
+## Now, boss_regen_delay seconds after the last hit of any kind, it starts healing
+## boss_regen_pct_per_second of its maximum health until someone engages it again.
+##
+## Any damage counts as engaging, burns and zones included: what this punishes is leaving,
+## not the choice of how to fight. Phases stay one-way - healing back over a threshold does
+## not undo the phase it already reached.
+func _tick_boss_regen(delta: float) -> void:
+	if is_dying or enemy_data == null:
+		boss_regenerating = false
+		return
+	_since_boss_hit += delta
+	var healing: bool = _since_boss_hit >= GameSettings.boss_regen_delay and health < enemy_data.health
+	if healing and not boss_regenerating:
+		NetFx.damage_number(_label_point(), 0.0, Color(0.45, 1.0, 0.55), "REGENERATING")
+	boss_regenerating = healing
+	if healing:
+		heal(enemy_data.health * GameSettings.boss_regen_pct_per_second * delta, false)
+
+
+# --- Phases ------------------------------------------------------------------------------
+
+## The health shares at which this boss enters phase 2 and phase 3. Public for the HUD's
+## boss bar, which marks them.
+func phase_thresholds() -> Array[float]:
+	return _phase_thresholds()
+
+
+## What the boss bar calls this boss, and the phase it is in.
+func boss_display_name() -> String:
+	return String(_phase_config.get("name", "BOSS"))
+
+
+func phase_title() -> String:
+	return String((_phase_config.get("titles", {}) as Dictionary).get(boss_phase, ""))
+
+
+## The boss's own colour, as its shockwave and phase banner use it.
+func boss_tint() -> Color:
+	return (_phase_config.get("shockwave", {}) as Dictionary).get("tint", Color(1.0, 0.85, 0.4))
+
+
+func _phase_thresholds() -> Array[float]:
+	if boss_modifier == "Enrage":
+		return [GameSettings.boss_modifier_enrage_phase2_threshold, GameSettings.boss_modifier_enrage_health_threshold]
+	return [GameSettings.boss_phase2_threshold, GameSettings.boss_phase3_threshold]
+
+
+## Called from take_damage right after health drops, rather than polled every frame, since
+## that is the one moment the answer can change. One-way, like a squad breaking ranks:
+## flickering in and out at a threshold would read as a bug, not a mechanic.
+func _check_boss_phase() -> void:
+	if not is_boss() or enemy_data == null or health <= 0.0:
+		return
+	var thresholds: Array[float] = _phase_thresholds()
+	var ratio: float = health / maxf(enemy_data.health, 0.001)
+	var reached: int = 1
+	if ratio <= thresholds[1]:
+		reached = 3
+	elif ratio <= thresholds[0]:
+		reached = 2
+	if reached <= boss_phase:
+		return
+	var previous: int = boss_phase
+	boss_phase = reached
+	_pending_phase_transition = true
+	# What this phase brings in is ready soon after the transition, so the new phase announces
+	# itself with its new attack.
+	for i: int in range(_specials.size()):
+		var config: Dictionary = _specials[i]
+		if BossDatabase.special_in_phase(config, boss_phase) and not BossDatabase.special_in_phase(config, previous):
+			_special_cooldowns[i] = GameSettings.boss_phase_special_delay
+	if boss_modifier == "Enrage" and boss_phase >= 3 and not _enrage_active:
+		_enrage_active = true
+		enemy_data.attack_damage *= GameSettings.boss_modifier_enrage_damage_mult
+
+
+## The transition itself: the boss stops, roars, and lets out a telegraphed shockwave. Waits
+## for any special already in flight - see the caller in _physics_process.
+func _begin_phase_transition() -> void:
+	_pending_phase_transition = false
+	var shockwave: Dictionary = _phase_config.get("shockwave", {})
+	var config: Dictionary = {
+		"display_name": String(shockwave.get("display_name", "Shockwave")),
+		"clip": _reaction_clip if _reaction_clip != "" else "special",
+		"shape": "circle",
+		"radius": GameSettings.boss_phase_shockwave_radius,
+		"windup": GameSettings.boss_phase_shockwave_windup,
+		"damage_mult": GameSettings.boss_phase_shockwave_damage_mult,
+		"tint": shockwave.get("tint", Color(1.0, 1.0, 1.0)),
+	}
+	var clip_speed: float = -1.0
+	if visual_anim_player != null and visual_anim_player.has_animation(String(config["clip"])):
+		clip_speed = visual_anim_player.get_animation(String(config["clip"])).length / GameSettings.boss_phase_transition_seconds
+	_announce_phase()
+	if enemy_data != null:
+		NetFx.sound(StringName("boss_spawn_" + enemy_data.color_identity.to_lower()), global_position)
+	_start_cast(config, -1, GameSettings.boss_phase_transition_seconds, clip_speed)
+	_cast_is_transition = true
+
+
+## What a phase brings with it beyond its specials. Runs as the shockwave lands.
+func _on_phase_entered() -> void:
+	var sapling_phase: int = int(_phase_config.get("saplings_on_phase", 0))
+	if sapling_phase > 0 and boss_phase >= sapling_phase and not _saplings_grown:
+		_grow_saplings()
+
+
+func _announce_phase() -> void:
+	var titles: Dictionary = _phase_config.get("titles", {})
+	var title: String = String(titles.get(boss_phase, ""))
+	if title == "":
+		return
+	var message: String = "%s  -  %s" % [String(_phase_config.get("name", "BOSS")), title]
+	var tint: Color = (_phase_config.get("shockwave", {}) as Dictionary).get("tint", Color(1.0, 0.85, 0.4))
+	_show_phase_banner(message, tint)
+	if Net.is_active() and Net.is_server():
+		_net_phase_banner.rpc(message, tint)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _net_phase_banner(message: String, tint: Color) -> void:
+	_show_phase_banner(message, tint)
+
+
+func _show_phase_banner(message: String, tint: Color) -> void:
+	SignalBus.lane_warning_requested.emit("", message, tint)
+	# Runs on every peer (the banner RPC brings it there), and the fog is per viewer anyway.
+	var surge: Dictionary = _phase_config.get("fog_surge", {})
+	if surge.is_empty() or enemy_data == null:
+		return
+	var scene: Node = get_tree().current_scene
+	var atmosphere: Node = scene.find_child("BiomeAtmosphere", true, false) if scene != null else null
+	if atmosphere != null and atmosphere.has_method("surge"):
+		atmosphere.surge(enemy_data.color_identity, float(surge.get("mult", 1.8)), float(surge.get("seconds", 6.0)))
+
+
+func _phase_lifelink_pct() -> float:
+	var lifelink: Dictionary = _phase_config.get("lifelink", {})
+	if lifelink.is_empty() or boss_phase < int(lifelink.get("from_phase", 99)):
+		return 0.0
+	return float(lifelink.get("pct", 0.0))
+
+
+## Everything that changes what a hit on a boss is worth: open while exhausted, and - for the
+## paladin from phase 2 - turned aside by a shield from the front.
+func _boss_incoming_damage(amount: float, source: Node3D) -> float:
+	if _exhausted_timer > 0.0:
+		return amount * _exhausted_mult
+	if _shield_wall_faces(source):
+		var now: int = Time.get_ticks_msec()
+		if now >= _shield_feedback_ready_msec:
+			# Said once a second at most - the number itself already shows the reduction.
+			_shield_feedback_ready_msec = now + 1000
+			NetFx.damage_number(_label_point(), 0.0, Color(0.85, 0.9, 1.0), "Shielded")
+		return amount * (1.0 - GameSettings.boss_shield_wall_reduction)
+	return amount
+
+
+func _shield_wall_faces(source: Node3D) -> bool:
+	var from_phase: int = int(_phase_config.get("shield_wall_from_phase", 0))
+	if from_phase <= 0 or boss_phase < from_phase:
+		return false
+	if source == null or not is_instance_valid(source) or source == self:
+		return false
+	var to_source: Vector3 = source.global_position - global_position
+	to_source.y = 0.0
+	if to_source.length_squared() < 0.01:
+		return false
+	var forward: Vector3 = global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		return false
+	return rad_to_deg(forward.normalized().angle_to(to_source.normalized())) <= GameSettings.boss_shield_wall_arc_degrees * 0.5
+
+
+# --- Green: saplings ---------------------------------------------------------------------
+
+func _grow_saplings() -> void:
+	_saplings_grown = true
+	if not Net.is_server():
+		return
+	var main: Node = get_tree().current_scene
+	if main == null or not main.has_method("request_enemy"):
+		return
+	var wave_manager: Node = main.get_node_or_null("WaveManager")
+	var count: int = GameSettings.boss_sapling_count
+	for i: int in range(count):
+		var angle: float = rotation.y + TAU * float(i) / float(maxi(count, 1))
+		var spot: Vector3 = global_position + Vector3(sin(angle), 0.0, cos(angle)) * GameSettings.boss_sapling_ring_radius
+		var sapling: Node3D = main.request_enemy({
+			"position": (main as Node3D).to_local(spot),
+			"color": "Green",
+			"type": "Melee",
+			"sapling": true,
+		})
+		if sapling == null:
+			continue
+		sapling.set("sapling_boss", self)
+		if wave_manager:
+			wave_manager.register_enemy()
+
+
+## A sapling left standing long enough feeds its treant and withers. Withers rather than dies:
+## the team is not paid for a sapling it did NOT kill.
+func _wither_sapling() -> void:
+	if is_instance_valid(sapling_boss) and not sapling_boss.is_dying and sapling_boss.enemy_data != null:
+		sapling_boss.heal(sapling_boss.enemy_data.health * GameSettings.boss_sapling_heal_pct)
+	_skip_kill_rewards = true
+	die()
+
+
+# --- Black: raise dead -------------------------------------------------------------------
+
+func _raisable_corpses(config: Dictionary) -> Array:
+	var radius: float = float(config.get("raise_radius", 12.0))
+	var found: Array = []
+	for corpse: EnemyBase in EnemyBase.corpses():
+		if corpse == self or corpse.is_boss():
+			continue
+		if _flat_distance(global_position, corpse.global_position) <= radius:
+			found.append(corpse)
+	found.sort_custom(func(a: Node3D, b: Node3D) -> bool:
+		return _flat_distance(global_position, a.global_position) < _flat_distance(global_position, b.global_position))
+	return found.slice(0, int(config.get("raise_count", 4)))
+
+
+func _raise_dead(strike: Dictionary) -> void:
+	if not Net.is_server():
+		return
+	var main: Node = get_tree().current_scene
+	if main == null or not main.has_method("request_enemy"):
+		return
+	var wave_manager: Node = main.get_node_or_null("WaveManager")
+	for corpse: Node3D in strike.get("corpses", []):
+		if not is_instance_valid(corpse) or corpse.is_queued_for_deletion():
+			continue
+		var spot: Vector3 = corpse.global_position
+		EnemyBase.consume_corpse(corpse as EnemyBase)
+		NetFx.sound(&"spell_zombify", spot)
+		var raised: Node3D = main.request_enemy({
+			"position": (main as Node3D).to_local(spot),
+			"color": "Black",
+			"type": "Melee",
+		})
+		if raised == null:
+			continue
+		if raised.get("enemy_data") != null:
+			raised.health = raised.enemy_data.health * GameSettings.boss_raise_dead_health_mult
+			if raised.health_bar:
+				raised.health_bar.set_health(raised.health, raised.enemy_data.health)
+		if wave_manager:
+			wave_manager.register_enemy()
+
+
+# --- White: consecration -----------------------------------------------------------------
+
+func _finish_consecration() -> void:
+	_channel_active = false
+	if enemy_data == null or is_dying:
+		return
+	heal(enemy_data.health * float(_special_config.get("heal_pct", 0.15)))
+	NetFx.sound(&"aura_orb_heal", global_position)
+
+
+## The team hit hard enough while he knelt: the heal is lost and he is left open.
+func _break_channel() -> void:
+	var config: Dictionary = _special_config
+	if _special_index >= 0 and _special_index < _special_cooldowns.size():
+		_special_cooldowns[_special_index] = _special_cooldown_for(_special_index)
+	_cancel_special()
+	NetFx.damage_number(_label_point(), 0.0, Color(1.0, 0.9, 0.5), "INTERRUPTED")
+	_begin_exhaust(config.get("exhaust", {}))
+
+
+# --- Showing it on every screen ------------------------------------------------------------
+
+## Shows a boss's clip and telegraphs here and on every client. The AI only runs on the
+## server, so without the second half a client saw the boss stand still and then took a hit
+## it was never shown.
+func _emit_boss_fx(payload: Dictionary) -> void:
+	_show_boss_fx(payload)
+	if Net.is_active() and Net.is_server():
+		_net_boss_fx.rpc(payload)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _net_boss_fx(payload: Dictionary) -> void:
+	_show_boss_fx(payload)
+
+
+func _show_boss_fx(payload: Dictionary) -> void:
+	var clip: String = String(payload.get("clip", ""))
+	if clip != "" and not is_dying and visual_anim_player != null and visual_anim_player.has_animation(clip):
+		visual_anim_player.play(clip, -1, maxf(float(payload.get("speed", 1.0)), 0.05))
+	# A client's copy would otherwise go straight back to walk-or-stand from the replicated
+	# velocity on its next frame and throw the clip away.
+	_puppet_hold_timer = maxf(_puppet_hold_timer, float(payload.get("hold", 0.0)))
+	for desc: Dictionary in payload.get("telegraphs", []):
+		_spawn_telegraph(desc)
+
+
+func _spawn_telegraph(desc: Dictionary) -> void:
+	# The world tell first, and whatever the indicator setting says: it is not a HUD element,
+	# it is the meteor itself - turning the ground decals off must not take it with them.
+	var tell: BossTell = BossTell.spawn(get_tree().current_scene, desc)
+	if tell != null:
+		for i: int in range(_cast_tells.size() - 1, -1, -1):
+			if not is_instance_valid(_cast_tells[i]):
+				_cast_tells.remove_at(i)
+		_cast_tells.append(tell)
+	var windup: float = float(desc.get("windup", 1.0))
+	var tint: Color = desc.get("tint", Color(1.0, 0.4, 0.1))
+	var indicator: AttackIndicator = null
+	if bool(desc.get("follow", false)):
+		indicator = AttackIndicator.spawn_shape(self, desc, windup, tint, maxf(scale.y, 0.01), true)
+		if indicator != null:
+			indicator.rotation.y = float(desc.get("yaw_local", 0.0))
+	else:
+		indicator = AttackIndicator.spawn_world(get_tree().current_scene, desc.get("at", global_position), float(desc.get("yaw", 0.0)), desc, windup, tint)
+	if indicator == null:
+		return
+	# Resolved telegraphs free themselves; drop them here so the list only ever holds live ones.
+	for i: int in range(_cast_indicators.size() - 1, -1, -1):
+		if not is_instance_valid(_cast_indicators[i]):
+			_cast_indicators.remove_at(i)
+	_cast_indicators.append(indicator)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _net_boss_cancel() -> void:
+	_cancel_local_fx()
+
+
+func _cancel_local_fx() -> void:
+	for indicator: AttackIndicator in _cast_indicators:
+		if is_instance_valid(indicator):
+			indicator.cancel()
+	_cast_indicators.clear()
+	for tell: BossTell in _cast_tells:
+		if is_instance_valid(tell):
+			tell.queue_free()
+	_cast_tells.clear()
+	_puppet_hold_timer = 0.0
+
 
 ## Physics-space sphere query around this enemy, filtered by collision layer
 ## (e.g. 4 = "Enemies"). Broadphase-accelerated, unlike looping every node in
@@ -1230,11 +2174,19 @@ func _request_camera_shake(is_heavy: bool) -> void:
 	var duration: float = GameSettings.camera_shake_heavy_duration if is_heavy else GameSettings.camera_shake_light_duration
 	SignalBus.camera_shake_requested.emit(strength * GameSettings.camera_shake_strength_mult, duration)
 
+## Dying, being exiled or having a Consecration broken mid-special drops every telegraph
+## without dealing its damage.
 func _cancel_special() -> void:
-	if _special_indicator and is_instance_valid(_special_indicator):
-		_special_indicator.cancel()
-	_special_indicator = null
+	var had_fx: bool = _is_special_active or not _cast_indicators.is_empty() or not _cast_tells.is_empty()
+	_cancel_local_fx()
+	if had_fx and Net.is_active() and Net.is_server():
+		_net_boss_cancel.rpc()
 	_is_special_active = false
+	_cast_strikes.clear()
+	_cast_move = {}
+	_channel_active = false
+	_channel_broken = false
+	_cast_is_transition = false
 
 # ============================================================
 # MINIBOSS SPECIAL (Mage only, telegraphed and dodgeable)
@@ -1670,23 +2622,24 @@ func apply_boss_modifier(modifier: String) -> void:
 	_apply_boss_modifier_tag()
 
 
-## The per-special-INDEX cooldown multiplier for whichever modifier is active. Index 0 is
-## always the big area special and index 1 the short-range melee one across every colour's
-## BossDatabase.SPECIALS entry (boss_specials.gd's "has exactly one crystal-breaker" check
-## is what keeps that true) - Cataclysm and Bloodthirst read that ordering directly rather
-## than searching for hits_crystal themselves.
+## The per-special cooldown multiplier for whichever modifier is active. Cataclysm and
+## Bloodthirst weigh the melee special (the one flagged hits_crystal - boss_specials.gd checks
+## there is exactly one) against everything else; every phase special counts as "big".
+##
+## Enrage has no entry: since every boss gained phases, Enrage is a boss that reaches them
+## early and hits harder in the last one (see _check_boss_phase), and the phases themselves
+## are what speed it up.
 func _boss_modifier_cooldown_mult(index: int) -> float:
+	var is_melee: bool = index >= 0 and index < _specials.size() and bool((_specials[index] as Dictionary).get("hits_crystal", false))
 	match boss_modifier:
 		"Riot":
 			return GameSettings.boss_modifier_riot_cooldown_mult
 		"Annihilator":
 			return GameSettings.boss_modifier_annihilator_cooldown_mult
 		"Cataclysm":
-			return GameSettings.boss_modifier_cataclysm_big_cooldown_mult if index == 0 else GameSettings.boss_modifier_cataclysm_melee_cooldown_mult
+			return GameSettings.boss_modifier_cataclysm_melee_cooldown_mult if is_melee else GameSettings.boss_modifier_cataclysm_big_cooldown_mult
 		"Bloodthirst":
-			return GameSettings.boss_modifier_bloodthirst_big_cooldown_mult if index == 0 else GameSettings.boss_modifier_bloodthirst_melee_cooldown_mult
-		"Enrage":
-			return GameSettings.boss_modifier_enrage_cooldown_mult if _enrage_active else 1.0
+			return GameSettings.boss_modifier_bloodthirst_melee_cooldown_mult if is_melee else GameSettings.boss_modifier_bloodthirst_big_cooldown_mult
 	return 1.0
 
 
@@ -1694,25 +2647,6 @@ func _boss_modifier_radius_mult() -> float:
 	if boss_modifier == "Annihilator":
 		return GameSettings.boss_modifier_annihilator_radius_mult
 	return 1.0
-
-
-## Enrage's damage step, applied once the first time it latches - see _check_boss_enrage.
-## Kept separate from apply_boss_modifier because it fires mid-fight, not at spawn.
-func _boss_modifier_enrage_damage_mult() -> float:
-	return GameSettings.boss_modifier_enrage_damage_mult if boss_modifier == "Enrage" and _enrage_active else 1.0
-
-
-## The classic "phase 2": latches the FIRST time health crosses the threshold and never
-## reverts, same one-way philosophy the squad system already uses for breaking ranks -
-## flickering in and out at the threshold would read as a bug, not a mechanic. Called from
-## take_damage() right after health drops, rather than polled every frame, since that is
-## the one moment the answer can actually change.
-func _check_boss_enrage() -> void:
-	if boss_modifier != "Enrage" or _enrage_active or enemy_data == null:
-		return
-	if health <= enemy_data.health * GameSettings.boss_modifier_enrage_health_threshold:
-		_enrage_active = true
-		enemy_data.attack_damage *= GameSettings.boss_modifier_enrage_damage_mult
 
 
 ## Shows the modifier's name over the boss's health bar, in the tint its own telegraph
@@ -1829,10 +2763,19 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false, e
 		_exile_on_death = true
 	if curse_timer > 0:
 		amount *= curse_mult
+	if is_boss():
+		amount = _boss_incoming_damage(amount, source)
+		if amount > 0.0:
+			_since_boss_hit = 0.0
+			boss_regenerating = false
 	var damage_dealt: float = minf(maxf(amount, 0.0), maxf(health, 0.0))
 	health -= amount
-	if boss_modifier == "Enrage":
-		_check_boss_enrage()
+	if is_boss():
+		_check_boss_phase()
+		if _channel_active and enemy_data != null:
+			_channel_damage += damage_dealt
+			if _channel_damage >= enemy_data.health * float(_special_config.get("break_pct", 0.08)):
+				_channel_broken = true
 	if damage_dealt > 0.0 and is_instance_valid(source) and source.has_method("on_damage_dealt"):
 		source.on_damage_dealt(damage_dealt)
 	if health_bar and enemy_data:
@@ -1904,14 +2847,17 @@ func die() -> void:
 		# The team is paid twice for one kill: XP towards a level everybody shares, and
 		# mana in this enemy's own colour. Banked here rather than dropped, because the
 		# pool is shared and there is nobody for a pickup to belong to.
-		RunState.on_enemy_killed(enemy_data, elite_modifier != "", global_position)
-		if died_controlled:
-			_raise_as_dimir_ghoul()
+		if not _skip_kill_rewards:
+			RunState.on_enemy_killed(enemy_data, elite_modifier != "", global_position)
+			if died_controlled:
+				_raise_as_dimir_ghoul()
 
 	# Dying mid-windup drops the telegraph without dealing its damage - and the same
 	# goes for an ordinary swing whose impact frame has not arrived yet.
 	_cancel_special()
 	_cancel_miniboss_special()
+	_exhausted_timer = 0.0
+	_pending_phase_transition = false
 	_impact_timer = -1.0
 	_hit_react_timer = 0.0
 

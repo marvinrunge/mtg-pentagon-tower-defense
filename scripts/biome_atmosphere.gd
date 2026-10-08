@@ -94,6 +94,13 @@ var _base_exposure: float = 1.0
 ## The blended values currently applied, eased toward the target every frame.
 var _current: Dictionary = {}
 
+## Lane names in the same order as _lane_profiles, so a surge can be asked for by name.
+var _lane_names: Array = []
+## A lane's fog thickening for a while - the zombie lord's phase change calls the swamp in
+## around it. Lane name -> {"until": msec, "mult": density multiplier}. Eased in and out by
+## the same settle as everything else here, so it rolls in rather than switching on.
+var _surges: Dictionary = {}
+
 
 ## Called by MainController before the node is added. `lane_markers` are the enemy
 ## spawners in LANE_NAMES order - they sit on each wedge's centre line, far enough out
@@ -102,6 +109,7 @@ func setup(center: Vector3, lane_markers: Array[Node3D], lane_names: Array) -> v
 	_center = Vector2(center.x, center.z)
 	_lane_angles.clear()
 	_lane_profiles.clear()
+	_lane_names = lane_names.duplicate()
 	for i in lane_markers.size():
 		var p: Vector3 = lane_markers[i].global_position
 		_lane_angles.append(atan2(p.z - _center.y, p.x - _center.x))
@@ -175,9 +183,31 @@ func _target() -> Dictionary:
 		var w: float = weights[i] * lane_share
 		if w <= 0.0:
 			continue
+		var profile: Dictionary = _surged(i)
 		for key: String in blended:
-			blended[key] += _lane_profiles[i][key] * w
+			blended[key] += profile[key] * w
 	return blended
+
+
+## Thickens `lane_name`'s fog by `mult` for `seconds`: denser, and closing in nearer the
+## camera by the same factor.
+func surge(lane_name: String, mult: float, seconds: float) -> void:
+	_surges[lane_name] = {"until": Time.get_ticks_msec() + int(seconds * 1000.0), "mult": mult}
+
+
+func _surged(i: int) -> Dictionary:
+	var profile: Dictionary = _lane_profiles[i]
+	if i >= _lane_names.size() or not _surges.has(String(_lane_names[i])):
+		return profile
+	var surge_info: Dictionary = _surges[String(_lane_names[i])]
+	if Time.get_ticks_msec() >= int(surge_info["until"]):
+		_surges.erase(String(_lane_names[i]))
+		return profile
+	var mult: float = float(surge_info["mult"])
+	var thick: Dictionary = profile.duplicate()
+	thick["density_mult"] = float(profile["density_mult"]) * mult
+	thick["fog_end"] = maxf(float(profile["fog_end"]) / mult, float(profile["fog_start"]) + 8.0)
+	return thick
 
 
 func _apply() -> void:

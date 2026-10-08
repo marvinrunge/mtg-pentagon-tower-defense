@@ -36,6 +36,7 @@ enum Kind {
 	SOUND,     ## SoundBank.play_at.
 	SHAKE,     ## SignalBus.camera_shake_requested, distance-gated per viewer.
 	NUMBER,    ## SignalBus.damage_number_requested - a figure floating off what was hit.
+	SPELL,     ## SpellVisuals.play - a spell's own signature effect, by spell id.
 }
 
 ## Beyond this a shake is somebody else's business. The caster always feels its own at
@@ -84,6 +85,18 @@ func glow(peer: int, tint: Color, radius: float) -> void:
 ## was landing on a machine they were not looking at.
 func damage_number(at: Vector3, amount: float, tint: Color, label: String = "") -> void:
 	_dispatch({"kind": Kind.NUMBER, "at": at, "size": amount, "tint": tint, "slot": label})
+
+
+## A spell's own look (SpellVisuals), named by spell id. `size` is the radius or length the
+## spell actually used, `dir` its aim where it has one, and `peer` its caster - effects that
+## ride on the caster are parented to that player on every screen. `points` carries a path
+## for the few effects that have one (a chain of lightning).
+func spell(spell_id: String, at: Vector3, size: float, peer: int, dir: Vector3 = Vector3.ZERO,
+		points: PackedVector3Array = PackedVector3Array()) -> void:
+	var payload: Dictionary = {"kind": Kind.SPELL, "spell": spell_id, "at": at, "size": size, "peer": peer, "dir": dir}
+	if not points.is_empty():
+		payload["points"] = points
+	_dispatch(payload)
 
 
 func sound(event: StringName, at: Vector3) -> void:
@@ -167,6 +180,8 @@ func _play_local(payload: Dictionary) -> void:
 			SoundBank.play_at(StringName(payload["event"]), payload["at"])
 		Kind.SHAKE:
 			_play_shake(payload)
+		Kind.SPELL:
+			SpellVisuals.play(scene, payload, player_for(int(payload.get("peer", 0))))
 		Kind.NUMBER:
 			SignalBus.damage_number_requested.emit(
 				payload["at"], float(payload["size"]), payload["tint"], String(payload["slot"])

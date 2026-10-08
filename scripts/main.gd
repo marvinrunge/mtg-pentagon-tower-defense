@@ -654,6 +654,11 @@ func _spawn_enemy(data: Variant) -> Node:
 		enemy.set_meta("miniboss", true)
 	if String(info.get("boss_modifier", "")) != "":
 		enemy.set_meta("boss_modifier", String(info["boss_modifier"]))
+	# A treant's sapling: a small, stationary copy of the treant that heals its boss if it is left
+	# standing. Has to travel in the spawn arguments like everything else here, so a client's
+	# copy is rebuilt small and rooted too.
+	if bool(info.get("sapling", false)):
+		enemy.set_meta("sapling", true)
 	# setup() has to wait for _ready, and the client reaches this the same way, so the
 	# colour/class pair travels in the spawn argument rather than as a pre-applied
 	# resource that could not replicate.
@@ -698,7 +703,13 @@ func request_effect(info: Dictionary) -> Node3D:
 
 func _spawn_effect(data: Variant) -> Node:
 	var info: Dictionary = data
-	var caster: Node3D = NetFx.player_for(int(info.get("caster", 0)))
+	return build_effect(info, NetFx.player_for(int(info.get("caster", 0))))
+
+
+## The node a placement describes, not yet in the tree. Static so a scene other than the
+## map - the effect render stage in tools/tests/vfx_stage.gd - builds exactly what the
+## game builds.
+static func build_effect(info: Dictionary, caster: Node3D) -> Node3D:
 	var node: Node3D = null
 	match String(info.get("kind", "")):
 		"dot_zone":
@@ -734,6 +745,11 @@ func _spawn_effect(data: Variant) -> Node:
 			node = ally
 		"bolt_telegraph":
 			node = _build_bolt_telegraph(float(info["radius"]), float(info["delay"]))
+		"boss_hazard":
+			node = BossHazard.create(
+				String(info["style"]), float(info["radius"]), float(info.get("inner_radius", 0.0)),
+				float(info["duration"]), float(info.get("dps", 0.0)), float(info.get("slow", 0.0))
+			)
 		_:
 			push_warning("Unknown networked effect: %s" % info.get("kind", ""))
 			return null
@@ -750,7 +766,7 @@ func _spawn_effect(data: Variant) -> Node:
 ## The telegraph resolves ITSELF, on every peer, off the same delay the server used. The
 ## caster used to hold the reference and call resolve() when its own timer fired, which
 ## works on one machine and leaves a permanent blue ring on every other one.
-func _build_bolt_telegraph(radius: float, delay: float) -> Node3D:
+static func _build_bolt_telegraph(radius: float, delay: float) -> Node3D:
 	var anchor := Node3D.new()
 	anchor.name = "BoltTelegraph"
 	var indicator: AttackIndicator = AttackIndicator.spawn(

@@ -31,20 +31,29 @@ const ICON_FILES: Dictionary = {
 	"white": "white.png", "blue": "blue.jpg", "black": "black.png", "red": "red.png", "green": "green.png",
 	"white_1": "exalted-strike.png", "white_2": "circle-of-protection.png", "white_3": "reprisal-ward.png",
 	"white_4": "wrath-of-god.png", "white_5": "rally-the-fallen.png", "blue_1": "unsummon.png",
-	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": "wall-of-frost.png", "blue_5": "displace.png",
+	# A list is tried in order: the icon drawn for the spell first, then the borrowed one it
+	# wore before (docs/ICON_PROMPTS.md), so dropping the new file in is the whole change.
+	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": ["wall-of-frost.png", "frost-globe.png"],
+	"blue_5": ["displace.png", "flying.png"],
 	"black_1": "doom-blade.png", "black_2": "contagion.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
 	"black_5": "zombify.png", "red_1": "fireball.png", "red_2": "fire-dash.png", "red_3": "rain-of-ember.png",
 	"red_4": "fire-cone.png", "red_5": "lightning-bolt.png", "green_1": "titanic-leap.png",
-	"green_2": "giant-growth.png", "green_3": "fog.png", "flight": "flying.png", "haste": "haste.png",
+	"green_2": "giant-growth.png", "green_3": "fog.png", "green_4": "roar.png", "green_5": "ironbark.png",
+	"flight": "flying.png", "haste": "haste.png",
 	"double_strike": "doublestrike.png", "trample_strike": "trample.png", "vigilance": "vigilance.png",
 	"roar": "roar.png", "ironbark": "ironbark.png", "melee_combo": "blade-dance.png",
 	"aura_glorious_anthem": "glorious anthem.png", "aura_healing_orb": "healing-orb.png",
-	"aura_rhystic_study": "rhystic-study.png", "aura_orb_of_frost": "orb-of-frost.png",
+	# Until it gets its own: the blue spellbook drawn for Sylvan Library, which is not in the
+	# game - a book of runes reads as Rhystic Study just as well.
+	"aura_rhystic_study": ["rhystic-study.png", "sylvan-library.png"], "aura_orb_of_frost": "orb-of-frost.png",
 	"aura_phyrexian_arena": "phyrexian-arena.png", "aura_grave_pact": "grave-pact.png",
 	"aura_fervor": "fervor.png", "aura_orb_of_fire": "orb-of-fire.png",
-	"aura_trample": "trample.png", "aura_kodamas_reach": "kodamas-reach.png",
-	"guild_azorius": "guild-azorius.png", "guild_dimir": "guild-dimir.png", "guild_rakdos": "guild-rakdos.png",
-	"guild_gruul": "guild-gruul.png", "guild_selesnya": "guild-selesnya.png",
+	"aura_lightning_orb": "lightning-orb.png",
+	"aura_trample": "trample.png",
+	"aura_kodamas_reach": "kodamas-reach.png",
+	"guild_azorius": "guild-azorius.png", "guild_dimir": "guild-dimir.png",
+	"guild_rakdos": "guild-rakdos.png", "guild_gruul": "guild-gruul.png",
+	"guild_selesnya": "guild-selesnya.png",
 }
 
 ## Per-spell definition.
@@ -342,7 +351,13 @@ const AURAS: Dictionary = {
 		},
 		"manifestation": {
 			"id": "aura_orb_of_fire", "name": "Orb of Fire",
-			"desc": "An orb circles you, firing bolts at nearby enemies that set them burning.",
+			"desc": "An orb circles you, hurling balls of fire at nearby enemies that set them burning.",
+		},
+		# Red's only third aura: off Lightning Bolt, the way the other two hang off the
+		# finishers either side of the middle. Orb of Fire is for one target, this for a crowd.
+		"manifestation_2": {
+			"id": "aura_lightning_orb", "name": "Lightning Orb",
+			"desc": "An orb circles you, arcing lightning into the nearest enemy that leaps on to the enemies beside it.",
 		},
 	},
 	"green": {
@@ -421,9 +436,12 @@ static func get_icon(icon_id: String, fallback_color: String = "") -> Texture2D:
 
 static func get_icon_path(icon_id: String, fallback_color: String = "") -> String:
 	if ICON_FILES.has(icon_id):
-		var icon_path: String = ICON_ROOT + String(ICON_FILES[icon_id])
-		if ResourceLoader.exists(icon_path):
-			return icon_path
+		var entry: Variant = ICON_FILES[icon_id]
+		var candidates: Array = entry if entry is Array else [entry]
+		for file: Variant in candidates:
+			var icon_path: String = ICON_ROOT + String(file)
+			if ResourceLoader.exists(icon_path):
+				return icon_path
 	var color: String = fallback_color if fallback_color != "" else get_color(icon_id)
 	if ICON_FILES.has(color):
 		var fallback_path: String = ICON_ROOT + String(ICON_FILES[color])
@@ -475,28 +493,34 @@ static func is_channelled(spell_id: String) -> bool:
 	return bool(SPELLS.get(spell_id, {}).get("channel", false))
 
 
-## Both halves of one colour's aura fork, attunement first. Empty for a colour that
-## has none, which no colour currently does.
+## The keys a colour's auras sit under, in board order. `manifestation_2` is optional - red
+## alone has one (Lightning Orb).
+const AURA_SLOTS: Array[String] = ["attunement", "manifestation", "manifestation_2"]
+
+
+## One colour's auras in board order: attunement, manifestation, and a second manifestation
+## where the colour has one. Empty for a colour that has none, which no colour currently does.
 static func get_auras(color: String) -> Array[Dictionary]:
 	var row: Dictionary = AURAS.get(color, {})
-	if row.is_empty():
-		return []
-	return [row["attunement"], row["manifestation"]]
+	var out: Array[Dictionary] = []
+	for slot: String in AURA_SLOTS:
+		if row.has(slot):
+			out.append(row[slot])
+	return out
 
 
 ## The colour a aura id belongs to, or "" if it is not a aura at all.
 static func get_aura_color(aura_id: String) -> String:
 	for color: String in AURAS:
-		for half: String in ["attunement", "manifestation"]:
-			if String(AURAS[color][half]["id"]) == aura_id:
+		for entry: Dictionary in get_auras(color):
+			if String(entry["id"]) == aura_id:
 				return color
 	return ""
 
 
 static func get_aura_name(aura_id: String) -> String:
 	for color: String in AURAS:
-		for half: String in ["attunement", "manifestation"]:
-			var entry: Dictionary = AURAS[color][half]
+		for entry: Dictionary in get_auras(color):
 			if String(entry["id"]) == aura_id:
 				return String(entry["name"])
 	return ""

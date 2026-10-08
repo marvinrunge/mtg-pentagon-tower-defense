@@ -1,7 +1,7 @@
 extends Node
 ## Regression test: does every skill in the roster actually DO something?
 ##
-## Twenty-five spells and ten auras, each cast for real against real enemies, each
+## Twenty-five spells and eleven auras, each cast for real against real enemies, each
 ## with one assertion about an observable consequence. Not "does it parse" and not "does
 ## it run without an error" - a spell that silently does nothing passes both of those,
 ## which is exactly how the skill tree managed to refuse every purchase for a whole
@@ -164,7 +164,7 @@ func _run() -> void:
 			_failures.append("section '%s' did not finish - look for a SCRIPT ERROR above" % section)
 
 	if _failures.is_empty():
-		print("TEST RESULT: PASS (25 spells, 10 auras, ranks, multicolour)")
+		print("TEST RESULT: PASS (25 spells, 11 auras, ranks, multicolour)")
 	else:
 		print("TEST RESULT: FAIL - %d failed: %s" % [_failures.size(), ", ".join(_failures)])
 
@@ -508,7 +508,7 @@ func _check_auras() -> void:
 			_player._sync_auras()
 			_player.grant_aura_rank(aura_id)
 			var took_it: bool = _player.get_aura_rank(aura_id) == 1
-			var wants_orb: bool = aura_id in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb", "aura_grave_pact"]
+			var wants_orb: bool = aura_id in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb", "aura_grave_pact", "aura_lightning_orb"]
 			var has_orb: bool = _player._aura_orbs.size() > 0
 			_check("%s %s" % [color, entry["name"]], took_it and has_orb == wants_orb,
 				"took=%s orb=%s wanted=%s" % [took_it, has_orb, wants_orb])

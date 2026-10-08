@@ -17,12 +17,28 @@ var caster: Node3D = null
 
 var _tick_timer: float = 0.0
 var _life_timer: float = 0.0
-var visual: CSGCylinder3D
-## Only fire_rain builds these; the other zone types stay the plain disc they were.
+var visual: MeshInstance3D
+var _ground_material: ShaderMaterial
+## The fire zones build these; fog builds _fog.
 var _rain: GPUParticles3D
 var _ground_fire: GPUParticles3D
+## Air shimmering over the fire (SpellFx.heat_haze) - a bare Node3D where it is not drawn.
+var _heat: Node3D
 var _light: OmniLight3D
 var _flicker_phase: float = 0.0
+var _fog: GPUParticles3D
+## Seconds the ground takes to come up and to go.
+const FADE_IN := 0.25
+const FADE_OUT := 0.6
+
+## zone_ground.gdshader's look per zone type: style, burnt/damp colour, glowing colour.
+const GROUND_LOOKS: Dictionary = {
+	"fire_rain": [0, Color(0.07, 0.035, 0.02), Color(1.0, 0.42, 0.1)],
+	"fire_patch": [0, Color(0.07, 0.035, 0.02), Color(1.0, 0.36, 0.08)],
+	"toxic_deluge": [1, Color(0.08, 0.14, 0.04), Color(0.55, 0.95, 0.2)],
+	"holy_trail": [2, Color(0.0, 0.0, 0.0), Color(1.0, 0.78, 0.36)],
+	"fog": [3, Color(0.09, 0.13, 0.1), Color(0.7, 0.85, 0.75)],
+}
 
 func setup(p_type: String, p_radius: float, p_dps: float, p_duration: float, p_caster: Node3D = null) -> void:
 	zone_type = p_type
@@ -46,28 +62,10 @@ func _ready() -> void:
 	col.shape = shape
 	add_child(col)
 	
-	# Visual setup
-	visual = CSGCylinder3D.new()
-	visual.radius = radius
-	visual.height = 0.2
-	var mat = StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	
-	if zone_type == "fire_rain" or zone_type == "fire_patch":
-		mat.albedo_color = Color(1.0, 0.3, 0.1, 0.4)
-		mat.emission = Color(1.0, 0.2, 0.0)
-	elif zone_type == "toxic_deluge":
-		mat.albedo_color = Color(0.2, 0.8, 0.2, 0.4)
-		mat.emission = Color(0.1, 0.6, 0.1)
-	elif zone_type == "holy_trail":
-		mat.albedo_color = Color(1.0, 1.0, 0.8, 0.4)
-		mat.emission = Color(1.0, 0.9, 0.5)
-	elif zone_type == "fog":
-		mat.albedo_color = Color(0.72, 0.82, 0.78, 0.35)
-		mat.emission = Color(0.45, 0.6, 0.5)
-		
-	visual.material = mat
+	# The ground it covers, projected onto the real surface with a soft ragged edge. It
+	# used to be a CSG cylinder: a hard-edged octagon that floated off any slope.
+	_ground_material = _build_ground_material()
+	visual = SpellVisuals.projected_volume(radius * 1.15, _ground_material)
 	add_child(visual)
 	if zone_type == "fire_rain":
 		_build_firestorm()
@@ -86,25 +84,19 @@ func _ready() -> void:
 ## number - every emitter is sized from it, and a fixed .tscn would only ever be right
 ## at one radius.
 func _build_firestorm() -> void:
-	# The disc itself becomes a soft scorch mark under the flames, rather than the
-	# whole effect: at the old opacity it read as a flat sticker once the particles
-	# were on top of it.
-	var disc_material: StandardMaterial3D = visual.material as StandardMaterial3D
-	disc_material.albedo_color = Color(0.75, 0.16, 0.03, 0.5)
-	disc_material.emission = Color(1.0, 0.35, 0.05)
-	disc_material.emission_energy_multiplier = 2.2
-	disc_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	disc_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	visual.height = 0.06
-
 	# One looping voice per firestorm, hung on the zone so it stops when the zone does.
 	# A one-shot at the cast site would end long before the fire did.
 	SoundBank.attach_loop(&"spell_rain_ember", self, false)
 
 	_rain = EmberFx.build_rain(radius)
 	add_child(_rain)
-	_ground_fire = EmberFx.build_ground_fire(radius)
+	add_child(_build_falling_fire())
+	_ground_fire = _build_flames(radius, 22, 1.1)
 	add_child(_ground_fire)
+	_heat = SpellFx.heat_haze(Vector3(radius * 0.7, 0.2, radius * 0.7), clampf(radius * 0.55, 1.4, 2.6),
+		clampi(int(radius * 5.0), 10, 40), 1.3, 1.5, 0.013)
+	_heat.position.y = 0.4
+	add_child(_heat)
 
 	_light = EmberFx.build_fire_light(radius * 2.4, 3.0)
 	_light.position = Vector3(0.0, 1.6, 0.0)
@@ -118,17 +110,12 @@ func _build_firestorm() -> void:
 
 
 func _build_fire_patch() -> void:
-	var disc_material: StandardMaterial3D = visual.material as StandardMaterial3D
-	disc_material.albedo_color = Color(0.42, 0.08, 0.02, 0.48)
-	disc_material.emission = Color(0.95, 0.22, 0.04)
-	disc_material.emission_energy_multiplier = 1.35
-	disc_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	disc_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	visual.height = 0.04
-
-	_ground_fire = EmberFx.build_ground_fire(radius)
-	_ground_fire.amount = 26
+	_ground_fire = _build_flames(radius, 6, 0.9)
 	add_child(_ground_fire)
+	_heat = SpellFx.heat_haze(Vector3(radius * 0.6, 0.15, radius * 0.6), clampf(radius * 0.8, 1.0, 2.0),
+		clampi(int(radius * 4.0), 5, 16), 1.1, 1.2, 0.011)
+	_heat.position.y = 0.3
+	add_child(_heat)
 
 	_light = EmberFx.build_fire_light(radius * 1.8, 1.5)
 	_light.position = Vector3(0.0, 0.7, 0.0)
@@ -138,25 +125,109 @@ func _build_fire_patch() -> void:
 ## which is the opposite of everything else this class builds, so it borrows nothing from
 ## the firestorm but the sizing-from-radius trick.
 func _build_fog() -> void:
-	var bank := GPUParticles3D.new()
-	bank.amount = 48
-	bank.lifetime = 4.0
-	bank.local_coords = false
-	bank.draw_pass_1 = EmberFx.particle_mesh(radius * 0.75, null, false)
-	var process := ParticleProcessMaterial.new()
-	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	process.emission_sphere_radius = radius * 0.8
+	# Slow, churning banks of the smoke flipbook rather than flat untextured quads, which
+	# drew as hard-edged squares: low, wide, pale and barely moving, so it reads as safe
+	# ground and not as something burning.
+	_fog = ExplosionFx.flipbook_particles(ExplosionFx.SMOKE_FLIPBOOK, radius * 0.9, 26, 5.0)
+	_fog.one_shot = false
+	_fog.preprocess = 2.0
+	var process: ParticleProcessMaterial = _fog.process_material
+	process.anim_speed_min = 0.6
+	process.anim_speed_max = 0.8
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	process.emission_ring_axis = Vector3.UP
+	process.emission_ring_radius = radius * 0.8
+	process.emission_ring_inner_radius = 0.0
+	process.emission_ring_height = 0.6
 	process.direction = Vector3.UP
-	process.spread = 180.0
-	process.initial_velocity_min = 0.1
-	process.initial_velocity_max = 0.4
-	process.gravity = Vector3.ZERO
+	process.spread = 60.0
+	process.initial_velocity_min = 0.05
+	process.initial_velocity_max = 0.25
+	process.gravity = Vector3(0.0, 0.03, 0.0)
+	process.angular_velocity_min = -6.0
+	process.angular_velocity_max = 6.0
 	process.scale_min = 0.8
-	process.scale_max = 1.5
-	process.color = Color(0.78, 0.85, 0.82, 0.25)
-	bank.process_material = process
-	bank.position = Vector3(0.0, 1.0, 0.0)
-	add_child(bank)
+	process.scale_max = 1.3
+	process.scale_curve = EmberFx._curve_texture([Vector2(0.0, 0.6), Vector2(1.0, 1.2)])
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.82, 0.9, 0.86, 0.0))
+	gradient.add_point(0.25, Color(0.82, 0.9, 0.86, 0.42))
+	gradient.add_point(0.75, Color(0.78, 0.86, 0.82, 0.38))
+	gradient.set_color(gradient.get_point_count() - 1, Color(0.75, 0.84, 0.8, 0.0))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = gradient
+	process.color_ramp = ramp
+	_fog.position = Vector3(0.0, 0.7, 0.0)
+	add_child(_fog)
+
+
+func _build_ground_material() -> ShaderMaterial:
+	var look: Array = GROUND_LOOKS.get(zone_type, GROUND_LOOKS["fire_patch"])
+	var material := ShaderMaterial.new()
+	material.shader = preload("res://assets/shaders/zone_ground.gdshader")
+	material.set_shader_parameter("style", int(look[0]))
+	material.set_shader_parameter("base_color", look[1])
+	material.set_shader_parameter("glow_color", look[2])
+	material.set_shader_parameter("radius", radius)
+	material.set_shader_parameter("seed", randf() * 100.0)
+	material.set_shader_parameter("fade", 0.0)
+	return material
+
+
+## Fire burning ON the zone: the flame flipbook, looping for as long as the zone stands.
+func _build_flames(size_radius: float, amount: int, lifetime: float) -> GPUParticles3D:
+	var flames := ExplosionFx.flipbook_particles(ExplosionFx.FIRE_FLIPBOOK, minf(size_radius * 0.55, 1.6), amount, lifetime)
+	flames.one_shot = false
+	var process: ParticleProcessMaterial = flames.process_material
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	process.emission_ring_axis = Vector3.UP
+	process.emission_ring_radius = radius * 0.85
+	process.emission_ring_inner_radius = 0.0
+	process.emission_ring_height = 0.1
+	process.direction = Vector3.UP
+	process.spread = 10.0
+	process.initial_velocity_min = 0.6
+	process.initial_velocity_max = 1.6
+	process.gravity = Vector3(0.0, 1.2, 0.0)
+	process.angle_min = -15.0
+	process.angle_max = 15.0
+	process.scale_min = 0.6
+	process.scale_max = 1.1
+	process.scale_curve = EmberFx._curve_texture([Vector2(0.0, 0.3), Vector2(0.3, 1.0), Vector2(1.0, 0.5)])
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = EmberFx.fire_gradient()
+	process.color_ramp = ramp
+	flames.position = Vector3(0.0, 0.35, 0.0)
+	return flames
+
+
+## Rain of Ember's heavier half: burning lumps that streak down into the zone between the
+## sparks, so the storm has weight as well as glitter.
+func _build_falling_fire() -> GPUParticles3D:
+	var lumps := ExplosionFx.flipbook_particles(ExplosionFx.FIRE_FLIPBOOK, 0.9, 9, 0.6)
+	lumps.one_shot = false
+	# A tail behind each lump, so it reads as falling fast rather than hanging in the air:
+	# the ball is a billboard and has no direction of its own.
+	lumps.draw_passes = 2
+	lumps.draw_pass_2 = SpellFx.tail_mesh(1.3, 3.4, Color(1.6, 0.62, 0.16))
+	var process: ParticleProcessMaterial = lumps.process_material
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process.emission_box_extents = Vector3(radius * 0.8, 0.3, radius * 0.8)
+	process.direction = Vector3(0.25, -1.0, 0.1)
+	process.spread = 4.0
+	process.initial_velocity_min = 12.0
+	process.initial_velocity_max = 16.0
+	process.gravity = Vector3(0.0, -8.0, 0.0)
+	process.particle_flag_align_y = true
+	process.angle_min = 0.0
+	process.angle_max = 0.0
+	process.scale_min = 0.8
+	process.scale_max = 1.2
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = EmberFx.fire_gradient()
+	process.color_ramp = ramp
+	lumps.position = Vector3(0.0, 8.0, 0.0)
+	return lumps
 
 
 func _process(delta: float) -> void:
@@ -164,6 +235,10 @@ func _process(delta: float) -> void:
 	if _life_timer <= 0.0:
 		queue_free()
 		return
+	var shown: float = minf((duration - _life_timer) / FADE_IN, _life_timer / FADE_OUT)
+	_ground_material.set_shader_parameter("fade", clampf(shown, 0.0, 1.0))
+	if _life_timer < FADE_OUT and _fog != null:
+		_fog.emitting = false
 
 	if _light != null:
 		_flicker_phase += delta
@@ -173,6 +248,8 @@ func _process(delta: float) -> void:
 	if _life_timer < 0.6 and _rain != null and _rain.emitting:
 		_rain.emitting = false
 		_ground_fire.emitting = false
+		if _heat is GPUParticles3D:
+			(_heat as GPUParticles3D).emitting = false
 		
 	# The disc, the embers and the light run everywhere; the DAMAGE runs on the server
 	# alone. The zone is spawned onto every peer so that all five players can see the

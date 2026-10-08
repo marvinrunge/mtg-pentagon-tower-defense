@@ -167,6 +167,7 @@ func _run() -> void:
 	_check_ranks(st, player, failures)
 	_check_connectivity(st, player, failures)
 	_check_layout(st, failures)
+	_check_details(st, failures)
 
 	# --- every kind of owned node says how far in it is --------------------------
 	#
@@ -418,6 +419,21 @@ func _check_spell_charge(player: Node, failures: Array[String]) -> void:
 		player.is_charging, player._cast_windup_clip])
 	if player.is_charging or player._cast_windup_clip != "":
 		failures.append("a dropped charge left state or animation behind")
+
+
+## Hovering ANY node has to fill the detail panel. A script error in _show_details does not
+## stop the game, it just leaves the panel as it was - which is how hovering a guild node
+## crashed it for as long as guild nodes existed (they carried no `is_affinity`).
+func _check_details(st: Node, failures: Array[String]) -> void:
+	var blank: int = 0
+	for record: Dictionary in st._button_records:
+		st._detail_title.text = ""
+		st._show_details(String(record["color"]), int(record["branch_index"]), record["info"])
+		if st._detail_title.text == "":
+			blank += 1
+			print("TEST details blank for %s %s" % [record["color"], record["info"].get("id", "?")])
+	if blank > 0:
+		failures.append("%d skill nodes leave the detail panel blank" % blank)
 
 
 ## The board has to FIT. The detail panel is intentionally an overlay now, so it may cover

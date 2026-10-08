@@ -48,7 +48,7 @@ func _arm() -> void:
 	if player == null:
 		return
 	player.aura_ranks.clear()
-	for aura_id: String in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb", "aura_grave_pact"]:
+	for aura_id: String in ["aura_orb_of_frost", "aura_orb_of_fire", "aura_healing_orb", "aura_grave_pact", "aura_lightning_orb"]:
 		player.aura_ranks[aura_id] = GameSettings.spell_max_rank
 	player._sync_auras()
 	# Something to shoot at, and something to heal - the heal orb picks the most hurt ally in

@@ -9,10 +9,17 @@ const IconStyle := preload("res://scripts/icon_style.gd")
 ## lengthens the player's light attack chain by a stage.
 const CENTER_KEY: String = "center"
 const CENTER_BRANCH: int = -1
-## The two aura nodes sit past the end of a colour's branch, splayed either side of
-## it - the fork in docs/SKILL_DESIGN.md drawn as a fork. 6 is the Attunement (the stat
-## line), 7 the Manifestation (the visible one).
-const AURA_BRANCHES: Array[int] = [6, 7]
+## The aura nodes sit past the end of a colour's branch, splayed either side of it - the
+## fork in docs/SKILL_DESIGN.md drawn as a fork. 6 is the Attunement (the stat line), 7 the
+## Manifestation (the visible one), 9 a second Manifestation that only red has (Lightning
+## Orb), out past Lightning Bolt. 8 is taken by the guild nodes.
+const AURA_BRANCHES: Array[int] = [6, 7, 9]
+## How far each aura node is turned off its colour's axis, in degrees, and how far out it
+## sits as a share of the board's outer radius. The third (red's Lightning Orb) sits a little
+## further out than the fork: at the fork's own radius it lands on Lightning Bolt below it
+## and the red-green guild node beside it.
+const AURA_SPLAY: Array[float] = [-11.0, 11.0, 24.0]
+const AURA_REACH: Array[float] = [1.0, 1.0, 1.1]
 ## One past the last ordinary branch index (0-5 plus the two aura branches).
 ##
 ## There used to be a ninth: the five keyword passives (Flying, Double Strike, Haste,
@@ -134,6 +141,7 @@ const BRANCH_EDGES: Array = [
 	[1, 3], [1, 4], [2, 4], [2, 5],
 	[3, AURA_BRANCHES[0]], [4, AURA_BRANCHES[0]],
 	[4, AURA_BRANCHES[1]], [5, AURA_BRANCHES[1]],
+	[5, AURA_BRANCHES[2]],
 ]
 
 ## Bigger nearer the trunk, so the eye reads the hierarchy before it reads the icons.
@@ -371,8 +379,7 @@ func _build_ui() -> void:
 			spell_info["rank_requirement"] = GameSettings.affinity_spell_rank_requirements[spell_index]
 			_create_icon_node(color, spell_index + 1, spell_info)
 
-		# The outer aura pair. Both are visible, rankable choices, but buying one side
-		# locks the other side for this colour.
+		# The outer auras: two per colour, three for red. All visible, all rankable.
 		var auras: Array[Dictionary] = SpellDatabase.get_auras(color)
 		for half: int in range(auras.size()):
 			var aura_info: Dictionary = auras[half].duplicate()
@@ -402,6 +409,9 @@ func _build_ui() -> void:
 	for guild_data: Dictionary in GUILD_NODES:
 		var guild_info: Dictionary = guild_data.duplicate()
 		guild_info["is_guild"] = true
+		# Every record carries the type flags the detail panel and the purchase path read;
+		# a guild node had none of them and hovering one crashed _show_details.
+		guild_info["is_affinity"] = false
 		guild_info["cost"] = GameSettings.spell_rank_point_cost
 		_create_icon_node(String(guild_info["colors"][0]), GUILD_BRANCH, guild_info)
 
@@ -574,13 +584,14 @@ func _layout_nodes() -> void:
 			# Splayed narrowly, INSIDE the outer row's own spread: the fork is the tip of
 			# the colour, and a fork wider than the row it grows out of reads as a sixth
 			# and seventh spell rather than as a choice between two endings.
-			var splay: float = deg_to_rad(-11.0 if half == 0 else 11.0)
+			var splay: float = deg_to_rad(AURA_SPLAY[half])
 			var fork_direction := Vector2(cos(angle + splay), sin(angle + splay))
-			var fork_point: Vector2 = center + fork_direction * fork_radius
-			points[AURA_BRANCHES[half]] = fork_point
+			var fork_point: Vector2 = center + fork_direction * fork_radius * AURA_REACH[half]
 			var fork_record: Dictionary = _find_record(color, AURA_BRANCHES[half])
+			# A colour without this aura (only red has a third) has no node and no line to it.
 			if fork_record.is_empty():
 				continue
+			points[AURA_BRANCHES[half]] = fork_point
 			var fork_button: TextureButton = fork_record["button"]
 			fork_button.size = Vector2(44.0, 44.0) * icon_scale
 			fork_button.position = fork_point - fork_button.size * 0.5
@@ -922,7 +933,7 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	# The two outer nodes used to be exempt, back when they were capstones and the fork
 	# between them was meant to be visible from the start. They are ordinary skills now, so
 	# they are withheld like every other one.
-	if not bool(info["is_affinity"]) and not _node_reachable(player, color, branch_index, info):
+	if not bool(info.get("is_affinity", false)) and not _node_reachable(player, color, branch_index, info):
 		_detail_title.text = "%s - Undiscovered" % COLOR_DISPLAY[color]
 		_detail_title.add_theme_color_override("font_color", COLOR_HEX[color] * Color(1, 1, 1, 0.7))
 		_detail_status.text = "Unlock a connected skill to reveal this"
@@ -965,7 +976,7 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 		_detail_body.text = info["desc"]
 		return
 
-	if bool(info["is_affinity"]):
+	if bool(info.get("is_affinity", false)):
 		var rank: int = player.get_affinity_rank(color)
 		var bonus: float = player.get_affinity_bonus(color) * 100.0
 		var next_bonus: float = _get_next_rank_bonus(rank + 1) * 100.0
@@ -1037,7 +1048,7 @@ func _on_node_pressed(color: String, branch_index: int, info: Dictionary) -> voi
 			SoundBank.play(&"skill_unlock")
 		return
 
-	if bool(info["is_affinity"]):
+	if bool(info.get("is_affinity", false)):
 		if _pay(player, 1):
 			player.invest_affinity(color)
 			update_ui()

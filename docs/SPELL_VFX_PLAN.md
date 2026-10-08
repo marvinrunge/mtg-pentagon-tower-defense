@@ -148,10 +148,11 @@ Four shaders carry almost all of it, none of them large:
 4. **Additive beam** — soft radial falloff plus a scrolling core, so beams stop being
    cylinders.
 
-Rendering-wise, the Compatibility tier in `GraphicsSettings.apply_preset` cannot run the
-depth-texture and screen-texture ones. Gate those two on the preset and let the effect fall
-back to its unshaded form — that is a build-time decision, so plan it now rather than
-discovering it at the preset switch.
+Rendering-wise, the depth texture is available in every renderer, Compatibility included
+(confirmed 2026-10-08: the projected boss telegraphs, `ground_projection.gdshaderinc`, render
+the same in Compatibility and Forward+). Soft particles and projected decals therefore need
+no fallback. The screen texture (distortion) has not been checked in Compatibility - gate that
+one on the preset until it has.
 
 ## Phase 3 — Impact, weight and feedback
 
@@ -245,6 +246,37 @@ an effect only glows if its core is pushed above that threshold.
 | Magic circles | A rune ring on the ground or at the hand while casting, turning | Nothing yet - the cheapest "this is magic" signal there is |
 | Timing and weight | Charge, release, afterglow; a hit flash, a few frames of hit-stop, a shake, a mark left behind | The four beats exist (Phase 1); hit-stop and hit flash are still Phase 3 |
 
+### Where it stands (2026-10-08): every spell has its own look
+
+All 25 spells now go through **`SpellVisuals`** (`scripts/spell_visuals.gd`) - one builder
+per spell, reached by `NetFx.spell(id, at, size, peer, dir)` so every peer builds the effect
+locally from a few numbers. `tools/tests/spell_showcase.tscn` casts every spell on the light
+stage and writes one sheet per colour (about 80 s for all five); it is how each of the looks
+below was judged. `tools/tests/wave_shot.tscn` is the close-up for the shockwave, the gust and
+Fire Cone's jet.
+
+| Piece | Where | Used by |
+|---|---|---|
+| Magic circles, five dialects (white star and rays, blue hexagram and frost, black inverted pentagram and thorns, red crossed triangles and flames, green rose and vine) | `magic_circle.gdshader` | almost every cast; projected, with a thin height band so they never climb onto the caster |
+| Light pillar | `light_pillar.gdshader` | Wrath of God (from the sky), Rally, Exalted Strike, Kill (violet), Displace, the lightning core |
+| Shield dome (fresnel rim, hex / rune / bark pattern, ground contact line, rise and drop) | `shield_dome.gdshader` | Circle of Protection per ally, Reprisal Ward |
+| Status overlay on the character for as long as a buff lasts | `status_overlay.gdshader`, `scripts/status_fx.gd` | Ironbark (bark over the skin), Circle shield (gold rim and hex shimmer), Reprisal (bands of light, three orbiting plates), Exalted charge, Rally's ward, Giant Growth |
+| Ground cracks | `ground_cracks.gdshader` | Titanic Brawl's landing (it had no effect at all), Lightning Bolt |
+| Ground slash | `ground_slash.gdshader` | Doom Blade's path |
+| Void blade | `void_blade.gdshader` | Doom Blade's crescent |
+| Zone ground (burnt veins, sludge, holy pool, damp) | `zone_ground.gdshader` | every DoTZone - the hard CSG octagon is gone |
+| Fire and smoke flipbooks | `ExplosionFx.flipbook_particles` | zone flames, falling fire in Rain of Ember, Fire Cone's stream, fog banks, dust, black smoke |
+| Shockwave: a projected ground front (sharp edge in metres, torn wake, speed lines, a flash at the start, pressed ground behind the edge), a low wall of shoved air riding on it, sparks skidding with it; a sector of it for one-way pushes | `shockwave_ground.gdshader`, `shockwave_wall.gdshader`, `SpellFx.shockwave` | every ring and impact on the ground (Wrath of God, Roar, Frost Breath, Titanic Brawl, Fireball); Unsummon's gust as a 104-degree sector with a taller wall. Small impacts (a hit on a chest) stay rings in the air |
+| Flame jet: three cones of streaming fire tongues (jet, hot core, faint haze), embers as streaks, smoke off the tips, flickering light | `flame_jet.gdshader`, `SpellVisuals.fire_stream` | Fire Cone |
+| Forked bolt | `SpellVisuals.lightning_strike` | Lightning Bolt, re-struck twice as it flickers |
+| Ice spikes | `BossTell` ice_spikes | Frost Breath (ring) |
+
+The persistent buff state travels as `Player.status_fx`, a bit set the server keeps and
+replicates with the vitals - a client's own spells resolve on the host, so its own timers
+are never real.
+
+Not done yet from the list below: distortion (4), and the shield ripple per hit.
+
 ### The pieces to build
 
 1. **Shield shader** (Protego). One shader for every shield: a fresnel rim that burns at the
@@ -263,7 +295,10 @@ an effect only glows if its core is pushed above that threshold.
    scrolling-noise erosion material, premultiplied like the rest of the layer.
 4. **Distortion.** One screen-space refraction shader for heat haze (red), shockwave rings
    (Unsummon, Wrath of God, boss slams) and the shield's surface.
-5. **Flipbooks.** Animated sheets for fire, smoke and explosions instead of single-frame
+5. **Flipbooks.** *Started 2026-10-08: the Fireball's explosion (`ExplosionFx`) plays fire and
+   smoke flipbooks from `tools/build_vfx_flipbooks.gd`, around a billowing, eroding fireball
+   body (`explosion_volume.gdshader`) and over a projected scorch whose embers cool.
+   `tools/tests/explosion_shot.tscn` renders it as a strip of moments.* Animated sheets for fire, smoke and explosions instead of single-frame
    puffs - generated, or from the texture database in `docs/VFX_TEXTURES.md`.
 6. **Hero moments.** One signature beat per colour's biggest spell: Wrath of God as a light
    pillar from the sky, Kill as a moment of desaturation and a crack of violet over the
@@ -274,7 +309,7 @@ an effect only glows if its core is pushed above that threshold.
 
 | Who | Does |
 |---|---|
-| Claude | Writes the shaders, the particle systems and the effect meshes in code; generates the procedural textures (noise, rune circles, flipbooks, gradients) the way `tools/build_vfx_textures.gd` already does; renders `tools/tests/vfx_showcase.tscn` at four times of day - with `-- <out.png> --glow` for the game's bloom - and judges and iterates on the frames before anything is shown |
+| Claude | Writes the shaders, the particle systems and the effect meshes in code; generates the procedural textures (noise, rune circles, flipbooks, gradients) the way `tools/build_vfx_textures.gd` already does; renders `tools/tests/spell_showcase.tscn` (every spell, one sheet per colour) and `tools/tests/vfx_showcase.tscn` (four times of day) - with `--glow` for the game's bloom - and judges and iterates on the frames before anything is shown |
 | The developer | Looks at a screenshot sheet per colour and says more / less / different. Optionally picks texture packs for what is photographic (smoke, explosions, scorch marks), where authored art beats generated art |
 
 Limits worth knowing up front: no image model is involved, so everything generated is
@@ -283,9 +318,9 @@ developer's go-ahead per download.
 
 ### Budget and fallbacks
 
-Distortion and depth-intersection read the screen and depth textures, which the
-Compatibility renderer does not offer: those layers switch off below the High preset, and
-each effect keeps a readable unshaded form without them. Particle counts ride one
+Depth-intersection reads the depth texture, which every renderer offers (see Phase 2).
+Distortion reads the screen texture, unchecked in Compatibility: that layer switches off below
+the High preset, and each effect keeps a readable unshaded form without it. Particle counts ride one
 multiplier from the preset (Phase 5). Everything stays premultiplied - see
 `scripts/spell_fx.gd` - so the new layers survive the bright half of the day/night cycle.
 
