@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://cfirkgsw2cpcd"
+path.s3tc="res://.godot/imported/nature-blue-giant-clam_2.jpg-d511830c5c6a6ac0d3ca6fcdc6f1201b.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "563a706155d7533b966a5d35147590f2"
+}
+
+[deps]
+
+source_file="res://assets/generated/nature-blue-giant-clam/nature-blue-giant-clam_2.jpg"
+dest_files=["res://.godot/imported/nature-blue-giant-clam_2.jpg-d511830c5c6a6ac0d3ca6fcdc6f1201b.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=1
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=1
+roughness/src_normal="res://assets/generated/nature-blue-giant-clam/nature-blue-giant-clam_2.jpg"
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

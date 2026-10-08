@@ -1,0 +1,52 @@
+{
+  "_doc": "Recipe for tools/nature/blender/build_trees.py. Lengths in metres, angles in degrees. Tall forest fir, docs/NATURE_ASSETS.md (Green).",
+  "seed": 23,
+  "form": "conifer",
+  "height_m": 14.0,
+  "bark": "bark_conifer.png",
+  "bark_tile_m": 1.4,
+  "leaves": "leaves_windswept-pine",
+  "leaf_hue_shift": -28,
+  "leaf_saturation": 0.8,
+  "leaf_value": 1.15,
+  "trunk": {
+    "length": 14.0,
+    "radius": 0.36,
+    "taper": 0.03,
+    "gnarl": 1.5,
+    "lean": 1,
+    "segments": 12,
+    "flare": 1.25
+  },
+  "whorls": {
+    "from": 0.12,
+    "to": 0.97,
+    "spacing": 0.5,
+    "per_whorl": 7,
+    "angle": 98,
+    "angle_spread": 8,
+    "droop": 24,
+    "max_length": 2.9,
+    "min_length": 0.35,
+    "shape_power": 0.95,
+    "radius": 0.07,
+    "segments": 4
+  },
+  "ring_vertices": [
+    7,
+    4
+  ],
+  "leaf_cards": {
+    "along_branch": true,
+    "spacing": 0.3,
+    "size": [
+      1.2,
+      1.6
+    ],
+    "tilt": 14,
+    "top_tuft": 5,
+    "outward_normals": 0.6,
+    "layers": 2,
+    "cross_angle": 42
+  }
+}

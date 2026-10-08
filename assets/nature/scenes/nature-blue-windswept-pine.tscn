@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-windswept-pine.res" id="1_lptgq"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_5nc3l"]
+height = 5.4
+radius = 0.35
+
+[node name="NatureBlueWindsweptPine" type="Node3D" unique_id=408918084]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1632634820]
+mesh = ExtResource("1_lptgq")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=139570973]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1292022626]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
+shape = SubResource("CylinderShape3D_5nc3l")

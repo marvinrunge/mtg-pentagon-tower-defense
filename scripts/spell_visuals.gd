@@ -110,6 +110,15 @@ static func play(scene: Node, payload: Dictionary, owner: Node3D) -> void:
 			_on_ground(scene, magic_circle("red", RED_CIRCLE, 1.2, 0.3, 0.12, 2.0), at)
 		"red_5":
 			_on_ground(scene, lightning_strike(size), at)
+		"orb_bolt":
+			var orb_mode: int = int(size)
+			_on_ground(scene, OrbitingOrb.build_bolt(orb_mode, payload.get("dir", Vector3.ZERO)), at)
+			# A soul thrown is a soul spent: one less on every screen but the server's.
+			if orb_mode == OrbitingOrb.Mode.SOUL:
+				_mirror_souls(owner, -1)
+		"orb_soul_wisp":
+			_on_ground(scene, OrbitingOrb.build_soul_wisp(payload.get("dir", Vector3.ZERO)), at)
+			_mirror_souls(owner, 1)
 		"orb_fire_shot":
 			_on_ground(scene, fire_bolt(payload.get("dir", Vector3.FORWARD), size), at)
 		"orb_lightning":
@@ -130,6 +139,15 @@ static func play(scene: Node, payload: Dictionary, owner: Node3D) -> void:
 			_on_ground(scene, magic_circle("green", EARTH.lerp(Player.FX_GREEN, 0.35), 1.4, 0.6, 0.2), at)
 			_on_owner(owner, splinters(EARTH, 1.0, 34))
 			_on_owner(owner, dust_ring(1.2, 0.6))
+
+
+## Keeps a client's copy of the caster's Grave Pact orb in step with the server's soul count.
+static func _mirror_souls(owner: Node3D, change: int) -> void:
+	if owner == null or not ("_aura_orbs" in owner):
+		return
+	var orb: Variant = owner._aura_orbs.get("aura_grave_pact", null)
+	if is_instance_valid(orb) and orb.has_method("mirror_soul"):
+		orb.mirror_soul(change)
 
 
 ## The aim a payload carries, flattened onto the ground. Falls back to -Z, the way a

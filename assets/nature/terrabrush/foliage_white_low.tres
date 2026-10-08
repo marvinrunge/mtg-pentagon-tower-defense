@@ -1,0 +1,56 @@
+[gd_resource type="FoliageResource" format=4]
+
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-wheat-grass_01.png" id="1_c6xql"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-wheat-grass_02.png" id="2_2lhby"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-wheat-grass_03.png" id="3_l618f"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-wheat-grass_04.png" id="4_l0mpr"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-wildflowers_01.png" id="5_w4632"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-wildflowers_02.png" id="6_kdbnp"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-wildflowers_03.png" id="7_52oil"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-wildflowers_04.png" id="8_2w6am"]
+[ext_resource type="Shader" path="res://assets/shaders/nature_foliage.gdshader" id="9_uk5ew"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_kossw"]
+render_priority = 0
+shader = ExtResource("9_uk5ew")
+shader_parameter/GlobalPosition = null
+shader_parameter/OffsetPosition = null
+shader_parameter/InitialCellWidth = null
+shader_parameter/LODRowsPerLevel = null
+shader_parameter/LODLevels = null
+shader_parameter/WindStrength = null
+shader_parameter/FoliageAlbedo = null
+shader_parameter/FoliageNumberOfTexture = null
+shader_parameter/UseGroundColor = null
+shader_parameter/MeshScale = null
+shader_parameter/UseBrushScale = null
+shader_parameter/RandomPlacementRange = null
+shader_parameter/ApplyOnTextureIndexes = null
+shader_parameter/NumberOfTexturesToApplyOn = null
+shader_parameter/NearestFilter = null
+shader_parameter/TextureDetail = null
+shader_parameter/NumberOfTextures = null
+shader_parameter/WaterFactor = null
+shader_parameter/ZonesSize = null
+shader_parameter/Resolution = null
+shader_parameter/NumberOfZones = null
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_jswr6"]
+_surfaces = [{
+"aabb": AABB(-0.45, 0, -0.45, 0.9, 0.9, 0.9),
+"attribute_data": PackedByteArray("AAAAAAAAgD8AAIA/AACAPwAAgD8AAAAAAAAAAAAAgD8AAIA/AAAAAAAAAAAAAAAAAAAAAAAAgD8AAIA/AACAPwAAgD8AAAAAAAAAAAAAgD8AAIA/AAAAAAAAAAAAAAAA"),
+"format": 34359738391,
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 12,
+"vertex_data": PackedByteArray("ZmbmvgAAAIAAAACAZmbmPgAAAAAAAAAAZmbmPmZmZj8AAAAAZmbmvgAAAIAAAACAZmbmPmZmZj8AAAAAZmbmvmZmZj8AAAAAAAAAgAAAAIBmZua+AAAAAAAAAABmZuY+AAAAAGZmZj9mZuY+AAAAgAAAAIBmZua+AAAAAGZmZj9mZuY+AAAAAGZmZj9mZua+/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
+}]
+
+[sub_resource type="FoliageDefinitionResource" id="FoliageDefinitionResource_3lm12"]
+mesh = SubResource("ArrayMesh_jswr6")
+windStrength = 0.08
+albedoTextures = Array[Texture2D]([ExtResource("1_c6xql"), ExtResource("2_2lhby"), ExtResource("3_l618f"), ExtResource("4_l0mpr"), ExtResource("1_c6xql"), ExtResource("2_2lhby"), ExtResource("3_l618f"), ExtResource("4_l0mpr"), ExtResource("1_c6xql"), ExtResource("2_2lhby"), ExtResource("3_l618f"), ExtResource("4_l0mpr"), ExtResource("5_w4632"), ExtResource("6_kdbnp"), ExtResource("7_52oil"), ExtResource("8_2w6am")])
+customShader = SubResource("ShaderMaterial_kossw")
+
+[resource]
+definition = SubResource("FoliageDefinitionResource_3lm12")

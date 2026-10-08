@@ -1,0 +1,22 @@
+{
+  "generator": "Meshy Image to 3D API v1",
+  "task_id": "01a10816-8d44-70b7-87de-e89f6064cc08",
+  "status": "SUCCEEDED",
+  "consumed_credits": 15,
+  "request": {
+    "ai_model": "meshy-t2",
+    "model_type": "smart-topology",
+    "target_polycount": 500,
+    "should_texture": true,
+    "enable_pbr": true,
+    "texture_resolution": "2k",
+    "origin_at": "bottom",
+    "target_formats": [
+      "glb"
+    ],
+    "moderation": true
+  },
+  "concept_image": "nature-black-slate-shards_concept.png",
+  "concept_prompt": "Game asset concept render of a single isolated cluster of wet slate shards for a fantasy tower defense game: four thin flaky shards of wet black slate tilted against each other, faint violet sheen, a little dark moss at the base. Setting: rotting bayou of black water, low mist, decay and quiet menace. Palette: charcoal, deep aubergine, sickly olive, bone white, deep violet accents. Style: semi-realistic fantasy game asset - believable natural materials and proportions, real surface detail (fractures, weathering, grain, subtle colour variation), colour slightly richer than life, and a clear silhouette that still reads from far away. Like a high-quality modern fantasy game asset render: not cartoon, not toon-shaded, not low-poly, not hand-painted, and not a photograph. About 0.9 metres wide and 0.4 metres tall. Framing: three-quarter view from slightly above, the whole object centred and fully inside the frame with a wide empty margin on every side, nothing cropped. Background: plain flat uniform neutral mid-grey (#808080), no gradient, no vignette, no floor, no ground plane, no cast shadow, no contact shadow, no other objects, no scenery. Nothing around the object: no soil patch, no ground island, no base, no puddle or water, no grass tufts or pebbles at its foot, no mist, fog, smoke, steam, sparks, particles or drips - the object alone, cut off cleanly where it would meet the ground. Lighting: soft even neutral studio light, no coloured light, no dramatic rim light, no bloom, no glow halo outside the object. No text, no logo, no watermark, no border, no characters, no symbols from existing franchises.",
+  "license_review_required": true
+}

@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-olive-sunleaf.res" id="1_8ocl7"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_oolkx"]
+height = 3.6
+radius = 0.4
+
+[node name="NatureWhiteOliveSunleaf" type="Node3D" unique_id=258148033]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=2107029178]
+mesh = ExtResource("1_8ocl7")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=2068604637]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=2105934556]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
+shape = SubResource("CylinderShape3D_oolkx")

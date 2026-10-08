@@ -68,6 +68,11 @@ source sheets in `assets/foliage/grass/source/` into 20 alpha-cutout billboards,
 per biome, which are placed on the terrain as TerraBrush foliage. Remaining foliage
 should follow that route rather than this one.
 
+Revised by `docs/NATURE_ASSETS.md`: fine foliage (grass, ferns, reeds, flowers) stays
+on alpha cards, but low-poly trees and bushes built from a few big faceted canopy
+clumps are solid shapes and do go through Meshy. That plan covers the living layer
+(plants, stones, mana crystals, fungus); this file stays the built and dead layer.
+
 **Craters are rims, not holes.** Every Meshy prop returns as a closed mesh with
 `origin_at: bottom`, so a generated crater sits on the ground like a bowl. The three
 red-lane impact pieces are specced as *rims* and *ejecta* meant to be laid over a

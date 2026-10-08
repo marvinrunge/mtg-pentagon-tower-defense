@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-giant-clam.res" id="1_gqi0r"]
+
+[node name="NatureBlueGiantClam" type="Node3D" unique_id=1108913362]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1794475287]
+cast_shadow = 0
+mesh = ExtResource("1_gqi0r")

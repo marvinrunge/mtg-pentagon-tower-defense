@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-bracket-log.res" id="1_e85yl"]
+
+[node name="NatureBlackBracketLog" type="Node3D" unique_id=9545331]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=314831217]
+mesh = ExtResource("1_e85yl")

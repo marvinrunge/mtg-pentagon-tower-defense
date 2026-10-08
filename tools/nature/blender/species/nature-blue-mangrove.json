@@ -1,0 +1,74 @@
+{
+  "_doc": "Recipe for tools/nature/blender/build_trees.py. Lengths in metres, angles in degrees. Mangrove on arching stilt roots, Blue.",
+  "seed": 47,
+  "form": "deciduous",
+  "height_m": 7.0,
+  "bark": "bark_mangrove.png",
+  "bark_tile_m": 1.2,
+  "leaves": "leaves_mangrove",
+  "trunk": {
+    "length": 2.6,
+    "radius": 0.34,
+    "taper": 0.6,
+    "gnarl": 10,
+    "lean": 4,
+    "segments": 5,
+    "flare": 1.0,
+    "start_z": 1.2
+  },
+  "roots": {
+    "count": 9,
+    "height": [
+      0.0,
+      0.25
+    ],
+    "spread": 2.6,
+    "arch": 0.6,
+    "radius": 0.09,
+    "segments": 6
+  },
+  "levels": [
+    {
+      "count": 6,
+      "start": 0.5,
+      "angle": 55,
+      "angle_spread": 14,
+      "length": 1.1,
+      "length_spread": 0.25,
+      "radius": 0.5,
+      "gnarl": 18,
+      "up": 0.1,
+      "segments": 5
+    },
+    {
+      "count": 5,
+      "start": 0.3,
+      "angle": 45,
+      "angle_spread": 14,
+      "length": 0.55,
+      "length_spread": 0.25,
+      "radius": 0.45,
+      "gnarl": 22,
+      "up": 0.06,
+      "segments": 3
+    }
+  ],
+  "ring_vertices": [
+    7,
+    5,
+    4
+  ],
+  "leaf_cards": {
+    "on_level": 2,
+    "from": 0.25,
+    "per_branch": 6,
+    "size": [
+      1.0,
+      1.4
+    ],
+    "spread": 0.7,
+    "tilt": 50,
+    "layers": 2,
+    "outward_normals": 0.75
+  }
+}

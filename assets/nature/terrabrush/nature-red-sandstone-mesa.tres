@@ -1,0 +1,45 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-sandstone-mesa.res" id="1_f45vc"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_44noe"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_hsoru"]
+maxDistance = 70.0
+addCollision = true
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_dutov"]
+maxDistance = 520.0
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_2tm4n"]
+height = 5.0
+radius = 3.0549808
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_puy62"]
+mesh = ExtResource("1_f45vc")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_qb2rg"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_puy62")])
+collisionShape = SubResource("CylinderShape3D_2tm4n")
+collisionOffset = Vector3(0, 2.5, 0)
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_wrkp7"]
+mesh = ExtResource("1_f45vc")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_a5glu"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_wrkp7")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_mkujd"]
+strategy = 2
+objectFrequency = 45
+randomRange = 18.0
+noiseTexture = ExtResource("2_44noe")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.9
+randomSizeFactorMax = 1.1
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_hsoru"), SubResource("ObjectOctreeLODDefinitionResource_dutov")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_qb2rg"), SubResource("ObjectOctreeLODMeshesDefinitionResource_a5glu")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_mkujd")

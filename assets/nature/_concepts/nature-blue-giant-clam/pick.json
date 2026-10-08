@@ -1,0 +1,16 @@
+{
+  "suggested": "v1.png",
+  "approved": {
+    "file": "v1.png",
+    "sha256": "528568477d67db11abbb528ff029c98886b19e7ac0781805604317e638780b09",
+    "at": "2026-10-04 20:02"
+  },
+  "checks": [
+    {
+      "file": "v1.png",
+      "ok": true,
+      "reason": "ok, fills 59%",
+      "score": 0.857
+    }
+  ]
+}
