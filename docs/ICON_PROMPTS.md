@@ -1,24 +1,68 @@
 # Skill icon prompts (Gemini image generation)
 
-Prompts for the skill tree nodes that still have no icon of their own. Until their file exists,
-`SpellDatabase.get_icon_path` falls back to the colour's mana symbol. The filenames in the table
-are already wired in `SpellDatabase.ICON_FILES`, except Wall of Frost (see below).
+Prompts for the skill tree nodes that still have no icon of their own. Every filename below is
+already wired in `SpellDatabase.ICON_FILES`: until its file exists, `get_icon_path` falls back to
+what the node shows now (a borrowed icon, or the colour's mana symbol), so adding the file is the
+whole change.
 
-## How to use
+## All nine in one image (recommended)
 
 1. Start a Gemini chat and attach 3-4 existing icons as style references, e.g.
    `assets/icons/unsummon.png`, `fire-cone.png`, `wall-of-souls.png`, `roar.png`.
-2. Send the **style block** once, then one **icon line** per message. Ask for one image per message.
-3. Save each result as a square PNG under `assets/icons/` with the filename from the table.
-   Size does not matter much (the existing ones are about 210 px). 512 px is fine.
+2. Send the prompt below. It asks for a 3 x 3 sheet in a fixed order.
+3. Save the sheet and cut it into the nine files:
+   `python tools/slice_icon_sheet.py <sheet.png>` (writes into `assets/icons/`, skips files that
+   already exist unless `--force`).
 4. Open the project in the editor once so Godot imports the new files.
+
+```
+Create ONE square image (1:1, as large as possible) that is a sprite sheet of 9 ability
+icons for a fantasy action game inspired by Magic: The Gathering, laid out as an exact
+3 x 3 grid of equal square cells, separated by straight, plain, near-black gutters about
+2% of the image wide. Each cell holds exactly one complete icon, centred, filling the cell.
+
+Style - match the attached reference icons exactly, the same for all 9:
+painterly digital illustration, polished like a high-end ARPG / mobile spell icon; one bold
+central subject with a strong silhouette, readable at 48 px; dramatic lighting, magical
+glow and rim light, rich saturated colours; soft dark vignette background tinted in the
+icon's colour, slightly rounded square. No text, letters, numbers, labels, borders, frames,
+UI elements or watermark anywhere in the image.
+Colour language: white = warm gold and ivory light; blue = icy cyan and deep ocean blue;
+black = violet, sickly purple and shadow; red = fire orange, crimson and ember; green =
+vivid leaf green and earthy brown. Two-colour icons blend both palettes.
+
+Cells, row by row, left to right:
+1. Wall of Frost (blue): a thick, jagged wall of blue ice crystals erupting from the ground
+   in a straight line, low three-quarter view, frost mist at its base, cyan glow inside.
+2. Contagion (black): a sickly violet plague cloud leaping from one skull-like silhouette to
+   the next in a chain of three, glowing purple-green spores, the infection spreading.
+3. Kodama's Reach (green): a small white forest spirit (kodama, round head, simple face),
+   arms outstretched, green roots and rings of light spreading out across mossy ground.
+4. Azorius Justiciar (white + blue): a stern armoured law-mage raising a glowing sceptre,
+   chains of white-gold light and blue arcane runes binding the air before him.
+5. Dimir Guildmage (blue + black): a hooded mage with a hidden face, one hand of cold blue
+   frost, the other of violet death magic, a ghostly figure rising from frozen ground.
+6. Mayhem Devil (black + red): a grinning red-skinned horned imp gleefully holding a skull
+   that bursts into fire and violet sparks.
+7. Rubblebelt Rioters (red + green): a raging barbarian brute mid-swing with a stone club,
+   shattered rocks and embers flying, wild green energy around his fists.
+8. Trostani, Selesnya's Voice (green + white): a serene dryad whose body merges into a
+   blossoming white tree, golden light flowing from her open hands.
+9. Displace (blue): a mage dissolving into blue light particles on the left and reappearing
+   solid on the right, a streak of arcane distortion between them.
+```
+
+If one cell comes out wrong, regenerate just that one with the matching single-icon line below
+(after the style block) and save it under its filename by hand.
+
+## One icon at a time
+
+Send the **style block** once, then one **icon line** per message, and save each result as a
+square PNG under `assets/icons/` with the filename from the table. Size does not matter much
+(the existing ones are about 210 px).
 
 `tools/tests/skill_tree_full_shot.tscn` photographs the tree with every node bought, which is the
 quickest way to see which nodes still wear a mana symbol.
-
-For **Wall of Frost**, save as `wall-of-frost.png`, then change `"blue_4"` in
-`SpellDatabase.ICON_FILES` from `frost-globe.png` to `wall-of-frost.png`. It is not pre-wired
-because, until the file exists, it would fall back to the bare blue drop instead of the frost globe.
 
 ## Style block
 
@@ -58,4 +102,4 @@ Reply with one icon per message. I will describe each one next.
 | `displace.png` | Blue: Displace (blink) | `flying.png` (wings) | `Icon: "Displace". A mage figure dissolving into blue light particles on the left and reappearing solid on the right, a streak of arcane distortion between the two. Blue palette.` |
 | `rhystic-study.png` | Blue aura: Rhystic Study | `sylvan-library.png` (blue rune book) | `Icon: "Rhystic Study". An open ancient tome floating, its pages radiating a protective blue shield bubble edged with frost crystals. Blue palette.` |
 
-For these two, change their entries in `SpellDatabase.ICON_FILES` once the files exist.
+Both are wired too: the new file wins over the borrowed one as soon as it exists.

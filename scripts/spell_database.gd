@@ -31,7 +31,10 @@ const ICON_FILES: Dictionary = {
 	"white": "white.png", "blue": "blue.jpg", "black": "black.png", "red": "red.png", "green": "green.png",
 	"white_1": "exalted-strike.png", "white_2": "circle-of-protection.png", "white_3": "reprisal-ward.png",
 	"white_4": "wrath-of-god.png", "white_5": "rally-the-fallen.png", "blue_1": "unsummon.png",
-	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": "frost-globe.png", "blue_5": "flying.png",
+	# A list is tried in order: the icon drawn for the spell first, then the borrowed one it
+	# wore before (docs/ICON_PROMPTS.md), so dropping the new file in is the whole change.
+	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": ["wall-of-frost.png", "frost-globe.png"],
+	"blue_5": ["displace.png", "flying.png"],
 	"black_1": "doom-blade.png", "black_2": "contagion.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
 	"black_5": "zombify.png", "red_1": "fireball.png", "red_2": "fire-dash.png", "red_3": "rain-of-ember.png",
 	"red_4": "fire-cone.png", "red_5": "lightning-bolt.png", "green_1": "titanic-leap.png",
@@ -40,9 +43,9 @@ const ICON_FILES: Dictionary = {
 	"double_strike": "doublestrike.png", "trample_strike": "trample.png", "vigilance": "vigilance.png",
 	"roar": "roar.png", "ironbark": "ironbark.png", "melee_combo": "blade-dance.png",
 	"aura_glorious_anthem": "glorious anthem.png", "aura_healing_orb": "healing-orb.png",
-	# The blue spellbook drawn for Sylvan Library, which is not in the game - a book of runes
-	# reads as Rhystic Study just as well, until it gets its own.
-	"aura_rhystic_study": "sylvan-library.png", "aura_orb_of_frost": "orb-of-frost.png",
+	# Until it gets its own: the blue spellbook drawn for Sylvan Library, which is not in the
+	# game - a book of runes reads as Rhystic Study just as well.
+	"aura_rhystic_study": ["rhystic-study.png", "sylvan-library.png"], "aura_orb_of_frost": "orb-of-frost.png",
 	"aura_phyrexian_arena": "phyrexian-arena.png", "aura_grave_pact": "grave-pact.png",
 	"aura_fervor": "fervor.png", "aura_orb_of_fire": "orb-of-fire.png",
 	"aura_lightning_orb": "lightning-orb.png",
@@ -435,9 +438,12 @@ static func get_icon(icon_id: String, fallback_color: String = "") -> Texture2D:
 
 static func get_icon_path(icon_id: String, fallback_color: String = "") -> String:
 	if ICON_FILES.has(icon_id):
-		var icon_path: String = ICON_ROOT + String(ICON_FILES[icon_id])
-		if ResourceLoader.exists(icon_path):
-			return icon_path
+		var entry: Variant = ICON_FILES[icon_id]
+		var candidates: Array = entry if entry is Array else [entry]
+		for file: Variant in candidates:
+			var icon_path: String = ICON_ROOT + String(file)
+			if ResourceLoader.exists(icon_path):
+				return icon_path
 	var color: String = fallback_color if fallback_color != "" else get_color(icon_id)
 	if ICON_FILES.has(color):
 		var fallback_path: String = ICON_ROOT + String(ICON_FILES[color])
