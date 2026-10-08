@@ -2,6 +2,14 @@
 
 Add only durable facts that were confirmed by a command or controlling code path.
 
+- 2026-10-08: **Air shimmer (`heat_haze.gdshader`), and a NaN that glow turned into a white blot.**
+  - **`pow()` of a base that can dip a hair below zero is NaN, and with glow on (Forward+) one NaN pixel blooms into a white disc with a black centre.** `shockwave_wall` did `pow(1.0 - UV.y, 1.4)`; interpolation overshoots UV.y past 1 at the wall's top edge. It showed as a thin line along the top of Unsummon's wall and a white blot after it faded. Clamp every `pow` base (`facing` from `abs(dot(NORMAL, VIEW))` can exceed 1 too). Compatibility drew nothing there, so the bug only shows in Forward+ renders.
+  - **Forward+ renders in the container are fast on the light stage**: lavapipe is already installed (`/usr/share/vulkan/icd.d/lvp_icd.json`); `--rendering-driver vulkan --rendering-method forward_plus` did a whole colour sheet of `spell_showcase` in about 50 s. Use it for anything the game's default renderer must show (glow, screen-texture effects).
+  - **A screen-texture effect must draw BEFORE other transparents and the Sky3D fog**: the screen copy happens once before the transparent pass, so haze drawn after a flame paints the flame over. `SpellFx.HAZE_RENDER_PRIORITY` (90) sits under the fog (100) and the effects (110).
+  - **In Compatibility with glow off, `hint_screen_texture` is already tone-mapped**, so re-emitting it as ALBEDO brightens it (pale patches). With glow on it matched. Air shimmer is therefore off on Compatibility (`SpellFx.haze_supported`), which the LOW preset uses with glow off.
+  - **A `ParticleProcessMaterial` has gravity (0, -9.8, 0) by default** - rising heat quads sat on the ground until gravity was set.
+  - **Big billboards that touch the ground cut it along a hard line in Forward+**; `ExplosionFx.flipbook_particles` now uses proximity fade (Fog's cloud showed it worst).
+
 - 2026-10-08: **Every spell has its own look now (`SpellVisuals`), and buffs are drawn on the character for their whole duration (`StatusFx`).** Facts found on the way:
   - **`tools/tests/spell_showcase.tscn -- <prefix> [white,red] [rank5] [--glow]`** casts every spell through `Player._run_spell_effect` on the light stage and writes `<prefix>_<colour>.png`. A real Player instantiates fine outside main.tscn (set meta `is_local`); MainController's effect builder is static (`MainController.build_effect`) so the stage places zones, walls and summons the way the map does.
   - **A node placed with `add_child` then `global_position = at` has the WRONG position inside its own `tree_entered`.** Builders that spawn helpers from `tree_entered` (BossTell spikes for Frost Breath) put them at the origin. `SpellVisuals._on_ground` sets the position before adding.

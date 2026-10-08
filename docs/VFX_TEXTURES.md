@@ -50,8 +50,11 @@ at these files is the `TEXTURES` dictionary at the top of `scripts/spell_fx.gd`.
 | `flipbook_smoke.png` | 4 x 4 flipbook: a lumpy, top-lit smoke billow growing and thinning | Smoke rolling out of an explosion (`ExplosionFx`) |
 | `trail_trace.png` | A thin streak, hot at the head, thinning into a tail | Tails behind fast fire (`SpellFx.tail_mesh`, slot `trail`): Rain of Ember's falling fire, Orb of Fire's ball |
 | `lightning_arc.png` | One jagged arc, top to bottom | Lightning Orb's chain and its crackle (slot `arc`) |
+| `swirl_twirl.png` | A curl of wind, bright along its leading edge | Suction's vortex (`SpellFx.vortex`, slot `twirl`) |
+| `ironbark_bark.png` | Oak bark, in colour (the one texture here that is not white) | Ironbark grown over the player (`status_overlay.gdshader`, via `StatusFx.BARK_TEXTURE`) |
 
-`trail_trace.png` and `lightning_arc.png` are Kenney's Particle Pack (`trace_04`, `spark_05`),
+`trail_trace.png`, `lightning_arc.png` and `swirl_twirl.png` are Kenney's Particle Pack
+(`trace_04`, `spark_05`, `twirl_03`),
 CC0, from the GitHub copy at github.com/Calinou/kenney-particle-pack (kenney.nl itself is not
 reachable from the cloud container). Converted to white on transparent - luminance into
 alpha - like everything else here. Credit to Kenney (www.kenney.nl) is appreciated, not
@@ -151,3 +154,9 @@ Treat those as ceilings rather than starting points.
    billboard, blending and vertex-colour settings stay consistent.
 4. Colour it with a `color_ramp`, never with the texture.
 5. If it should light the world, add `build_fire_light()` and tick `flicker()`.
+
+`ironbark_bark.png` is the project's own oak bark (`assets/nature/_concepts/textures/bark_oak.png`,
+scaled to 512) - copied rather than referenced because `_concepts` is `.gdignore`d.
+
+Air shimmer (`heat_haze.gdshader`) uses no texture: it redraws the screen behind it through a
+drifting noise field. See `SpellFx.heat_haze` and `SpellFx.haze_supported`.

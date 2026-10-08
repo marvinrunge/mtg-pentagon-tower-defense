@@ -27,6 +27,9 @@ uniform float seed = 0.0;
 uniform float edge_width = 0.25;
 uniform float wake_length = 2.0;
 uniform float arc_half = 3.14159265;
+// How bright the edge line is. A gust keeps it low: its wall of air is the front, and a
+// bright line under it outlived the wall and stayed behind as a long thin streak.
+uniform float edge_strength = 1.0;
 
 float hash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -85,11 +88,12 @@ void fragment() {
 	// Pressed ground just inside the edge.
 	float pressed = (1.0 - smoothstep(0.0, edge_width * 3.0, abs(d + edge_width * 2.2))) * step(d, 0.0);
 
-	// Fades as it spends itself; the edge outlasts the wake a little.
+	// Fades as it spends itself. The edge goes with the wake: kept bright to the end, the
+	// last thing on screen was a hairline arc at full radius.
 	float spent = 1.0 - smoothstep(0.55, 1.0, progress);
 	// The first instant: the whole ground inside the front flashes.
 	float flash = (1.0 - smoothstep(0.0, 0.2, progress)) * step(d, 0.0) * (1.0 - r / max(edge_r, 0.01)) * 0.8;
-	float light = clamp(edge * (0.6 + spent * 0.4) + wake * 0.8 * spent + flash, 0.0, 1.0) * sector;
+	float light = clamp(edge * edge_strength * spent + wake * 0.8 * spent + flash, 0.0, 1.0) * sector;
 	float dark = pressed * 0.5 * spent * sector;
 
 	vec3 deep = max(mix(vec3(dot(tint, vec3(0.299, 0.587, 0.114))), tint, 1.4), vec3(0.0));

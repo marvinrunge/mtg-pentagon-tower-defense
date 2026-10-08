@@ -35,7 +35,7 @@ float noise(vec2 p) {
 }
 
 void fragment() {
-	float facing = abs(dot(normalize(NORMAL), normalize(VIEW)));
+	float facing = clamp(abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0, 1.0);
 	float core = pow(facing, 3.0);
 	// Streaks: noise stretched along the column and scrolling along it. UV.x runs round the
 	// cylinder - wrapped by sampling it on a circle so there is no seam.

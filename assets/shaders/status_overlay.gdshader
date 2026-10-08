@@ -2,7 +2,7 @@ shader_type spatial;
 // What a buff looks like ON the character for as long as it lasts (StatusFx): drawn as the
 // material_overlay of every mesh of the player, over their own materials.
 //
-//   bark     Ironbark: bark grown over the skin, with faint green cracks
+//   bark     Ironbark: oak bark grown over the skin (bark_texture), with faint green cracks
 //   shield   Circle of Protection: a gold rim and a hex shimmer across the body
 //   reprisal Reprisal Ward: bright bands of light climbing the body
 //   exalted  Exalted Strike charged: a slow gold pulse at the silhouette
@@ -20,8 +20,10 @@ uniform float exalted = 0.0;
 uniform float phoenix = 0.0;
 uniform float giant = 0.0;
 uniform vec3 gold : source_color = vec3(1.0, 0.78, 0.36);
-uniform vec3 bark_dark : source_color = vec3(0.16, 0.1, 0.05);
-uniform vec3 bark_light : source_color = vec3(0.42, 0.29, 0.15);
+// Real bark - the oak of the map's own trees - tiled along the mesh's UVs, so it stays put
+// on a moving limb. Procedural ridges used to stand in for it and read as brown stripes.
+uniform sampler2D bark_texture : source_color, filter_linear_mipmap, repeat_enable;
+uniform vec2 bark_tiling = vec2(3.0, 1.5);
 uniform vec3 green : source_color = vec3(0.55, 0.9, 0.45);
 
 varying vec3 v_world;
@@ -56,13 +58,21 @@ void vertex() {
 void fragment() {
 	float fresnel = pow(1.0 - clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0), 1.6);
 
-	// Bark: ridges running along the mesh's own UVs, so it stays put on a moving limb.
-	vec2 g = UV * vec2(38.0, 9.0);
-	float ridge = noise(g + vec2(noise(g * 0.35) * 2.0, 0.0));
-	float grooves = smoothstep(0.25, 0.6, ridge);
-	vec3 bark_col = mix(bark_dark, bark_light, grooves) * (0.8 + fresnel * 0.4);
-	float crack = (1.0 - smoothstep(0.02, 0.08, abs(ridge - 0.22))) * (0.6 + 0.4 * sin(TIME * 2.0 + UV.y * 20.0));
-	bark_col = mix(bark_col, green * 1.6, crack * 0.35);
+	// Bark. The overlay is unshaded (the buffs below are light), so the bark carries its own
+	// light: a fixed key from above the camera, deeper grooves where the texture is dark, and
+	// a dry pale edge at the silhouette - without it the bark was a flat decal on the body.
+	vec3 wood = texture(bark_texture, UV * bark_tiling).rgb;
+	float wood_lum = dot(wood, vec3(0.299, 0.587, 0.114));
+	float key = clamp(dot(NORMAL, normalize(vec3(0.35, 0.8, 0.45))), 0.0, 1.0);
+	// The texture is a dark oak (median luminance about 0.07 once linear): lifted here so it
+	// reads as wood in daylight rather than as a burnt shell.
+	vec3 bark_col = wood * vec3(1.05, 0.95, 0.8) * (0.6 + key * 0.95) * mix(0.7, 1.25, smoothstep(0.01, 0.12, wood_lum));
+	bark_col += vec3(0.32, 0.26, 0.18) * fresnel * 0.35;
+	// Living green glowing up out of the deepest grooves - only the darkest few percent of
+	// the texture - breathing slowly.
+	float groove = 1.0 - smoothstep(0.003, 0.009, wood_lum);
+	float crack = groove * (0.55 + 0.45 * sin(TIME * 2.0 + UV.y * 20.0));
+	bark_col = mix(bark_col, green * 1.4, crack * 0.4);
 	// Patchy at first, growing over everything as the amount rises.
 	float cover = smoothstep(1.0 - bark * 1.15, 1.0 - bark * 1.15 + 0.15, noise(UV * 14.0));
 

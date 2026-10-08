@@ -29,6 +29,9 @@ const CIRCLE_PATTERN: Dictionary = {"white": 0, "blue": 1, "black": 2, "red": 3,
 const DOME_HEX := 0
 const DOME_RUNES := 1
 const DOME_BARK := 2
+## How tall a shield dome stands: over the head of a player (whose capsule is 1.9) with room
+## to spare, so the whole character is inside it rather than poking out of its top.
+const DOME_HEIGHT := 2.4
 ## Green's earth end: dust, bark, thrown rock.
 const EARTH := Color(0.52, 0.4, 0.22)
 ## Black's smoke: near-black with violet in it, the colour that eats light.
@@ -63,10 +66,10 @@ static func play(scene: Node, payload: Dictionary, owner: Node3D) -> void:
 			_on_ground(scene, magic_circle("white", WHITE_GOLD, size, 1.0, 0.3), at)
 			_on_owner(owner, SpellFx.cast_glow(Player.FX_WHITE, 2.0))
 		"white_2_ally":
-			_on_owner(owner, shield_dome(WHITE_GOLD, 1.15, 1.1, DOME_HEX), at)
+			_on_owner(owner, shield_dome(WHITE_GOLD, 1.3, 1.1, DOME_HEX), at)
 		"white_3":
 			_on_ground(scene, magic_circle("white", WHITE_GOLD, 1.6, 0.6, 0.15), at)
-			_on_owner(owner, shield_dome(WHITE_GOLD, 1.25, 1.0, DOME_RUNES))
+			_on_owner(owner, shield_dome(WHITE_GOLD, 1.4, 1.0, DOME_RUNES, DOME_HEIGHT + 0.1))
 			_on_owner(owner, SpellFx.cast_glow(Player.FX_WHITE, 2.4))
 		"white_4":
 			_on_ground(scene, wrath_of_god(size), at)
@@ -324,13 +327,16 @@ static func light_pillar(tint: Color, radius: float, height: float, duration: fl
 
 ## A dome of light over whoever it is parented to: raised from the ground, flashing as it
 ## closes, held for `hold`, then eaten away downward.
-static func shield_dome(tint: Color, radius: float, hold: float, pattern: int) -> Node3D:
+static func shield_dome(tint: Color, radius: float, hold: float, pattern: int,
+		height: float = DOME_HEIGHT) -> Node3D:
 	var root := Node3D.new()
 	root.name = "ShieldDome"
 	var sphere := SphereMesh.new()
 	sphere.radius = radius
-	# For a hemisphere `height` is the dome's own height, not the whole sphere's.
-	sphere.height = radius
+	# For a hemisphere `height` is the dome's own height, not the whole sphere's - and it may
+	# differ from the radius, which makes the dome a tall bubble. A round one as wide as a
+	# player stands is only waist-high and cut through the character's chest.
+	sphere.height = height
 	sphere.is_hemisphere = true
 	sphere.radial_segments = 40
 	sphere.rings = 16
@@ -874,6 +880,8 @@ static func flame_burst(radius: float) -> GPUParticles3D:
 	ramp.gradient = EmberFx.fire_gradient()
 	process.color_ramp = ramp
 	flames.position.y = 0.6
+	flames.add_child(SpellFx.heat_haze(Vector3(radius * 0.4, 0.2, radius * 0.4), radius * 1.2, 8, 0.9,
+		radius * 1.4, 0.014, true))
 	flames.tree_entered.connect(func() -> void:
 		flames.emitting = true
 		flames.get_tree().create_timer(1.0).timeout.connect(flames.queue_free), CONNECT_ONE_SHOT)
@@ -928,6 +936,11 @@ static func fire_stream(length: float) -> Node3D:
 	ep.particle_flag_align_y = true
 	embers.draw_pass_1 = SpellFx.streak_mesh(0.08, 0.45)
 	root.add_child(embers)
+
+	# Air shimmering over the whole jet and climbing off it.
+	var heat: Node3D = SpellFx.heat_haze(Vector3(length * 0.18, 0.25, length * 0.42), 1.8, 26, 0.9, 1.4, 0.014)
+	heat.position = Vector3(0.0, 0.3, -length * 0.55)
+	root.add_child(heat)
 
 	var smoke: GPUParticles3D = ExplosionFx.flipbook_particles(ExplosionFx.SMOKE_FLIPBOOK, 2.4, 10, 1.6)
 	smoke.name = "Smoke"

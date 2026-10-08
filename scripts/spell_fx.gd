@@ -25,6 +25,7 @@ const SHOCKWAVE_SHADER := "res://assets/shaders/shockwave.gdshader"
 const SHOCKWAVE_GROUND_SHADER := "res://assets/shaders/shockwave_ground.gdshader"
 const SHOCKWAVE_WALL_SHADER := "res://assets/shaders/shockwave_wall.gdshader"
 const BEAM_SHADER := "res://assets/shaders/energy_beam.gdshader"
+const HEAT_HAZE_SHADER := "res://assets/shaders/heat_haze.gdshader"
 
 ## Drawn AFTER Sky3D's fog, which is the single reason spell effects looked washed out
 ## against the sky and worst of all along the horizon.
@@ -42,6 +43,13 @@ const BEAM_SHADER := "res://assets/shaders/energy_beam.gdshader"
 ## are self-lit VFX that were already opted out of Godot's fog (`fog_disabled`), so this is
 ## the same decision applied to the fog that is actually in the scene.
 const FX_RENDER_PRIORITY: int = 110
+
+## Air shimmer goes the other way: BELOW the fog and every other effect. It redraws the
+## screen behind it, and the screen texture is copied before any transparent pass - so
+## drawn after a flame it would paint the flame over with the ground behind it, and drawn
+## after the fog it would paint over the fog with unfogged ground. Before both, the fog
+## lands on it like on anything else and the effects draw over it.
+const HAZE_RENDER_PRIORITY: int = 90
 
 ## Every texture this layer draws with, in one place, so swapping one is a one-line change
 ## and never a hunt through the builders.
@@ -72,6 +80,8 @@ const TEXTURES := {
 	"trail": "res://assets/vfx/trail_trace.png",
 	# Kenney's spark_05: one jagged arc of lightning, top to bottom.
 	"arc": "res://assets/vfx/lightning_arc.png",
+	# Kenney's twirl_03: a curl of wind, bright along its leading edge. Suction's vortex.
+	"twirl": "res://assets/vfx/swirl_twirl.png",
 	# The three settle-beat marks. Dark tints for scorch and blight, pale for frost; the
 	# masks themselves are white and carry only the shape.
 	"decal_scorch": "res://assets/vfx/decal_scorch.png",
@@ -314,6 +324,7 @@ static func _start_wave(root: Node3D, tint: Color, radius: float, duration: floa
 	ground.set_shader_parameter("edge_width", clampf(radius * 0.05, 0.2, 0.55))
 	ground.set_shader_parameter("wake_length", clampf(radius * 0.4, 0.8, 4.0))
 	ground.set_shader_parameter("arc_half", arc_half)
+	ground.set_shader_parameter("edge_strength", 0.35 if wall_height > 0.0 else 1.0)
 	ground.set_shader_parameter("seed", randf() * 100.0)
 	holder.add_child(SpellVisuals.projected_volume(radius * 1.08, ground,
 		clampf(radius * 0.3, 0.5, 3.0), clampf(radius * 0.5, 1.0, 6.0)))
@@ -336,6 +347,16 @@ static func _start_wave(root: Node3D, tint: Color, radius: float, duration: floa
 	wall.material_override = air
 	wall.scale = Vector3(0.05, height, 0.05)
 	holder.add_child(wall)
+	# The air itself rippling with the front, a little taller than the visible wall: it is
+	# what makes a wave read as force rather than as a ring of light.
+	var ripple: MeshInstance3D = null
+	var ripple_material: ShaderMaterial = null
+	var ripple_height: float = height * 1.4 + 0.4
+	if haze_supported():
+		ripple = _haze_wall(span, 0.03 if wall_height > 0.0 else 0.022)
+		ripple_material = ripple.material_override as ShaderMaterial
+		ripple.scale = Vector3(0.05, ripple_height, 0.05)
+		holder.add_child(ripple)
 
 	holder.add_child(_edge_sparks(tint, radius, duration, arc_half))
 
@@ -344,6 +365,9 @@ static func _start_wave(root: Node3D, tint: Color, radius: float, duration: floa
 		ground.set_shader_parameter("progress", t)
 		var r: float = maxf(t * radius, 0.05)
 		wall.scale = Vector3(r, height * lerpf(1.0, settle, t), r)
+		if ripple != null:
+			ripple.scale = Vector3(r * 1.02, ripple_height * lerpf(1.0, settle, t), r * 1.02)
+			ripple_material.set_shader_parameter("fade", 1.0 - smoothstep(0.6, 1.0, t))
 		air.set_shader_parameter("fade", 1.0 - smoothstep(0.45, 1.0, t)),
 		0.0, 1.0, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.tween_method(func(v: float) -> void: ground.set_shader_parameter("fade", v), 1.0, 0.0, 0.15)
@@ -435,6 +459,95 @@ static func _air_ring(tint: Color, radius: float, duration: float) -> MeshInstan
 		).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tween.tween_callback(wave.queue_free), CONNECT_ONE_SHOT)
 	return wave
+
+
+## Whether air shimmer is drawn at all. Not on the Compatibility renderer: there, with glow
+## off (the LOW preset turns both on together), the screen texture it re-draws is already
+## tone-mapped, so the shimmer showed as pale patches instead of bent air - and LOW is for
+## the machines that can least afford the extra screen copy anyway.
+static func haze_supported() -> bool:
+	return RenderingServer.get_current_rendering_method() != "gl_compatibility"
+
+
+## The material every air shimmer draws with (heat_haze.gdshader). `billboard` for particle
+## quads; off for a mesh that is already shaped, like the arc wall of a shockwave.
+static func haze_material(strength: float, billboard: bool, scale: float = 4.0,
+		speed: float = 1.2, drift: Vector2 = Vector2(0.0, 1.0)) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = load(HEAT_HAZE_SHADER) as Shader
+	material.render_priority = HAZE_RENDER_PRIORITY
+	material.set_shader_parameter("strength", strength)
+	material.set_shader_parameter("billboard", billboard)
+	material.set_shader_parameter("scale", scale)
+	material.set_shader_parameter("speed", speed)
+	material.set_shader_parameter("drift", drift)
+	return material
+
+
+## Heat rising off fire: soft quads of shimmering air drifting up out of a box `extents` big
+## round the node, each `size` across, swelling as it climbs and fading out. Keeps running
+## until `emitting` is turned off, or with `burst` once, all at the start - the heat a blast
+## throws off.
+##
+## Draws nothing of its own - only bends what is behind it - so it can be laid generously
+## over any fire without changing its colour.
+static func heat_haze(extents: Vector3, size: float, amount: int, lifetime: float = 1.1,
+		rise: float = 1.6, strength: float = 0.012, burst: bool = false) -> Node3D:
+	if not haze_supported():
+		var nothing := Node3D.new()
+		nothing.name = "HeatHaze"
+		return nothing
+	var haze := GPUParticles3D.new()
+	haze.name = "HeatHaze"
+	haze.amount = amount
+	haze.lifetime = lifetime
+	haze.local_coords = false
+	haze.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if burst:
+		haze.one_shot = true
+		haze.explosiveness = 0.7
+	var quad := QuadMesh.new()
+	quad.size = Vector2(size, size)
+	quad.surface_set_material(0, haze_material(strength, true))
+	haze.draw_pass_1 = quad
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	process.emission_box_extents = extents
+	process.direction = Vector3.UP
+	process.spread = 15.0
+	process.initial_velocity_min = rise * 0.6
+	process.initial_velocity_max = rise
+	# Hot air climbs: without this the default gravity pulled every quad back into the ground.
+	process.gravity = Vector3(0.0, 0.4, 0.0)
+	process.scale_min = 0.8
+	process.scale_max = 1.2
+	process.scale_curve = _curve_texture([Vector2(0.0, 0.6), Vector2(1.0, 1.4)])
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1.0, 1.0, 1.0, 0.0))
+	gradient.add_point(0.25, Color(1.0, 1.0, 1.0, 1.0))
+	gradient.set_color(gradient.get_point_count() - 1, Color(1.0, 1.0, 1.0, 0.0))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = gradient
+	process.color_ramp = ramp
+	haze.process_material = process
+	# Generous bounds: the quads climb well out of the box, and a culled haze pops.
+	haze.visibility_aabb = AABB(-extents - Vector3(size, size, size),
+		(extents + Vector3(size, size, size)) * 2.0 + Vector3(0.0, rise * lifetime * 1.5, 0.0))
+	return haze
+
+
+## A shockwave's ripple in the air: the arc wall of `_arc_wall_mesh`, bending what is behind
+## it instead of drawing on it. Scaled and faded by the wave's own tween.
+static func _haze_wall(span: float, strength: float) -> MeshInstance3D:
+	var wall := MeshInstance3D.new()
+	wall.name = "HazeWall"
+	wall.mesh = _arc_wall_mesh(span)
+	wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Fine and fast, streaming outward along the wall rather than up it.
+	var material := haze_material(strength, false, 9.0, 1.6, Vector2(0.4, 1.0))
+	material.set_shader_parameter("arc_fraction", span / TAU)
+	wall.material_override = material
+	return wall
 
 
 ## A shaft of light from `origin` along `direction`.
@@ -668,40 +781,44 @@ static func vortex(radius: float, tint: Color, lifetime: float) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Vortex"
 
-	var swirl := GPUParticles3D.new()
-	swirl.name = "Swirl"
-	swirl.amount = 80
-	swirl.lifetime = 2.4
-	swirl.local_coords = false
-	swirl.draw_pass_1 = premul_particle_mesh(0.35, "shard")
-	var process := ParticleProcessMaterial.new()
-	# Born at the RIM, which is the edge the player needs to read - it is the line between
-	# being dragged and not being dragged.
-	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
-	process.emission_ring_axis = Vector3.UP
-	process.emission_ring_radius = radius
-	process.emission_ring_inner_radius = radius * 0.82
-	process.emission_ring_height = 0.4
-	process.direction = Vector3.UP
-	process.spread = 8.0
-	process.initial_velocity_min = 0.2
-	process.initial_velocity_max = 0.8
-	# Inward, hard enough that a particle crosses the whole radius inside its own lifetime.
-	process.radial_accel_min = -radius * 1.6
-	process.radial_accel_max = -radius * 2.4
-	process.tangential_accel_min = radius * 1.2
-	process.tangential_accel_max = radius * 2.0
-	# Lifted as they converge, so the middle of the zone reads as a column rather than as a
-	# flat disc of particles piling up at one point.
-	process.gravity = Vector3(0.0, 1.6, 0.0)
-	process.scale_min = 0.5
-	process.scale_max = 1.1
-	process.scale_curve = _curve_texture([
-		Vector2(0.0, 0.2), Vector2(0.3, 1.0), Vector2(1.0, 0.1),
+	# Curls of wind a couple of metres across, wound round and in from the rim. Small ice
+	# shards used to carry this alone, and at a third of a metre on a twelve-metre zone they
+	# read as dust rather than as air being dragged.
+	var curl: float = clampf(radius * 0.4, 2.4, 5.0)
+	var swirl: GPUParticles3D = _vortex_layer("Swirl", radius, 40, 2.6, premul_particle_mesh(curl, "twirl"),
+		_premul_ramp(tint))
+	var swirl_process: ParticleProcessMaterial = swirl.process_material
+	# Each curl turns WITH the vortex, so its bright edge leads the way it is travelling.
+	swirl_process.angle_min = 0.0
+	swirl_process.angle_max = 360.0
+	swirl_process.angular_velocity_min = -160.0
+	swirl_process.angular_velocity_max = -90.0
+	swirl_process.scale_curve = _curve_texture([
+		Vector2(0.0, 0.5), Vector2(0.25, 1.0), Vector2(1.0, 0.4),
 	])
-	process.color_ramp = _premul_ramp(tint)
-	swirl.process_material = process
 	root.add_child(swirl)
+
+	# A low mist dragged round with it, so the ground inside reads as stirred-up air.
+	var mist_gradient := Gradient.new()
+	mist_gradient.set_color(0, Color(tint.r, tint.g, tint.b, 0.0))
+	mist_gradient.add_point(0.3, Color(tint.r * 0.32, tint.g * 0.32, tint.b * 0.32, 0.32))
+	mist_gradient.set_color(mist_gradient.get_point_count() - 1, Color(0.0, 0.0, 0.0, 0.0))
+	var mist_ramp := GradientTexture1D.new()
+	mist_ramp.gradient = mist_gradient
+	var mist: GPUParticles3D = _vortex_layer("Mist", radius, 14, 3.0,
+		premul_particle_mesh(clampf(radius * 0.4, 2.2, 5.0), "smoke"), mist_ramp)
+	var mist_process: ParticleProcessMaterial = mist.process_material
+	mist_process.gravity = Vector3(0.0, 0.3, 0.0)
+	mist_process.angle_min = 0.0
+	mist_process.angle_max = 360.0
+	mist_process.angular_velocity_min = -60.0
+	mist_process.angular_velocity_max = -30.0
+	root.add_child(mist)
+
+	# Ice glinting in it - fewer and bigger than before, the detail rather than the body.
+	var shards: GPUParticles3D = _vortex_layer("Shards", radius, 30, 2.4, premul_particle_mesh(0.5, "shard"),
+		_premul_ramp(tint))
+	root.add_child(shards)
 
 	# The footprint, so the zone is legible from above and while standing in it.
 	var mark: MeshInstance3D = ground_decal("decal_frost", Color(tint.r, tint.g, tint.b, 0.5),
@@ -724,6 +841,46 @@ static func vortex(radius: float, tint: Color, lifetime: float) -> Node3D:
 		tween.tween_property(mark, "rotation:y", TAU, 9.0).from(0.0)
 		, CONNECT_ONE_SHOT)
 	return root
+
+
+## One layer of `vortex`: particles born at the rim of `radius` and spiralled into a column
+## in its middle - inward hard enough to cross the whole radius in their own lifetime,
+## round fast enough to read as a whirl, and lifted as they converge.
+static func _vortex_layer(layer_name: String, radius: float, amount: int, lifetime: float,
+		mesh: Mesh, ramp: Texture2D) -> GPUParticles3D:
+	var particles := GPUParticles3D.new()
+	particles.name = layer_name
+	particles.amount = amount
+	particles.lifetime = lifetime
+	particles.local_coords = false
+	particles.draw_pass_1 = mesh
+	var process := ParticleProcessMaterial.new()
+	# Born at the RIM, which is the edge the player needs to read - it is the line between
+	# being dragged and not being dragged.
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	process.emission_ring_axis = Vector3.UP
+	process.emission_ring_radius = radius
+	process.emission_ring_inner_radius = radius * 0.82
+	process.emission_ring_height = 0.4
+	process.direction = Vector3.UP
+	process.spread = 8.0
+	process.initial_velocity_min = 0.2
+	process.initial_velocity_max = 0.8
+	process.radial_accel_min = -radius * 1.6
+	process.radial_accel_max = -radius * 2.4
+	process.tangential_accel_min = radius * 1.2
+	process.tangential_accel_max = radius * 2.0
+	# Lifted as they converge, so the middle of the zone reads as a column rather than as a
+	# flat disc of particles piling up at one point.
+	process.gravity = Vector3(0.0, 1.6, 0.0)
+	process.scale_min = 0.5
+	process.scale_max = 1.1
+	process.scale_curve = _curve_texture([
+		Vector2(0.0, 0.2), Vector2(0.3, 1.0), Vector2(1.0, 0.1),
+	])
+	process.color_ramp = ramp
+	particles.process_material = process
+	return particles
 
 
 ## Where a ground effect actually belongs, given a point that might be anywhere.

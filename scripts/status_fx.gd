@@ -13,6 +13,8 @@ extends Node3D
 ## (status_overlay.gdshader), and for some a few particles around them.
 
 const OVERLAY_SHADER: Shader = preload("res://assets/shaders/status_overlay.gdshader")
+## Oak bark from the map's own trees (assets/nature/_concepts/textures/bark_oak.png, scaled down).
+const BARK_TEXTURE := "res://assets/vfx/ironbark_bark.png"
 
 const SHIELD := 1
 const REPRISAL := 2
@@ -47,6 +49,7 @@ func _ready() -> void:
 	_player = get_parent() as Node3D
 	_material = ShaderMaterial.new()
 	_material.shader = OVERLAY_SHADER
+	_material.set_shader_parameter("bark_texture", load(BARK_TEXTURE))
 	for bit: int in UNIFORMS.keys():
 		_amounts[bit] = 0.0
 	_build_orbit()

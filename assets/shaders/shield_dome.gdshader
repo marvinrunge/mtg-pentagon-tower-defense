@@ -54,7 +54,9 @@ void vertex() {
 }
 
 void fragment() {
-	float facing = abs(dot(normalize(NORMAL), normalize(VIEW)));
+	// Clamped: a dot of two unit vectors can come out a hair over 1, and pow(1 - facing)
+	// below would be NaN there.
+	float facing = clamp(abs(dot(normalize(NORMAL), normalize(VIEW))), 0.0, 1.0);
 	float rim = pow(1.0 - facing, 3.0);
 
 	// Pattern coordinates: around and up the dome, so it wraps without stretching much.

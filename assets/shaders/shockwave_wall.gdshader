@@ -39,7 +39,9 @@ void fragment() {
 	float n = noise(vec2(UV.x * streak_cells + seed, v * 3.0 - TIME * rise));
 	float top = 1.0 - smoothstep(0.35 + n * 0.4, 0.95, v);
 	float foot = smoothstep(0.0, 0.06, v);
-	float column = pow(1.0 - v, 1.4);
+	// Clamped: interpolation lets UV.y overshoot 1 by a hair at the top edge, and pow of a
+	// negative base is NaN - which glow then blew up into a white blot with a black heart.
+	float column = pow(clamp(1.0 - v, 0.0, 1.0), 1.4);
 	float streak = smoothstep(0.45, 0.95, noise(vec2(UV.x * streak_cells * 2.5 + seed * 3.0, v * 1.2 - TIME * rise * 1.6)));
 	float ends = arc_fraction >= 0.999 ? 1.0 : smoothstep(0.0, 0.18, UV.x) * smoothstep(1.0, 0.82, UV.x);
 	// Seen edge-on the wall is denser; face-on it is thin air.

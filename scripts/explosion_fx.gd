@@ -65,6 +65,10 @@ static func fireball(radius: float) -> Node3D:
 	var light: OmniLight3D = EmberFx.build_fire_light(radius * 4.0, 8.0)
 	root.add_child(light)
 
+	# The heat it throws off: air shimmering over the blast and climbing after the fire.
+	root.add_child(SpellFx.heat_haze(Vector3(radius * 0.5, radius * 0.3, radius * 0.5),
+		clampf(radius * 1.3, 1.2, 4.0), 16, 1.6, radius * 1.2, 0.016, true))
+
 	# Created on tree_entered: every caller builds the explosion and THEN adds it, and a tween
 	# made outside the tree fails and returns nothing - which once left bursts with no fade
 	# and nothing to free them, accumulating for the life of the run.
@@ -203,6 +207,10 @@ static func flipbook_particles(texture_path: String, size: float, amount: int, l
 	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	material.disable_receive_shadows = true
 	material.render_priority = SpellFx.FX_RENDER_PRIORITY
+	# Faded where the quad runs into the ground (or anything else): a big billow sitting low
+	# cut the floor along a hard straight line, which showed most on Fog's slow cloud.
+	material.proximity_fade_enabled = true
+	material.proximity_fade_distance = clampf(size * 0.3, 0.3, 1.5)
 	quad.material = material
 	particles.draw_pass_1 = quad
 	var process := ParticleProcessMaterial.new()

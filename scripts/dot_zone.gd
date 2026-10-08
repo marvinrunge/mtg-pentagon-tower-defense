@@ -22,6 +22,8 @@ var _ground_material: ShaderMaterial
 ## The fire zones build these; fog builds _fog.
 var _rain: GPUParticles3D
 var _ground_fire: GPUParticles3D
+## Air shimmering over the fire (SpellFx.heat_haze) - a bare Node3D where it is not drawn.
+var _heat: Node3D
 var _light: OmniLight3D
 var _flicker_phase: float = 0.0
 var _fog: GPUParticles3D
@@ -91,6 +93,10 @@ func _build_firestorm() -> void:
 	add_child(_build_falling_fire())
 	_ground_fire = _build_flames(radius, 22, 1.1)
 	add_child(_ground_fire)
+	_heat = SpellFx.heat_haze(Vector3(radius * 0.7, 0.2, radius * 0.7), clampf(radius * 0.55, 1.4, 2.6),
+		clampi(int(radius * 5.0), 10, 40), 1.3, 1.5, 0.013)
+	_heat.position.y = 0.4
+	add_child(_heat)
 
 	_light = EmberFx.build_fire_light(radius * 2.4, 3.0)
 	_light.position = Vector3(0.0, 1.6, 0.0)
@@ -106,6 +112,10 @@ func _build_firestorm() -> void:
 func _build_fire_patch() -> void:
 	_ground_fire = _build_flames(radius, 6, 0.9)
 	add_child(_ground_fire)
+	_heat = SpellFx.heat_haze(Vector3(radius * 0.6, 0.15, radius * 0.6), clampf(radius * 0.8, 1.0, 2.0),
+		clampi(int(radius * 4.0), 5, 16), 1.1, 1.2, 0.011)
+	_heat.position.y = 0.3
+	add_child(_heat)
 
 	_light = EmberFx.build_fire_light(radius * 1.8, 1.5)
 	_light.position = Vector3(0.0, 0.7, 0.0)
@@ -238,6 +248,8 @@ func _process(delta: float) -> void:
 	if _life_timer < 0.6 and _rain != null and _rain.emitting:
 		_rain.emitting = false
 		_ground_fire.emitting = false
+		if _heat is GPUParticles3D:
+			(_heat as GPUParticles3D).emitting = false
 		
 	# The disc, the embers and the light run everywhere; the DAMAGE runs on the server
 	# alone. The zone is spawned onto every peer so that all five players can see the
