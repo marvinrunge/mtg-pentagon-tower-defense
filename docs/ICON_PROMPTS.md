@@ -13,6 +13,9 @@ are already wired in `SpellDatabase.ICON_FILES`, except Wall of Frost (see below
    Size does not matter much (the existing ones are about 210 px). 512 px is fine.
 4. Open the project in the editor once so Godot imports the new files.
 
+`tools/tests/skill_tree_full_shot.tscn` photographs the tree with every node bought, which is the
+quickest way to see which nodes still wear a mana symbol.
+
 For **Wall of Frost**, save as `wall-of-frost.png`, then change `"blue_4"` in
 `SpellDatabase.ICON_FILES` from `frost-globe.png` to `wall-of-frost.png`. It is not pre-wired
 because, until the file exists, it would fall back to the bare blue drop instead of the frost globe.
