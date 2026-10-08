@@ -148,10 +148,11 @@ Four shaders carry almost all of it, none of them large:
 4. **Additive beam** — soft radial falloff plus a scrolling core, so beams stop being
    cylinders.
 
-Rendering-wise, the Compatibility tier in `GraphicsSettings.apply_preset` cannot run the
-depth-texture and screen-texture ones. Gate those two on the preset and let the effect fall
-back to its unshaded form — that is a build-time decision, so plan it now rather than
-discovering it at the preset switch.
+Rendering-wise, the depth texture is available in every renderer, Compatibility included
+(confirmed 2026-10-08: the projected boss telegraphs, `ground_projection.gdshaderinc`, render
+the same in Compatibility and Forward+). Soft particles and projected decals therefore need
+no fallback. The screen texture (distortion) has not been checked in Compatibility - gate that
+one on the preset until it has.
 
 ## Phase 3 — Impact, weight and feedback
 
@@ -263,7 +264,10 @@ an effect only glows if its core is pushed above that threshold.
    scrolling-noise erosion material, premultiplied like the rest of the layer.
 4. **Distortion.** One screen-space refraction shader for heat haze (red), shockwave rings
    (Unsummon, Wrath of God, boss slams) and the shield's surface.
-5. **Flipbooks.** Animated sheets for fire, smoke and explosions instead of single-frame
+5. **Flipbooks.** *Started 2026-10-08: the Fireball's explosion (`ExplosionFx`) plays fire and
+   smoke flipbooks from `tools/build_vfx_flipbooks.gd`, around a billowing, eroding fireball
+   body (`explosion_volume.gdshader`) and over a projected scorch whose embers cool.
+   `tools/tests/explosion_shot.tscn` renders it as a strip of moments.* Animated sheets for fire, smoke and explosions instead of single-frame
    puffs - generated, or from the texture database in `docs/VFX_TEXTURES.md`.
 6. **Hero moments.** One signature beat per colour's biggest spell: Wrath of God as a light
    pillar from the sky, Kill as a moment of desaturation and a crack of violet over the
@@ -283,9 +287,9 @@ developer's go-ahead per download.
 
 ### Budget and fallbacks
 
-Distortion and depth-intersection read the screen and depth textures, which the
-Compatibility renderer does not offer: those layers switch off below the High preset, and
-each effect keeps a readable unshaded form without them. Particle counts ride one
+Depth-intersection reads the depth texture, which every renderer offers (see Phase 2).
+Distortion reads the screen texture, unchecked in Compatibility: that layer switches off below
+the High preset, and each effect keeps a readable unshaded form without it. Particle counts ride one
 multiplier from the preset (Phase 5). Everything stays premultiplied - see
 `scripts/spell_fx.gd` - so the new layers survive the bright half of the day/night cycle.
 

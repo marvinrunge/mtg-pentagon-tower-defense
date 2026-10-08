@@ -140,9 +140,13 @@ func activate(start_pos: Vector3, dir: Vector3, type: int, _is_enemy: bool = fal
 		var ramp := GradientTexture1D.new()
 		ramp.gradient = gradient
 		trail_process.color_ramp = ramp
-	_trail.amount = _trail_amount_for_visual(type)
-	_trail.restart()
-	_trail.emitting = _trail.amount > 0
+	# Arrows and stones carry no trail. GPUParticles3D refuses an amount of 0 with an error,
+	# so they are simply left not emitting rather than set to nothing.
+	var trail_amount: int = _trail_amount_for_visual(type)
+	if trail_amount > 0:
+		_trail.amount = trail_amount
+		_trail.restart()
+	_trail.emitting = trail_amount > 0
 
 	life_timer = base_lifetime
 
@@ -355,18 +359,26 @@ func _trigger_fireball_aoe() -> void:
 ## peer while the damage above runs on one.
 func _fireball_blast_visuals() -> void:
 	var radius = aoe_radius if aoe_radius > 0.0 else GameSettings.spell_red_fireball_base_radius
-	var burst: Node3D = EmberFx.build_burst(radius)
-	get_tree().current_scene.add_child(burst)
-	burst.global_position = global_position
+	# The blast itself - flash, a billowing fireball body, flame and smoke, sparks - built in
+	# layers by ExplosionFx. It replaced EmberFx.build_burst plus a translucent CSGSphere3D,
+	# a flat faceted ball that hid the fire inside it.
+	var blast: Node3D = ExplosionFx.fireball(radius)
+	get_tree().current_scene.add_child(blast)
+	blast.global_position = global_position
 	# What the blast leaves behind. Outlives the fire by seconds, which is the whole point:
 	# a detonation with nothing after it reads as having happened in front of the world
-	# rather than to it. See docs/SPELL_VFX_PLAN.md, the settle beat.
-	var scorch: MeshInstance3D = SpellFx.ground_decal(
-		"decal_scorch", Color(0.07, 0.04, 0.03, 0.85), radius)
+	# rather than to it. See docs/SPELL_VFX_PLAN.md, the settle beat. Dropped onto the floor,
+	# not left where the bolt happened to strike - a fireball that detonates against an
+	# enemy's chest goes off well above the ground it burns - and projected onto it, so it
+	# lies on a slope instead of cutting through it.
+	var ground: Transform3D = SpellFx.ground_transform(self, global_position)
+	var scorch: Node3D = ExplosionFx.scorch(radius)
 	get_tree().current_scene.add_child(scorch)
-	# Dropped onto the floor, not left where the bolt happened to strike - a fireball that
-	# detonates against an enemy's chest goes off well above the ground it burns.
-	scorch.global_transform = SpellFx.ground_transform(self, global_position)
+	scorch.global_position = ground.origin
+	# The blast front running out along the ground.
+	var ring: MeshInstance3D = SpellFx.shockwave(Color(0.85, 0.38, 0.12), radius * 1.3, 0.35)
+	get_tree().current_scene.add_child(ring)
+	ring.global_transform = ground
 	# Its own burst rather than the giant's landing thud, which is what it used to
 	# borrow: a fireball detonating and a body hitting the ground are not the same event.
 	SoundBank.play_at(&"spell_fireball_impact", global_position)
@@ -374,19 +386,3 @@ func _fireball_blast_visuals() -> void:
 		GameSettings.spell_red_fireball_shake_strength,
 		GameSettings.spell_red_fireball_shake_duration
 	)
-	# Spawn temporary visual explosion
-	var exp_mesh = CSGSphere3D.new()
-	exp_mesh.radius = radius
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = Color(1.0, 0.4, 0.1, 0.7)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.3, 0.0)
-	exp_mesh.material = mat
-	exp_mesh.global_position = global_position
-	get_tree().current_scene.add_child(exp_mesh)
-	
-	var tw = exp_mesh.create_tween()
-	tw.tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	tw.parallel().tween_property(exp_mesh, "scale", Vector3(1.3, 1.3, 1.3), 0.4)
-	tw.tween_callback(exp_mesh.queue_free)

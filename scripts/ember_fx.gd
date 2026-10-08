@@ -202,55 +202,6 @@ static func build_trail(amount: int) -> GPUParticles3D:
 	return particles
 
 
-## The one-shot flash a fireball leaves where it detonated. Frees itself; nothing
-## pools these because a fireball only ever explodes once.
-static func build_burst(radius: float) -> Node3D:
-	var root := Node3D.new()
-	root.name = "FireballBurst"
-
-	var flame := build_flame(radius * 0.22, 40)
-	flame.lifetime = 0.8
-	flame.one_shot = true
-	flame.explosiveness = 0.85
-	flame.emitting = true
-	var flame_process: ParticleProcessMaterial = flame.process_material
-	flame_process.spread = 180.0
-	flame_process.initial_velocity_min = radius * 0.8
-	flame_process.initial_velocity_max = radius * 2.0
-	flame_process.damping_min = 4.0
-	flame_process.damping_max = 9.0
-	root.add_child(flame)
-
-	var sparks := build_sparks(radius * 0.3, 36)
-	sparks.lifetime = 0.9
-	sparks.one_shot = true
-	sparks.explosiveness = 1.0
-	sparks.emitting = true
-	var spark_process: ParticleProcessMaterial = sparks.process_material
-	spark_process.spread = 180.0
-	spark_process.initial_velocity_min = radius * 1.5
-	spark_process.initial_velocity_max = radius * 3.2
-	spark_process.gravity = Vector3(0.0, -3.0, 0.0)
-	root.add_child(sparks)
-
-	var flash := build_fire_light(radius * 3.5, 6.0)
-	root.add_child(flash)
-
-	# Both halves are driven from one tween so the light dies with the embers rather
-	# than snapping off while they are still visible.
-	#
-	# Deferred to tree_entered rather than created here: every caller builds the burst
-	# and THEN adds it to the scene, and `Node.create_tween()` outside the tree fails
-	# with an error and returns nothing - which left the burst with no fade and, worse,
-	# nothing to free it. They accumulated for the life of the run.
-	root.tree_entered.connect(func() -> void:
-		var tween: Tween = root.create_tween()
-		tween.tween_property(flash, "light_energy", 0.0, 0.45)
-		tween.tween_interval(0.5)
-		tween.tween_callback(root.queue_free), CONNECT_ONE_SHOT)
-	return root
-
-
 ## Embers raining down INTO a zone from above - the half of Rain of Ember that sells
 ## it as something falling rather than as a decal switched on. Sparks rather than
 ## flame bodies, because falling fire reads as points of light, not as puffs.

@@ -8,7 +8,7 @@ extends RefCounted
 ##
 ##   * every shape is COLOURLESS and takes its tint from the caller, so one shockwave
 ##     serves Wrath of God, Unsummon and Roar
-##   * a builder returns a node; the caller places it (see EmberFx.build_burst)
+##   * a builder returns a node; the caller places it (see ExplosionFx.fireball)
 ##   * anything one-shot frees itself from a tween started on `tree_entered`, because
 ##     `create_tween()` fails outside the tree and the effect would then never be freed
 ##
