@@ -110,6 +110,10 @@ static func play(scene: Node, payload: Dictionary, owner: Node3D) -> void:
 			_on_ground(scene, magic_circle("red", RED_CIRCLE, 1.2, 0.3, 0.12, 2.0), at)
 		"red_5":
 			_on_ground(scene, lightning_strike(size), at)
+		"orb_fire_shot":
+			_on_ground(scene, fire_bolt(payload.get("dir", Vector3.FORWARD), size), at)
+		"orb_lightning":
+			_on_ground(scene, chain_lightning(payload.get("points", PackedVector3Array())), at)
 		"green_1_launch":
 			_on_ground(scene, dust_ring(1.6, 0.9), at)
 		"green_1":
@@ -1113,3 +1117,156 @@ static func lightning_strike(radius: float) -> Node3D:
 		tween.tween_interval(5.0)
 		tween.tween_callback(root.queue_free), CONNECT_ONE_SHOT)
 	return root
+
+
+# --- the orbs' shots -------------------------------------------------------------
+
+## Orb of Fire's shot: a ball of fire with a tail, flown from the node along `offset` in
+## `travel` seconds, bursting where it lands. The tail (SpellFx.tail_mesh's texture) is laid
+## along the flight once rather than per particle - a single projectile flies straight.
+static func fire_bolt(offset: Vector3, travel: float) -> Node3D:
+	var root := Node3D.new()
+	root.name = "FireBolt"
+	var length: float = offset.length()
+	if length < 0.05:
+		root.tree_entered.connect(root.queue_free, CONNECT_ONE_SHOT)
+		return root
+	var direction: Vector3 = offset / length
+
+	var head := Node3D.new()
+	head.name = "Head"
+	root.add_child(head)
+	# The ball: the fire flipbook, a handful of particles churning in place around the head.
+	var ball := ExplosionFx.flipbook_particles(ExplosionFx.FIRE_FLIPBOOK, 0.8, 6, 0.3)
+	ball.one_shot = false
+	ball.local_coords = true
+	ball.preprocess = 0.3
+	var bp: ParticleProcessMaterial = ball.process_material
+	bp.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	bp.emission_sphere_radius = 0.05
+	bp.spread = 180.0
+	bp.initial_velocity_min = 0.0
+	bp.initial_velocity_max = 0.3
+	var fire_ramp := GradientTexture1D.new()
+	fire_ramp.gradient = EmberFx.fire_gradient()
+	bp.color_ramp = fire_ramp
+	head.add_child(ball)
+	# The tail: one crossed streak behind the head, its +Y turned along the flight.
+	var tail := MeshInstance3D.new()
+	tail.mesh = SpellFx.tail_mesh(0.75, 2.4, Color(1.6, 0.62, 0.16))
+	tail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	head.add_child(tail)
+	# Embers shed along the way, left behind in the world.
+	var embers: GPUParticles3D = SpellFx.sparks(Color(1.0, 0.6, 0.2), 0.1, 16, 1.2)
+	embers.one_shot = false
+	embers.explosiveness = 0.0
+	embers.lifetime = 0.45
+	head.add_child(embers)
+	var light := OmniLight3D.new()
+	light.light_color = Color(1.0, 0.55, 0.2)
+	light.light_energy = 1.2
+	light.omni_range = 2.2
+	head.add_child(light)
+
+	root.tree_entered.connect(func() -> void:
+		# Point the tail's +Y along the flight: a basis whose Y is the direction.
+		var up: Vector3 = direction
+		var side: Vector3 = up.cross(Vector3.UP if absf(up.y) < 0.95 else Vector3.RIGHT).normalized()
+		tail.basis = Basis(side, up, side.cross(up).normalized())
+		var tween: Tween = root.create_tween()
+		tween.tween_property(head, "position", offset, travel)
+		tween.tween_callback(func() -> void:
+			ball.emitting = false
+			embers.emitting = false
+			tail.visible = false
+			light.light_energy = 0.0
+			var burst: GPUParticles3D = flame_burst(0.7)
+			burst.position = offset - Vector3(0.0, 0.6, 0.0)
+			root.add_child(burst)
+			var sparks: GPUParticles3D = SpellFx.sparks(Color(1.0, 0.6, 0.2), 0.3, 12, 3.0)
+			sparks.position = offset
+			root.add_child(sparks))
+		tween.tween_interval(1.0)
+		tween.tween_callback(root.queue_free), CONNECT_ONE_SHOT)
+	return root
+
+
+## Lightning Orb's shot: a jagged arc from each point in `points` to the next, flickering
+## through a few shapes and gone in a fifth of a second, with a flash where each one lands.
+## The arcs are Kenney's spark_05 stretched between the two ends; the node's own position
+## is ignored, the points are world positions.
+static func chain_lightning(points: PackedVector3Array) -> Node3D:
+	var root := Node3D.new()
+	root.name = "ChainLightning"
+	if points.size() < 2:
+		root.tree_entered.connect(root.queue_free, CONNECT_ONE_SHOT)
+		return root
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = SpellFx._texture("arc")
+	material.albedo_color = Color(LIGHTNING.r * 2.0, LIGHTNING.g * 2.0, LIGHTNING.b * 2.4, 1.0)
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.disable_fog = true
+	material.render_priority = SpellFx.FX_RENDER_PRIORITY
+	var arcs: Array[MeshInstance3D] = []
+	for index: int in range(points.size() - 1):
+		var arc := MeshInstance3D.new()
+		arc.mesh = SpellFx.streak_mesh(1.0, 1.0, "arc")
+		arc.material_override = material
+		arc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		arc.set_meta("from", points[index])
+		arc.set_meta("to", points[index + 1])
+		root.add_child(arc)
+		arcs.append(arc)
+		var spark: GPUParticles3D = SpellFx.sparks(LIGHTNING, 0.2, 10, 4.0)
+		spark.set_meta("at", points[index + 1])
+		root.add_child(spark)
+		var flash := OmniLight3D.new()
+		flash.light_color = LIGHTNING
+		flash.light_energy = 2.5
+		flash.omni_range = 3.0
+		flash.set_meta("at", points[index + 1])
+		root.add_child(flash)
+
+	root.tree_entered.connect(func() -> void:
+		for child: Node in root.get_children():
+			if child.has_meta("at"):
+				(child as Node3D).global_position = child.get_meta("at")
+		for arc: MeshInstance3D in arcs:
+			_stretch_arc(arc)
+		var tween: Tween = root.create_tween()
+		# Re-struck twice: each arc flips and turns about its own line, so the bolt crackles.
+		for _strike: int in range(2):
+			tween.tween_interval(0.05)
+			tween.tween_callback(func() -> void:
+				for arc: MeshInstance3D in arcs:
+					_stretch_arc(arc))
+		tween.tween_property(material, "albedo_color:a", 0.0, 0.12)
+		for child: Node in root.get_children():
+			if child is OmniLight3D:
+				tween.parallel().tween_property(child, "light_energy", 0.0, 0.12)
+		tween.tween_interval(0.5)
+		tween.tween_callback(root.queue_free), CONNECT_ONE_SHOT)
+	return root
+
+
+## Lays an arc mesh (unit length along +Y) from its "from" meta to its "to" meta, turned a
+## random way about that line and randomly mirrored, so every re-strike is a new shape.
+static func _stretch_arc(arc: MeshInstance3D) -> void:
+	var from: Vector3 = arc.get_meta("from")
+	var to: Vector3 = arc.get_meta("to")
+	var along: Vector3 = to - from
+	var length: float = along.length()
+	if length < 0.01:
+		arc.visible = false
+		return
+	var up: Vector3 = along / length
+	var side: Vector3 = up.cross(Vector3.UP if absf(up.y) < 0.95 else Vector3.RIGHT).normalized()
+	side = side.rotated(up, randf() * TAU)
+	var mirror: float = -1.0 if randf() < 0.5 else 1.0
+	arc.global_transform = Transform3D(
+		Basis(side * mirror * minf(length * 0.35, 1.6), up * length, side.cross(up).normalized()),
+		(from + to) * 0.5)

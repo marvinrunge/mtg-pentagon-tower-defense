@@ -1796,6 +1796,7 @@ func _rebuild_aura_orbs() -> void:
 	var orb_modes: Dictionary = {
 		"aura_orb_of_frost": OrbitingOrb.Mode.FROST,
 		"aura_orb_of_fire": OrbitingOrb.Mode.FIRE,
+		"aura_lightning_orb": OrbitingOrb.Mode.LIGHTNING,
 		"aura_healing_orb": OrbitingOrb.Mode.HEAL,
 		"aura_grave_pact": OrbitingOrb.Mode.SOUL,
 	}

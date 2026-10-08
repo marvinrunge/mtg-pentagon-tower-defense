@@ -1,17 +1,18 @@
 extends Node3D
 class_name OrbitingOrb
-## The orb that hangs beside a player for four of the five aura Manifestations.
+## The orb that hangs beside a player for the orb auras.
 ##
-## Winter Orb (blue), Orb of Fire (red), Healing Orb (white) and the Soul Orb of Grave Pact
-## (black) are one implementation with four payloads, because the only thing that differs
-## between them is what happens on the tick - everything else, the orbit, the bob, the light,
-## the target search, is shared. Writing four of these was the alternative, and four copies
-## of an orbit is how the fourth one ends up subtly out of step with the others.
+## Winter Orb (blue), Orb of Fire and Lightning Orb (red), Healing Orb (white) and the Soul
+## Orb of Grave Pact (black) are one implementation with five payloads, because the only
+## thing that differs between them is what happens on the tick - everything else, the orbit,
+## the bob, the light, the target search, is shared. Writing five of these was the
+## alternative, and five copies of an orbit is how the fifth one ends up subtly out of step
+## with the others.
 ##
 ## It lives as a child of the player and follows them by being parented to them, so
 ## nothing here has to chase a moving anchor.
 
-enum Mode { FROST, FIRE, HEAL, SOUL }
+enum Mode { FROST, FIRE, HEAL, SOUL, LIGHTNING }
 
 var mode: int = Mode.FROST
 
@@ -33,6 +34,8 @@ const COLORS: Dictionary = {
 	Mode.HEAL: Color(1.0, 0.95, 0.65),
 	# The raised dead's own green, so a soul reads as the same substance as the zombies.
 	Mode.SOUL: Color(0.45, 1.0, 0.62),
+	# Lightning Bolt's blue-white - the same strike, in small.
+	Mode.LIGHTNING: Color(0.75, 0.88, 1.0),
 }
 
 ## Where each orb sits in the halo. They used to CIRCLE the player - up to three metres out,
@@ -44,18 +47,19 @@ const COLORS: Dictionary = {
 ## ring well under a metre across never reaches the camera at all. It reads as a familiar
 ## perched on the player rather than as satellites.
 ##
-## One ring and one speed for all four, each on its own quarter of it. That is what keeps them
-## apart whichever of them a player owns: any two sit at least a quarter-turn apart for good,
+## One ring and one speed for all five, each on its own fifth of it. That is what keeps them
+## apart whichever of them a player owns: any two sit at least a fifth of a turn apart for good,
 ## so their separation is a fixed chord instead of something two speeds bring together now and
 ## then. tools/tests/orb_orbits.gd brute-forces the minimum separation and fails if it closes.
 ##
 ## `bob` is metres, `bob_rate` radians per second - kept small and out of step with each
-## other so the four do not rise and fall as one rigid rack.
+## other so the five do not rise and fall as one rigid rack.
 const ORBIT_PLAN: Dictionary = {
 	Mode.FROST: {"phase": 0.0, "bob": 0.035, "bob_rate": 2.1},
-	Mode.FIRE: {"phase": PI * 0.5, "bob": 0.035, "bob_rate": 2.7},
-	Mode.HEAL: {"phase": PI, "bob": 0.035, "bob_rate": 1.6},
-	Mode.SOUL: {"phase": PI * 1.5, "bob": 0.035, "bob_rate": 2.4},
+	Mode.FIRE: {"phase": TAU * 0.2, "bob": 0.035, "bob_rate": 2.7},
+	Mode.HEAL: {"phase": TAU * 0.4, "bob": 0.035, "bob_rate": 1.6},
+	Mode.SOUL: {"phase": TAU * 0.6, "bob": 0.035, "bob_rate": 2.4},
+	Mode.LIGHTNING: {"phase": TAU * 0.8, "bob": 0.035, "bob_rate": 3.1},
 }
 
 
@@ -100,6 +104,7 @@ func _ready() -> void:
 		Mode.FIRE: _build_fire_body()
 		Mode.HEAL: _build_heal_body()
 		Mode.SOUL: _build_soul_body()
+		Mode.LIGHTNING: _build_lightning_body()
 
 	# A glow on the player, not a lamp. Up to four of these travel with the player, and at the
 	# strength they used to have they lit the ground around them in four moving colours - the
@@ -152,6 +157,12 @@ func _orb_material(tint: Color) -> StandardMaterial3D:
 		mat.rim_enabled = true
 		mat.rim = 0.9
 		mat.rim_tint = 0.15
+		return mat
+	if mode == Mode.LIGHTNING:
+		# A white-hot core: unshaded on purpose, unlike fire's crust - a spark has no surface
+		# for light to fall across, it IS the light.
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.albedo_color = Color(0.92, 0.96, 1.0)
 		return mat
 	if mode == Mode.SOUL:
 		# Dark, with the light INSIDE it: a violet-black husk the stored souls glow through.
@@ -300,6 +311,50 @@ func _build_fire_body() -> void:
 	add_child(embers)
 
 
+## Lightning Orb: a white-hot core in a shell of blue light, crackling - small arcs of the
+## same lightning it throws flick on and off around it.
+func _build_lightning_body() -> void:
+	var crackle := GPUParticles3D.new()
+	crackle.name = "OrbCrackle"
+	crackle.amount = 8
+	crackle.lifetime = 0.12
+	crackle.preprocess = 0.2
+	crackle.local_coords = true
+	crackle.draw_pass_1 = SpellFx.premul_particle_mesh(0.34, "arc")
+	var jitter := ParticleProcessMaterial.new()
+	jitter.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	jitter.emission_sphere_radius = 0.12
+	jitter.spread = 180.0
+	jitter.initial_velocity_min = 0.0
+	jitter.initial_velocity_max = 0.2
+	jitter.gravity = Vector3.ZERO
+	jitter.angle_min = -180.0
+	jitter.angle_max = 180.0
+	jitter.scale_min = 0.5
+	jitter.scale_max = 1.0
+	jitter.color_ramp = SpellFx._premul_ramp(COLORS[Mode.LIGHTNING])
+	crackle.process_material = jitter
+	add_child(crackle)
+
+	var sparks := GPUParticles3D.new()
+	sparks.name = "OrbSparks"
+	sparks.amount = 6
+	sparks.lifetime = 0.5
+	sparks.preprocess = 0.5
+	sparks.local_coords = false
+	sparks.draw_pass_1 = SpellFx.premul_particle_mesh(0.05, "spark")
+	var shed := ParticleProcessMaterial.new()
+	shed.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	shed.emission_sphere_radius = 0.14
+	shed.spread = 180.0
+	shed.initial_velocity_min = 0.3
+	shed.initial_velocity_max = 0.9
+	shed.gravity = Vector3(0.0, -1.0, 0.0)
+	shed.color_ramp = SpellFx._premul_ramp(COLORS[Mode.LIGHTNING])
+	sparks.process_material = shed
+	add_child(sparks)
+
+
 ## Healing Orb. The one that is not a weapon, so it is built to read as calm where fire
 ## reads as violent: a soft halo instead of a crust, motes drifting UP out of it instead of
 ## shedding off it, and a ring lying flat around it that nothing else has.
@@ -428,6 +483,7 @@ func _process(delta: float) -> void:
 		Mode.FIRE: _fire_flame()
 		Mode.HEAL: _heal_lowest()
 		Mode.SOUL: _release_soul()
+		Mode.LIGHTNING: _fire_lightning()
 
 
 ## Fire gutters, heal breathes, frost holds steady, the soul orb burns brighter the more it
@@ -444,6 +500,9 @@ func _animate_light(delta: float) -> void:
 			_light.light_energy = _light_base_energy * (1.0 + sin(_light_phase * 1.6) * 0.22)
 		Mode.SOUL:
 			_light.light_energy = _light_base_energy * (0.4 + 1.2 * _soul_fill())
+		Mode.LIGHTNING:
+			# Crackles: mostly steady, with a hard flicker now and then.
+			_light.light_energy = _light_base_energy * (1.6 if randf() < 0.08 else 0.9)
 
 
 func _interval() -> float:
@@ -454,6 +513,7 @@ func _interval() -> float:
 		# Not rank-scaled: the souls are the rate limit, and a rank that emptied the orb
 		# faster would only make it sit empty sooner.
 		Mode.SOUL: return GameSettings.aura_grave_pact_release_interval
+		Mode.LIGHTNING: return GameSettings.aura_lightning_orb_interval / speed_mult
 		_: return GameSettings.aura_orb_of_frost_interval / speed_mult
 
 
@@ -495,21 +555,79 @@ func _fire_frost() -> void:
 		target.apply_frost_slow(GameSettings.aura_orb_of_frost_slow * _rank_mult("duration"))
 
 
+## Orb of Fire throws a ball of fire rather than drawing a beam: a projectile with a tail
+## (SpellVisuals.fire_bolt), seen on every screen through NetFx. The hit lands when the ball
+## does, not when it leaves - a damage number that pops before the fire arrives reads as the
+## orb missing.
 func _fire_flame() -> void:
 	var target: Node3D = _nearest_enemy(GameSettings.aura_orb_of_fire_range * _rank_mult("area"))
 	if target == null:
 		return
-	_shoot_bolt(target, COLORS[Mode.FIRE])
+	var muzzle: Vector3 = global_position
+	var offset: Vector3 = target.global_position + Vector3(0.0, 1.0, 0.0) - muzzle
+	var travel: float = clampf(offset.length() / GameSettings.aura_orb_of_fire_bolt_speed, 0.08, 0.6)
+	NetFx.spell("orb_fire_shot", muzzle, travel, _owner_peer(), offset)
 	_play_shot_sound(&"aura_orb_fire")
 	var damage: float = GameSettings.aura_orb_of_fire_damage * _rank_mult() * _damage_multiplier()
-	if target.has_method("take_damage"):
-		target.take_damage(damage, _owner)
-	if target.has_method("apply_burn"):
-		target.apply_burn(
-			GameSettings.aura_orb_of_fire_burn_duration * _rank_mult("duration"),
-			GameSettings.aura_orb_of_fire_burn_dps * _rank_mult() * _damage_multiplier(),
-			_owner
-		)
+	var burn_duration: float = GameSettings.aura_orb_of_fire_burn_duration * _rank_mult("duration")
+	var burn_dps: float = GameSettings.aura_orb_of_fire_burn_dps * _rank_mult() * _damage_multiplier()
+	var owner_node: Node3D = _owner
+	get_tree().create_timer(travel).timeout.connect(func() -> void:
+		if not is_instance_valid(target) or target.is_queued_for_deletion():
+			return
+		if target.has_method("take_damage"):
+			target.take_damage(damage, owner_node)
+		if target.has_method("apply_burn"):
+			target.apply_burn(burn_duration, burn_dps, owner_node))
+
+
+## Lightning Orb: an arc into the nearest enemy that leaps on to the nearest enemy not yet
+## struck, a few times, each jump a little weaker. Instant - lightning does not travel - and
+## drawn as one chain (SpellVisuals.chain_lightning) on every screen.
+func _fire_lightning() -> void:
+	var first: Node3D = _nearest_enemy(GameSettings.aura_lightning_orb_range * _rank_mult("area"))
+	if first == null:
+		return
+	var struck: Array[Node3D] = [first]
+	var points := PackedVector3Array([global_position, first.global_position + Vector3(0.0, 1.0, 0.0)])
+	var jumps: int = GameSettings.aura_lightning_orb_chains + (1 if _owner_rank() >= 3 else 0) + (1 if _owner_rank() >= 5 else 0)
+	var reach: float = GameSettings.aura_lightning_orb_chain_range * _rank_mult("area")
+	while struck.size() <= jumps:
+		var from: Vector3 = struck[-1].global_position
+		var next: Node3D = null
+		var best: float = reach
+		for enemy: Node3D in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or struck.has(enemy):
+				continue
+			var distance: float = from.distance_to(enemy.global_position)
+			if distance < best:
+				best = distance
+				next = enemy
+		if next == null:
+			break
+		struck.append(next)
+		points.append(next.global_position + Vector3(0.0, 1.0, 0.0))
+	NetFx.spell("orb_lightning", global_position, 0.0, _owner_peer(), Vector3.ZERO, points)
+	_play_shot_sound(&"aura_orb_lightning")
+	var damage: float = GameSettings.aura_lightning_orb_damage * _rank_mult() * _damage_multiplier()
+	for index: int in range(struck.size()):
+		var enemy: Node3D = struck[index]
+		if enemy.has_method("take_damage"):
+			enemy.take_damage(damage * pow(GameSettings.aura_lightning_orb_chain_falloff, index), _owner)
+
+
+func _owner_rank() -> int:
+	if is_instance_valid(_owner) and _owner.has_method("get_aura_rank"):
+		return int(_owner.get_aura_rank(_aura_id()))
+	return 1
+
+
+## The peer whose orb this is, for NetFx: an effect parented to its caster needs to know who
+## that is on every screen.
+func _owner_peer() -> int:
+	if is_instance_valid(_owner) and _owner.has_method("_fx_peer"):
+		return int(_owner._fx_peer())
+	return 0
 
 
 ## Always the MOST HURT ally in range, which is what makes this read as a healer rather
@@ -607,6 +725,7 @@ func _aura_id() -> String:
 		Mode.FIRE: return "aura_orb_of_fire"
 		Mode.HEAL: return "aura_healing_orb"
 		Mode.SOUL: return "aura_grave_pact"
+		Mode.LIGHTNING: return "aura_lightning_orb"
 		_: return "aura_orb_of_frost"
 
 
@@ -616,7 +735,8 @@ func _rank_mult(curve: String = "damage") -> float:
 	return 1.0
 
 
-## The shot from the orb to whatever it just acted on: SpellFx.beam's crossed quads with a
+## The shot from the orb to whatever it just acted on (frost, heal, souls - fire throws a
+## projectile and lightning arcs, see their own payloads): SpellFx.beam's crossed quads with a
 ## hot core and tapered ends, drawn premultiplied so it survives a bright sky, and a small
 ## landing at the far end - a beam that simply stops is only half an event.
 func _shoot_bolt(target: Node3D, tint: Color) -> void:
@@ -643,7 +763,6 @@ func _shoot_bolt(target: Node3D, tint: Color) -> void:
 ## weapon hitting something.
 func _beam_width() -> float:
 	match mode:
-		Mode.FIRE: return 0.22
 		Mode.HEAL: return 0.26
 		Mode.SOUL: return 0.24
 		_: return 0.17
@@ -695,7 +814,6 @@ func _spawn_bolt_impact(scene: Node, point: Vector3, tint: Color) -> void:
 
 func _impact_slot() -> String:
 	match mode:
-		Mode.FIRE: return "spark"
 		Mode.HEAL, Mode.SOUL: return "mote"
 		_: return "shard"
 

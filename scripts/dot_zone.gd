@@ -196,6 +196,10 @@ func _build_flames(size_radius: float, amount: int, lifetime: float) -> GPUParti
 func _build_falling_fire() -> GPUParticles3D:
 	var lumps := ExplosionFx.flipbook_particles(ExplosionFx.FIRE_FLIPBOOK, 0.9, 9, 0.6)
 	lumps.one_shot = false
+	# A tail behind each lump, so it reads as falling fast rather than hanging in the air:
+	# the ball is a billboard and has no direction of its own.
+	lumps.draw_passes = 2
+	lumps.draw_pass_2 = SpellFx.tail_mesh(1.3, 3.4, Color(1.6, 0.62, 0.16))
 	var process: ParticleProcessMaterial = lumps.process_material
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	process.emission_box_extents = Vector3(radius * 0.8, 0.3, radius * 0.8)

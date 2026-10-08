@@ -89,9 +89,14 @@ func damage_number(at: Vector3, amount: float, tint: Color, label: String = "") 
 
 ## A spell's own look (SpellVisuals), named by spell id. `size` is the radius or length the
 ## spell actually used, `dir` its aim where it has one, and `peer` its caster - effects that
-## ride on the caster are parented to that player on every screen.
-func spell(spell_id: String, at: Vector3, size: float, peer: int, dir: Vector3 = Vector3.ZERO) -> void:
-	_dispatch({"kind": Kind.SPELL, "spell": spell_id, "at": at, "size": size, "peer": peer, "dir": dir})
+## ride on the caster are parented to that player on every screen. `points` carries a path
+## for the few effects that have one (a chain of lightning).
+func spell(spell_id: String, at: Vector3, size: float, peer: int, dir: Vector3 = Vector3.ZERO,
+		points: PackedVector3Array = PackedVector3Array()) -> void:
+	var payload: Dictionary = {"kind": Kind.SPELL, "spell": spell_id, "at": at, "size": size, "peer": peer, "dir": dir}
+	if not points.is_empty():
+		payload["points"] = points
+	_dispatch(payload)
 
 
 func sound(event: StringName, at: Vector3) -> void:

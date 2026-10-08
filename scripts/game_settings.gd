@@ -710,7 +710,7 @@ func get_tier_cost(tier_index: int) -> int:
 # They share one small halo above the player's LEFT shoulder - the camera looks over the
 # right one, so that side of the frame is never the aim line. They used to circle the
 # player up to three metres out at head height, straight through the camera's view.
-## Radius of the halo. At least 0.6: each orb takes a quarter of the ring, and
+## Radius of the halo. At least 0.6: each orb takes a fifth of the ring, and
 ## tools/tests/orb_orbits.gd needs a clear gap between neighbours that a smaller ring
 ## cannot give.
 @export var aura_orb_radius: float = 0.62
@@ -740,6 +740,18 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_orb_of_fire_range: float = 14.0
 @export var aura_orb_of_fire_burn_dps: float = 18.0
 @export var aura_orb_of_fire_burn_duration: float = 4.0
+## Metres per second the ball of fire flies at. The hit lands when it arrives.
+@export var aura_orb_of_fire_bolt_speed: float = 26.0
+## Lightning Orb - red's second Manifestation. An arc into the nearest enemy that leaps on to
+## the nearest one not yet struck, `chains` times (one more at rank 3 and at rank 5), each
+## jump dealing `chain_falloff` of the one before. Lower per hit than Orb of Fire and no burn:
+## its damage is in the spread, so it is the orb for a crowd, fire the orb for one target.
+@export var aura_lightning_orb_damage: float = 28.0
+@export var aura_lightning_orb_interval: float = 2.0
+@export var aura_lightning_orb_range: float = 13.0
+@export var aura_lightning_orb_chains: int = 2
+@export var aura_lightning_orb_chain_range: float = 6.0
+@export var aura_lightning_orb_chain_falloff: float = 0.8
 ## Healing Orb - white's Manifestation. Always picks the LOWEST-health ally in range,
 ## which is what makes it feel like a healer rather than a regeneration stat. The amount
 ## is a multiple of player_max_hp, like every white/green HP number.

@@ -42,6 +42,7 @@ const ICON_FILES: Dictionary = {
 	"aura_rhystic_study": "rhystic-study.png", "aura_orb_of_frost": "orb-of-frost.png",
 	"aura_phyrexian_arena": "phyrexian-arena.png", "aura_grave_pact": "grave-pact.png",
 	"aura_fervor": "fervor.png", "aura_orb_of_fire": "orb-of-fire.png",
+	"aura_lightning_orb": "lightning-orb.png",
 	"aura_trample": "trample.png",
 }
 
@@ -340,7 +341,13 @@ const AURAS: Dictionary = {
 		},
 		"manifestation": {
 			"id": "aura_orb_of_fire", "name": "Orb of Fire",
-			"desc": "An orb circles you, firing bolts at nearby enemies that set them burning.",
+			"desc": "An orb circles you, hurling balls of fire at nearby enemies that set them burning.",
+		},
+		# Red's only third aura: off Lightning Bolt, the way the other two hang off the
+		# finishers either side of the middle. Orb of Fire is for one target, this for a crowd.
+		"manifestation_2": {
+			"id": "aura_lightning_orb", "name": "Lightning Orb",
+			"desc": "An orb circles you, arcing lightning into the nearest enemy that leaps on to the enemies beside it.",
 		},
 	},
 	"green": {
@@ -473,28 +480,34 @@ static func is_channelled(spell_id: String) -> bool:
 	return bool(SPELLS.get(spell_id, {}).get("channel", false))
 
 
-## Both halves of one colour's aura fork, attunement first. Empty for a colour that
-## has none, which no colour currently does.
+## The keys a colour's auras sit under, in board order. `manifestation_2` is optional - red
+## alone has one (Lightning Orb).
+const AURA_SLOTS: Array[String] = ["attunement", "manifestation", "manifestation_2"]
+
+
+## One colour's auras in board order: attunement, manifestation, and a second manifestation
+## where the colour has one. Empty for a colour that has none, which no colour currently does.
 static func get_auras(color: String) -> Array[Dictionary]:
 	var row: Dictionary = AURAS.get(color, {})
-	if row.is_empty():
-		return []
-	return [row["attunement"], row["manifestation"]]
+	var out: Array[Dictionary] = []
+	for slot: String in AURA_SLOTS:
+		if row.has(slot):
+			out.append(row[slot])
+	return out
 
 
 ## The colour a aura id belongs to, or "" if it is not a aura at all.
 static func get_aura_color(aura_id: String) -> String:
 	for color: String in AURAS:
-		for half: String in ["attunement", "manifestation"]:
-			if String(AURAS[color][half]["id"]) == aura_id:
+		for entry: Dictionary in get_auras(color):
+			if String(entry["id"]) == aura_id:
 				return color
 	return ""
 
 
 static func get_aura_name(aura_id: String) -> String:
 	for color: String in AURAS:
-		for half: String in ["attunement", "manifestation"]:
-			var entry: Dictionary = AURAS[color][half]
+		for entry: Dictionary in get_auras(color):
 			if String(entry["id"]) == aura_id:
 				return String(entry["name"])
 	return ""

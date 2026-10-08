@@ -67,6 +67,11 @@ const TEXTURES := {
 	# Sharp at both ends, so it reads as ice at any rotation - which matters because the
 	# particles carrying it spin.
 	"shard": "res://assets/vfx/shard_diamond.png",
+	# Kenney's Particle Pack (CC0), trace_04: a streak with a hot head thinning into a tail.
+	# The tail behind anything falling or flying fast - see `tail_mesh`.
+	"trail": "res://assets/vfx/trail_trace.png",
+	# Kenney's spark_05: one jagged arc of lightning, top to bottom.
+	"arc": "res://assets/vfx/lightning_arc.png",
 	# The three settle-beat marks. Dark tints for scorch and blight, pale for frost; the
 	# masks themselves are white and carry only the shape.
 	"decal_scorch": "res://assets/vfx/decal_scorch.png",
@@ -198,6 +203,42 @@ static func streak_mesh(width: float, length: float, slot: String = "spark") -> 
 	var material := (premul_particle_mesh(width, slot).material as StandardMaterial3D).duplicate() as StandardMaterial3D
 	material.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, material)
+	return mesh
+
+
+## A tail for a fast particle: `streak_mesh` shifted to hang BEHIND the particle, so with
+## `particle_flag_align_y` it trails along the path the particle came from. Meant as a
+## second draw pass under whatever the particle itself is drawn as - the ball of fire keeps
+## its own look and gains a direction.
+##
+## Premultiplied and tinted by `tint` times the particle's own colour ramp, so the tail cools
+## with the particle it belongs to. `tint` may go above 1 for a hot tail that blooms.
+static func tail_mesh(width: float, length: float, tint: Color, slot: String = "trail") -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.create_from(streak_mesh(width, length, slot), 0)
+	var arrays: Array = st.commit_to_arrays()
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	# The particle's +Y points along its travel, so the tail goes the other way. Most of
+	# it, not all: a sliver ahead of the centre runs the tail into the ball, not off its back.
+	for index: int in vertices.size():
+		vertices[index].y -= length * 0.45
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = _premul_texture(slot)
+	material.albedo_color = tint
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	# Premultiplied, not additive: additive orange over a blue sky comes out PINK, which is
+	# what the first version of these tails looked like at noon.
+	material.blend_mode = BaseMaterial3D.BLEND_MODE_PREMULT_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.vertex_color_use_as_albedo = true
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.disable_fog = true
+	material.render_priority = FX_RENDER_PRIORITY
 	mesh.surface_set_material(0, material)
 	return mesh
 

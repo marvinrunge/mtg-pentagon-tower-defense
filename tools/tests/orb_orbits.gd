@@ -29,6 +29,8 @@ const VISUAL_RADIUS: Dictionary = {
 	OrbitingOrb.Mode.HEAL: 0.25,
 	# The soul orb's wisps circle at 0.2.
 	OrbitingOrb.Mode.SOUL: 0.2,
+	# The lightning orb's crackle reaches 0.12 + half a 0.34 arc.
+	OrbitingOrb.Mode.LIGHTNING: 0.29,
 }
 
 ## The orbs hang over the LEFT shoulder so they stay out of the aim line, which the
@@ -66,6 +68,7 @@ func _run() -> void:
 		OrbitingOrb.Mode.FIRE: "fire",
 		OrbitingOrb.Mode.HEAL: "heal",
 		OrbitingOrb.Mode.SOUL: "soul",
+		OrbitingOrb.Mode.LIGHTNING: "lightning",
 	}
 	# Every pair, derived from the plan rather than listed, so a fifth orb is checked too.
 	var modes: Array = OrbitingOrb.ORBIT_PLAN.keys()
