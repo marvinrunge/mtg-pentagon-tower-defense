@@ -1,0 +1,45 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-great-sun-oak.res" id="1_lf4op"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_myss2"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_6jfad"]
+maxDistance = 70.0
+addCollision = true
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_m8hof"]
+maxDistance = 520.0
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_6llu6"]
+height = 16.0
+radius = 6.354631
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_d6t1s"]
+mesh = ExtResource("1_lf4op")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_13t53"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_d6t1s")])
+collisionShape = SubResource("CylinderShape3D_6llu6")
+collisionOffset = Vector3(0, 8, 0)
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_a7bc1"]
+mesh = ExtResource("1_lf4op")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_sobgk"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_a7bc1")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_qypid"]
+strategy = 2
+objectFrequency = 45
+randomRange = 18.0
+noiseTexture = ExtResource("2_myss2")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.9
+randomSizeFactorMax = 1.1
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_6jfad"), SubResource("ObjectOctreeLODDefinitionResource_m8hof")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_13t53"), SubResource("ObjectOctreeLODMeshesDefinitionResource_sobgk")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_qypid")

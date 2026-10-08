@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-limestone-pebbles.res" id="1_1pthn"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_7xy24"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_qkl8g"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_tie1n"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_kblhb"]
+mesh = ExtResource("1_1pthn")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_t64ph"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_kblhb")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_xnnak"]
+mesh = ExtResource("1_1pthn")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_s4hw4"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_xnnak")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_e0umc"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_7xy24")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_qkl8g"), SubResource("ObjectOctreeLODDefinitionResource_tie1n")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_t64ph"), SubResource("ObjectOctreeLODMeshesDefinitionResource_s4hw4")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_e0umc")

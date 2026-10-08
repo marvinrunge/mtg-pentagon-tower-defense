@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-mossy-stump.res" id="1_1eml4"]
+
+[node name="NatureGreenMossyStump" type="Node3D" unique_id=953102776]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1908057905]
+cast_shadow = 0
+mesh = ExtResource("1_1eml4")

@@ -1,0 +1,18 @@
+{
+  "suggested": "v2.png",
+  "approved": null,
+  "checks": [
+    {
+      "file": "v1.png",
+      "ok": true,
+      "reason": "ok, fills 46%",
+      "score": 0.992
+    },
+    {
+      "file": "v2.png",
+      "ok": true,
+      "reason": "ok, fills 46%",
+      "score": 0.994
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-basalt-columns.res" id="1_3u1fo"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_5wdum"]
+height = 2.2
+radius = 1.3146017
+
+[node name="NatureBlueBasaltColumns" type="Node3D" unique_id=160273960]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=830214810]
+mesh = ExtResource("1_3u1fo")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=295044242]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=407554078]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
+shape = SubResource("CylinderShape3D_5wdum")

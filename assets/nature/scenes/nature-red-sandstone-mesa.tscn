@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-sandstone-mesa.res" id="1_fnrky"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_2tm4n"]
+height = 5.0
+radius = 3.0549808
+
+[node name="NatureRedSandstoneMesa" type="Node3D" unique_id=444569778]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1819003206]
+mesh = ExtResource("1_fnrky")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=1784030512]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1656507751]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+shape = SubResource("CylinderShape3D_2tm4n")

@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-slate-shards.res" id="1_53j4d"]
+
+[node name="NatureBlackSlateShards" type="Node3D" unique_id=2121608356]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=461240551]
+cast_shadow = 0
+mesh = ExtResource("1_53j4d")

@@ -1,0 +1,1291 @@
+{
+  "_doc": "Source of truth for the nature/foliage set. docs/NATURE_ASSETS.md explains it, docs/NATURE_PROMPTS.md is generated from it (python tools/nature/nature_pipeline.py prompts). Edit here, never in the generated file.",
+  "providers": {
+    "gemini": {
+      "api": "interactions",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/interactions",
+      "legacy_endpoint": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+      "model_mesh_concept": "gemini-3-pro-image",
+      "model_card_sheet": "gemini-3-pro-image",
+      "model_draft": "gemini-3.1-flash-image",
+      "image_size": "2K",
+      "variants": 2,
+      "delay_seconds": 2.0
+    },
+    "meshy": {
+      "endpoint": "https://api.meshy.ai/openapi/v1/image-to-3d",
+      "model_type": "smart-topology",
+      "ai_model": "latest",
+      "texture_resolution": "2k",
+      "estimated_credits": {
+        "smart-topology": 15,
+        "standard": 30
+      },
+      "poll_seconds": 10,
+      "timeout_seconds": 1800
+    }
+  },
+  "style": {
+    "mesh_background": [
+      128,
+      128,
+      128
+    ],
+    "card_background": [
+      255,
+      255,
+      255
+    ],
+    "anchor_note": "Optional style reference: give a biome (or shared_style) an \"anchor\" image path and it is sent with every concept request for that group. None are set - the mana-well renders were rejected as references (2026-10-04), so prompts are text-only until a reference worth copying exists."
+  },
+  "biomes": {
+    "white": {
+      "name": "Plains",
+      "lane_angle_deg": -90,
+      "mood": "sun-drenched orderly plains of golden wheat, pale limestone and white marble, warm noon light, a sense of order and harvest",
+      "palette": "warm gold, cream limestone, sage green, soft sky-blue accents",
+      "crystal_glow": [
+        1.0,
+        0.86,
+        0.55
+      ]
+    },
+    "blue": {
+      "name": "Islands",
+      "lane_angle_deg": -18,
+      "mood": "windswept coast and tidal flats, wet stone, sea spray and a calm arcane stillness",
+      "palette": "deep teal, sea blue, wet slate grey, sand beige, pearl accents",
+      "crystal_glow": [
+        0.35,
+        0.7,
+        1.0
+      ]
+    },
+    "black": {
+      "name": "Swamp",
+      "lane_angle_deg": 54,
+      "mood": "rotting bayou of black water, low mist, decay and quiet menace",
+      "palette": "charcoal, deep aubergine, sickly olive, bone white, deep violet accents",
+      "crystal_glow": [
+        0.62,
+        0.3,
+        1.0
+      ]
+    },
+    "red": {
+      "name": "Mountains",
+      "lane_angle_deg": 126,
+      "mood": "volcanic badlands of cooling lava, ash and ember, heat shimmer",
+      "palette": "basalt black, rust red, ember orange, ash grey, sulphur-yellow accents",
+      "crystal_glow": [
+        1.0,
+        0.35,
+        0.12
+      ]
+    },
+    "green": {
+      "name": "Forest",
+      "lane_angle_deg": -162,
+      "mood": "primeval old-growth forest, thick moss, dappled light and wild growth",
+      "palette": "deep forest green, moss green, bark brown, cream and red mushroom accents",
+      "crystal_glow": [
+        0.3,
+        1.0,
+        0.45
+      ]
+    }
+  },
+  "scatter": {
+    "_doc": "World layout of the one 512 m TerraBrush zone (centred on the origin; pixel = world + 256). Biome wedges are 72 degrees wide around each lane angle.",
+    "zone_size": 512,
+    "biome_half_width_deg": 36,
+    "biome_edge_jitter_deg": 9,
+    "plateau_radius_m": 48,
+    "map_radius_m": 250,
+    "corridor_half_width_m": 15,
+    "corridor_radius_m": [
+      40,
+      190
+    ],
+    "well_radius_m": 113,
+    "well_clearance_m": 10
+  },
+  "tiers": {
+    "_doc": "Scatter defaults per tier. spacing_m is TerraBrush's objectFrequency (one candidate per N metres), density the chance a candidate is used before noise clumping. Assets may override any field.",
+    "clutter": {
+      "spacing_m": 7,
+      "density": 0.22,
+      "radius_m": [
+        50,
+        245
+      ],
+      "blocking": false,
+      "max_slope_deg": 50,
+      "collision": "none"
+    },
+    "bush": {
+      "spacing_m": 9,
+      "density": 0.25,
+      "radius_m": [
+        50,
+        245
+      ],
+      "blocking": false,
+      "max_slope_deg": 38,
+      "collision": "none"
+    },
+    "tree": {
+      "spacing_m": 15,
+      "density": 0.3,
+      "radius_m": [
+        55,
+        250
+      ],
+      "blocking": true,
+      "max_slope_deg": 32,
+      "collision": "trunk"
+    },
+    "crystal": {
+      "spacing_m": 22,
+      "density": 0.14,
+      "radius_m": [
+        60,
+        240
+      ],
+      "blocking": false,
+      "max_slope_deg": 45,
+      "collision": "none"
+    },
+    "landmark": {
+      "spacing_m": 45,
+      "density": 0.22,
+      "radius_m": [
+        130,
+        250
+      ],
+      "blocking": true,
+      "max_slope_deg": 28,
+      "collision": "hull"
+    },
+    "groundcover": {
+      "radius_m": [
+        46,
+        250
+      ],
+      "coverage": 0.55,
+      "max_slope_deg": 40
+    },
+    "tallcover": {
+      "radius_m": [
+        50,
+        250
+      ],
+      "coverage": 0.25,
+      "max_slope_deg": 35
+    }
+  },
+  "assets": [
+    {
+      "id": "crystal-shard-cluster",
+      "biome": "shared",
+      "category": "crystal",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 300,
+      "size_m": [
+        0.8,
+        0.7
+      ],
+      "subject": "small cluster of crystal shards",
+      "details": "four short stubby hexagonal crystal shards of different sizes leaning outward from one point, the crystal is colourless with a dense milky white inside and a clear outer skin, glowing softly from within as if lit by a bright white light inside its core - brightest at the core, fading towards the clear edges - but the glow stays strictly inside the crystal: no halo, no bloom, no light rays, no light cast onto the background, crisp clean edges, no colour tint anywhere, no base or pedestal, the crystals rising straight out of an invisible ground"
+    },
+    {
+      "id": "crystal-shard-cluster-b",
+      "biome": "shared",
+      "category": "crystal",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 300,
+      "size_m": [
+        0.8,
+        0.7
+      ],
+      "subject": "small cluster of crystal shards",
+      "details": "four short stubby hexagonal crystal shards of different sizes leaning outward from one point, the crystal is colourless with a dense milky white inside and a clear outer skin, glowing softly from within as if lit by a bright white light inside its core - brightest at the core, fading towards the clear edges - but the glow stays strictly inside the crystal: no halo, no bloom, no light rays, no light cast onto the background, crisp clean edges, no colour tint anywhere, no base or pedestal, the crystals rising straight out of an invisible ground",
+      "_doc": "Second shard-cluster variant: the user approved both concepts (v1 -> crystal-shard-cluster, v2 -> this). Its concept v1.png is a copy of crystal-shard-cluster/v2.png."
+    },
+    {
+      "id": "crystal-cluster",
+      "biome": "shared",
+      "category": "crystal",
+      "route": "mesh",
+      "tier": "crystal",
+      "tris": 600,
+      "size_m": [
+        1.4,
+        1.5
+      ],
+      "subject": "crystal cluster",
+      "details": "seven hexagonal crystals of very different lengths fanning out from one root, sharp pointed tips, one crystal broken off halfway, the crystal is colourless with a dense milky white inside and a clear outer skin, glowing softly from within as if lit by a bright white light inside its core - brightest at the core, fading towards the clear edges - but the glow stays strictly inside the crystal: no halo, no bloom, no light rays, no light cast onto the background, crisp clean edges, no colour tint anywhere, no base or pedestal, the crystals rising straight out of an invisible ground"
+    },
+    {
+      "id": "crystal-geode",
+      "biome": "shared",
+      "category": "crystal",
+      "route": "mesh",
+      "tier": "crystal",
+      "tris": 1500,
+      "size_m": [
+        1.6,
+        1.2
+      ],
+      "subject": "split crystal geode",
+      "details": "a rough rounded boulder of plain mid-grey stone cracked open on one side to reveal a hollow densely lined with crystals; the crystals are colourless with a dense milky white inside, glowing softly from within as if lit by a bright white light deep inside the hollow, the glow strictly inside the crystals - no halo, no bloom, no light rays, no light spilling onto the stone or the background - no colour tint anywhere, the stone shell a darker plain neutral grey that does not glow, so stone and crystal are clearly different in brightness"
+    },
+    {
+      "id": "crystal-spire",
+      "biome": "shared",
+      "category": "crystal",
+      "route": "mesh",
+      "tier": "landmark",
+      "tris": 800,
+      "size_m": [
+        1.6,
+        4.5
+      ],
+      "light": true,
+      "collision": "hull",
+      "subject": "tall crystal spire",
+      "details": "one tall faceted crystal spire with a slight lean and a sharp tip, two smaller crystals growing from its foot, the crystal is colourless with a dense milky white inside and a clear outer skin, glowing softly from within as if lit by a bright white light inside its core - brightest at the core, fading towards the clear edges - but the glow stays strictly inside the crystal: no halo, no bloom, no light rays, no light cast onto the background, crisp clean edges, no colour tint anywhere, no base or pedestal, the crystals rising straight out of an invisible ground"
+    },
+    {
+      "id": "nature-white-wheat-grass",
+      "biome": "white",
+      "category": "grass",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 3,
+      "existing_sheet": "assets/foliage/grass/source/white_grass_sheet.png",
+      "card_size_m": [
+        0.9,
+        0.9
+      ],
+      "subject": "golden wheat grass tufts",
+      "details": "see docs/GRASS_ATLAS_PROMPTS.md - this sheet already exists"
+    },
+    {
+      "id": "nature-white-wildflowers",
+      "biome": "white",
+      "category": "groundcover",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 1,
+      "card_size_m": [
+        0.7,
+        0.7
+      ],
+      "subject": "meadow wildflower clumps",
+      "details": "Golden buttercups, amber marigold-like blooms and deep cornflower-blue flowers on short sage-green stems, five to nine flower heads per clump. No white or cream petals anywhere - every petal is a saturated gold, amber or deep blue"
+    },
+    {
+      "id": "nature-white-tall-meadow",
+      "biome": "white",
+      "category": "tallplants",
+      "route": "card",
+      "tier": "tallcover",
+      "layer": "tall",
+      "weight": 2,
+      "card_size_m": [
+        1.3,
+        1.6
+      ],
+      "subject": "tall golden meadow grass clumps with feathery seed plumes",
+      "details": "Waist-high stalks of deep amber grass with heavy bronze seed plumes and one or two tall sunflower-like golden blooms in some clumps. No straw-white, no bleached tips"
+    },
+    {
+      "id": "nature-white-boxwood-hedge",
+      "biome": "white",
+      "category": "bush",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 900,
+      "size_m": [
+        1.8,
+        1.4
+      ],
+      "subject": "clipped boxwood hedge bush",
+      "details": "a neatly trimmed rounded-cube shrub of dense small sage-green leaves, neatly clipped into a rounded block by a gardener, a few short woody stems visible at the base"
+    },
+    {
+      "id": "nature-white-sunbloom-shrub",
+      "biome": "white",
+      "category": "bush",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 1000,
+      "size_m": [
+        1.6,
+        1.3
+      ],
+      "subject": "flowering sunbloom shrub",
+      "details": "a round airy shrub of sage-green leaf clusters dotted with small saturated golden five-petal flowers, slightly lopsided natural shape"
+    },
+    {
+      "id": "nature-white-silver-birch",
+      "biome": "white",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 2500,
+      "size_m": [
+        4.5,
+        8.5
+      ],
+      "trunk_radius_m": 0.25,
+      "subject": "slender silver birch tree",
+      "details": "a tall straight trunk of white bark with dark horizontal markings, splitting into two upper limbs that carry three or four separate leafy canopy clusters of pale golden-green leaves"
+    },
+    {
+      "id": "nature-white-olive-sunleaf",
+      "biome": "white",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 3000,
+      "size_m": [
+        6.0,
+        6.0
+      ],
+      "trunk_radius_m": 0.4,
+      "subject": "gnarled olive-like sunleaf tree",
+      "details": "a short twisted grey trunk that splits low into three crooked limbs, carrying a wide flat-topped silvery sage canopy broken into leafy clumps, a few tiny golden fruits"
+    },
+    {
+      "id": "nature-white-great-sun-oak",
+      "biome": "white",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "landmark",
+      "tris": 8000,
+      "size_m": [
+        16.0,
+        16.0
+      ],
+      "trunk_radius_m": 1.2,
+      "model_type": "standard",
+      "subject": "lone majestic sun oak",
+      "details": "a massive solitary oak with a broad buttressed trunk and a huge dome canopy of warm golden leaves built from large leafy clusters, sunlight-coloured, the kind of tree that marks a crossroads on open plains"
+    },
+    {
+      "id": "nature-white-limestone-pebbles",
+      "biome": "white",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 400,
+      "size_m": [
+        0.9,
+        0.35
+      ],
+      "subject": "cluster of flat limestone stones",
+      "details": "four or five flat, rounded pale limestone stones of different sizes lying together, sun-bleached cream with faint grey speckle"
+    },
+    {
+      "id": "nature-white-limestone-outcrop",
+      "biome": "white",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "bush",
+      "tris": 1500,
+      "size_m": [
+        4.0,
+        1.8
+      ],
+      "collision": "hull",
+      "subject": "layered limestone outcrop",
+      "details": "stacked flat-topped slabs of pale cream limestone stepping down to one side, clean horizontal strata, small tufts of moss in the seams"
+    },
+    {
+      "id": "nature-white-dawn-crystal-cluster",
+      "biome": "white",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-cluster",
+      "tier": "crystal"
+    },
+    {
+      "id": "nature-white-sunspire-crystal",
+      "biome": "white",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-spire",
+      "tier": "landmark",
+      "light": true,
+      "collision": "hull"
+    },
+    {
+      "id": "nature-white-puffball-cluster",
+      "biome": "white",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 800,
+      "size_m": [
+        0.7,
+        0.45
+      ],
+      "subject": "cluster of puffball mushrooms",
+      "details": "five round cream puffball mushrooms of different sizes with soft golden-brown speckles, one split open at the top"
+    },
+    {
+      "id": "nature-blue-sea-grass",
+      "biome": "blue",
+      "category": "grass",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 3,
+      "existing_sheet": "assets/foliage/grass/source/blue_grass_sheet.png",
+      "card_size_m": [
+        0.9,
+        0.9
+      ],
+      "subject": "coastal sea-grass tufts",
+      "details": "see docs/GRASS_ATLAS_PROMPTS.md - this sheet already exists"
+    },
+    {
+      "id": "nature-blue-sea-lavender",
+      "biome": "blue",
+      "category": "groundcover",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 1,
+      "card_size_m": [
+        0.7,
+        0.7
+      ],
+      "subject": "sea lavender and sea holly clumps",
+      "details": "Low clumps of spiky steel-blue sea holly and sprays of deep violet sea lavender on dark teal stems. No pale mint, no frosted tips"
+    },
+    {
+      "id": "nature-blue-dune-reeds",
+      "biome": "blue",
+      "category": "tallplants",
+      "route": "card",
+      "tier": "tallcover",
+      "layer": "tall",
+      "weight": 1,
+      "card_size_m": [
+        1.2,
+        1.7
+      ],
+      "subject": "tall coastal dune reed clumps",
+      "details": "Stiff upright deep teal reeds with dark blue-green seed spikes, bent slightly by wind, all leaning the same way"
+    },
+    {
+      "id": "nature-blue-sea-holly-bush",
+      "biome": "blue",
+      "category": "bush",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 900,
+      "size_m": [
+        1.4,
+        1.1
+      ],
+      "subject": "spiky sea holly bush",
+      "details": "a dense mound of stiff spiny steel-blue leaves with a dozen thistle-like blue flower heads on short stalks"
+    },
+    {
+      "id": "nature-blue-tide-hydrangea",
+      "biome": "blue",
+      "category": "bush",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 1100,
+      "size_m": [
+        1.6,
+        1.2
+      ],
+      "subject": "tide hydrangea shrub",
+      "details": "a rounded shrub of broad dark-teal leaves crowned by large ball-shaped clusters of deep blue flowers, each cluster a dense round puff"
+    },
+    {
+      "id": "nature-blue-windswept-pine",
+      "biome": "blue",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 3000,
+      "size_m": [
+        6.0,
+        9.0
+      ],
+      "trunk_radius_m": 0.35,
+      "subject": "windswept coastal pine",
+      "details": "a trunk bent hard to one side by sea wind, branches all reaching the same way, needles grouped into flat layered dark blue-green canopy pads like a giant bonsai"
+    },
+    {
+      "id": "nature-blue-mangrove",
+      "biome": "blue",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 3500,
+      "size_m": [
+        6.0,
+        7.0
+      ],
+      "trunk_radius_m": 0.6,
+      "water": "allow",
+      "subject": "mangrove tree on arching stilt roots",
+      "details": "a short trunk lifted off the ground on a cage of arching stilt roots, a compact dome canopy of glossy dark-teal leaves, barnacles and pale tide marks on the lower roots"
+    },
+    {
+      "id": "nature-blue-sea-stack-arch",
+      "biome": "blue",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "landmark",
+      "tris": 7000,
+      "size_m": [
+        12.0,
+        15.0
+      ],
+      "model_type": "standard",
+      "subject": "sea stack rock arch",
+      "details": "a tall eroded column of layered blue-grey rock with a natural arch worn through its base, wet salt-stained ledges and a few barnacle patches near the bottom, bare rock only"
+    },
+    {
+      "id": "nature-blue-beach-pebbles",
+      "biome": "blue",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 400,
+      "size_m": [
+        0.9,
+        0.3
+      ],
+      "subject": "cluster of smooth beach pebbles",
+      "details": "six smooth rounded pebbles in blue-grey, slate and sand tones, one flat skipping stone on top"
+    },
+    {
+      "id": "nature-blue-basalt-columns",
+      "biome": "blue",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "bush",
+      "tris": 2000,
+      "size_m": [
+        4.0,
+        2.2
+      ],
+      "collision": "hull",
+      "subject": "low hexagonal basalt column formation",
+      "details": "a tight group of hexagonal stone columns of different heights forming natural stepping platforms, wet blue-grey stone with pale salt rings"
+    },
+    {
+      "id": "nature-blue-sapphire-geode",
+      "biome": "blue",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-geode",
+      "tier": "crystal"
+    },
+    {
+      "id": "nature-blue-tide-crystal-spires",
+      "biome": "blue",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-spire",
+      "tier": "crystal",
+      "light": true
+    },
+    {
+      "id": "nature-blue-lantern-caps",
+      "biome": "blue",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 900,
+      "size_m": [
+        0.8,
+        0.7
+      ],
+      "glow": true,
+      "subject": "cluster of lantern-cap mushrooms",
+      "details": "six bell-shaped translucent blue mushroom caps on thin pale stems, softly glowing from inside like lanterns"
+    },
+    {
+      "id": "nature-blue-driftwood",
+      "biome": "blue",
+      "category": "special",
+      "route": "mesh",
+      "tier": "bush",
+      "tris": 1200,
+      "size_m": [
+        4.0,
+        0.9
+      ],
+      "subject": "bleached driftwood log",
+      "details": "a long sea-smoothed silver-grey driftwood trunk with three broken-off branch stubs and a tangle of roots at one end"
+    },
+    {
+      "id": "nature-blue-giant-clam",
+      "biome": "blue",
+      "category": "special",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 900,
+      "size_m": [
+        1.1,
+        0.6
+      ],
+      "subject": "giant clam shell",
+      "details": "a large ridged clam shell half open, wavy scalloped rim, pearl-pale inside with a single blue pearl, barnacles on the outer shell"
+    },
+    {
+      "id": "nature-black-swamp-grass",
+      "biome": "black",
+      "category": "grass",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 3,
+      "existing_sheet": "assets/foliage/grass/source/black_grass_sheet.png",
+      "card_size_m": [
+        0.9,
+        0.9
+      ],
+      "subject": "blighted swamp grass tufts",
+      "details": "see docs/GRASS_ATLAS_PROMPTS.md - this sheet already exists"
+    },
+    {
+      "id": "nature-black-nightshade",
+      "biome": "black",
+      "category": "groundcover",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 1,
+      "card_size_m": [
+        0.7,
+        0.7
+      ],
+      "subject": "nightshade clumps",
+      "details": "Low clumps of dark olive leaves with drooping star-shaped deep violet flowers and a few glossy black berries. Dark values, but keep violet and olive readable"
+    },
+    {
+      "id": "nature-black-bog-cattails",
+      "biome": "black",
+      "category": "tallplants",
+      "route": "card",
+      "tier": "tallcover",
+      "layer": "tall",
+      "weight": 1,
+      "card_size_m": [
+        1.2,
+        1.8
+      ],
+      "subject": "bog cattail reed clumps",
+      "details": "Tall dark olive reed blades, some broken and drooping, with thick dark brown cattail heads on stiff stalks"
+    },
+    {
+      "id": "nature-black-thorn-bramble",
+      "biome": "black",
+      "category": "bush",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 1200,
+      "size_m": [
+        1.8,
+        1.3
+      ],
+      "subject": "thorn bramble tangle",
+      "details": "a low knotted mound of black thorny briar stems with sparse dark olive leaves and clusters of small glossy violet-black berries"
+    },
+    {
+      "id": "nature-black-weeping-willow",
+      "biome": "black",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 4000,
+      "size_m": [
+        8.0,
+        9.0
+      ],
+      "trunk_radius_m": 0.6,
+      "subject": "drooping swamp willow",
+      "details": "a twisted leaning trunk with a hollow, its canopy a heavy curtain of long hanging dark-olive leaf strands grouped into long drapes that almost touch the ground"
+    },
+    {
+      "id": "nature-black-swamp-cypress",
+      "biome": "black",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 3500,
+      "size_m": [
+        6.0,
+        11.0
+      ],
+      "trunk_radius_m": 0.7,
+      "water": "allow",
+      "subject": "swamp cypress with knees",
+      "details": "a flared buttressed trunk standing in a ring of knobbly cypress knees, a sparse ragged canopy of dark needles, long strands of grey hanging moss draped from the branches"
+    },
+    {
+      "id": "nature-black-dead-snag",
+      "biome": "black",
+      "category": "tree",
+      "route": "mesh",
+      "tier": "tree",
+      "tris": 1500,
+      "size_m": [
+        4.0,
+        7.0
+      ],
+      "trunk_radius_m": 0.35,
+      "subject": "leaning dead snag tree",
+      "details": "a leafless dead tree leaning at an angle, peeling grey-black bark, a few long spiky bare branches, a split near the top"
+    },
+    {
+      "id": "nature-black-slate-shards",
+      "biome": "black",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 500,
+      "size_m": [
+        0.9,
+        0.4
+      ],
+      "subject": "cluster of wet slate shards",
+      "details": "four thin flaky shards of wet black slate tilted against each other, faint violet sheen, a little dark moss at the base"
+    },
+    {
+      "id": "nature-black-bog-stones",
+      "biome": "black",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "bush",
+      "tris": 1200,
+      "size_m": [
+        2.5,
+        1.2
+      ],
+      "collision": "hull",
+      "subject": "group of half-sunk bog stones",
+      "details": "three rounded dark charcoal boulders half sunk into mud, slick with olive moss and grey lichen on their tops"
+    },
+    {
+      "id": "nature-black-void-amethyst",
+      "biome": "black",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-cluster",
+      "tier": "crystal"
+    },
+    {
+      "id": "nature-black-rootbound-obelisk",
+      "biome": "black",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-spire",
+      "tier": "landmark",
+      "light": true,
+      "collision": "hull"
+    },
+    {
+      "id": "nature-black-witch-toadstools",
+      "biome": "black",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 1000,
+      "size_m": [
+        0.9,
+        1.2
+      ],
+      "glow": true,
+      "subject": "cluster of tall witch toadstools",
+      "details": "five spindly toadstools of different heights with pointed deep violet caps, pale bone stems and faintly glowing lilac gills"
+    },
+    {
+      "id": "nature-black-bracket-log",
+      "biome": "black",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "bush",
+      "tris": 1800,
+      "size_m": [
+        3.0,
+        0.9
+      ],
+      "subject": "rotten log covered in bracket fungus",
+      "details": "a short rotting log, bark sloughing off, covered in rows of stacked shelf fungus in olive, bone and dark violet"
+    },
+    {
+      "id": "nature-black-spore-pods",
+      "biome": "black",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "crystal",
+      "tris": 2500,
+      "size_m": [
+        2.2,
+        2.5
+      ],
+      "glow": true,
+      "subject": "cluster of giant swamp spore pods",
+      "details": "four bulbous swollen fungal pods on thick stalks, mottled aubergine skin with glowing violet pores, one pod split open"
+    },
+    {
+      "id": "nature-black-bog-lilies",
+      "biome": "black",
+      "category": "special",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 600,
+      "size_m": [
+        1.6,
+        0.25
+      ],
+      "water": "only",
+      "subject": "floating cluster of bog lily pads",
+      "details": "five flat round dark-olive lily pads lying flat, each with a notch, two closed deep violet lily buds, completely flat underside"
+    },
+    {
+      "id": "nature-red-ash-grass",
+      "biome": "red",
+      "category": "grass",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 3,
+      "existing_sheet": "assets/foliage/grass/source/red_grass_sheet.png",
+      "card_size_m": [
+        0.9,
+        0.9
+      ],
+      "subject": "volcanic red grass tufts",
+      "details": "see docs/GRASS_ATLAS_PROMPTS.md - this sheet already exists"
+    },
+    {
+      "id": "nature-red-ember-flowers",
+      "biome": "red",
+      "category": "groundcover",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 1,
+      "card_size_m": [
+        0.7,
+        0.7
+      ],
+      "subject": "ember flower clumps",
+      "details": "Low clumps of dark charcoal-green leaves with flame-shaped blossoms in saturated orange and crimson, petals curling upward like little fires"
+    },
+    {
+      "id": "nature-red-scorched-reeds",
+      "biome": "red",
+      "category": "tallplants",
+      "route": "card",
+      "tier": "tallcover",
+      "layer": "tall",
+      "weight": 1,
+      "card_size_m": [
+        1.1,
+        1.5
+      ],
+      "subject": "tall scorched spike-reed clumps",
+      "details": "Stiff rust-red spiky reeds with blackened burnt tips and a few dark crimson seed spikes. No pink, no salmon"
+    },
+    {
+      "id": "nature-red-ember-thornbush",
+      "biome": "red",
+      "category": "bush",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 1000,
+      "size_m": [
+        1.6,
+        1.3
+      ],
+      "subject": "ember thornbush",
+      "details": "a dense bush of black thorny branches carrying clumps of crimson and ember-orange leaves, like a bush caught mid-burn"
+    },
+    {
+      "id": "nature-red-fire-succulent",
+      "biome": "red",
+      "category": "bush",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 800,
+      "size_m": [
+        1.0,
+        0.8
+      ],
+      "subject": "fire succulent rosette",
+      "details": "an agave-like rosette of thick pointed fleshy leaves, crimson at the tips fading to dark rust at the base, one tall flower stalk with an orange bloom"
+    },
+    {
+      "id": "nature-red-dragonblood-tree",
+      "biome": "red",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 3500,
+      "size_m": [
+        7.0,
+        8.0
+      ],
+      "trunk_radius_m": 0.55,
+      "subject": "dragonblood tree",
+      "details": "a thick trunk splitting into a dense fan of upward branches, topped by a broad flat umbrella canopy of stiff dark leaves, dark crimson sap streaks running down the bark"
+    },
+    {
+      "id": "nature-red-charred-pine",
+      "biome": "red",
+      "category": "tree",
+      "route": "mesh",
+      "tier": "tree",
+      "tris": 1800,
+      "size_m": [
+        3.5,
+        9.0
+      ],
+      "trunk_radius_m": 0.3,
+      "subject": "charred pine tree",
+      "details": "a tall fire-blackened pine with most needles gone, a few clumps of rust-brown needles left near the top, cracked bark showing glowing ember-orange seams"
+    },
+    {
+      "id": "nature-red-fireheart-tree",
+      "biome": "red",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "landmark",
+      "tris": 8000,
+      "size_m": [
+        14.0,
+        15.0
+      ],
+      "trunk_radius_m": 1.1,
+      "model_type": "standard",
+      "glow": true,
+      "subject": "ancient fireheart tree",
+      "details": "a huge twisted tree of black bark split by molten orange veins, a wide canopy of flame-orange and crimson leaf clumps, roots gripping cooled lava rock"
+    },
+    {
+      "id": "nature-red-lava-pebbles",
+      "biome": "red",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 400,
+      "size_m": [
+        0.9,
+        0.35
+      ],
+      "subject": "cluster of porous lava rocks",
+      "details": "five small pitted porous lava rocks in black and dark rust, rough and bubbly"
+    },
+    {
+      "id": "nature-red-pillow-lava",
+      "biome": "red",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "bush",
+      "tris": 1500,
+      "size_m": [
+        3.0,
+        1.4
+      ],
+      "collision": "hull",
+      "glow": true,
+      "subject": "cooled pillow lava mound",
+      "details": "a low mound of rounded cooled lava blobs piled together, black crust with faint glowing orange cracks between the blobs"
+    },
+    {
+      "id": "nature-red-sandstone-mesa",
+      "biome": "red",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "landmark",
+      "tris": 2500,
+      "size_m": [
+        6.0,
+        5.0
+      ],
+      "collision": "hull",
+      "subject": "red sandstone mesa chunk",
+      "details": "a flat-topped block of layered red and ochre sandstone with crisp horizontal strata, one corner collapsed into a pile of fallen slabs"
+    },
+    {
+      "id": "nature-red-ruby-crystals",
+      "biome": "red",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-cluster",
+      "tier": "crystal"
+    },
+    {
+      "id": "nature-red-magma-spire",
+      "biome": "red",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-spire",
+      "tier": "landmark",
+      "light": true,
+      "collision": "hull"
+    },
+    {
+      "id": "nature-red-ember-caps",
+      "biome": "red",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 900,
+      "size_m": [
+        0.8,
+        0.5
+      ],
+      "glow": true,
+      "subject": "ember cap mushrooms on charred wood",
+      "details": "a short chunk of charred black wood with six flat orange mushroom caps growing from it, the caps glowing like embers along their rims"
+    },
+    {
+      "id": "nature-red-sulfur-vent",
+      "biome": "red",
+      "category": "special",
+      "route": "mesh",
+      "tier": "bush",
+      "tris": 1200,
+      "size_m": [
+        2.0,
+        1.0
+      ],
+      "subject": "sulphur vent rock",
+      "details": "a low cracked rock mound with an open vent hole at the top, crusted with bright sulphur-yellow and white mineral deposits around the opening"
+    },
+    {
+      "id": "nature-green-forest-grass",
+      "biome": "green",
+      "category": "grass",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 3,
+      "existing_sheet": "assets/foliage/grass/source/green_grass_sheet.png",
+      "card_size_m": [
+        0.9,
+        0.9
+      ],
+      "subject": "lush forest grass tufts",
+      "details": "see docs/GRASS_ATLAS_PROMPTS.md - this sheet already exists"
+    },
+    {
+      "id": "nature-green-clover-flowers",
+      "biome": "green",
+      "category": "groundcover",
+      "route": "card",
+      "tier": "groundcover",
+      "layer": "low",
+      "weight": 1,
+      "card_size_m": [
+        0.6,
+        0.6
+      ],
+      "subject": "clover and woodland flower clumps",
+      "details": "Low clumps of deep green clover leaves with small saturated violet, magenta and yellow woodland flowers. No pale or white petals"
+    },
+    {
+      "id": "nature-green-ferns",
+      "biome": "green",
+      "category": "tallplants",
+      "route": "card",
+      "tier": "tallcover",
+      "layer": "tall",
+      "weight": 2,
+      "card_size_m": [
+        1.3,
+        1.1
+      ],
+      "subject": "forest fern clumps",
+      "details": "Arching fern fronds in deep saturated green, each frond broad with clearly separated chunky leaflets, five to eight fronds per clump"
+    },
+    {
+      "id": "nature-green-round-bush",
+      "biome": "green",
+      "category": "bush",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 1000,
+      "size_m": [
+        1.8,
+        1.4
+      ],
+      "subject": "round leafy forest bush",
+      "details": "a full rounded bush built from several overlapping dense leaf clusters in deep and mid greens, a few twigs poking out"
+    },
+    {
+      "id": "nature-green-berry-bush",
+      "biome": "green",
+      "category": "bush",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 1100,
+      "size_m": [
+        1.6,
+        1.3
+      ],
+      "subject": "berry bush",
+      "details": "a loose leafy bush of deep green leaves hung with clusters of glossy red berries"
+    },
+    {
+      "id": "nature-green-broad-oak",
+      "biome": "green",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 4000,
+      "size_m": [
+        10.0,
+        12.0
+      ],
+      "trunk_radius_m": 0.7,
+      "subject": "broad forest oak",
+      "details": "a thick mossy trunk with exposed roots, heavy spreading branches carrying a wide canopy of large dense leaf clusters in deep and mid greens"
+    },
+    {
+      "id": "nature-green-tall-fir",
+      "biome": "green",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "tree",
+      "tris": 2500,
+      "size_m": [
+        5.0,
+        14.0
+      ],
+      "trunk_radius_m": 0.4,
+      "subject": "tall forest fir",
+      "details": "a straight trunk with tiers of drooping layered branches forming a narrow cone of dark blue-green needles, each tier a distinct layer"
+    },
+    {
+      "id": "nature-green-sapling",
+      "biome": "green",
+      "category": "tree",
+      "route": "procedural",
+      "tier": "bush",
+      "tris": 900,
+      "size_m": [
+        1.6,
+        3.0
+      ],
+      "subject": "young forest sapling",
+      "details": "a thin young tree with a slightly crooked stem and two small leaf clusters in fresh deep green"
+    },
+    {
+      "id": "nature-green-river-stones",
+      "biome": "green",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 400,
+      "size_m": [
+        0.9,
+        0.35
+      ],
+      "subject": "cluster of mossy river stones",
+      "details": "five rounded grey river stones with patches of bright moss on their tops"
+    },
+    {
+      "id": "nature-green-rootbound-rock",
+      "biome": "green",
+      "category": "stone",
+      "route": "mesh",
+      "tier": "bush",
+      "tris": 1800,
+      "size_m": [
+        3.0,
+        2.2
+      ],
+      "collision": "hull",
+      "subject": "root-bound boulder",
+      "details": "a large grey boulder gripped by thick twisting tree roots that wrap over it and dive into the ground on both sides, moss in the crevices"
+    },
+    {
+      "id": "nature-green-emerald-root-crystals",
+      "biome": "green",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-cluster",
+      "tier": "crystal"
+    },
+    {
+      "id": "nature-green-verdant-spire",
+      "biome": "green",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-spire",
+      "tier": "landmark",
+      "light": true,
+      "collision": "hull"
+    },
+    {
+      "id": "nature-green-toadstool-cluster",
+      "biome": "green",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 900,
+      "size_m": [
+        0.8,
+        0.6
+      ],
+      "subject": "cluster of red-capped toadstools",
+      "details": "five toadstools with round red caps dotted with cream spots and thick cream stems, different heights, one tipped over"
+    },
+    {
+      "id": "nature-green-giant-mushroom",
+      "biome": "green",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "landmark",
+      "tris": 3000,
+      "size_m": [
+        6.0,
+        7.0
+      ],
+      "trunk_radius_m": 0.6,
+      "glow": true,
+      "subject": "giant forest mushroom",
+      "details": "a towering mushroom with a thick curved pale stem and a broad cream-and-moss-green cap, smaller mushrooms around its foot, softly glowing green gills under the cap"
+    },
+    {
+      "id": "nature-green-mossy-stump",
+      "biome": "green",
+      "category": "special",
+      "route": "mesh",
+      "tier": "clutter",
+      "tris": 1000,
+      "size_m": [
+        1.2,
+        0.8
+      ],
+      "subject": "mossy tree stump",
+      "details": "an old cut tree stump with visible growth rings on top, thick moss over one side, roots spreading at the base and two small mushrooms"
+    }
+  ],
+  "shared_style": {
+    "_doc": "Style for assets with \"biome\": \"shared\" - generated once, colourless, and tinted per biome in the engine (docs/NATURE_ASSETS.md, 3a).",
+    "mood": "a neutral glowing magical crystal that will be recoloured later to fit any of five biomes",
+    "palette": "completely colourless: milky white quartz with a clear outer skin and a soft white inner glow, pure white highlights, no hue anywhere"
+  }
+}

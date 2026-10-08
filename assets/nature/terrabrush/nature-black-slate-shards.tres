@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-slate-shards.res" id="1_kwq1w"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_4mj8v"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_e1syp"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_1vlbb"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_qpgqd"]
+mesh = ExtResource("1_kwq1w")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_v3bhy"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_qpgqd")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_ctgvi"]
+mesh = ExtResource("1_kwq1w")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_6b7s5"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_ctgvi")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_kmygk"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_4mj8v")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_e1syp"), SubResource("ObjectOctreeLODDefinitionResource_1vlbb")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_v3bhy"), SubResource("ObjectOctreeLODMeshesDefinitionResource_6b7s5")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_kmygk")

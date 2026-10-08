@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-bog-lilies.res" id="1_mp73q"]
+
+[node name="NatureBlackBogLilies" type="Node3D" unique_id=1430665762]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1836971074]
+cast_shadow = 0
+mesh = ExtResource("1_mp73q")

@@ -1,0 +1,45 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-fireheart-tree.res" id="1_i8cor"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_kbqef"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_8k2mo"]
+maxDistance = 70.0
+addCollision = true
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_dbfjb"]
+maxDistance = 520.0
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_j0ke1"]
+height = 15.0
+radius = 6.0449896
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_fxm67"]
+mesh = ExtResource("1_i8cor")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_7qsiv"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_fxm67")])
+collisionShape = SubResource("CylinderShape3D_j0ke1")
+collisionOffset = Vector3(0, 7.5, 0)
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_avgbm"]
+mesh = ExtResource("1_i8cor")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_oj88p"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_avgbm")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_b7j5w"]
+strategy = 2
+objectFrequency = 45
+randomRange = 18.0
+noiseTexture = ExtResource("2_kbqef")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.9
+randomSizeFactorMax = 1.1
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_8k2mo"), SubResource("ObjectOctreeLODDefinitionResource_dbfjb")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_7qsiv"), SubResource("ObjectOctreeLODMeshesDefinitionResource_oj88p")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_b7j5w")
