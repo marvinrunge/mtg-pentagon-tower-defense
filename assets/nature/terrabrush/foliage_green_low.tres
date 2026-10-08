@@ -1,39 +1,43 @@
-[gd_resource type="FoliageResource" format=4]
+[gd_resource type="FoliageResource" format=4 uid="uid://cg0bkrb6yajrw"]
 
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-green-forest-grass_01.png" id="1_xmpqe"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-green-forest-grass_02.png" id="2_4fpcf"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-green-forest-grass_03.png" id="3_ai2gg"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-green-forest-grass_04.png" id="4_1pmlt"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-green-clover-flowers_01.png" id="5_iujr7"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-green-clover-flowers_02.png" id="6_7wcds"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-green-clover-flowers_03.png" id="7_8brup"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-green-clover-flowers_04.png" id="8_74s1c"]
-[ext_resource type="Shader" path="res://assets/shaders/nature_foliage.gdshader" id="9_vtsul"]
+[ext_resource type="Texture2D" uid="uid://doxj0vmib0log" path="res://assets/nature/cards/nature-green-forest-grass_01.png" id="1_xmpqe"]
+[ext_resource type="Texture2D" uid="uid://dn5hhmmbnbqw1" path="res://assets/nature/cards/nature-green-forest-grass_02.png" id="2_4fpcf"]
+[ext_resource type="Texture2D" uid="uid://bbhq412765c3i" path="res://assets/nature/cards/nature-green-forest-grass_03.png" id="3_ai2gg"]
+[ext_resource type="Texture2D" uid="uid://dl35jgocvt7js" path="res://assets/nature/cards/nature-green-forest-grass_04.png" id="4_1pmlt"]
+[ext_resource type="Texture2D" uid="uid://cpi4aeqy6a1qv" path="res://assets/nature/cards/nature-green-clover-flowers_01.png" id="5_iujr7"]
+[ext_resource type="Texture2D" uid="uid://cgbk5ka04ntms" path="res://assets/nature/cards/nature-green-clover-flowers_02.png" id="6_7wcds"]
+[ext_resource type="Texture2D" uid="uid://nl5tmf3sjya" path="res://assets/nature/cards/nature-green-clover-flowers_03.png" id="7_8brup"]
+[ext_resource type="Texture2D" uid="uid://cpgbinwuac3ly" path="res://assets/nature/cards/nature-green-clover-flowers_04.png" id="8_74s1c"]
+[ext_resource type="Shader" uid="uid://b017li6wgexo" path="res://assets/shaders/nature_foliage.gdshader" id="9_vtsul"]
+
+[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_xmpqe"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_2xrdu"]
 render_priority = 0
 shader = ExtResource("9_vtsul")
-shader_parameter/GlobalPosition = null
-shader_parameter/OffsetPosition = null
-shader_parameter/InitialCellWidth = null
-shader_parameter/LODRowsPerLevel = null
-shader_parameter/LODLevels = null
-shader_parameter/WindStrength = null
-shader_parameter/FoliageAlbedo = null
-shader_parameter/FoliageNumberOfTexture = null
-shader_parameter/UseGroundColor = null
-shader_parameter/MeshScale = null
-shader_parameter/UseBrushScale = null
-shader_parameter/RandomPlacementRange = null
-shader_parameter/ApplyOnTextureIndexes = null
-shader_parameter/NumberOfTexturesToApplyOn = null
-shader_parameter/NearestFilter = null
-shader_parameter/TextureDetail = null
-shader_parameter/NumberOfTextures = null
-shader_parameter/WaterFactor = null
-shader_parameter/ZonesSize = null
-shader_parameter/Resolution = null
-shader_parameter/NumberOfZones = null
+shader_parameter/GlobalPosition = Vector3(0, 0, 0)
+shader_parameter/OffsetPosition = Vector3(0, 0, 0)
+shader_parameter/InitialCellWidth = 1.0
+shader_parameter/LODRowsPerLevel = 10
+shader_parameter/LODLevels = 5
+shader_parameter/WindStrength = 0.1
+shader_parameter/FoliageAlbedo = Color(1, 1, 1, 1)
+shader_parameter/FoliageNumberOfTexture = 0
+shader_parameter/UseGroundColor = true
+shader_parameter/MeshScale = Vector3(1, 1, 1)
+shader_parameter/UseBrushScale = true
+shader_parameter/RandomPlacementRange = 2.0
+shader_parameter/ApplyOnTextureIndexes = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/NumberOfTexturesToApplyOn = 0
+shader_parameter/NearestFilter = false
+shader_parameter/ColorTextures = SubResource("PlaceholderTexture2DArray_xmpqe")
+shader_parameter/TextureDetail = 0
+shader_parameter/NumberOfTextures = 0
+shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_xmpqe")
+shader_parameter/WaterFactor = 0.0
+shader_parameter/ZonesSize = 0.0
+shader_parameter/Resolution = 0.0
+shader_parameter/NumberOfZones = 0.0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_wjq0y"]
 _surfaces = [{

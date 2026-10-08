@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-broad-oak_v3.res" id="1_8w6qv"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_hr4eg"]
+height = 7.1999993
+radius = 0.7
+
+[node name="NatureGreenBroadOakV3" type="Node3D" unique_id=1010167984]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1733505678]
+mesh = ExtResource("1_8w6qv")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=1701607214]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=783818672]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.5999997, 0)
+shape = SubResource("CylinderShape3D_hr4eg")

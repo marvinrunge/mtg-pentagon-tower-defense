@@ -1,44 +1,20 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://hrh2d1fi0bsv"]
 
-[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-swamp-cypress.res" id="1_ryq6r"]
-[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_tdlhx"]
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_5r4hn"]
-maxDistance = 70.0
-addCollision = true
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_q5lw2"]
-maxDistance = 400.0
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_ecrfb"]
-height = 6.6
-radius = 0.7
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_468po"]
-mesh = ExtResource("1_ryq6r")
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_hhva1"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_468po")])
-collisionShape = SubResource("CylinderShape3D_ecrfb")
-collisionOffset = Vector3(0, 3.3, 0)
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_f67h4"]
-mesh = ExtResource("1_ryq6r")
-castShadow = 0
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_eik0a"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_f67h4")])
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_q5lw2"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-swamp-cypress.tscn" id="2_468po"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-swamp-cypress_v2.tscn" id="3_hhva1"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-swamp-cypress_v3.tscn" id="4_f67h4"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-swamp-cypress_v4.tscn" id="5_eik0a"]
 
 [sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_ur70a"]
-strategy = 2
 objectFrequency = 15
 randomRange = 6.0
-noiseTexture = ExtResource("2_tdlhx")
+noiseTexture = ExtResource("1_q5lw2")
 randomRotation = true
 randomSize = true
 randomSizeFactorMin = 0.8
-lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_5r4hn"), SubResource("ObjectOctreeLODDefinitionResource_q5lw2")])
-lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_hhva1"), SubResource("ObjectOctreeLODMeshesDefinitionResource_eik0a")])
+randomSizeFactorMax = 3.0
+objectScenes = Array[PackedScene]([ExtResource("2_468po"), ExtResource("3_hhva1"), ExtResource("4_f67h4"), ExtResource("5_eik0a")])
 
 [resource]
 definition = SubResource("ObjectDefinitionResource_ur70a")

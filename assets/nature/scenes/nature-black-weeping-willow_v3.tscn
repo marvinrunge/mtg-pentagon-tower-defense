@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-weeping-willow_v3.res" id="1_x7sj5"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_8ya55"]
+height = 5.4
+radius = 0.6
+
+[node name="NatureBlackWeepingWillowV3" type="Node3D" unique_id=1318606297]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1557658452]
+mesh = ExtResource("1_x7sj5")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=768372505]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1979372323]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
+shape = SubResource("CylinderShape3D_8ya55")

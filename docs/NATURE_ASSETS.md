@@ -514,6 +514,21 @@ array lines, so the diff stays small. It is idempotent, and it refuses to
 run if the node already has hand-made foliage or objects (index pairing would break).
 **Close `main.tscn` in the editor first**, or the editor's stale copy will overwrite it.
 
+**Current state (2026-10-08): the grass is hand-painted, not applied.** The ten card
+layers (`foliage_<biome>_low/tall`, in `library.json` order) are wired to the TerraBrush
+node by hand, ids `grass_f0`-`grass_f9`, each with an empty mask
+`scenes/misc/Main/Foliage_0_0_<index>.res` to paint into. The generated scatter masks
+(`Nature_foliage_*.res`) are kept but unused. Because those ids are not `nature_`,
+`apply` now refuses instead of replacing the painted masks.
+
+The eleven trees are wired the same way: ids `tree_o0`-`tree_o10` (sorted by biome),
+empty masks `scenes/misc/Main/Object_0_0_<index>.res`. Each tree has four variants
+(`build_trees.py --variants 4`), and its ObjectResource lists all four wrapper scenes
+under the PackedScenes strategy, so every painted tree is a random one of them. The
+OctreeMultiMeshes strategy cannot do this: it draws only the first mesh of each LOD.
+The wrapper scenes carry their StaticBody3D, so painted trees also join the navmesh
+bake (`MainController._add_obstacle_sources`).
+
 **Tested end to end without spending anything.** An existing pillar GLB stood in for a
 Meshy result and the green grass sheet for a card. Results:
 

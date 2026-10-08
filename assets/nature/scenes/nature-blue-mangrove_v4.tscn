@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-mangrove_v4.res" id="1_snmb6"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_xs3c7"]
+height = 4.2
+radius = 0.6
+
+[node name="NatureBlueMangroveV4" type="Node3D" unique_id=1031327435]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=101692847]
+mesh = ExtResource("1_snmb6")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=1320811323]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=922529176]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1, 0)
+shape = SubResource("CylinderShape3D_xs3c7")

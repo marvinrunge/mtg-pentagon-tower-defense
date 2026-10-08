@@ -20,6 +20,8 @@ extends SceneTree
 ##   - assets/nature/terrabrush/<id>.tres: the ObjectResource. Glowing assets with a
 ##     light use PackedScenes (TerraBrush cannot put a light in a MultiMesh); everything
 ##     else uses OctreeMultiMeshes, which is what keeps hundreds of rocks cheap.
+##   - Procedural trees with variants (<id>_v2.glb, ...) get a mesh and wrapper scene per
+##     variant and use PackedScenes too, so TerraBrush mixes them (see _build_variants).
 ##
 ## Per CARD layer (all card assets sharing a biome and `layer`):
 ##   - assets/nature/terrabrush/foliage_<biome>_<layer>.tres: one FoliageResource whose
@@ -150,6 +152,7 @@ func _build_mesh_asset(asset: Dictionary) -> Array:
 	var scene := _wrapper_scene(asset, mesh, collision, light)
 	ResourceSaver.save(scene, SCENE_DIR + id + ".tscn")
 	scene = load(SCENE_DIR + id + ".tscn")
+	var variant_scenes := _build_variants(asset, tier, light)
 
 	var definition: Resource = ClassDB.instantiate("ObjectDefinitionResource")
 	var spacing: int = tier["spacing_m"]
@@ -165,9 +168,9 @@ func _build_mesh_asset(asset: Dictionary) -> Array:
 	definition.set("randomSizeFactorMin", 0.9 if landmark else 0.8)
 	definition.set("randomSizeFactorMax", 1.1 if landmark else 1.2)
 
-	if light:
+	if light or not variant_scenes.is_empty():
 		definition.set("strategy", OBJECTS_PACKED_SCENES)
-		definition.set("objectScenes", _typed([scene], "PackedScene"))
+		definition.set("objectScenes", _typed([scene] + variant_scenes, "PackedScene"))
 	else:
 		definition.set("strategy", OBJECTS_OCTREE)
 		var shadows: int = 0 if asset["tier"] == "clutter" else 1
@@ -185,11 +188,43 @@ func _build_mesh_asset(asset: Dictionary) -> Array:
 	object.set("definition", definition)
 	var resource_path := TB_DIR + id + ".tres"
 	ResourceSaver.save(object, resource_path)
-	print("[nature] %s: %d tris, %.1f x %.1f m, %s%s" % [
+	print("[nature] %s: %d tris, %.1f x %.1f m, %s%s%s" % [
 		id, _triangle_count(mesh), bounds.size.x, bounds.size.y,
-		"scenes" if light else "multimesh", ", glow" if glow else ""])
+		"scenes" if light or not variant_scenes.is_empty() else "multimesh", ", glow" if glow else "",
+		", %d variant(s)" % (variant_scenes.size() + 1) if not variant_scenes.is_empty() else ""])
 	var footprint: float = maxf(bounds.size.x, bounds.size.z) * 0.5
 	return [asset, load(resource_path), footprint]
+
+
+## The extra variants of a procedural tree (`<id>_v2.glb`, `_v3`, ... from
+## tools/nature/blender/build_trees.py --variants), each baked and wrapped exactly like the
+## base. Returns their wrapper scenes, in order, stopping at the first missing number.
+##
+## Variants are why such an asset uses the PackedScenes strategy: TerraBrush picks a random
+## entry of `objectScenes` for every placement, while the OctreeMultiMeshes strategy draws
+## only the first mesh of each LOD level and ignores the rest - checked on this map with
+## three meshes in one level, where every placement used the first.
+func _build_variants(asset: Dictionary, tier: Dictionary, light: bool) -> Array:
+	var id: String = asset["id"]
+	var scenes := []
+	var variant := 2
+	while true:
+		var variant_id := "%s_v%d" % [id, variant]
+		var glb := "res://assets/generated/%s/%s.glb" % [id, variant_id]
+		if not ResourceLoader.exists(glb):
+			break
+		var variant_asset := asset.duplicate()
+		variant_asset["id"] = variant_id
+		var mesh := _bake_mesh(variant_asset, load(glb) as PackedScene)
+		if mesh == null:
+			break
+		ResourceSaver.save(mesh, MESH_DIR + variant_id + ".res")
+		mesh = load(MESH_DIR + variant_id + ".res")
+		var collision := _collision_shape(asset, tier, mesh.get_aabb())
+		ResourceSaver.save(_wrapper_scene(variant_asset, mesh, collision, light), SCENE_DIR + variant_id + ".tscn")
+		scenes.append(load(SCENE_DIR + variant_id + ".tscn"))
+		variant += 1
+	return scenes
 
 
 ## Bakes every MeshInstance3D in the imported scene into one mesh: transformed so the
@@ -223,7 +258,7 @@ func _bake_mesh(asset: Dictionary, packed: PackedScene) -> ArrayMesh:
 		factor = target[0] / maxf(width, 0.0001)
 	var centre := bounds.get_center()
 	var fix := Transform3D(Basis.from_scale(Vector3.ONE * factor),
-		-Vector3(centre.x, bounds.position.y, centre.z) * factor)
+		-Vector3(centre.x, bounds.position.y, centre.z) * factor - Vector3(0, _sink_m(asset), 0))
 
 	var importer := ImporterMesh.new()
 	var glow: bool = asset.get("glow", false)
@@ -241,6 +276,29 @@ func _bake_mesh(asset: Dictionary, packed: PackedScene) -> ArrayMesh:
 	importer.generate_lods(25.0, 60.0, [])
 	root.free()
 	return importer.get_mesh()
+
+
+## Extra air under the trunk the sink allows for: TerraBrush's ground height under a
+## placement is not exact either.
+const SINK_MARGIN_M := 0.15
+
+
+## How far below y = 0 the base is baked, so the asset stands IN the ground rather than on
+## a single point of it. TerraBrush sets each object at the terrain height under its
+## origin, and on a slope the downhill side of a trunk then hangs in the air by its radius
+## times the slope - so the sink is sized for the steepest slope the tier is allowed on,
+## with the flare at the foot counted in. Only assets with a trunk get one by default;
+## anything can set `sink_m` (on the asset or its tier) to choose its own.
+func _sink_m(asset: Dictionary) -> float:
+	var tier := _tier(asset)
+	if asset.has("sink_m"):
+		return float(asset["sink_m"])
+	if tier.has("sink_m"):
+		return float(tier["sink_m"])
+	if not asset.has("trunk_radius_m"):
+		return 0.0
+	var flared_radius: float = float(asset["trunk_radius_m"]) * 1.3
+	return flared_radius * tan(deg_to_rad(float(tier.get("max_slope_deg", 30.0)))) + SINK_MARGIN_M
 
 
 func _collect_meshes(node: Node, parent: Transform3D, out: Array) -> void:

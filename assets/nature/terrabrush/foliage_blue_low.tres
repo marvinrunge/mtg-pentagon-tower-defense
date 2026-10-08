@@ -1,39 +1,43 @@
-[gd_resource type="FoliageResource" format=4]
+[gd_resource type="FoliageResource" format=4 uid="uid://cevwovjaaqqqq"]
 
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-blue-sea-grass_01.png" id="1_1mjef"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-blue-sea-grass_02.png" id="2_ms3i8"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-blue-sea-grass_03.png" id="3_tclfm"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-blue-sea-grass_04.png" id="4_qlmow"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-blue-sea-lavender_01.png" id="5_kdcqi"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-blue-sea-lavender_02.png" id="6_fkh2u"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-blue-sea-lavender_03.png" id="7_aabhf"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-blue-sea-lavender_04.png" id="8_p86uf"]
-[ext_resource type="Shader" path="res://assets/shaders/nature_foliage.gdshader" id="9_aw1lt"]
+[ext_resource type="Texture2D" uid="uid://be1famnmhkk3y" path="res://assets/nature/cards/nature-blue-sea-grass_01.png" id="1_1mjef"]
+[ext_resource type="Texture2D" uid="uid://brkootpbkodr0" path="res://assets/nature/cards/nature-blue-sea-grass_02.png" id="2_ms3i8"]
+[ext_resource type="Texture2D" uid="uid://cvotoptw1tuox" path="res://assets/nature/cards/nature-blue-sea-grass_03.png" id="3_tclfm"]
+[ext_resource type="Texture2D" uid="uid://cd3g1cxbwxjni" path="res://assets/nature/cards/nature-blue-sea-grass_04.png" id="4_qlmow"]
+[ext_resource type="Texture2D" uid="uid://jpfbn04fqthq" path="res://assets/nature/cards/nature-blue-sea-lavender_01.png" id="5_kdcqi"]
+[ext_resource type="Texture2D" uid="uid://17t0ie3dfv2g" path="res://assets/nature/cards/nature-blue-sea-lavender_02.png" id="6_fkh2u"]
+[ext_resource type="Texture2D" uid="uid://dxxr75ercf18u" path="res://assets/nature/cards/nature-blue-sea-lavender_03.png" id="7_aabhf"]
+[ext_resource type="Texture2D" uid="uid://cerhc6tr2i5jo" path="res://assets/nature/cards/nature-blue-sea-lavender_04.png" id="8_p86uf"]
+[ext_resource type="Shader" uid="uid://b017li6wgexo" path="res://assets/shaders/nature_foliage.gdshader" id="9_aw1lt"]
+
+[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_1mjef"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_jrwmi"]
 render_priority = 0
 shader = ExtResource("9_aw1lt")
-shader_parameter/GlobalPosition = null
-shader_parameter/OffsetPosition = null
-shader_parameter/InitialCellWidth = null
-shader_parameter/LODRowsPerLevel = null
-shader_parameter/LODLevels = null
-shader_parameter/WindStrength = null
-shader_parameter/FoliageAlbedo = null
-shader_parameter/FoliageNumberOfTexture = null
-shader_parameter/UseGroundColor = null
-shader_parameter/MeshScale = null
-shader_parameter/UseBrushScale = null
-shader_parameter/RandomPlacementRange = null
-shader_parameter/ApplyOnTextureIndexes = null
-shader_parameter/NumberOfTexturesToApplyOn = null
-shader_parameter/NearestFilter = null
-shader_parameter/TextureDetail = null
-shader_parameter/NumberOfTextures = null
-shader_parameter/WaterFactor = null
-shader_parameter/ZonesSize = null
-shader_parameter/Resolution = null
-shader_parameter/NumberOfZones = null
+shader_parameter/GlobalPosition = Vector3(0, 0, 0)
+shader_parameter/OffsetPosition = Vector3(0, 0, 0)
+shader_parameter/InitialCellWidth = 1.0
+shader_parameter/LODRowsPerLevel = 10
+shader_parameter/LODLevels = 5
+shader_parameter/WindStrength = 0.1
+shader_parameter/FoliageAlbedo = Color(1, 1, 1, 1)
+shader_parameter/FoliageNumberOfTexture = 0
+shader_parameter/UseGroundColor = true
+shader_parameter/MeshScale = Vector3(1, 1, 1)
+shader_parameter/UseBrushScale = true
+shader_parameter/RandomPlacementRange = 2.0
+shader_parameter/ApplyOnTextureIndexes = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/NumberOfTexturesToApplyOn = 0
+shader_parameter/NearestFilter = false
+shader_parameter/ColorTextures = SubResource("PlaceholderTexture2DArray_1mjef")
+shader_parameter/TextureDetail = 0
+shader_parameter/NumberOfTextures = 0
+shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_1mjef")
+shader_parameter/WaterFactor = 0.0
+shader_parameter/ZonesSize = 0.0
+shader_parameter/Resolution = 0.0
+shader_parameter/NumberOfZones = 0.0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_3wgbm"]
 _surfaces = [{

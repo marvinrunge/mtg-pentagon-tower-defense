@@ -1,44 +1,20 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://cfpilovf5caxt"]
 
-[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-broad-oak.res" id="1_8c7ia"]
-[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_xk7k5"]
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_unwnm"]
-maxDistance = 70.0
-addCollision = true
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_5tj62"]
-maxDistance = 400.0
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_cajuk"]
-height = 7.2
-radius = 0.7
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_lxgmq"]
-mesh = ExtResource("1_8c7ia")
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_rlr47"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_lxgmq")])
-collisionShape = SubResource("CylinderShape3D_cajuk")
-collisionOffset = Vector3(0, 3.6, 0)
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_vgxuq"]
-mesh = ExtResource("1_8c7ia")
-castShadow = 0
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_y8nev"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_vgxuq")])
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_5tj62"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-broad-oak.tscn" id="2_lxgmq"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-broad-oak_v2.tscn" id="3_rlr47"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-broad-oak_v3.tscn" id="4_vgxuq"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-broad-oak_v4.tscn" id="5_y8nev"]
 
 [sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_uuaxm"]
-strategy = 2
 objectFrequency = 15
 randomRange = 6.0
-noiseTexture = ExtResource("2_xk7k5")
+noiseTexture = ExtResource("1_5tj62")
 randomRotation = true
 randomSize = true
 randomSizeFactorMin = 0.8
-lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_unwnm"), SubResource("ObjectOctreeLODDefinitionResource_5tj62")])
-lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_rlr47"), SubResource("ObjectOctreeLODMeshesDefinitionResource_y8nev")])
+randomSizeFactorMax = 3.0
+objectScenes = Array[PackedScene]([ExtResource("2_lxgmq"), ExtResource("3_rlr47"), ExtResource("4_vgxuq"), ExtResource("5_y8nev")])
 
 [resource]
 definition = SubResource("ObjectDefinitionResource_uuaxm")

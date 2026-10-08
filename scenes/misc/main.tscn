@@ -100,28 +100,50 @@
 [ext_resource type="Texture2D" uid="uid://c7b02xvylutin" path="res://addons/terrabrush/Assets/Textures/Rock015/Rock015_Roughness.png" id="100_siirq"]
 [ext_resource type="PackedScene" uid="uid://b3i3qhkyjfnq" path="res://assets/structures/pillar_slender_monolith.glb" id="101_cnnyy"]
 [ext_resource type="PackedScene" uid="uid://b1g7lbwfgdidf" path="res://assets/structures/pillar_weathered_sentinel.glb" id="102_sdwp7"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-bog-lilies.tscn" id="103_x2b5v"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-bracket-log.tscn" id="104_oy2j4"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-swamp-cypress.tscn" id="105_rf28w"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-weeping-willow.tscn" id="106_opal1"]
 [ext_resource type="Image" uid="uid://ob0rfk35p1fo" path="res://scenes/misc/Main/Splatmap_0_0_4.res" id="106_sdwp7"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-driftwood.tscn" id="107_sudem"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-giant-clam.tscn" id="108_kxm2r"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-mangrove.tscn" id="109_32x84"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-windswept-pine.tscn" id="110_doton"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-broad-oak.tscn" id="111_d86dt"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-giant-mushroom.tscn" id="112_hj43h"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-tall-fir.tscn" id="113_fjak7"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-dragonblood-tree.tscn" id="114_11157"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-fire-succulent.tscn" id="115_sp6y1"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-fireheart-tree.tscn" id="116_gri7h"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-lava-pebbles.tscn" id="117_x03n6"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-great-sun-oak.tscn" id="118_jticy"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-limestone-outcrop.tscn" id="119_tbvj1"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-limestone-pebbles.tscn" id="120_gts65"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-olive-sunleaf.tscn" id="121_sjh1p"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-silver-birch.tscn" id="122_l30n6"]
 [ext_resource type="Shader" uid="uid://d2cw1grmyu524" path="res://assets/shaders/terrain_water.gdshader" id="200_water"]
+[ext_resource type="FoliageResource" uid="uid://cjmtvif5y12j0" path="res://assets/nature/terrabrush/foliage_white_low.tres" id="grass_f0"]
+[ext_resource type="Image" uid="uid://bxd6h6w3qtutk" path="res://scenes/misc/Main/Foliage_0_0_0.res" id="grass_f0_mask"]
+[ext_resource type="FoliageResource" uid="uid://bj8x0nsitw0aa" path="res://assets/nature/terrabrush/foliage_white_tall.tres" id="grass_f1"]
+[ext_resource type="Image" uid="uid://eqagi26qocs2" path="res://scenes/misc/Main/Foliage_0_0_1.res" id="grass_f1_mask"]
+[ext_resource type="FoliageResource" uid="uid://cevwovjaaqqqq" path="res://assets/nature/terrabrush/foliage_blue_low.tres" id="grass_f2"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_2.res" id="grass_f2_mask"]
+[ext_resource type="FoliageResource" uid="uid://bmo1ycbje5kus" path="res://assets/nature/terrabrush/foliage_blue_tall.tres" id="grass_f3"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_3.res" id="grass_f3_mask"]
+[ext_resource type="FoliageResource" uid="uid://pn1ow8bndsbo" path="res://assets/nature/terrabrush/foliage_black_low.tres" id="grass_f4"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_4.res" id="grass_f4_mask"]
+[ext_resource type="FoliageResource" uid="uid://caty3gutogpf6" path="res://assets/nature/terrabrush/foliage_black_tall.tres" id="grass_f5"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_5.res" id="grass_f5_mask"]
+[ext_resource type="FoliageResource" uid="uid://byeuovmlm7pda" path="res://assets/nature/terrabrush/foliage_red_low.tres" id="grass_f6"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_6.res" id="grass_f6_mask"]
+[ext_resource type="FoliageResource" uid="uid://cab4iusxbtb8c" path="res://assets/nature/terrabrush/foliage_red_tall.tres" id="grass_f7"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_7.res" id="grass_f7_mask"]
+[ext_resource type="FoliageResource" uid="uid://cg0bkrb6yajrw" path="res://assets/nature/terrabrush/foliage_green_low.tres" id="grass_f8"]
+[ext_resource type="Image" uid="uid://bqpd8v8n4otsg" path="res://scenes/misc/Main/Foliage_0_0_8.res" id="grass_f8_mask"]
+[ext_resource type="FoliageResource" uid="uid://die8naffjxi42" path="res://assets/nature/terrabrush/foliage_green_tall.tres" id="grass_f9"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_9.res" id="grass_f9_mask"]
+[ext_resource type="ObjectResource" uid="uid://d1120g058vqcs" path="res://assets/nature/terrabrush/nature-white-great-sun-oak.tres" id="tree_o0"]
+[ext_resource type="Image" uid="uid://dxbgnb2c07u1m" path="res://scenes/misc/Main/Object_0_0_0.res" id="tree_o0_mask"]
+[ext_resource type="ObjectResource" uid="uid://b4gntktbfdf1o" path="res://assets/nature/terrabrush/nature-white-olive-sunleaf.tres" id="tree_o1"]
+[ext_resource type="Image" uid="uid://bnb7v0id2pwui" path="res://scenes/misc/Main/Object_0_0_1.res" id="tree_o1_mask"]
+[ext_resource type="ObjectResource" uid="uid://j0cee6gydvso" path="res://assets/nature/terrabrush/nature-white-silver-birch.tres" id="tree_o2"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Object_0_0_2.res" id="tree_o2_mask"]
+[ext_resource type="ObjectResource" uid="uid://6mkynctv251g" path="res://assets/nature/terrabrush/nature-blue-mangrove.tres" id="tree_o3"]
+[ext_resource type="Image" uid="uid://b70gw4shh5tvw" path="res://scenes/misc/Main/Object_0_0_3.res" id="tree_o3_mask"]
+[ext_resource type="ObjectResource" uid="uid://dsy1pemi5filj" path="res://assets/nature/terrabrush/nature-blue-windswept-pine.tres" id="tree_o4"]
+[ext_resource type="Image" uid="uid://0icds1if8auu" path="res://scenes/misc/Main/Object_0_0_4.res" id="tree_o4_mask"]
+[ext_resource type="ObjectResource" uid="uid://hrh2d1fi0bsv" path="res://assets/nature/terrabrush/nature-black-swamp-cypress.tres" id="tree_o5"]
+[ext_resource type="Image" uid="uid://b5xws633u72gv" path="res://scenes/misc/Main/Object_0_0_5.res" id="tree_o5_mask"]
+[ext_resource type="ObjectResource" uid="uid://52i3cdtnid26" path="res://assets/nature/terrabrush/nature-black-weeping-willow.tres" id="tree_o6"]
+[ext_resource type="Image" uid="uid://dqw22qepv8a" path="res://scenes/misc/Main/Object_0_0_6.res" id="tree_o6_mask"]
+[ext_resource type="ObjectResource" uid="uid://cumhfouicm46w" path="res://assets/nature/terrabrush/nature-red-dragonblood-tree.tres" id="tree_o7"]
+[ext_resource type="Image" uid="uid://h05p54nxp6un" path="res://scenes/misc/Main/Object_0_0_7.res" id="tree_o7_mask"]
+[ext_resource type="ObjectResource" uid="uid://dtibwv7y0w25u" path="res://assets/nature/terrabrush/nature-red-fireheart-tree.tres" id="tree_o8"]
+[ext_resource type="Image" uid="uid://1v4jweuw6hs2" path="res://scenes/misc/Main/Object_0_0_8.res" id="tree_o8_mask"]
+[ext_resource type="ObjectResource" uid="uid://cfpilovf5caxt" path="res://assets/nature/terrabrush/nature-green-broad-oak.tres" id="tree_o9"]
+[ext_resource type="Image" uid="uid://bhc8ntql2dp02" path="res://scenes/misc/Main/Object_0_0_9.res" id="tree_o9_mask"]
+[ext_resource type="ObjectResource" uid="uid://dgc0juce3cbmt" path="res://assets/nature/terrabrush/nature-green-tall-fir.tres" id="tree_o10"]
+[ext_resource type="Image" uid="uid://bbg83xk4jg7xy" path="res://scenes/misc/Main/Object_0_0_10.res" id="tree_o10_mask"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_w4i7m"]
 shader = ExtResource("2_tafxk")
@@ -176,8 +198,8 @@ shader_parameter/cirrus_absorption = 2.0
 shader_parameter/cirrus_sky_tint_fade = 0.5
 shader_parameter/cirrus_size = 1.0
 shader_parameter/cirrus_uv = Vector2(0.16, 0.11)
-shader_parameter/cirrus_position1 = Vector2(0.061706156, 0.061706156)
-shader_parameter/cirrus_position2 = Vector2(0.061706156, 0.061706156)
+shader_parameter/cirrus_position1 = Vector2(0.40130642, 0.40130642)
+shader_parameter/cirrus_position2 = Vector2(0.40130642, 0.40130642)
 shader_parameter/cirrus_texture = ExtResource("3_i5wgy")
 shader_parameter/cumulus_visible = true
 shader_parameter/cumulus_intensity = 0.52
@@ -187,7 +209,7 @@ shader_parameter/cumulus_absorption = 2.0
 shader_parameter/cumulus_noise_freq = 2.7
 shader_parameter/cumulus_sky_tint_fade = 0.0
 shader_parameter/cumulus_size = 0.5
-shader_parameter/cumulus_position = Vector2(0.308531, 0.308531)
+shader_parameter/cumulus_position = Vector2(12.021659, 12.021659)
 shader_parameter/cumulus_texture = ExtResource("4_xvpgp")
 shader_parameter/cumulus_partial_mie_phase = Vector3(0.957564, 1.042436, 0.412)
 shader_parameter/cumulus_mie_intensity = 1.0
@@ -353,7 +375,7 @@ heightTexture = ExtResource("98_sdwp7")
 [sub_resource type="TextureSetsResource" id="TextureSetsResource_wvpf7"]
 textureSets = Array[TextureSetResource]([SubResource("TextureSetResource_ve6a8"), SubResource("TextureSetResource_mmojm"), SubResource("TextureSetResource_qfssv"), SubResource("TextureSetResource_ayq0h"), SubResource("TextureSetResource_wvpf7"), SubResource("TextureSetResource_qy21g"), SubResource("TextureSetResource_bif71"), SubResource("TextureSetResource_herpf"), SubResource("TextureSetResource_2hqj3"), SubResource("TextureSetResource_avc4j"), SubResource("TextureSetResource_nxa4y"), SubResource("TextureSetResource_vl6u8"), SubResource("TextureSetResource_wb3n1"), SubResource("TextureSetResource_yot8j"), SubResource("TextureSetResource_5v6xv"), SubResource("TextureSetResource_cnnyy"), SubResource("TextureSetResource_ndvxj")])
 
-[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_x2b5v"]
+[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_rormn"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_water"]
 render_priority = 0
@@ -363,7 +385,7 @@ shader_parameter/OffsetPosition = Vector3(0, 0, 0)
 shader_parameter/ZonesSize = 0.0
 shader_parameter/Resolution = 0.0
 shader_parameter/NumberOfZones = 0.0
-shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_x2b5v")
+shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_rormn")
 shader_parameter/WaterFactor = 0.0
 shader_parameter/WaterInnerOffset = 0.3
 shader_parameter/WaterColor = Color(0, 0, 0, 1)
@@ -439,6 +461,8 @@ customShader = SubResource("ShaderMaterial_water")
 [sub_resource type="ZoneResource" id="ZoneResource_wppt0"]
 heightMapImage = ExtResource("41_q2y6g")
 splatmapsImage = Array[Image]([ExtResource("42_esgqe"), ExtResource("47_bif71"), ExtResource("80_xy1ao"), ExtResource("93_gcobm"), ExtResource("106_sdwp7")])
+foliagesImage = Array[Image]([ExtResource("grass_f0_mask"), ExtResource("grass_f1_mask"), ExtResource("grass_f2_mask"), ExtResource("grass_f3_mask"), ExtResource("grass_f4_mask"), ExtResource("grass_f5_mask"), ExtResource("grass_f6_mask"), ExtResource("grass_f7_mask"), ExtResource("grass_f8_mask"), ExtResource("grass_f9_mask")])
+objectsImage = Array[Image]([ExtResource("tree_o0_mask"), ExtResource("tree_o1_mask"), ExtResource("tree_o2_mask"), ExtResource("tree_o3_mask"), ExtResource("tree_o4_mask"), ExtResource("tree_o5_mask"), ExtResource("tree_o6_mask"), ExtResource("tree_o7_mask"), ExtResource("tree_o8_mask"), ExtResource("tree_o9_mask"), ExtResource("tree_o10_mask")])
 waterImage = ExtResource("94_54asi")
 
 [sub_resource type="ZonesResource" id="ZonesResource_k7hcf"]
@@ -656,6 +680,8 @@ textureDetail = 50
 useAntiTile = false
 heightBlendFactor = 2.0
 slopeTextureThreshold = 0.682
+foliages = Array[FoliageResource]([ExtResource("grass_f0"), ExtResource("grass_f1"), ExtResource("grass_f2"), ExtResource("grass_f3"), ExtResource("grass_f4"), ExtResource("grass_f5"), ExtResource("grass_f6"), ExtResource("grass_f7"), ExtResource("grass_f8"), ExtResource("grass_f9")])
+objects = Array[ObjectResource]([ExtResource("tree_o0"), ExtResource("tree_o1"), ExtResource("tree_o2"), ExtResource("tree_o3"), ExtResource("tree_o4"), ExtResource("tree_o5"), ExtResource("tree_o6"), ExtResource("tree_o7"), ExtResource("tree_o8"), ExtResource("tree_o9"), ExtResource("tree_o10")])
 waterDefinition = SubResource("WaterResource_o72nt")
 terrainZones = SubResource("ZonesResource_k7hcf")
 physics_interpolation_mode = 2
@@ -763,69 +789,3 @@ transform = Transform3D(5.22117, 0.52533, 6.07469, -0.20293, 8.00804, -0.51811, 
 
 [node name="pointed_slab_7" parent="StoneRings" unique_id=1497871144 instance=ExtResource("100_2srjq")]
 transform = Transform3D(-5.30214, 0.01201, -5.24985, 0.34345, 7.44627, -0.32983, 5.23861, -0.47603, -5.29188, -33.62628, 3.3313, -5.13278)
-
-[node name="NatureBlackBogLilies" parent="." unique_id=1430665762 instance=ExtResource("103_x2b5v")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 117.608215, -0.037633196, 104.323204)
-
-[node name="NatureBlackBracketLog" parent="." unique_id=9545331 instance=ExtResource("104_oy2j4")]
-transform = Transform3D(0.8938005, -0.011408091, 0.4483196, 0.15037447, 0.949427, -0.27563736, -0.42250225, 0.31378064, 0.8503138, 113.42222, -0.7804448, 109.52753)
-
-[node name="NatureBlackSwampCypress" parent="." unique_id=462167641 instance=ExtResource("105_rf28w")]
-transform = Transform3D(2.3, 0, 0, 0, 2.3, 0, 0, 0, 2.3, 108.07461, -0.32606542, 116.97455)
-
-[node name="NatureBlackWeepingWillow" parent="." unique_id=196432524 instance=ExtResource("106_opal1")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 120.480286, -0.8806822, 96.93949)
-
-[node name="NatureBlueDriftwood" parent="." unique_id=1874423506 instance=ExtResource("107_sudem")]
-transform = Transform3D(0.61638385, 0.06478455, 0.7847764, -0.104528464, 0.9945219, 0, -0.78047734, -0.08203147, 0.61977905, 52.577713, -0.38411474, -35.47849)
-
-[node name="NatureBlueGiantClam" parent="." unique_id=1108913362 instance=ExtResource("108_kxm2r")]
-transform = Transform3D(3, 0, 0, 0, 3, 0, 0, 0, 3, 53.49612, -1.0473908, -58.071003)
-
-[node name="NatureBlueGiantClam2" parent="." unique_id=1916668895 instance=ExtResource("108_kxm2r")]
-transform = Transform3D(4.2858367, 0, -2.5751903, 0, 5, 0, 2.5751903, 0, 4.2858367, 168.99612, -0.3752401, -54.263424)
-
-[node name="NatureBlueMangrove" parent="." unique_id=360801983 instance=ExtResource("109_32x84")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 158.2239, -1.5175433, -17.348454)
-
-[node name="NatureBlueWindsweptPine" parent="." unique_id=408918084 instance=ExtResource("110_doton")]
-transform = Transform3D(1.0090553, 0, 1.7267911, 0, 2, 0, -1.7267911, 0, 1.0090553, 112.84552, 0.05596018, 44.10906)
-
-[node name="NatureGreenBroadOak" parent="." unique_id=1967852867 instance=ExtResource("111_d86dt")]
-transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, -55.80238, -0.29727668, -0.42125016)
-
-[node name="NatureGreenGiantMushroom" parent="." unique_id=363936812 instance=ExtResource("112_hj43h")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -97.66802, 0.80205774, -39.851566)
-
-[node name="NatureGreenTallFir" parent="." unique_id=1855850530 instance=ExtResource("113_fjak7")]
-transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, -70.7682, 4.44604, -64.38317)
-
-[node name="NatureGreenTallFir2" parent="." unique_id=657250462 instance=ExtResource("113_fjak7")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -57.600372, 5.67032, -65.101654)
-
-[node name="NatureRedDragonbloodTree" parent="." unique_id=855153524 instance=ExtResource("114_11157")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -43.277416, 0.2883489, 61.436092)
-
-[node name="NatureRedFireSucculent" parent="." unique_id=142939268 instance=ExtResource("115_sp6y1")]
-transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, -18.500507, 1.4335179, 58.078693)
-
-[node name="NatureRedFireheartTree" parent="." unique_id=1524142004 instance=ExtResource("116_gri7h")]
-transform = Transform3D(0.99254614, 0.12186935, 0, -0.11920621, 0.97085667, 0.2079117, 0.025338063, -0.20636195, 0.9781476, -77.51348, -0.049310446, 85.79182)
-
-[node name="NatureRedLavaPebbles" parent="." unique_id=1788198364 instance=ExtResource("117_x03n6")]
-transform = Transform3D(1.8, 0, 0, 0, 1.8, 0, 0, 0, 1.8, -58.91927, 0.17091066, 90.46132)
-
-[node name="NatureWhiteGreatSunOak" parent="." unique_id=2059443633 instance=ExtResource("118_jticy")]
-transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 7.4931993, 1.7894506, -109.366066)
-
-[node name="NatureWhiteLimestoneOutcrop" parent="." unique_id=251664291 instance=ExtResource("119_tbvj1")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.607181, 0.80032945, -119.0361)
-
-[node name="NatureWhiteLimestonePebbles" parent="." unique_id=645442606 instance=ExtResource("120_gts65")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5958376, 1.7175363, -106.32818)
-
-[node name="NatureWhiteOliveSunleaf" parent="." unique_id=258148033 instance=ExtResource("121_sjh1p")]
-transform = Transform3D(-1.4772116, 0, 0.26047245, 0, 1.5, 0, -0.26047245, 0, -1.4772116, -35.288616, 1.4568255, -89.044495)
-
-[node name="NatureWhiteSilverBirch" parent="." unique_id=1211485713 instance=ExtResource("122_l30n6")]
-transform = Transform3D(2, 0, 0, 0, 2, 0, 0, 0, 2, 21.672544, 1.5071795, -61.658768)

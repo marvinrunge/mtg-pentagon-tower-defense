@@ -1,39 +1,43 @@
-[gd_resource type="FoliageResource" format=4]
+[gd_resource type="FoliageResource" format=4 uid="uid://byeuovmlm7pda"]
 
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-red-ash-grass_01.png" id="1_6fphm"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-red-ash-grass_02.png" id="2_u1ibd"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-red-ash-grass_03.png" id="3_n7ro4"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-red-ash-grass_04.png" id="4_naxne"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-red-ember-flowers_01.png" id="5_sux54"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-red-ember-flowers_02.png" id="6_kyogq"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-red-ember-flowers_03.png" id="7_gfv27"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-red-ember-flowers_04.png" id="8_otqwh"]
-[ext_resource type="Shader" path="res://assets/shaders/nature_foliage.gdshader" id="9_1v6lx"]
+[ext_resource type="Texture2D" uid="uid://c17nwucc2nvs6" path="res://assets/nature/cards/nature-red-ash-grass_01.png" id="1_6fphm"]
+[ext_resource type="Texture2D" uid="uid://xkqq81muhctx" path="res://assets/nature/cards/nature-red-ash-grass_02.png" id="2_u1ibd"]
+[ext_resource type="Texture2D" uid="uid://dm8usyaetsqsr" path="res://assets/nature/cards/nature-red-ash-grass_03.png" id="3_n7ro4"]
+[ext_resource type="Texture2D" uid="uid://dc7jgs4qp1ryh" path="res://assets/nature/cards/nature-red-ash-grass_04.png" id="4_naxne"]
+[ext_resource type="Texture2D" uid="uid://5rrk05qbv7v2" path="res://assets/nature/cards/nature-red-ember-flowers_01.png" id="5_sux54"]
+[ext_resource type="Texture2D" uid="uid://b6tb58xp7l3xe" path="res://assets/nature/cards/nature-red-ember-flowers_02.png" id="6_kyogq"]
+[ext_resource type="Texture2D" uid="uid://wwqk7cnm7kkx" path="res://assets/nature/cards/nature-red-ember-flowers_03.png" id="7_gfv27"]
+[ext_resource type="Texture2D" uid="uid://lr66vpp4e3na" path="res://assets/nature/cards/nature-red-ember-flowers_04.png" id="8_otqwh"]
+[ext_resource type="Shader" uid="uid://b017li6wgexo" path="res://assets/shaders/nature_foliage.gdshader" id="9_1v6lx"]
+
+[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_6fphm"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_exipc"]
 render_priority = 0
 shader = ExtResource("9_1v6lx")
-shader_parameter/GlobalPosition = null
-shader_parameter/OffsetPosition = null
-shader_parameter/InitialCellWidth = null
-shader_parameter/LODRowsPerLevel = null
-shader_parameter/LODLevels = null
-shader_parameter/WindStrength = null
-shader_parameter/FoliageAlbedo = null
-shader_parameter/FoliageNumberOfTexture = null
-shader_parameter/UseGroundColor = null
-shader_parameter/MeshScale = null
-shader_parameter/UseBrushScale = null
-shader_parameter/RandomPlacementRange = null
-shader_parameter/ApplyOnTextureIndexes = null
-shader_parameter/NumberOfTexturesToApplyOn = null
-shader_parameter/NearestFilter = null
-shader_parameter/TextureDetail = null
-shader_parameter/NumberOfTextures = null
-shader_parameter/WaterFactor = null
-shader_parameter/ZonesSize = null
-shader_parameter/Resolution = null
-shader_parameter/NumberOfZones = null
+shader_parameter/GlobalPosition = Vector3(0, 0, 0)
+shader_parameter/OffsetPosition = Vector3(0, 0, 0)
+shader_parameter/InitialCellWidth = 1.0
+shader_parameter/LODRowsPerLevel = 10
+shader_parameter/LODLevels = 5
+shader_parameter/WindStrength = 0.1
+shader_parameter/FoliageAlbedo = Color(1, 1, 1, 1)
+shader_parameter/FoliageNumberOfTexture = 0
+shader_parameter/UseGroundColor = true
+shader_parameter/MeshScale = Vector3(1, 1, 1)
+shader_parameter/UseBrushScale = true
+shader_parameter/RandomPlacementRange = 2.0
+shader_parameter/ApplyOnTextureIndexes = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/NumberOfTexturesToApplyOn = 0
+shader_parameter/NearestFilter = false
+shader_parameter/ColorTextures = SubResource("PlaceholderTexture2DArray_6fphm")
+shader_parameter/TextureDetail = 0
+shader_parameter/NumberOfTextures = 0
+shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_6fphm")
+shader_parameter/WaterFactor = 0.0
+shader_parameter/ZonesSize = 0.0
+shader_parameter/Resolution = 0.0
+shader_parameter/NumberOfZones = 0.0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_eaxeb"]
 _surfaces = [{

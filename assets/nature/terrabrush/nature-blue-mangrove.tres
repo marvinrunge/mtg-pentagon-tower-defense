@@ -1,44 +1,20 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://6mkynctv251g"]
 
-[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-mangrove.res" id="1_wxshd"]
-[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_jhlhr"]
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_vq6wf"]
-maxDistance = 70.0
-addCollision = true
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_1gh7r"]
-maxDistance = 400.0
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_ij6av"]
-height = 4.2
-radius = 0.6
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_1gu24"]
-mesh = ExtResource("1_wxshd")
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_ijh2t"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_1gu24")])
-collisionShape = SubResource("CylinderShape3D_ij6av")
-collisionOffset = Vector3(0, 2.1, 0)
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_i7oef"]
-mesh = ExtResource("1_wxshd")
-castShadow = 0
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_5csyd"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_i7oef")])
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_1gh7r"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-mangrove.tscn" id="2_1gu24"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-mangrove_v2.tscn" id="3_ijh2t"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-mangrove_v3.tscn" id="4_i7oef"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-mangrove_v4.tscn" id="5_5csyd"]
 
 [sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_mf5x7"]
-strategy = 2
-objectFrequency = 15
+objectFrequency = 10
 randomRange = 6.0
-noiseTexture = ExtResource("2_jhlhr")
+noiseTexture = ExtResource("1_1gh7r")
 randomRotation = true
 randomSize = true
 randomSizeFactorMin = 0.8
-lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_vq6wf"), SubResource("ObjectOctreeLODDefinitionResource_1gh7r")])
-lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_ijh2t"), SubResource("ObjectOctreeLODMeshesDefinitionResource_5csyd")])
+randomSizeFactorMax = 1.5
+objectScenes = Array[PackedScene]([ExtResource("2_1gu24"), ExtResource("3_ijh2t"), ExtResource("4_i7oef"), ExtResource("5_5csyd")])
 
 [resource]
 definition = SubResource("ObjectDefinitionResource_mf5x7")

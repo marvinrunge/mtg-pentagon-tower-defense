@@ -1,44 +1,20 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://dsy1pemi5filj"]
 
-[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-windswept-pine.res" id="1_h1pif"]
-[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_64n78"]
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_irsuo"]
-maxDistance = 70.0
-addCollision = true
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_hg1nt"]
-maxDistance = 400.0
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_5nc3l"]
-height = 5.4
-radius = 0.35
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_lljiv"]
-mesh = ExtResource("1_h1pif")
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_e0dm3"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_lljiv")])
-collisionShape = SubResource("CylinderShape3D_5nc3l")
-collisionOffset = Vector3(0, 2.7, 0)
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_340k3"]
-mesh = ExtResource("1_h1pif")
-castShadow = 0
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_q6out"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_340k3")])
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_hg1nt"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-windswept-pine.tscn" id="2_lljiv"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-windswept-pine_v2.tscn" id="3_e0dm3"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-windswept-pine_v3.tscn" id="4_340k3"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-windswept-pine_v4.tscn" id="5_q6out"]
 
 [sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_sc3b0"]
-strategy = 2
 objectFrequency = 15
 randomRange = 6.0
-noiseTexture = ExtResource("2_64n78")
+noiseTexture = ExtResource("1_hg1nt")
 randomRotation = true
 randomSize = true
 randomSizeFactorMin = 0.8
-lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_irsuo"), SubResource("ObjectOctreeLODDefinitionResource_hg1nt")])
-lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_e0dm3"), SubResource("ObjectOctreeLODMeshesDefinitionResource_q6out")])
+randomSizeFactorMax = 2.2
+objectScenes = Array[PackedScene]([ExtResource("2_lljiv"), ExtResource("3_e0dm3"), ExtResource("4_340k3"), ExtResource("5_q6out")])
 
 [resource]
 definition = SubResource("ObjectDefinitionResource_sc3b0")

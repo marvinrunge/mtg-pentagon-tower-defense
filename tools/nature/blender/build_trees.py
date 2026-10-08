@@ -3,7 +3,11 @@
 Run headless with Blender 5.2 (no MCP needed - this is the reproducible production path;
 Blender MCP is for tuning a recipe interactively):
 
-    "G:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b -P tools/nature/blender/build_trees.py -- [--only id,id] [--no-render]
+    "G:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b -P tools/nature/blender/build_trees.py -- [--only id,id] [--no-render] [--variants N]
+
+--variants N builds variants 2..N of each species next to the base tree, which is left
+alone. A variant is the same recipe with its own seed and a little spread on the trunk
+and branch numbers (variant_recipe), so it reads as another tree of the same species.
 
 Inputs:
   tools/nature/blender/species/<id>.json   the recipe (shape, bark, leaf set)
@@ -12,8 +16,9 @@ Inputs:
 
 Outputs (the same folder Meshy assets use, so tools/build_nature_terrabrush.gd takes them
 as they are):
-  assets/generated/<id>/<id>.glb
-  assets/nature/_concepts/<id>/blender_preview.png
+  assets/generated/<id>/<id>.glb                      the base tree (variant 1)
+  assets/generated/<id>/<id>_v<n>.glb                 variants 2..N
+  assets/nature/_concepts/<id>/blender_preview[_v<n>].png
 
 Why Python/bmesh rather than Geometry Nodes: every number lives in the recipe JSON, the
 same seed always gives the same tree, and the script diffs cleanly. A Geometry Nodes
@@ -568,9 +573,40 @@ def render_preview(obj, path, height):
 
 # --------------------------------------------------------------------------- main
 
-def build(species_id, render):
+def variant_recipe(recipe, variant):
+    """The recipe for variant `variant` of a species. Variant 1 is the recipe as written,
+    so the base tree never changes. The others get their own seed and a seeded spread on
+    the numbers that change a tree's silhouette without changing its species: how far it
+    leans, how crooked it grows, how many branches and how far they reach. Height is left
+    alone - tools/build_nature_terrabrush.gd scales every tree to the manifest height, and
+    TerraBrush's random size varies it on the map. Counts marked "exact" (dragonblood's
+    forks) stay exact."""
+    if variant <= 1:
+        return recipe
+    jitter = random.Random(recipe["seed"] * 1000 + variant)
+    out = json.loads(json.dumps(recipe))
+    out["seed"] = recipe["seed"] + 7919 * (variant - 1)
+    trunk = out["trunk"]
+    trunk["lean"] = trunk.get("lean", 0) * jitter.uniform(0.4, 1.8) + jitter.uniform(-2.0, 2.0)
+    trunk["gnarl"] = trunk.get("gnarl", 0) * jitter.uniform(0.75, 1.35)
+    trunk["length"] = trunk["length"] * jitter.uniform(0.9, 1.1)
+    for level in out.get("levels", []):
+        if not level.get("exact"):
+            level["count"] = max(1, round(level["count"] * jitter.uniform(0.8, 1.25)))
+        level["angle"] = level["angle"] + jitter.uniform(-5.0, 5.0)
+        level["length"] = level["length"] * jitter.uniform(0.88, 1.12)
+    if "whorls" in out:
+        whorls = out["whorls"]
+        whorls["spacing"] = whorls["spacing"] * jitter.uniform(0.9, 1.12)
+        whorls["max_length"] = whorls["max_length"] * jitter.uniform(0.88, 1.12)
+        whorls["droop"] = whorls["droop"] + jitter.uniform(-5.0, 5.0)
+    return out
+
+
+def build(species_id, render, variant=1):
     with open(os.path.join(SPECIES_DIR, species_id + ".json"), encoding="utf-8") as handle:
-        recipe = json.load(handle)
+        recipe = variant_recipe(json.load(handle), variant)
+    suffix = "" if variant <= 1 else f"_v{variant}"
     bpy.ops.wm.read_factory_settings(use_empty=True)
     rng = random.Random(recipe["seed"])
     atlas, rects = leaf_atlas(recipe, species_id)
@@ -582,11 +618,11 @@ def build(species_id, render):
     obj = tree.finish(species_id, materials, recipe["leaf_cards"].get("outward_normals", 0.7), centre)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     dims = obj.dimensions
-    glb = os.path.join(GENERATED_DIR, species_id, species_id + ".glb")
+    glb = os.path.join(GENERATED_DIR, species_id, species_id + suffix + ".glb")
     export_glb(obj, glb)
-    print(f"[trees] {species_id}: {tris} tris, {dims.x:.1f} x {dims.y:.1f} x {dims.z:.1f} m -> {os.path.relpath(glb, ROOT)}")
+    print(f"[trees] {species_id}{suffix}: {tris} tris, {dims.x:.1f} x {dims.y:.1f} x {dims.z:.1f} m -> {os.path.relpath(glb, ROOT)}")
     if render:
-        preview = os.path.join(CONCEPT_DIR, species_id, "blender_preview.png")
+        preview = os.path.join(CONCEPT_DIR, species_id, f"blender_preview{suffix}.png")
         render_preview(obj, preview, dims.z)
         print(f"[trees] preview {os.path.relpath(preview, ROOT)}")
 
@@ -597,11 +633,16 @@ def main():
     render = "--no-render" not in argv
     if "--only" in argv:
         only = argv[argv.index("--only") + 1].split(",")
+    variants = int(argv[argv.index("--variants") + 1]) if "--variants" in argv else 0
     species = sorted(f[:-5] for f in os.listdir(SPECIES_DIR) if f.endswith(".json"))
     for species_id in species:
         if only and species_id not in only:
             continue
-        build(species_id, render)
+        if variants:
+            for variant in range(2, variants + 1):
+                build(species_id, render, variant)
+        else:
+            build(species_id, render)
 
 
 main()

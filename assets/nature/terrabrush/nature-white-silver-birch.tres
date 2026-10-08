@@ -1,44 +1,19 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://j0cee6gydvso"]
 
-[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-silver-birch.res" id="1_xhp8a"]
-[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_e1m7q"]
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_4cbst"]
-maxDistance = 70.0
-addCollision = true
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_r7tos"]
-maxDistance = 400.0
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_yrx1l"]
-height = 5.1
-radius = 0.25
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_gx5hg"]
-mesh = ExtResource("1_xhp8a")
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_8by7u"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_gx5hg")])
-collisionShape = SubResource("CylinderShape3D_yrx1l")
-collisionOffset = Vector3(0, 2.55, 0)
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_fwxon"]
-mesh = ExtResource("1_xhp8a")
-castShadow = 0
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_pft16"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_fwxon")])
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_r7tos"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-silver-birch.tscn" id="2_gx5hg"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-silver-birch_v2.tscn" id="3_8by7u"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-silver-birch_v3.tscn" id="4_fwxon"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-silver-birch_v4.tscn" id="5_pft16"]
 
 [sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_outhr"]
-strategy = 2
 objectFrequency = 15
 randomRange = 6.0
-noiseTexture = ExtResource("2_e1m7q")
+noiseTexture = ExtResource("1_r7tos")
 randomRotation = true
 randomSize = true
 randomSizeFactorMin = 0.8
-lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_4cbst"), SubResource("ObjectOctreeLODDefinitionResource_r7tos")])
-lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_8by7u"), SubResource("ObjectOctreeLODMeshesDefinitionResource_pft16")])
+objectScenes = Array[PackedScene]([ExtResource("2_gx5hg"), ExtResource("3_8by7u"), ExtResource("4_fwxon"), ExtResource("5_pft16")])
 
 [resource]
 definition = SubResource("ObjectDefinitionResource_outhr")

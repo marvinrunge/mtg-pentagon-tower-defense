@@ -227,6 +227,7 @@ func bake_map_navigation() -> void:
 	nav_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
 	nav_mesh.geometry_source_group_name = NAVMESH_SOURCE_GROUP
 	var source := NavigationMeshSourceGeometryData3D.new()
+	_add_obstacle_sources()
 	if terrain_body != null:
 		terrain_body.add_to_group(NAVMESH_SOURCE_GROUP)
 		NavigationServer3D.parse_source_geometry_data(nav_mesh, source, terrain_body)
@@ -249,6 +250,33 @@ func bake_map_navigation() -> void:
 
 ## The nodes the navmesh is baked from. See bake_map_navigation.
 const NAVMESH_SOURCE_GROUP := "navmesh_source"
+
+
+## Every static body on the environment layer blocks an enemy, so every one has to be in the
+## bake too. One that was left out had paths drawn straight through it, and the enemies
+## walking them stopped dead against its collider: the props around the white well froze
+## whole waves in place. Found by layer rather than listed by name, so a prop placed later
+## joins without anyone remembering to add it. Bodies already under a source node are
+## skipped - the stone rings are parsed with their children, and a second copy of the same
+## hull only slows the bake. The crystal is a CSG node, not a StaticBody3D, and stays out
+## as bake_map_navigation wants.
+func _add_obstacle_sources() -> void:
+	for body: Node in find_children("*", "StaticBody3D", true, false):
+		var static_body := body as StaticBody3D
+		if (static_body.collision_layer & EnemyBase.ENVIRONMENT_LAYER) == 0:
+			continue
+		if _has_navmesh_source_ancestor(static_body):
+			continue
+		static_body.add_to_group(NAVMESH_SOURCE_GROUP)
+
+
+func _has_navmesh_source_ancestor(node: Node) -> bool:
+	var current: Node = node
+	while current != null:
+		if current.is_in_group(NAVMESH_SOURCE_GROUP):
+			return true
+		current = current.get_parent()
+	return false
 
 
 ## The standing stones are plain imported meshes with no collision of their own, so

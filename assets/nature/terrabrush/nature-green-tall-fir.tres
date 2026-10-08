@@ -1,44 +1,19 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://dgc0juce3cbmt"]
 
-[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-tall-fir.res" id="1_ip3bj"]
-[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_omfay"]
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_yarta"]
-maxDistance = 70.0
-addCollision = true
-
-[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_ipxwc"]
-maxDistance = 400.0
-
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_5u8vn"]
-height = 8.4
-radius = 0.4
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_nrtvw"]
-mesh = ExtResource("1_ip3bj")
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_m7ir1"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_nrtvw")])
-collisionShape = SubResource("CylinderShape3D_5u8vn")
-collisionOffset = Vector3(0, 4.2, 0)
-
-[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_8sjcr"]
-mesh = ExtResource("1_ip3bj")
-castShadow = 0
-
-[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_24vr8"]
-meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_8sjcr")])
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_ipxwc"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-tall-fir.tscn" id="2_nrtvw"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-tall-fir_v2.tscn" id="3_m7ir1"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-tall-fir_v3.tscn" id="4_8sjcr"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-tall-fir_v4.tscn" id="5_24vr8"]
 
 [sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_vxw2v"]
-strategy = 2
 objectFrequency = 15
 randomRange = 6.0
-noiseTexture = ExtResource("2_omfay")
+noiseTexture = ExtResource("1_ipxwc")
 randomRotation = true
 randomSize = true
 randomSizeFactorMin = 0.8
-lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_yarta"), SubResource("ObjectOctreeLODDefinitionResource_ipxwc")])
-lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_m7ir1"), SubResource("ObjectOctreeLODMeshesDefinitionResource_24vr8")])
+objectScenes = Array[PackedScene]([ExtResource("2_nrtvw"), ExtResource("3_m7ir1"), ExtResource("4_8sjcr"), ExtResource("5_24vr8")])
 
 [resource]
 definition = SubResource("ObjectDefinitionResource_vxw2v")

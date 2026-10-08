@@ -1,35 +1,39 @@
-[gd_resource type="FoliageResource" format=4]
+[gd_resource type="FoliageResource" format=4 uid="uid://caty3gutogpf6"]
 
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-black-bog-cattails_01.png" id="1_t652a"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-black-bog-cattails_02.png" id="2_13g7f"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-black-bog-cattails_03.png" id="3_ekweu"]
-[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-black-bog-cattails_04.png" id="4_mj8ub"]
-[ext_resource type="Shader" path="res://assets/shaders/nature_foliage.gdshader" id="5_ou8rh"]
+[ext_resource type="Texture2D" uid="uid://dextm8jbn6wju" path="res://assets/nature/cards/nature-black-bog-cattails_01.png" id="1_t652a"]
+[ext_resource type="Texture2D" uid="uid://ckdpci2rblsge" path="res://assets/nature/cards/nature-black-bog-cattails_02.png" id="2_13g7f"]
+[ext_resource type="Texture2D" uid="uid://dvv7edjonlqcq" path="res://assets/nature/cards/nature-black-bog-cattails_03.png" id="3_ekweu"]
+[ext_resource type="Texture2D" uid="uid://dowp7m137dl0c" path="res://assets/nature/cards/nature-black-bog-cattails_04.png" id="4_mj8ub"]
+[ext_resource type="Shader" uid="uid://b017li6wgexo" path="res://assets/shaders/nature_foliage.gdshader" id="5_ou8rh"]
+
+[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_t652a"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_sopkj"]
 render_priority = 0
 shader = ExtResource("5_ou8rh")
-shader_parameter/GlobalPosition = null
-shader_parameter/OffsetPosition = null
-shader_parameter/InitialCellWidth = null
-shader_parameter/LODRowsPerLevel = null
-shader_parameter/LODLevels = null
-shader_parameter/WindStrength = null
-shader_parameter/FoliageAlbedo = null
-shader_parameter/FoliageNumberOfTexture = null
-shader_parameter/UseGroundColor = null
-shader_parameter/MeshScale = null
-shader_parameter/UseBrushScale = null
-shader_parameter/RandomPlacementRange = null
-shader_parameter/ApplyOnTextureIndexes = null
-shader_parameter/NumberOfTexturesToApplyOn = null
-shader_parameter/NearestFilter = null
-shader_parameter/TextureDetail = null
-shader_parameter/NumberOfTextures = null
-shader_parameter/WaterFactor = null
-shader_parameter/ZonesSize = null
-shader_parameter/Resolution = null
-shader_parameter/NumberOfZones = null
+shader_parameter/GlobalPosition = Vector3(0, 0, 0)
+shader_parameter/OffsetPosition = Vector3(0, 0, 0)
+shader_parameter/InitialCellWidth = 1.0
+shader_parameter/LODRowsPerLevel = 10
+shader_parameter/LODLevels = 5
+shader_parameter/WindStrength = 0.1
+shader_parameter/FoliageAlbedo = Color(1, 1, 1, 1)
+shader_parameter/FoliageNumberOfTexture = 0
+shader_parameter/UseGroundColor = true
+shader_parameter/MeshScale = Vector3(1, 1, 1)
+shader_parameter/UseBrushScale = true
+shader_parameter/RandomPlacementRange = 2.0
+shader_parameter/ApplyOnTextureIndexes = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+shader_parameter/NumberOfTexturesToApplyOn = 0
+shader_parameter/NearestFilter = false
+shader_parameter/ColorTextures = SubResource("PlaceholderTexture2DArray_t652a")
+shader_parameter/TextureDetail = 0
+shader_parameter/NumberOfTextures = 0
+shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_t652a")
+shader_parameter/WaterFactor = 0.0
+shader_parameter/ZonesSize = 0.0
+shader_parameter/Resolution = 0.0
+shader_parameter/NumberOfZones = 0.0
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_3txt2"]
 _surfaces = [{
