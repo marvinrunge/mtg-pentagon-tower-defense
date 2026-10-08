@@ -1,6 +1,6 @@
 extends "res://tools/tests/vfx_stage.gd"
-## Close-ups of the shockwave, the gust and Fire Cone's stream at a few moments each, on the
-## light VfxStage - for tuning those three without casting whole spells.
+## Close-ups of the shockwave, the gust, Fire Cone's stream and Titanic Brawl's slam at a few
+## moments each, on the light VfxStage - for tuning them without casting whole spells.
 ##
 ## Run with (windowed - a headless run draws nothing; on Linux xvfb-run works):
 ##   godot --rendering-driver opengl3 --path . res://tools/tests/wave_shot.tscn -- <out.png> [gust,shockwave] [--glow]
@@ -8,7 +8,7 @@ extends "res://tools/tests/vfx_stage.gd"
 
 const TILE := Vector2i(480, 270)
 const MOMENTS: Array[float] = [0.06, 0.14, 0.26, 0.45]
-const ALL_ROWS: Array[String] = ["shockwave", "gust", "fire_stream"]
+const ALL_ROWS: Array[String] = ["shockwave", "gust", "fire_stream", "slam"]
 
 ## Narrowed by a user arg naming rows ("gust" or "gust,shockwave"); all three without one.
 var _rows: Array[String] = ALL_ROWS.duplicate()
@@ -57,6 +57,10 @@ func _shoot_all() -> void:
 					effect.look_at(effect.global_position + Vector3.FORWARD, Vector3.UP)
 					camera.global_position = STAGE + Vector3(7.0, 4.0, 2.0)
 					camera.look_at(STAGE + Vector3(0.0, 0.5, -4.5))
+				"slam":
+					effect.position = STAGE
+					camera.global_position = STAGE + Vector3(0.0, 3.0, 7.5)
+					camera.look_at(STAGE + Vector3(0.0, 1.0, 0.0))
 				"fire_stream":
 					effect.position = STAGE + Vector3(0.0, 1.2, 0.0)
 					camera.global_position = STAGE + Vector3(6.5, 3.2, 1.5)
@@ -87,5 +91,7 @@ func _build(kind: String) -> Node3D:
 			return SpellFx.shockwave(SpellVisuals.WHITE_GOLD, 6.0, 0.5)
 		"gust":
 			return SpellFx.gust(9.0, Player.FX_BLUE)
+		"slam":
+			return SpellVisuals.titanic_slam(GameSettings.spell_green_leap_radius)
 		_:
 			return SpellVisuals.fire_stream(GameSettings.spell_red_fire_cone_length)

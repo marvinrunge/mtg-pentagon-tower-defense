@@ -82,6 +82,10 @@ const TEXTURES := {
 	"arc": "res://assets/vfx/lightning_arc.png",
 	# Kenney's twirl_03: a curl of wind, bright along its leading edge. Suction's vortex.
 	"twirl": "res://assets/vfx/swirl_twirl.png",
+	# Kenney's dirt_01 / dirt_02: a scatter of earth clods. Pigment, tinted dark - see
+	# SpellVisuals.dirt_burst.
+	"dirt": "res://assets/vfx/dirt_clods_01.png",
+	"dirt_fine": "res://assets/vfx/dirt_clods_02.png",
 	# The three settle-beat marks. Dark tints for scorch and blight, pale for frost; the
 	# masks themselves are white and carry only the shape.
 	"decal_scorch": "res://assets/vfx/decal_scorch.png",

@@ -498,51 +498,68 @@ static func dust_ring(radius: float, lifetime: float, tint: Color = EARTH) -> GP
 	return dust
 
 
-## Lumps of ground thrown up by an impact, arcing out and dropping back.
-static func rock_chunks(radius: float, count: int) -> Node3D:
+## Earth thrown up by a slam: clods of dirt (Kenney's dirt textures) flung out and up from the
+## node, tumbling and falling back - and a finer spray of grit under them. Billboards, not
+## meshes: cubes of rock read as dice scattered round the landing.
+static func dirt_burst(radius: float) -> Node3D:
 	var root := Node3D.new()
-	root.name = "RockChunks"
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.36, 0.3, 0.22)
-	material.roughness = 1.0
-	for i: int in range(count):
-		var chunk := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		var size: float = randf_range(0.18, 0.42)
-		box.size = Vector3(size, size * randf_range(0.6, 1.1), size * randf_range(0.7, 1.2))
-		chunk.mesh = box
-		chunk.material_override = material
-		chunk.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
-		root.add_child(chunk)
-		var angle: float = randf() * TAU
-		var reach: float = radius * randf_range(0.45, 1.0)
-		var rise: float = randf_range(1.2, 3.0)
-		var flight: float = randf_range(0.55, 0.85)
-		var spin := Vector3(randf_range(-9.0, 9.0), randf_range(-9.0, 9.0), randf_range(-9.0, 9.0))
-		var start_rot: Vector3 = chunk.rotation
-		chunk.tree_entered.connect(func() -> void:
-			var tween: Tween = chunk.create_tween()
-			tween.tween_method(func(t: float) -> void:
-				var flat: Vector2 = Vector2(cos(angle), sin(angle)) * reach * t
-				chunk.position = Vector3(flat.x, 4.0 * rise * t * (1.0 - t) + 0.1, flat.y)
-				chunk.rotation = start_rot + spin * t * flight,
-				0.0, 1.0, flight)
-			# Lands, sits for a moment, sinks out of sight.
-			tween.tween_interval(0.6)
-			tween.tween_property(chunk, "position:y", -0.4, 0.5), CONNECT_ONE_SHOT)
+	root.name = "DirtBurst"
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.2, 0.14, 0.08, 1.0))
+	gradient.add_point(0.7, Color(0.18, 0.13, 0.08, 0.95))
+	gradient.set_color(gradient.get_point_count() - 1, Color(0.0, 0.0, 0.0, 0.0))
+	# Premultiplied, like the rest of the layer: earth is pigment and must cover the ground and
+	# the sky behind it, not brighten them.
+	for stop: int in gradient.get_point_count():
+		var c: Color = gradient.get_color(stop)
+		gradient.set_color(stop, Color(c.r * c.a, c.g * c.a, c.b * c.a, c.a))
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = gradient
+	# Each quad is a whole scatter of clods, so it is drawn big - at a metre the clods in it
+	# were specks. Clods: big, few, high arcs. Grit: smaller, more, lower and faster.
+	for layer: Array in [["Clods", "dirt", 2.4, 14, 1.0, 1.0], ["Grit", "dirt_fine", 1.6, 18, 0.8, 1.35]]:
+		var particles := GPUParticles3D.new()
+		particles.name = String(layer[0])
+		particles.amount = int(layer[3])
+		particles.lifetime = float(layer[4])
+		particles.one_shot = true
+		particles.explosiveness = 0.95
+		particles.local_coords = false
+		particles.draw_pass_1 = SpellFx.premul_particle_mesh(float(layer[2]), String(layer[1]))
+		var process := ParticleProcessMaterial.new()
+		process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+		process.emission_sphere_radius = radius * 0.25
+		process.direction = Vector3.UP
+		process.spread = 60.0
+		var speed: float = clampf(radius * 2.2, 4.0, 9.0) * float(layer[5])
+		process.initial_velocity_min = speed * 0.6
+		process.initial_velocity_max = speed
+		process.gravity = Vector3(0.0, -16.0, 0.0)
+		process.angle_min = -180.0
+		process.angle_max = 180.0
+		process.angular_velocity_min = -200.0
+		process.angular_velocity_max = 200.0
+		process.scale_min = 0.6
+		process.scale_max = 1.3
+		process.color_ramp = ramp
+		particles.process_material = process
+		particles.position.y = 0.2
+		root.add_child(particles)
 	root.tree_entered.connect(func() -> void:
-		root.get_tree().create_timer(2.2).timeout.connect(root.queue_free), CONNECT_ONE_SHOT)
+		for child: Node in root.get_children():
+			(child as GPUParticles3D).emitting = true
+		root.get_tree().create_timer(1.6).timeout.connect(root.queue_free), CONNECT_ONE_SHOT)
 	return root
 
 
-## Titanic Brawl's landing: the ground cracks open under the slam, rock and dust are thrown
+## Titanic Brawl's landing: the ground cracks open under the slam, earth and dust are thrown
 ## out, and a front of force runs to the edge of what it hit.
 static func titanic_slam(radius: float) -> Node3D:
 	var root := Node3D.new()
 	root.name = "TitanicSlam"
 	root.add_child(ground_cracks(radius * 0.8, Player.FX_GREEN, 2.5))
 	root.add_child(dust_ring(radius * 0.7, 1.2))
-	root.add_child(rock_chunks(radius * 0.8, 12))
+	root.add_child(dirt_burst(radius * 0.8))
 	root.add_child(SpellFx.shockwave(EARTH.lerp(Player.FX_GREEN, 0.4), radius, 0.4))
 	var flash := OmniLight3D.new()
 	flash.light_color = Player.FX_GREEN

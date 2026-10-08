@@ -51,10 +51,11 @@ at these files is the `TEXTURES` dictionary at the top of `scripts/spell_fx.gd`.
 | `trail_trace.png` | A thin streak, hot at the head, thinning into a tail | Tails behind fast fire (`SpellFx.tail_mesh`, slot `trail`): Rain of Ember's falling fire, Orb of Fire's ball |
 | `lightning_arc.png` | One jagged arc, top to bottom | Lightning Orb's chain and its crackle (slot `arc`) |
 | `swirl_twirl.png` | A curl of wind, bright along its leading edge | Suction's vortex (`SpellFx.vortex`, slot `twirl`) |
+| `dirt_clods_01.png`, `dirt_clods_02.png` | A scatter of earth clods, coarse and fine | Earth thrown up by Titanic Brawl's slam (`SpellVisuals.dirt_burst`, slots `dirt`, `dirt_fine`) |
 | `ironbark_bark.png` | Oak bark, in colour (the one texture here that is not white) | Ironbark grown over the player (`status_overlay.gdshader`, via `StatusFx.BARK_TEXTURE`) |
 
-`trail_trace.png`, `lightning_arc.png` and `swirl_twirl.png` are Kenney's Particle Pack
-(`trace_04`, `spark_05`, `twirl_03`),
+`trail_trace.png`, `lightning_arc.png`, `swirl_twirl.png` and the two `dirt_clods` are Kenney's
+Particle Pack (`trace_04`, `spark_05`, `twirl_03`, `dirt_01`, `dirt_02`),
 CC0, from the GitHub copy at github.com/Calinou/kenney-particle-pack (kenney.nl itself is not
 reachable from the cloud container). Converted to white on transparent - luminance into
 alpha - like everything else here. Credit to Kenney (www.kenney.nl) is appreciated, not
