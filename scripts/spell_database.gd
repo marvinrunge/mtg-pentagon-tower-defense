@@ -32,18 +32,27 @@ const ICON_FILES: Dictionary = {
 	"white_1": "exalted-strike.png", "white_2": "circle-of-protection.png", "white_3": "reprisal-ward.png",
 	"white_4": "wrath-of-god.png", "white_5": "rally-the-fallen.png", "blue_1": "unsummon.png",
 	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": "frost-globe.png", "blue_5": "flying.png",
-	"black_1": "doom-blade.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
+	"black_1": "doom-blade.png", "black_2": "contagion.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
 	"black_5": "zombify.png", "red_1": "fireball.png", "red_2": "fire-dash.png", "red_3": "rain-of-ember.png",
 	"red_4": "fire-cone.png", "red_5": "lightning-bolt.png", "green_1": "titanic-leap.png",
-	"green_2": "giant-growth.png", "green_3": "fog.png", "flight": "flying.png", "haste": "haste.png",
+	"green_2": "giant-growth.png", "green_3": "fog.png", "green_4": "roar.png", "green_5": "ironbark.png",
+	"flight": "flying.png", "haste": "haste.png",
 	"double_strike": "doublestrike.png", "trample_strike": "trample.png", "vigilance": "vigilance.png",
 	"roar": "roar.png", "ironbark": "ironbark.png", "melee_combo": "blade-dance.png",
 	"aura_glorious_anthem": "glorious anthem.png", "aura_healing_orb": "healing-orb.png",
-	"aura_rhystic_study": "rhystic-study.png", "aura_orb_of_frost": "orb-of-frost.png",
+	# The blue spellbook drawn for Sylvan Library, which is not in the game - a book of runes
+	# reads as Rhystic Study just as well, until it gets its own.
+	"aura_rhystic_study": "sylvan-library.png", "aura_orb_of_frost": "orb-of-frost.png",
 	"aura_phyrexian_arena": "phyrexian-arena.png", "aura_grave_pact": "grave-pact.png",
 	"aura_fervor": "fervor.png", "aura_orb_of_fire": "orb-of-fire.png",
 	"aura_lightning_orb": "lightning-orb.png",
 	"aura_trample": "trample.png",
+	# Named ahead of the art (docs/ICON_PROMPTS.md): until a file exists, get_icon_path falls
+	# back to the colour's mana symbol, which is what these showed anyway.
+	"aura_kodamas_reach": "kodamas-reach.png",
+	"guild_azorius": "guild-azorius.png", "guild_dimir": "guild-dimir.png",
+	"guild_rakdos": "guild-rakdos.png", "guild_gruul": "guild-gruul.png",
+	"guild_selesnya": "guild-selesnya.png",
 }
 
 ## Per-spell definition.
