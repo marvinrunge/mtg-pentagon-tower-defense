@@ -50,6 +50,7 @@ static func cast_red_fireball(caster: Player, charge_pct: float) -> void:
 	# The bolt carries its own trail and its own detonation, but nothing used to happen at
 	# the CASTER - so a charged Fireball left the hand with no sign it had been thrown.
 	caster._spawn_cast_flash(Player.FX_RED, 1.8 + charge_pct * 1.4)
+	caster._spawn_spell_fx("red_1", caster.global_position, charge_pct)
 	caster._play_sound(&"spell_cast", caster.global_position)
 
 
@@ -70,7 +71,7 @@ static func cast_green_titanic_leap(caster: Player) -> void:
 	caster._start_rampage()
 	# Dust off the take-off. The slam at the far end already had its ring; the launch that
 	# throws the character across the arena had nothing at all.
-	caster._spawn_ring(caster.global_position, Player.FX_GREEN, 2.0)
+	caster._spawn_spell_fx("green_1_launch", caster.global_position, 1.0)
 	caster._play_sound(&"blade_heavy_swing", caster.global_position)
 
 
@@ -85,6 +86,9 @@ static func _slam_ground(caster: Player) -> void:
 	)
 	var damage: float = GameSettings.spell_green_leap_damage * caster.get_spell_damage_multiplier() * caster._rank_damage()
 	var radius: float = GameSettings.spell_green_leap_radius * caster._rank_area()
+	# The landing had no effect at all - only a sound and a shake - so the biggest hit green
+	# has looked like the character simply arriving. Cracks, thrown rock and dust now.
+	caster._spawn_spell_fx("green_1", caster.global_position, radius)
 	for enemy: Node3D in caster.get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy):
 			continue
@@ -113,6 +117,8 @@ static func cast_red_rain_ember(caster: Player) -> void:
 	# The zone is the spell, but it lands somewhere else - so without this the caster
 	# performs a full cast animation with nothing happening anywhere near them.
 	caster._spawn_cast_flash(Player.FX_RED, 2.2)
+	caster._spawn_spell_fx("red_3_cast", caster.global_position, 1.0)
+	caster._spawn_spell_fx("red_3", target_pos, GameSettings.spell_red_rain_ember_radius * caster._rank_area())
 
 
 ## white_1. Charges the NEXT melee hit rather than dealing damage itself - see
@@ -125,7 +131,7 @@ static func cast_white_exalted_strike(caster: Player) -> void:
 	caster._exalted_damage_mult = GameSettings.spell_white_exalted_damage_mult * caster._rank_damage()
 	caster._exalted_reach_bonus = GameSettings.spell_white_exalted_reach_bonus * caster._rank_area()
 	caster._play_sound(&"spell_exalted_strike", caster.global_position)
-	caster._spawn_cast_flash(Color(1.0, 0.95, 0.7), 2.4)
+	caster._spawn_spell_fx("white_1", caster.global_position, 1.0)
 
 
 ## white_2. A base shield PER TARGET, grown a little for every ally beyond the first -
@@ -145,7 +151,8 @@ static func cast_white_circle_of_protection(caster: Player) -> void:
 			# A myr has no shield to give, so its share arrives as health. The pool is
 			# still divided the same way - what changes is the form it takes.
 			caster._credit_heal(ally, ally.heal(each))
-		caster._spawn_ring(ally.global_position, Player.FX_WHITE, 1.6)
+		caster._spawn_spell_fx("white_2_ally", ally.global_position, 1.0)
+	caster._spawn_spell_fx("white_2", caster.global_position, GameSettings.spell_white_circle_radius * caster._rank_area())
 	caster._play_sound(&"spell_circle_protection", caster.global_position)
 
 
@@ -159,7 +166,7 @@ static func cast_white_reprisal_ward(caster: Player) -> void:
 	caster._reprisal_block_chance = GameSettings.rank_fraction(
 		GameSettings.spell_white_reprisal_block_chance, GameSettings.spell_white_reprisal_block_chance_max, caster._casting_rank
 	)
-	caster._spawn_cast_flash(Player.FX_WHITE, 2.6)
+	caster._spawn_spell_fx("white_3", caster.global_position, 1.0)
 	caster._play_sound(&"spell_reprisal_ward", caster.global_position)
 
 
@@ -171,9 +178,9 @@ static func cast_white_wrath_of_god(caster: Player) -> void:
 		caster._deal_damage(enemy, damage, false)
 	caster._play_sound(&"spell_wrath_of_god", caster.global_position)
 	caster._shake(0.6, 0.4)
-	# The full release beat rather than a ring: this is the loudest thing white does, and
-	# it was drawn with exactly the same primitive as Circle of Protection healing a myr.
-	caster._spawn_impact(caster.global_position, Player.FX_WHITE, radius)
+	# Its own effect rather than a ring: this is the loudest thing white does - a shaft of
+	# light out of the sky and a circle of runes the full width of the blast.
+	caster._spawn_spell_fx("white_4", caster.global_position, radius)
 
 
 ## white_5. The only skill in all thirty that UNDOES a loss rather than preventing one,
@@ -193,7 +200,7 @@ static func cast_white_rally_the_fallen(caster: Player) -> void:
 				continue
 			revives_left -= 1
 			ally.revive()
-			caster._spawn_ring(ally.global_position, Player.FX_WHITE, 2.2)
+			caster._spawn_spell_fx("white_5_revive", ally.global_position, 1.0)
 			continue
 		if ally.has_method("heal"):
 			caster._credit_heal(ally, ally.heal(heal_amount))
@@ -206,7 +213,7 @@ static func cast_white_rally_the_fallen(caster: Player) -> void:
 	caster._phoenix_ward_timer = GameSettings.spell_white_rally_ward_duration * caster._rank_duration()
 	# The caster's own half of it. Rally reaches other people, so without this the one
 	# player who cast it is the only one who sees nothing happen where they are standing.
-	caster._spawn_cast_flash(Player.FX_WHITE, 2.8)
+	caster._spawn_spell_fx("white_5", caster.global_position, GameSettings.spell_white_rally_radius * caster._rank_area())
 	caster._play_sound(&"spell_rally_fallen", caster.global_position)
 
 
@@ -248,6 +255,7 @@ static func cast_blue_unsummon(caster: Player) -> void:
 		caster.global_position + Vector3(0.0, 1.0, 0.0), facing,
 		GameSettings.spell_blue_unsummon_range, Player.FX_BLUE
 	)
+	caster._spawn_spell_fx("blue_1", caster.global_position, GameSettings.spell_blue_unsummon_range, facing)
 	caster._play_sound(&"spell_unsummon", caster.global_position)
 	if pushed > 0:
 		caster._play_sound(&"blunt_hit", caster.global_position)
@@ -271,7 +279,7 @@ static func cast_blue_frostwave(caster: Player) -> void:
 			enemy.freeze_timer = maxf(enemy.freeze_timer, freeze)
 			if enemy.has_method("apply_control_weaken"):
 				enemy.apply_control_weaken(caster)
-	caster._spawn_ring(caster.global_position, Color(0.55, 0.85, 1.0), radius)
+	caster._spawn_spell_fx("blue_2", caster.global_position, radius)
 	# The settle beat: the ground it froze stays frozen for a few seconds after the wave
 	# has gone, which is what makes the radius legible AFTER the fact.
 	caster._place_ground_decal("decal_frost", Color(0.78, 0.92, 1.0, 0.75), radius, caster.global_position)
@@ -304,7 +312,7 @@ static func cast_blue_suction(caster: Player) -> void:
 	for enemy: Node3D in caster._enemies_in_radius(center, radius):
 		if enemy.has_method("apply_suction"):
 			enemy.apply_suction(center, GameSettings.spell_blue_suction_pull_speed)
-	caster._spawn_ring(center, Color(0.35, 0.6, 1.0), radius * 0.6)
+	caster._spawn_spell_fx("blue_3", center, radius)
 	caster._play_sound(&"spell_suction", center)
 
 
@@ -326,6 +334,8 @@ static func cast_blue_wall_of_frost(caster: Player) -> void:
 		# its own -Z, so aiming -Z along `forward` means aiming +Z along its negation.
 		"yaw": atan2(-forward.x, -forward.z),
 	})
+	caster._spawn_spell_fx("blue_4", caster._ground_snap(center),
+		GameSettings.spell_blue_wall_of_frost_length * caster._rank_area(), forward)
 	caster._play_sound(&"spell_frost_globe", center)
 
 
@@ -346,10 +356,10 @@ static func cast_blue_displace(caster: Player) -> void:
 	if offset.length() > max_distance:
 		target = from + offset.normalized() * max_distance
 		target = caster._ground_snap(target, ENVIRONMENT_MASK)
-	caster._spawn_ring(from, Color(0.42, 0.72, 1.0), 1.7)
+	caster._spawn_spell_fx("blue_5_from", from, 1.0)
 	caster.global_position = target
 	caster.velocity = Vector3.ZERO
-	caster._spawn_ring(caster.global_position, Color(0.68, 0.9, 1.0), 2.0)
+	caster._spawn_spell_fx("blue_5", caster.global_position, 1.0)
 	caster._play_sound(&"spell_cast", caster.global_position)
 
 
@@ -386,7 +396,7 @@ static func cast_black_doom_blade(caster: Player) -> void:
 			continue
 		caster._deal_damage(enemy, damage, false)
 
-	caster._spawn_beam(caster.global_position + Vector3(0.0, 1.1, 0.0), forward, length, Color(0.6, 0.15, 0.75))
+	caster._spawn_spell_fx("black_1", caster.global_position, length, forward)
 	caster._play_sound(&"spell_doom_blade", caster.global_position)
 
 
@@ -423,6 +433,7 @@ static func cast_black_contagion(caster: Player) -> void:
 	var to: Vector3 = target.global_position + Vector3(0.0, 1.0, 0.0)
 	NetFx.beam(from, (to - from).normalized(), from.distance_to(to), EnemyBase.CONTAGION_TINT)
 	NetFx.impact(to, EnemyBase.CONTAGION_TINT, 1.2)
+	caster._spawn_spell_fx("black_2", target.global_position, 1.0)
 	caster._play_sound(&"spell_contagion", target.global_position)
 
 
@@ -445,7 +456,7 @@ static func cast_black_kill(caster: Player) -> void:
 			# early is what makes the threshold a decision rather than a formality.
 			caster._notify("Not weak enough to kill")
 			return
-	caster._spawn_ring(target.global_position, Color(0.35, 0.05, 0.45), 2.4)
+	caster._spawn_spell_fx("black_3", target.global_position, 1.0)
 	caster._play_sound(&"spell_kill", target.global_position)
 	caster._shake(0.5, 0.3, target.global_position)
 	# An ordinary death, not an exile: the corpse stays on the field, which is what makes
@@ -478,6 +489,7 @@ static func cast_black_wall_of_souls(caster: Player) -> void:
 		# the one orientation that blocks nothing.
 		info["yaw"] = atan2(facing.x, facing.z)
 	caster._place_networked(info)
+	caster._spawn_spell_fx("black_4", caster.global_position, 1.0)
 	caster._play_sound(&"spell_wall_of_souls", center)
 
 
@@ -520,7 +532,7 @@ static func cast_black_zombify(caster: Player) -> void:
 			"color": source.color_identity if source != null else "",
 			"class": source.enemy_class if source != null else "",
 		})
-		caster._spawn_ring(where, Player.FX_BLACK, 1.8)
+		caster._spawn_spell_fx("black_5", caster._ground_snap(where), 1.0)
 		raised += 1
 	caster._play_sound(&"spell_zombify", caster.global_position)
 
@@ -542,6 +554,7 @@ static func cast_red_fire_dash(caster: Player) -> void:
 	caster._dash_trail_duration = GameSettings.spell_red_dash_trail_duration * caster._rank_duration()
 	caster._dash_trail_radius = GameSettings.spell_red_dash_trail_radius * caster._rank_area()
 	caster._start_rampage()
+	caster._spawn_spell_fx("red_2", caster.global_position, 1.0)
 	caster._play_sound(&"spell_fire_dash", caster.global_position)
 
 
@@ -628,8 +641,7 @@ static func cast_red_lightning_bolt(caster: Player) -> void:
 		var damage: float = bolt_damage * caster.get_spell_damage_multiplier()
 		for enemy: Node3D in caster._enemies_in_radius(target, bolt_radius):
 			caster._deal_damage(enemy, damage * caster._bolt_target_multiplier(enemy, elite_mult), false)
-		caster._spawn_beam(target + Vector3(0.0, 18.0, 0.0), Vector3.DOWN, 18.0, Color(0.75, 0.9, 1.0))
-		caster._spawn_ring(target, Color(0.8, 0.9, 1.0), bolt_radius)
+		caster._spawn_spell_fx("red_5", target, bolt_radius)
 		caster._play_sound(&"spell_lightning_bolt", target)
 		caster._shake(0.55, 0.35, target))
 
@@ -657,10 +669,9 @@ static func cast_green_giant_growth(caster: Player) -> void:
 	caster.heal(caster._giant_bonus_hp, false)
 	caster._share_self_heal_with_myrs(caster._giant_bonus_hp)
 	# Giant Growth had NO effect of any kind: the character silently got bigger, which
-	# reads as a rendering glitch rather than as a spell. The ring is sized to what the
-	# player has just become, so the growth is announced at the scale it actually is.
-	caster._spawn_cast_flash(Player.FX_GREEN, 3.0)
-	caster._spawn_ring(caster.global_position, Player.FX_GREEN, 2.2 * giant_scale)
+	# reads as a rendering glitch rather than as a spell. The circle and the leaves are sized
+	# to what the player has just become, so the growth is announced at the scale it is.
+	caster._spawn_spell_fx("green_2", caster.global_position, 2.2 * giant_scale)
 	caster._play_sound(&"spell_giant_growth", caster.global_position)
 
 
@@ -673,6 +684,7 @@ static func cast_green_fog(caster: Player) -> void:
 		"dps": 0.0,
 		"duration": GameSettings.spell_green_fog_duration * caster._rank_duration(),
 	})
+	caster._spawn_spell_fx("green_3", caster.global_position, 1.0)
 
 
 ## green_4. The other half: pulls enemies off the crystal and the myrs and onto the
@@ -684,8 +696,8 @@ static func cast_green_roar(caster: Player) -> void:
 		if enemy.has_method("apply_taunt"):
 			enemy.apply_taunt(caster, GameSettings.spell_green_roar_duration * caster._rank_duration())
 			taunted += 1
-	# A shout is a front leaving the caster, which is what the release beat draws.
-	caster._spawn_impact(caster.global_position, Player.FX_GREEN, radius)
+	# A shout is fronts of force leaving the caster, with the dust they throw.
+	caster._spawn_spell_fx("green_4", caster.global_position, radius)
 	caster._play_sound(&"spell_roar", caster.global_position)
 	caster._shake(0.3, 0.3)
 	if taunted > 0:
@@ -703,6 +715,7 @@ static func cast_green_ironbark(caster: Player) -> void:
 	)
 	caster._stagger_timer = 0.0
 	# Bark rather than leaf: green's earth end of the palette, so Ironbark cannot be
-	# mistaken for Giant Growth at a glance.
-	caster._spawn_cast_flash(Color(0.52, 0.40, 0.22), 2.2)
+	# mistaken for Giant Growth at a glance. The bark itself grows over the caster for the
+	# whole duration - StatusFx.
+	caster._spawn_spell_fx("green_5", caster.global_position, 1.0)
 	caster._play_sound(&"spell_ironbark", caster.global_position)

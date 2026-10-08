@@ -275,6 +275,10 @@ var equipped_items: Array[String] = []
 var _cloak_timer: float = 0.0
 ## Rally the Fallen's solo floor: while this runs, the next death is refused outright.
 var _phoenix_ward_timer: float = 0.0
+## Which buffs are up right now, as StatusFx bits - what every screen draws on this player.
+## Kept by the server, which is the only machine whose buff timers are real, and replicated
+## with the vitals. See _update_status_fx.
+var status_fx: int = 0
 ## The helper's 3-second revive channel on a downed teammate. Any of the HELPER's own
 ## actions - moving, attacking, casting, jumping - drops it. The downed player's own
 ## timer keeps running meanwhile.
@@ -435,6 +439,7 @@ func _ready() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	
 	setup_camera()
+	add_child(StatusFx.new())
 	
 	# A skill tree is PERSONAL. These signals carry no owner, so every avatar in the
 	# scene would answer them - one player's purchase would unlock the spell on all four
@@ -597,7 +602,7 @@ func _build_synchronizer() -> void:
 	for property: String in [":hp", ":max_hp",
 			":rhystic_shield", ":protection_shield",
 			":_channel_id", ":_channel_rank", ":_channel_held",
-			":_giant_scale_mult"]:
+			":_giant_scale_mult", ":status_fx"]:
 		vitals.add_property(NodePath(property))
 
 	var vitals_sync := MultiplayerSynchronizer.new()
@@ -2788,14 +2793,10 @@ func _build_channel_fx() -> void:
 	# Off `_channel_rank` rather than `_rank_area()`, because this now runs on peers where
 	# no cast is in progress and `_casting_rank` is whatever was cast here last.
 	var length: float = GameSettings.spell_red_fire_cone_length * area_mult_at_rank(_channel_rank)
-	_channel_fx = EmberFx.build_flame(length * 0.25, 60)
-	_channel_fx.position = Vector3(0.0, 1.2, -1.2)
-	var process: ParticleProcessMaterial = _channel_fx.process_material
-	process.direction = Vector3(0.0, 0.0, -1.0)
-	process.spread = 22.0
-	process.gravity = Vector3.ZERO
-	process.initial_velocity_min = GameSettings.spell_red_fire_cone_length * 0.5
-	process.initial_velocity_max = GameSettings.spell_red_fire_cone_length
+	# The fire flipbook poured forward, widening as it goes, rather than the generic flame
+	# puffs - which read as a few sparks at the hands instead of a cone of fire.
+	_channel_fx = SpellVisuals.fire_stream(length)
+	_channel_fx.position = Vector3(0.0, 1.2, -0.9)
 	add_child(_channel_fx)
 
 
@@ -2842,6 +2843,28 @@ func _bolt_target_multiplier(enemy: Node3D, elite_mult: float) -> float:
 
 ## True while Ironbark holds. Everything that would interrupt or move the player checks
 ## this - one predicate rather than five copies of the timer test.
+## The buffs StatusFx draws, from the timers that are only real on the server. A client's
+## own avatar never runs its spells - they resolve on the host - so it gets this number
+## from the vitals synchronizer instead of computing it from timers it does not have.
+func _update_status_fx() -> void:
+	if Net.is_active() and not Net.is_server():
+		return
+	var bits: int = 0
+	if protection_shield > 0.0:
+		bits |= StatusFx.SHIELD
+	if _reprisal_timer > 0.0:
+		bits |= StatusFx.REPRISAL
+	if _ironbark_timer > 0.0:
+		bits |= StatusFx.IRONBARK
+	if exalted_charges > 0:
+		bits |= StatusFx.EXALTED
+	if _phoenix_ward_timer > 0.0:
+		bits |= StatusFx.PHOENIX
+	if is_giant:
+		bits |= StatusFx.GIANT
+	status_fx = bits
+
+
 func is_control_immune() -> bool:
 	return _ironbark_timer > 0.0
 
@@ -3002,6 +3025,13 @@ func _spawn_cast_flash(tint: Color, radius: float) -> void:
 ## A front leaving a point - the release beat of anything that goes off around the caster.
 func _spawn_impact(center: Vector3, tint: Color, radius: float) -> void:
 	NetFx.impact(center, tint, radius)
+
+
+## A spell's own signature effect (SpellVisuals), built on every screen from the spell id.
+## `at` is where it happens - the caster's feet for most - and `size` the radius or length
+## the spell actually used, so what the player sees is the area it really covered.
+func _spawn_spell_fx(spell_id: String, at: Vector3, size: float, dir: Vector3 = Vector3.ZERO) -> void:
+	NetFx.spell(spell_id, at, size, _fx_peer(), dir)
 
 
 ## A blast down ONE direction. Unsummon pushes in a line, and a ring told the player it
@@ -3737,6 +3767,7 @@ func _physics_process(delta: float) -> void:
 			# giant for the rest of the run, and their Ironbark never wore off.
 			_update_skill_timers(delta)
 			_update_shields(delta)
+			_update_status_fx()
 			# The post-revive grace. Damage lands here, so this is the copy that has to
 			# count it down; it was only ticked in the local branch below, so a client
 			# who got up stayed invulnerable on the host for the rest of the run.
@@ -3774,6 +3805,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_update_skill_timers(delta)
+	_update_status_fx()
 
 	# A client's channel is STARTED by the server, so this has to run before the branch
 	# below rather than only where the spell is cast - on that machine the spell was never

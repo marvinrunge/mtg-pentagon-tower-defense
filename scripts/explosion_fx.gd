@@ -180,7 +180,9 @@ static func _build_flash() -> MeshInstance3D:
 
 
 ## A particle system drawing a 4 x 4 flipbook over each particle's life.
-static func _flipbook_particles(texture_path: String, size: float, amount: int, lifetime: float) -> GPUParticles3D:
+## A one-shot particle system that plays a 4x4 flipbook once over each particle's life -
+## shared with the zones (DoTZone) and anything else that wants fire or smoke that moves.
+static func flipbook_particles(texture_path: String, size: float, amount: int, lifetime: float) -> GPUParticles3D:
 	var particles := GPUParticles3D.new()
 	particles.amount = amount
 	particles.lifetime = lifetime
@@ -215,7 +217,7 @@ static func _flipbook_particles(texture_path: String, size: float, amount: int, 
 
 
 static func _build_flames(radius: float) -> GPUParticles3D:
-	var flames := _flipbook_particles(FIRE_FLIPBOOK, radius * 0.95, 18, 0.8)
+	var flames := flipbook_particles(FIRE_FLIPBOOK, radius * 0.95, 18, 0.8)
 	flames.explosiveness = 0.95
 	flames.emitting = true
 	var process: ParticleProcessMaterial = flames.process_material
@@ -239,7 +241,7 @@ static func _build_flames(radius: float) -> GPUParticles3D:
 
 ## The settle beat: smoke rolling up out of the fire and hanging there after it has gone.
 static func _build_smoke(radius: float) -> GPUParticles3D:
-	var smoke := _flipbook_particles(SMOKE_FLIPBOOK, radius * 1.9, 16, 3.2)
+	var smoke := flipbook_particles(SMOKE_FLIPBOOK, radius * 1.9, 16, 3.2)
 	smoke.explosiveness = 0.8
 	smoke.emitting = false
 	var process: ParticleProcessMaterial = smoke.process_material

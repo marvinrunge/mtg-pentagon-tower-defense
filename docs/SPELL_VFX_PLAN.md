@@ -246,6 +246,34 @@ an effect only glows if its core is pushed above that threshold.
 | Magic circles | A rune ring on the ground or at the hand while casting, turning | Nothing yet - the cheapest "this is magic" signal there is |
 | Timing and weight | Charge, release, afterglow; a hit flash, a few frames of hit-stop, a shake, a mark left behind | The four beats exist (Phase 1); hit-stop and hit flash are still Phase 3 |
 
+### Where it stands (2026-10-08): every spell has its own look
+
+All 25 spells now go through **`SpellVisuals`** (`scripts/spell_visuals.gd`) - one builder
+per spell, reached by `NetFx.spell(id, at, size, peer, dir)` so every peer builds the effect
+locally from a few numbers. `tools/tests/spell_showcase.tscn` casts every spell on the light
+stage and writes one sheet per colour (about 80 s for all five); it is how each of the looks
+below was judged.
+
+| Piece | Where | Used by |
+|---|---|---|
+| Magic circles, five dialects (white star and rays, blue hexagram and frost, black inverted pentagram and thorns, red crossed triangles and flames, green rose and vine) | `magic_circle.gdshader` | almost every cast; projected, with a thin height band so they never climb onto the caster |
+| Light pillar | `light_pillar.gdshader` | Wrath of God (from the sky), Rally, Exalted Strike, Kill (violet), Displace, the lightning core |
+| Shield dome (fresnel rim, hex / rune / bark pattern, ground contact line, rise and drop) | `shield_dome.gdshader` | Circle of Protection per ally, Reprisal Ward |
+| Status overlay on the character for as long as a buff lasts | `status_overlay.gdshader`, `scripts/status_fx.gd` | Ironbark (bark over the skin), Circle shield (gold rim and hex shimmer), Reprisal (bands of light, three orbiting plates), Exalted charge, Rally's ward, Giant Growth |
+| Ground cracks | `ground_cracks.gdshader` | Titanic Brawl's landing (it had no effect at all), Lightning Bolt |
+| Ground slash | `ground_slash.gdshader` | Doom Blade's path |
+| Void blade | `void_blade.gdshader` | Doom Blade's crescent |
+| Zone ground (burnt veins, sludge, holy pool, damp) | `zone_ground.gdshader` | every DoTZone - the hard CSG octagon is gone |
+| Fire and smoke flipbooks | `ExplosionFx.flipbook_particles` | zone flames, falling fire in Rain of Ember, Fire Cone's stream, fog banks, dust, black smoke |
+| Forked bolt | `SpellVisuals.lightning_strike` | Lightning Bolt, re-struck twice as it flickers |
+| Ice spikes | `BossTell` ice_spikes | Frost Breath (ring), Wall of Frost (along the wall) |
+
+The persistent buff state travels as `Player.status_fx`, a bit set the server keeps and
+replicates with the vitals - a client's own spells resolve on the host, so its own timers
+are never real.
+
+Not done yet from the list below: distortion (4), and the shield ripple per hit.
+
 ### The pieces to build
 
 1. **Shield shader** (Protego). One shader for every shield: a fresnel rim that burns at the
@@ -278,7 +306,7 @@ an effect only glows if its core is pushed above that threshold.
 
 | Who | Does |
 |---|---|
-| Claude | Writes the shaders, the particle systems and the effect meshes in code; generates the procedural textures (noise, rune circles, flipbooks, gradients) the way `tools/build_vfx_textures.gd` already does; renders `tools/tests/vfx_showcase.tscn` at four times of day - with `-- <out.png> --glow` for the game's bloom - and judges and iterates on the frames before anything is shown |
+| Claude | Writes the shaders, the particle systems and the effect meshes in code; generates the procedural textures (noise, rune circles, flipbooks, gradients) the way `tools/build_vfx_textures.gd` already does; renders `tools/tests/spell_showcase.tscn` (every spell, one sheet per colour) and `tools/tests/vfx_showcase.tscn` (four times of day) - with `--glow` for the game's bloom - and judges and iterates on the frames before anything is shown |
 | The developer | Looks at a screenshot sheet per colour and says more / less / different. Optionally picks texture packs for what is photographic (smoke, explosions, scorch marks), where authored art beats generated art |
 
 Limits worth knowing up front: no image model is involved, so everything generated is
