@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-lava-pebbles.res" id="1_thk3p"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_buafm"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_fostd"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_s3xi7"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_24l3c"]
+mesh = ExtResource("1_thk3p")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_ivhns"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_24l3c")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_npg5a"]
+mesh = ExtResource("1_thk3p")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_6vot8"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_npg5a")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_qkece"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_buafm")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_fostd"), SubResource("ObjectOctreeLODDefinitionResource_s3xi7")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_ivhns"), SubResource("ObjectOctreeLODMeshesDefinitionResource_6vot8")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_qkece")

@@ -1,0 +1,181 @@
+{
+  "foliages": [
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_white_low.res",
+      "name": "foliage_white_low",
+      "resource": "res://assets/nature/terrabrush/foliage_white_low.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_white_tall.res",
+      "name": "foliage_white_tall",
+      "resource": "res://assets/nature/terrabrush/foliage_white_tall.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_blue_low.res",
+      "name": "foliage_blue_low",
+      "resource": "res://assets/nature/terrabrush/foliage_blue_low.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_blue_tall.res",
+      "name": "foliage_blue_tall",
+      "resource": "res://assets/nature/terrabrush/foliage_blue_tall.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_black_low.res",
+      "name": "foliage_black_low",
+      "resource": "res://assets/nature/terrabrush/foliage_black_low.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_black_tall.res",
+      "name": "foliage_black_tall",
+      "resource": "res://assets/nature/terrabrush/foliage_black_tall.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_red_low.res",
+      "name": "foliage_red_low",
+      "resource": "res://assets/nature/terrabrush/foliage_red_low.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_red_tall.res",
+      "name": "foliage_red_tall",
+      "resource": "res://assets/nature/terrabrush/foliage_red_tall.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_green_low.res",
+      "name": "foliage_green_low",
+      "resource": "res://assets/nature/terrabrush/foliage_green_low.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_foliage_green_tall.res",
+      "name": "foliage_green_tall",
+      "resource": "res://assets/nature/terrabrush/foliage_green_tall.tres"
+    }
+  ],
+  "objects": [
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-white-silver-birch.res",
+      "name": "nature-white-silver-birch",
+      "resource": "res://assets/nature/terrabrush/nature-white-silver-birch.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-white-olive-sunleaf.res",
+      "name": "nature-white-olive-sunleaf",
+      "resource": "res://assets/nature/terrabrush/nature-white-olive-sunleaf.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-white-great-sun-oak.res",
+      "name": "nature-white-great-sun-oak",
+      "resource": "res://assets/nature/terrabrush/nature-white-great-sun-oak.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-white-limestone-pebbles.res",
+      "name": "nature-white-limestone-pebbles",
+      "resource": "res://assets/nature/terrabrush/nature-white-limestone-pebbles.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-white-limestone-outcrop.res",
+      "name": "nature-white-limestone-outcrop",
+      "resource": "res://assets/nature/terrabrush/nature-white-limestone-outcrop.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-windswept-pine.res",
+      "name": "nature-blue-windswept-pine",
+      "resource": "res://assets/nature/terrabrush/nature-blue-windswept-pine.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-mangrove.res",
+      "name": "nature-blue-mangrove",
+      "resource": "res://assets/nature/terrabrush/nature-blue-mangrove.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-beach-pebbles.res",
+      "name": "nature-blue-beach-pebbles",
+      "resource": "res://assets/nature/terrabrush/nature-blue-beach-pebbles.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-basalt-columns.res",
+      "name": "nature-blue-basalt-columns",
+      "resource": "res://assets/nature/terrabrush/nature-blue-basalt-columns.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-driftwood.res",
+      "name": "nature-blue-driftwood",
+      "resource": "res://assets/nature/terrabrush/nature-blue-driftwood.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-giant-clam.res",
+      "name": "nature-blue-giant-clam",
+      "resource": "res://assets/nature/terrabrush/nature-blue-giant-clam.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-weeping-willow.res",
+      "name": "nature-black-weeping-willow",
+      "resource": "res://assets/nature/terrabrush/nature-black-weeping-willow.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-swamp-cypress.res",
+      "name": "nature-black-swamp-cypress",
+      "resource": "res://assets/nature/terrabrush/nature-black-swamp-cypress.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-slate-shards.res",
+      "name": "nature-black-slate-shards",
+      "resource": "res://assets/nature/terrabrush/nature-black-slate-shards.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-bracket-log.res",
+      "name": "nature-black-bracket-log",
+      "resource": "res://assets/nature/terrabrush/nature-black-bracket-log.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-bog-lilies.res",
+      "name": "nature-black-bog-lilies",
+      "resource": "res://assets/nature/terrabrush/nature-black-bog-lilies.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-red-fire-succulent.res",
+      "name": "nature-red-fire-succulent",
+      "resource": "res://assets/nature/terrabrush/nature-red-fire-succulent.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-red-dragonblood-tree.res",
+      "name": "nature-red-dragonblood-tree",
+      "resource": "res://assets/nature/terrabrush/nature-red-dragonblood-tree.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-red-fireheart-tree.res",
+      "name": "nature-red-fireheart-tree",
+      "resource": "res://assets/nature/terrabrush/nature-red-fireheart-tree.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-red-lava-pebbles.res",
+      "name": "nature-red-lava-pebbles",
+      "resource": "res://assets/nature/terrabrush/nature-red-lava-pebbles.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-red-sandstone-mesa.res",
+      "name": "nature-red-sandstone-mesa",
+      "resource": "res://assets/nature/terrabrush/nature-red-sandstone-mesa.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-broad-oak.res",
+      "name": "nature-green-broad-oak",
+      "resource": "res://assets/nature/terrabrush/nature-green-broad-oak.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-tall-fir.res",
+      "name": "nature-green-tall-fir",
+      "resource": "res://assets/nature/terrabrush/nature-green-tall-fir.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-giant-mushroom.res",
+      "name": "nature-green-giant-mushroom",
+      "resource": "res://assets/nature/terrabrush/nature-green-giant-mushroom.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-mossy-stump.res",
+      "name": "nature-green-mossy-stump",
+      "resource": "res://assets/nature/terrabrush/nature-green-mossy-stump.tres"
+    }
+  ]
+}

@@ -91,6 +91,8 @@ After generation:
 - `export_presets.cfg`: the Windows Desktop export preset the workflow drives
 - `scripts/ember_fx.gd`: every fire effect (fireball trail/burst, Rain of Ember, flickering fire light) - see `docs/VFX_TEXTURES.md`
 - `tools/build_vfx_textures.gd`: regenerates the placeholder VFX textures in `assets/vfx/`
+- `docs/NATURE_ASSETS.md`: plan for the biome plants, stones, mana crystals and fungus; `tools/nature/nature_assets.json` is its manifest and `tools/nature/nature_pipeline.py` the Gemini -> Meshy -> TerraBrush pipeline (`tools/build_nature_cards.gd`, `tools/build_nature_terrabrush.gd`)
+- `tools/alpha_key.gd`: the white-backdrop keying shared by the grass billboards and the nature cards
 - `tools/animation_impact.gd`: measures the frame an attack clip connects on; used by the enemy and boss builders
 - `tools/player_character_builder.gd`: builds the player visual + `assets/animations/player/lib_player.tres` from `assets/player/`
 - `scenes/main.tscn`: pentagonal map, five ordered lanes, navigation region, HUD

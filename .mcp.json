@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "blender": {
+      "command": "C:/Users/marvi/AppData/Roaming/Python/Python312/Scripts/uvx.exe",
+      "args": ["mcp-for-blender"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}

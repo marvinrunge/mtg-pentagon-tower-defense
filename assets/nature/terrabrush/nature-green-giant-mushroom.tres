@@ -1,0 +1,45 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-giant-mushroom.res" id="1_il4cb"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_j5cwn"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_ixnft"]
+maxDistance = 70.0
+addCollision = true
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_ki634"]
+maxDistance = 520.0
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_7dx7b"]
+height = 7.0
+radius = 2.4593265
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_27cf6"]
+mesh = ExtResource("1_il4cb")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_yf1vs"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_27cf6")])
+collisionShape = SubResource("CylinderShape3D_7dx7b")
+collisionOffset = Vector3(0, 3.5, 0)
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_utogn"]
+mesh = ExtResource("1_il4cb")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_ectp4"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_utogn")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_crqxw"]
+strategy = 2
+objectFrequency = 45
+randomRange = 18.0
+noiseTexture = ExtResource("2_j5cwn")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.9
+randomSizeFactorMax = 1.1
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_ixnft"), SubResource("ObjectOctreeLODDefinitionResource_ki634")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_yf1vs"), SubResource("ObjectOctreeLODMeshesDefinitionResource_ectp4")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_crqxw")

@@ -1,0 +1,52 @@
+[gd_resource type="FoliageResource" format=4]
+
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-tall-meadow_01.png" id="1_rt58c"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-tall-meadow_02.png" id="2_f5nw1"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-tall-meadow_03.png" id="3_7h8a3"]
+[ext_resource type="Texture2D" path="res://assets/nature/cards/nature-white-tall-meadow_04.png" id="4_jdr8s"]
+[ext_resource type="Shader" path="res://assets/shaders/nature_foliage.gdshader" id="5_thw6k"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_wacdj"]
+render_priority = 0
+shader = ExtResource("5_thw6k")
+shader_parameter/GlobalPosition = null
+shader_parameter/OffsetPosition = null
+shader_parameter/InitialCellWidth = null
+shader_parameter/LODRowsPerLevel = null
+shader_parameter/LODLevels = null
+shader_parameter/WindStrength = null
+shader_parameter/FoliageAlbedo = null
+shader_parameter/FoliageNumberOfTexture = null
+shader_parameter/UseGroundColor = null
+shader_parameter/MeshScale = null
+shader_parameter/UseBrushScale = null
+shader_parameter/RandomPlacementRange = null
+shader_parameter/ApplyOnTextureIndexes = null
+shader_parameter/NumberOfTexturesToApplyOn = null
+shader_parameter/NearestFilter = null
+shader_parameter/TextureDetail = null
+shader_parameter/NumberOfTextures = null
+shader_parameter/WaterFactor = null
+shader_parameter/ZonesSize = null
+shader_parameter/Resolution = null
+shader_parameter/NumberOfZones = null
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_xmy7f"]
+_surfaces = [{
+"aabb": AABB(-0.65, 0, -0.65, 1.3, 1.6, 1.3),
+"attribute_data": PackedByteArray("AAAAAAAAgD8AAIA/AACAPwAAgD8AAAAAAAAAAAAAgD8AAIA/AAAAAAAAAAAAAAAAAAAAAAAAgD8AAIA/AACAPwAAgD8AAAAAAAAAAAAAgD8AAIA/AAAAAAAAAAAAAAAA"),
+"format": 34359738391,
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 12,
+"vertex_data": PackedByteArray("ZmYmvwAAAIAAAACAZmYmPwAAAAAAAAAAZmYmP83MzD8AAAAAZmYmvwAAAIAAAACAZmYmP83MzD8AAAAAZmYmv83MzD8AAAAAAAAAgAAAAIBmZia/AAAAAAAAAABmZiY/AAAAAM3MzD9mZiY/AAAAgAAAAIBmZia/AAAAAM3MzD9mZiY/AAAAAM3MzD9mZia//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
+}]
+
+[sub_resource type="FoliageDefinitionResource" id="FoliageDefinitionResource_bmpte"]
+mesh = SubResource("ArrayMesh_xmy7f")
+windStrength = 0.14
+albedoTextures = Array[Texture2D]([ExtResource("1_rt58c"), ExtResource("2_f5nw1"), ExtResource("3_7h8a3"), ExtResource("4_jdr8s"), ExtResource("1_rt58c"), ExtResource("2_f5nw1"), ExtResource("3_7h8a3"), ExtResource("4_jdr8s")])
+customShader = SubResource("ShaderMaterial_wacdj")
+
+[resource]
+definition = SubResource("FoliageDefinitionResource_bmpte")

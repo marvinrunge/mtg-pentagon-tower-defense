@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-fire-succulent.res" id="1_oaiau"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_bbcki"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_8h5dy"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_0llcy"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_rd36a"]
+mesh = ExtResource("1_oaiau")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_56vuo"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_rd36a")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_44y0c"]
+mesh = ExtResource("1_oaiau")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_erjs7"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_44y0c")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_uxd7a"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_bbcki")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_8h5dy"), SubResource("ObjectOctreeLODDefinitionResource_0llcy")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_56vuo"), SubResource("ObjectOctreeLODMeshesDefinitionResource_erjs7")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_uxd7a")

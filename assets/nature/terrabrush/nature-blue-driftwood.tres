@@ -1,0 +1,37 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-driftwood.res" id="1_ixm8d"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_ipsqa"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_37tgo"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_ipso4"]
+maxDistance = 200.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_o8ois"]
+mesh = ExtResource("1_ixm8d")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_no11c"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_o8ois")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_iqo4m"]
+mesh = ExtResource("1_ixm8d")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_cf7ya"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_iqo4m")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_nurd7"]
+strategy = 2
+objectFrequency = 9
+randomRange = 3.6
+noiseTexture = ExtResource("2_ipsqa")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_37tgo"), SubResource("ObjectOctreeLODDefinitionResource_ipso4")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_no11c"), SubResource("ObjectOctreeLODMeshesDefinitionResource_cf7ya")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_nurd7")

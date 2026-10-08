@@ -1,0 +1,93 @@
+{
+  "_doc": "Recipe for tools/nature/blender/build_trees.py. Lengths in metres, angles in degrees. Swamp cypress with knees and hanging moss, Black.",
+  "seed": 59,
+  "form": "deciduous",
+  "height_m": 11.0,
+  "bark": "bark_cypress.png",
+  "bark_tile_m": 1.3,
+  "leaves": "leaves_swamp-cypress",
+  "trunk": {
+    "length": 10.0,
+    "radius": 0.55,
+    "taper": 0.25,
+    "gnarl": 5,
+    "lean": 3,
+    "segments": 9,
+    "flare": 1.8
+  },
+  "knees": {
+    "count": 12,
+    "distance": [
+      0.9,
+      2.4
+    ],
+    "height": [
+      0.3,
+      0.8
+    ],
+    "radius": 0.13
+  },
+  "levels": [
+    {
+      "count": 12,
+      "start": 0.45,
+      "angle": 72,
+      "angle_spread": 14,
+      "length": 0.3,
+      "length_spread": 0.25,
+      "radius": 0.3,
+      "gnarl": 14,
+      "up": 0.02,
+      "segments": 4,
+      "droop": 0.03
+    },
+    {
+      "count": 3,
+      "start": 0.4,
+      "angle": 40,
+      "angle_spread": 14,
+      "length": 0.5,
+      "length_spread": 0.25,
+      "radius": 0.5,
+      "gnarl": 18,
+      "up": 0.02,
+      "segments": 3
+    }
+  ],
+  "ring_vertices": [
+    8,
+    5,
+    4
+  ],
+  "leaf_cards": {
+    "on_level": 2,
+    "from": 0.3,
+    "per_branch": 4,
+    "orientation": "flat",
+    "size": [
+      0.9,
+      1.3
+    ],
+    "tilt": 20,
+    "layers": 2,
+    "cross_angle": 40,
+    "spread": 0.3,
+    "outward_normals": 0.6
+  },
+  "extra_cards": [
+    {
+      "set": "moss_hanging",
+      "on_level": 1,
+      "from": 0.3,
+      "per_branch": 2,
+      "orientation": "hanging",
+      "size": [
+        1.6,
+        2.4
+      ],
+      "aspect": 0.7,
+      "hang": 0.95,
+      "layers": 2
+    }
+  ]
+}

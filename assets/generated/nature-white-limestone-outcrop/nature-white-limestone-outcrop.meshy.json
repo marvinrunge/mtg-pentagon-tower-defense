@@ -1,0 +1,22 @@
+{
+  "generator": "Meshy Image to 3D API v1",
+  "task_id": "01a10815-c579-755c-95c8-4ed7e5de6984",
+  "status": "SUCCEEDED",
+  "consumed_credits": 15,
+  "request": {
+    "ai_model": "meshy-t2",
+    "model_type": "smart-topology",
+    "target_polycount": 1500,
+    "should_texture": true,
+    "enable_pbr": true,
+    "texture_resolution": "2k",
+    "origin_at": "bottom",
+    "target_formats": [
+      "glb"
+    ],
+    "moderation": true
+  },
+  "concept_image": "nature-white-limestone-outcrop_concept.png",
+  "concept_prompt": "Game asset concept render of a single isolated layered limestone outcrop for a fantasy tower defense game: stacked flat-topped slabs of pale cream limestone stepping down to one side, clean horizontal strata, small tufts of moss in the seams. Setting: sun-drenched orderly plains of golden wheat, pale limestone and white marble, warm noon light, a sense of order and harvest. Palette: warm gold, cream limestone, sage green, soft sky-blue accents. Style: semi-realistic fantasy game asset - believable natural materials and proportions, real surface detail (fractures, weathering, grain, subtle colour variation), colour slightly richer than life, and a clear silhouette that still reads from far away. Like a high-quality modern fantasy game asset render: not cartoon, not toon-shaded, not low-poly, not hand-painted, and not a photograph. About 4 metres wide and 1.8 metres tall. Framing: three-quarter view from slightly above, the whole object centred and fully inside the frame with a wide empty margin on every side, nothing cropped. Background: plain flat uniform neutral mid-grey (#808080), no gradient, no vignette, no floor, no ground plane, no cast shadow, no contact shadow, no other objects, no scenery. Nothing around the object: no soil patch, no ground island, no base, no puddle or water, no grass tufts or pebbles at its foot, no mist, fog, smoke, steam, sparks, particles or drips - the object alone, cut off cleanly where it would meet the ground. Lighting: soft even neutral studio light, no coloured light, no dramatic rim light, no bloom, no glow halo outside the object. No text, no logo, no watermark, no border, no characters, no symbols from existing franchises.",
+  "license_review_required": true
+}

@@ -1,0 +1,37 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-bracket-log.res" id="1_p4sdr"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_5xlpu"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_0vlyp"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_8grin"]
+maxDistance = 200.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_fw3ws"]
+mesh = ExtResource("1_p4sdr")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_l48oj"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_fw3ws")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_j44j8"]
+mesh = ExtResource("1_p4sdr")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_qtsbl"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_j44j8")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_m7y6m"]
+strategy = 2
+objectFrequency = 9
+randomRange = 3.6
+noiseTexture = ExtResource("2_5xlpu")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_0vlyp"), SubResource("ObjectOctreeLODDefinitionResource_8grin")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_l48oj"), SubResource("ObjectOctreeLODMeshesDefinitionResource_qtsbl")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_m7y6m")

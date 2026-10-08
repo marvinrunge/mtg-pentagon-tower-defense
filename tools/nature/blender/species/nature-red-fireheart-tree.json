@@ -1,0 +1,75 @@
+{
+  "_doc": "Recipe for tools/nature/blender/build_trees.py. Lengths in metres, angles in degrees. Ancient fireheart tree, Red landmark. Black bark with molten veins (the builder adds the glow).",
+  "seed": 71,
+  "form": "deciduous",
+  "height_m": 15.0,
+  "bark": "bark_fireheart.png",
+  "bark_tile_m": 1.8,
+  "leaves": "leaves_fireheart-tree",
+  "trunk": {
+    "length": 6.5,
+    "radius": 1.0,
+    "taper": 0.4,
+    "gnarl": 6,
+    "lean": 3,
+    "segments": 8,
+    "flare": 1.6
+  },
+  "levels": [
+    {
+      "count": 7,
+      "start": 0.62,
+      "angle": 58,
+      "angle_spread": 14,
+      "length": 1.1,
+      "length_spread": 0.25,
+      "radius": 0.5,
+      "gnarl": 22,
+      "up": 0.1,
+      "segments": 6
+    },
+    {
+      "count": 5,
+      "start": 0.3,
+      "angle": 46,
+      "angle_spread": 14,
+      "length": 0.55,
+      "length_spread": 0.25,
+      "radius": 0.45,
+      "gnarl": 26,
+      "up": 0.06,
+      "segments": 4
+    },
+    {
+      "count": 3,
+      "start": 0.35,
+      "angle": 38,
+      "angle_spread": 14,
+      "length": 0.45,
+      "length_spread": 0.25,
+      "radius": 0.5,
+      "gnarl": 28,
+      "up": 0.0,
+      "segments": 3
+    }
+  ],
+  "ring_vertices": [
+    10,
+    7,
+    5,
+    4
+  ],
+  "leaf_cards": {
+    "on_level": 3,
+    "from": 0.2,
+    "per_branch": 4,
+    "size": [
+      1.1,
+      1.6
+    ],
+    "spread": 0.6,
+    "tilt": 55,
+    "layers": 2,
+    "outward_normals": 0.75
+  }
+}

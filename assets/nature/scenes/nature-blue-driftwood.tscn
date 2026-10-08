@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-driftwood.res" id="1_lhls8"]
+
+[node name="NatureBlueDriftwood" type="Node3D" unique_id=1874423506]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1403292249]
+mesh = ExtResource("1_lhls8")

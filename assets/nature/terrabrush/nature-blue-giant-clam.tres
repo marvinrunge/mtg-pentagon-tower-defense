@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-giant-clam.res" id="1_ruroy"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_6afte"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_2qamx"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_lahcy"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_x7q40"]
+mesh = ExtResource("1_ruroy")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_xttnw"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_x7q40")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_eglah"]
+mesh = ExtResource("1_ruroy")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_dkc0v"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_eglah")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_xrn03"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_6afte")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_2qamx"), SubResource("ObjectOctreeLODDefinitionResource_lahcy")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_xttnw"), SubResource("ObjectOctreeLODMeshesDefinitionResource_dkc0v")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_xrn03")
