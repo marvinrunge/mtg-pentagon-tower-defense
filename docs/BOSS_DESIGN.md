@@ -43,6 +43,16 @@ Two layers, deliberately independent:
   - *Glowing Rim*: rim, faint interior, a bright front sweeping through it.
   - *Late Reveal*: the rim style, invisible for the first half of the windup.
   - *Classic*: the original flat outline and growing fill.
+
+  Every style is **projected onto the ground** under it - slopes, steps, rocks - rather than
+  drawn on a flat plane the rising ground swallows. Each telegraph is a box around its zone
+  whose shader reads the depth buffer and draws the shape on the real surface
+  (`assets/shaders/ground_projection.gdshaderinc`); near-vertical surfaces (stones, legs) are
+  skipped. It is done in the shader rather than with Godot's `Decal` node because `Decal`
+  draws nothing in the Compatibility renderer, which the options offer. Hazards (fire, frost)
+  and the meteor and leap shadows project the same way, and world-tell spikes are raycast onto
+  the ground one by one. `tools/tests/telegraph_slope_shot.tscn` finds a hillside and renders
+  the widest zones on it.
 - **World tells** (`BossTell`) are part of the attack itself and are shown whatever the
   options say. Only attacks aimed somewhere other than the boss's own feet have one, because
   those are the ones the boss's body cannot announce:

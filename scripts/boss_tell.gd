@@ -36,6 +36,7 @@ var _fireball: Node3D = null
 var _fireball_from: Vector3 = Vector3.ZERO
 var _shadow: MeshInstance3D = null
 var _shadow_material: ShaderMaterial = null
+var _shadow_radius: float = 1.0
 ## Each wall's pivot, which sits on the ground - scaling it grows the wall up from its base.
 var _walls: Array[Node3D] = []
 var _wall_material: ShaderMaterial = null
@@ -110,8 +111,8 @@ func _apply(progress: float) -> void:
 		_fireball.global_position = _fireball_from.lerp(global_position + Vector3(0.0, 0.4, 0.0), fall)
 		_fireball.visible = progress < 1.0
 	if _shadow_material != null:
-		var reach: float = lerpf(0.3, 1.0, progress)
-		_shadow.scale = Vector3(reach, 1.0, reach)
+		# Grows by its radius, not by scaling the node: the projection reads the node's scale.
+		_shadow_material.set_shader_parameter("radius", _shadow_radius * lerpf(0.3, 1.0, progress))
 		_shadow_material.set_shader_parameter("strength", lerpf(0.15, 0.8, progress) * (1.0 - after))
 	if _wall_material != null:
 		var rise: float = 1.0 - pow(1.0 - progress, 2.0)
@@ -190,7 +191,8 @@ func _build_spikes(material: Material, height_scale: float, base_radius: float, 
 		spike.mesh = mesh
 		spike.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var pivot := Node3D.new()
-		pivot.position = Vector3(point.x, 0.0, point.z)
+		# Stood on the real ground under it - on a slope the zone's own height is metres off.
+		pivot.position = Vector3(point.x, _ground_height_at(Vector3(point.x, 0.0, point.z)), point.z)
 		pivot.rotation = Vector3(rng.randf_range(-0.35, 0.35), rng.randf() * TAU, rng.randf_range(-0.35, 0.35))
 		# The cone stands on its base: lift it half its height inside the scaled pivot.
 		spike.position.y = 0.5
@@ -199,16 +201,39 @@ func _build_spikes(material: Material, height_scale: float, base_radius: float, 
 		_spikes.append({"node": pivot, "t": clampf(point.y, 0.0, 1.0), "size": rng.randf_range(0.7, 1.4) * height_scale})
 
 
+## Height of the ground under `local_point` (in this tell's space), relative to the tell -
+## within the same band the projected telegraphs reach. 0 when nothing is hit, so a tell
+## built before the terrain has collision still stands somewhere sensible.
+func _ground_height_at(local_point: Vector3) -> float:
+	if not is_inside_tree():
+		return 0.0
+	var world_point: Vector3 = to_global(local_point)
+	var query := PhysicsRayQueryParameters3D.create(
+		world_point + Vector3(0.0, AttackIndicator.PROJECT_UP, 0.0),
+		world_point - Vector3(0.0, AttackIndicator.PROJECT_DOWN, 0.0))
+	query.collision_mask = EnemyBase.ENVIRONMENT_LAYER
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return 0.0
+	return to_local(hit["position"]).y
+
+
 func _build_shadow(radius: float, color: Color) -> void:
+	_shadow_radius = radius
+	# Projected onto the ground like the telegraphs, so it lies on the slope it will land on.
 	_shadow = MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(radius * 2.0, radius * 2.0)
-	_shadow.mesh = plane
+	var box := BoxMesh.new()
+	box.size = Vector3(radius * 2.0, AttackIndicator.PROJECT_UP + AttackIndicator.PROJECT_DOWN, radius * 2.0)
+	_shadow.mesh = box
+	_shadow.position.y = (AttackIndicator.PROJECT_UP - AttackIndicator.PROJECT_DOWN) * 0.5
 	_shadow_material = ShaderMaterial.new()
 	_shadow_material.shader = SHADOW_SHADER
 	_shadow_material.set_shader_parameter("shadow_color", color)
+	_shadow_material.set_shader_parameter("radius", radius)
+	_shadow_material.set_shader_parameter("projection_offset", _shadow.position)
+	_shadow_material.set_shader_parameter("projection_up", AttackIndicator.PROJECT_UP)
+	_shadow_material.set_shader_parameter("projection_down", AttackIndicator.PROJECT_DOWN)
 	_shadow.material_override = _shadow_material
-	_shadow.position.y = 0.05
 	_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_shadow)
 

@@ -677,8 +677,13 @@ func _check_tells_and_styles() -> void:
 		boss._begin_special(meteor)
 		var indicator: AttackIndicator = boss._cast_indicators[0]
 		_check("the %s style draws" % style, indicator != null and indicator.get_child_count() > 0)
-		_check("the %s style uses %s" % [style, "the classic meshes" if style == "classic" else "the telegraph shader"],
-			(indicator._shader_material == null) == (style == "classic"))
+		_check("the %s style is drawn by the projected telegraph shader" % style,
+			indicator._shader_material != null
+			and int(indicator._shader_material.get_shader_parameter("style")) == int(AttackIndicator._SHADER_STYLE[style]))
+		var volume: MeshInstance3D = indicator.get_child(0) as MeshInstance3D
+		_check("the %s style projects from a box around its zone" % style,
+			volume != null and volume.mesh is BoxMesh
+			and (volume.mesh as BoxMesh).size.y >= AttackIndicator.PROJECT_UP + AttackIndicator.PROJECT_DOWN - 0.01)
 		boss._cancel_special()
 	boss.free()
 	_clear_fakes()

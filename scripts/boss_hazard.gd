@@ -34,7 +34,7 @@ var _life: float = 0.0
 var _tick: float = 0.0
 var _light: OmniLight3D
 var _flicker_phase: float = 0.0
-var _disc_material: StandardMaterial3D
+var _material: ShaderMaterial
 
 
 static func create(p_style: String, p_radius: float, p_inner: float, p_duration: float, p_dps: float, p_slow: float) -> BossHazard:
@@ -54,23 +54,30 @@ func _ready() -> void:
 	_build_visual()
 
 
+const HAZARD_SHADER: Shader = preload("res://assets/shaders/boss_hazard.gdshader")
+
+
 func _build_visual() -> void:
 	var tint: Color = Color(1.0, 0.32, 0.06) if style == "fire" else Color(0.55, 0.85, 1.0)
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = _ring_mesh(inner_radius, radius) if inner_radius > 0.0 else _ring_mesh(0.0, radius)
-	_disc_material = StandardMaterial3D.new()
-	_disc_material.albedo_color = Color(tint.r, tint.g, tint.b, 0.42)
-	_disc_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_disc_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_disc_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	_disc_material.emission_enabled = true
-	_disc_material.emission = tint
-	_disc_material.emission_energy_multiplier = 1.4
-	_disc_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_disc_material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-	mesh.material_override = _disc_material
-	mesh.position.y = 0.06
-	add_child(mesh)
+	# Projected onto the ground it fell on, like the telegraphs: a box around the patch and the
+	# hazard shader, rather than a flat disc the slope buries.
+	var box := BoxMesh.new()
+	box.size = Vector3(radius * 2.0, AttackIndicator.PROJECT_UP + AttackIndicator.PROJECT_DOWN, radius * 2.0)
+	var volume := MeshInstance3D.new()
+	volume.mesh = box
+	volume.position.y = (AttackIndicator.PROJECT_UP - AttackIndicator.PROJECT_DOWN) * 0.5
+	volume.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_material = ShaderMaterial.new()
+	_material.shader = HAZARD_SHADER
+	_material.set_shader_parameter("tint", tint)
+	_material.set_shader_parameter("radius", radius)
+	_material.set_shader_parameter("inner_radius", inner_radius)
+	_material.set_shader_parameter("style", 0 if style == "fire" else 1)
+	_material.set_shader_parameter("projection_offset", volume.position)
+	_material.set_shader_parameter("projection_up", AttackIndicator.PROJECT_UP)
+	_material.set_shader_parameter("projection_down", AttackIndicator.PROJECT_DOWN)
+	volume.material_override = _material
+	add_child(volume)
 
 	if style == "fire":
 		var fire: GPUParticles3D = EmberFx.build_ground_fire(radius)
@@ -80,33 +87,9 @@ func _build_visual() -> void:
 		_light.position = Vector3(0.0, 0.7, 0.0)
 		add_child(_light)
 
-	# Rolls in rather than popping on, the way DoTZone's firestorm does.
-	scale = Vector3(0.4, 1.0, 0.4)
-	create_tween().tween_property(self, "scale", Vector3.ONE, 0.3) \
-		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-
-
-func _ring_mesh(inner: float, outer: float) -> ArrayMesh:
-	var vertices := PackedVector3Array()
-	var segments: int = 40
-	var step: float = TAU / float(segments)
-	for i in range(segments):
-		var a0: float = step * i
-		var a1: float = step * (i + 1)
-		var o0 := Vector3(sin(a0) * outer, 0.0, cos(a0) * outer)
-		var o1 := Vector3(sin(a1) * outer, 0.0, cos(a1) * outer)
-		if inner <= 0.0:
-			vertices.append_array([Vector3.ZERO, o0, o1])
-			continue
-		var i0 := Vector3(sin(a0) * inner, 0.0, cos(a0) * inner)
-		var i1 := Vector3(sin(a1) * inner, 0.0, cos(a1) * inner)
-		vertices.append_array([i0, o0, o1, i0, o1, i1])
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
+	# Fades in rather than popping on.
+	_material.set_shader_parameter("fade", 0.0)
+	create_tween().tween_method(func(v: float) -> void: _material.set_shader_parameter("fade", v), 0.0, 1.0, 0.3)
 
 
 func _process(delta: float) -> void:
@@ -118,8 +101,8 @@ func _process(delta: float) -> void:
 		_flicker_phase += delta
 		EmberFx.flicker(_light, _flicker_phase)
 	# Fades over its last half second so the edge of safety is visible coming.
-	if _life < 0.5 and _disc_material != null:
-		_disc_material.albedo_color.a = 0.42 * (_life / 0.5)
+	if _life < 0.5 and _material != null:
+		_material.set_shader_parameter("fade", _life / 0.5)
 
 	if not Net.is_server():
 		return

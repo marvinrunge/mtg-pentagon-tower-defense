@@ -1,19 +1,23 @@
 shader_type spatial;
-// The styled boss telegraph (AttackIndicator, every style but "classic").
+// The boss telegraph (AttackIndicator), in every style.
 //
-// One mesh covers the whole danger zone; everything else is worked out per pixel from where
-// the pixel sits in the SHAPE, in the indicator's own XZ plane (+Z is the facing):
+// Projected onto the ground under it (see ground_projection.gdshaderinc): a box covers the
+// zone, and everything else is worked out per pixel from where the real surface point sits in
+// the SHAPE, in the indicator's own XZ plane (+Z is the facing):
 //   d  how far inside the edge, in world units - drives the soft edge and the glowing rim
 //   t  0..1 along the direction the fill travels - drives the fill front, which reaches
 //      the far edge exactly when the hit lands, as the old growing fill did
 //
 // Styles:
+//   0 classic the original look: a flat translucent zone and a brighter fill growing over it
 //   1 rim     a glowing rim, a faint interior and a bright front sweeping through it
 //   2 themed  the rim plus a pattern in the boss's colour that creeps in organically:
 //             embers, frost, roots, runes or smoke
 //   3 late    the rim style, invisible for the first half of the windup - read the
 //             animation first, the ground only confirms it
-render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, shadows_disabled;
+render_mode unshaded, blend_mix, depth_draw_never, depth_test_disabled, cull_front, shadows_disabled;
+
+#include "res://assets/shaders/ground_projection.gdshaderinc"
 
 uniform vec4 tint : source_color = vec4(1.0, 0.4, 0.1, 1.0);
 // 0 circle, 1 cone, 2 ring, 3 line
@@ -30,12 +34,6 @@ uniform float fade = 1.0;
 uniform int style = 2;
 // 0 none, 1 embers, 2 frost, 3 roots, 4 runes, 5 smoke
 uniform int pattern = 0;
-
-varying vec2 local_xz;
-
-void vertex() {
-	local_xz = VERTEX.xz;
-}
 
 float hash(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
@@ -146,6 +144,11 @@ vec4 themed(vec2 p, float t) {
 }
 
 void fragment() {
+	vec4 ground = project_to_ground(SCREEN_UV, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX, MODEL_MATRIX);
+	if (ground.w <= 0.0) {
+		discard;
+	}
+	vec2 local_xz = ground.xz;
 	vec2 field = shape_field(local_xz);
 	float d = field.x;
 	float t = clamp(field.y, 0.0, 1.0);
@@ -155,33 +158,45 @@ void fragment() {
 		discard;
 	}
 
-	float reveal = (style == 3) ? smoothstep(0.45, 0.7, progress) : smoothstep(0.0, 0.15, progress);
-	float urgency = smoothstep(0.6, 1.0, progress);
-
-	// A rim that tightens and brightens as the hit nears.
-	float rim_width = mix(0.35, 0.16, urgency);
-	float rim = 1.0 - smoothstep(0.0, rim_width, d);
-	// The fill front: where t meets progress. Behind it the zone is "spent".
-	float organic = (style == 2) ? (fbm(local_xz * 0.8) - 0.5) * 0.18 : 0.0;
-	float front_t = progress + organic;
-	float behind = 1.0 - smoothstep(front_t - 0.015, front_t + 0.015, t);
-	float front = exp(-abs(t - front_t) * 45.0) * (progress < 0.999 ? 1.0 : 0.0);
-
 	vec3 color = tint.rgb;
-	float alpha = 0.06 + behind * 0.14;
-	if (style == 2) {
-		vec4 pat = themed(local_xz, t);
-		color = mix(tint.rgb, pat.rgb, behind);
-		alpha = 0.08 + behind * pat.a * 0.85;
+	float alpha = 0.0;
+	float glow = 1.0;
+	if (style == 0) {
+		// Classic: what the old two-mesh decal drew - a dim zone, a brighter fill growing
+		// through it, brightening towards the hit.
+		float grown = 1.0 - smoothstep(progress - 0.01, progress + 0.01, t);
+		alpha = max(0.22, grown * 0.5);
+		glow = mix(1.2, 2.4, progress);
+	} else {
+		float reveal = (style == 3) ? smoothstep(0.45, 0.7, progress) : smoothstep(0.0, 0.15, progress);
+		float urgency = smoothstep(0.6, 1.0, progress);
+
+		// A rim that tightens and brightens as the hit nears.
+		float rim_width = mix(0.35, 0.16, urgency);
+		float rim = 1.0 - smoothstep(0.0, rim_width, d);
+		// The fill front: where t meets progress. Behind it the zone is "spent".
+		float organic = (style == 2) ? (fbm(local_xz * 0.8) - 0.5) * 0.18 : 0.0;
+		float front_t = progress + organic;
+		float behind = 1.0 - smoothstep(front_t - 0.015, front_t + 0.015, t);
+		float front = exp(-abs(t - front_t) * 45.0) * (progress < 0.999 ? 1.0 : 0.0);
+
+		alpha = 0.06 + behind * 0.14;
+		if (style == 2) {
+			vec4 pat = themed(local_xz, t);
+			color = mix(tint.rgb, pat.rgb, behind);
+			alpha = 0.08 + behind * pat.a * 0.85;
+		}
+		alpha = max(alpha, rim * mix(0.55, 0.95, urgency));
+		alpha = max(alpha, front * 0.85);
+		color = mix(color, vec3(1.0), front * 0.35 + rim * urgency * 0.25);
+		alpha *= reveal;
+		glow = 1.0 + urgency * 0.6;
 	}
-	alpha = max(alpha, rim * mix(0.55, 0.95, urgency));
-	alpha = max(alpha, front * 0.85);
-	color = mix(color, vec3(1.0), front * 0.35 + rim * urgency * 0.25);
 
 	// The moment it lands: a bright flash over the whole zone.
 	color = mix(color, vec3(1.0, 1.0, 0.95), flash * 0.5);
 	alpha = max(alpha, flash * 0.7);
 
-	ALBEDO = color * (1.0 + urgency * 0.6 + flash);
-	ALPHA = clamp(alpha * inside * reveal * fade, 0.0, 1.0);
+	ALBEDO = color * (glow + flash);
+	ALPHA = clamp(alpha * inside * fade * ground.w, 0.0, 1.0);
 }
