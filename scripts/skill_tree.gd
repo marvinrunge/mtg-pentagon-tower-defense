@@ -409,6 +409,9 @@ func _build_ui() -> void:
 	for guild_data: Dictionary in GUILD_NODES:
 		var guild_info: Dictionary = guild_data.duplicate()
 		guild_info["is_guild"] = true
+		# Every record carries the type flags the detail panel and the purchase path read;
+		# a guild node had none of them and hovering one crashed _show_details.
+		guild_info["is_affinity"] = false
 		guild_info["cost"] = GameSettings.spell_rank_point_cost
 		_create_icon_node(String(guild_info["colors"][0]), GUILD_BRANCH, guild_info)
 
@@ -930,7 +933,7 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	# The two outer nodes used to be exempt, back when they were capstones and the fork
 	# between them was meant to be visible from the start. They are ordinary skills now, so
 	# they are withheld like every other one.
-	if not bool(info["is_affinity"]) and not _node_reachable(player, color, branch_index, info):
+	if not bool(info.get("is_affinity", false)) and not _node_reachable(player, color, branch_index, info):
 		_detail_title.text = "%s - Undiscovered" % COLOR_DISPLAY[color]
 		_detail_title.add_theme_color_override("font_color", COLOR_HEX[color] * Color(1, 1, 1, 0.7))
 		_detail_status.text = "Unlock a connected skill to reveal this"
@@ -973,7 +976,7 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 		_detail_body.text = info["desc"]
 		return
 
-	if bool(info["is_affinity"]):
+	if bool(info.get("is_affinity", false)):
 		var rank: int = player.get_affinity_rank(color)
 		var bonus: float = player.get_affinity_bonus(color) * 100.0
 		var next_bonus: float = _get_next_rank_bonus(rank + 1) * 100.0
@@ -1045,7 +1048,7 @@ func _on_node_pressed(color: String, branch_index: int, info: Dictionary) -> voi
 			SoundBank.play(&"skill_unlock")
 		return
 
-	if bool(info["is_affinity"]):
+	if bool(info.get("is_affinity", false)):
 		if _pay(player, 1):
 			player.invest_affinity(color)
 			update_ui()
