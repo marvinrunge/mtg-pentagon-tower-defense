@@ -269,7 +269,7 @@ Fire Cone's jet.
 | Shockwave: a projected ground front (sharp edge in metres, torn wake, speed lines, a flash at the start, pressed ground behind the edge), a low wall of shoved air riding on it, sparks skidding with it; a sector of it for one-way pushes | `shockwave_ground.gdshader`, `shockwave_wall.gdshader`, `SpellFx.shockwave` | every ring and impact on the ground (Wrath of God, Roar, Frost Breath, Titanic Brawl, Fireball); Unsummon's gust as a 104-degree sector with a taller wall. Small impacts (a hit on a chest) stay rings in the air |
 | Flame jet: three cones of streaming fire tongues (jet, hot core, faint haze), embers as streaks, smoke off the tips, flickering light | `flame_jet.gdshader`, `SpellVisuals.fire_stream` | Fire Cone |
 | Forked bolt | `SpellVisuals.lightning_strike` | Lightning Bolt, re-struck twice as it flickers |
-| Ice spikes | `BossTell` ice_spikes | Frost Breath (ring), Wall of Frost (along the wall) |
+| Ice spikes | `BossTell` ice_spikes | Frost Breath (ring) |
 
 The persistent buff state travels as `Player.status_fx`, a bit set the server keeps and
 replicates with the vitals - a client's own spells resolve on the host, so its own timers

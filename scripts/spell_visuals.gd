@@ -627,19 +627,13 @@ static func frost_breath(radius: float) -> Node3D:
 	return root
 
 
-## Wall of Frost going up: ice spikes erupting along its length and a burst of cold mist,
-## so the wall arrives instead of appearing.
+## Wall of Frost going up: bursts of cold mist along its length, so the wall arrives instead
+## of appearing. The wall's own model carries the ice; spikes on top of it were clutter.
 static func frost_wall_rise(length: float, facing: Vector3) -> Node3D:
 	var root := Node3D.new()
 	root.name = "FrostWallRise"
 	root.tree_entered.connect(func() -> void:
 		var across := Vector3(-facing.z, 0.0, facing.x)
-		var start: Vector3 = root.global_position - across * length * 0.5
-		BossTell.spawn(root.get_parent(), {
-			"tell": "ice_spikes", "at": start, "yaw": atan2(across.x, across.z),
-			"length": length, "width": 1.6, "windup": 0.2,
-			"shape": AttackIndicator.Shape.LINE,
-		})
 		for i: int in range(3):
 			var mist: GPUParticles3D = dust_ring(1.6, 1.1, Color(0.85, 0.94, 1.0))
 			root.add_child(mist)
