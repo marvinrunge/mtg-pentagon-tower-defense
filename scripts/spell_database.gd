@@ -31,8 +31,8 @@ const ICON_FILES: Dictionary = {
 	"white": "white.png", "blue": "blue.jpg", "black": "black.png", "red": "red.png", "green": "green.png",
 	"white_1": "exalted-strike.png", "white_2": "circle-of-protection.png", "white_3": "reprisal-ward.png",
 	"white_4": "wrath-of-god.png", "white_5": "rally-the-fallen.png", "blue_1": "unsummon.png",
-	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": "frost-globe.png", "blue_5": "flying.png",
-	"black_1": "doom-blade.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
+	"blue_2": "frostwave.png", "blue_3": "suction.png", "blue_4": "wall-of-frost.png", "blue_5": "displace.png",
+	"black_1": "doom-blade.png", "black_2": "contagion.png", "black_3": "kill.png", "black_4": "wall-of-souls.png",
 	"black_5": "zombify.png", "red_1": "fireball.png", "red_2": "fire-dash.png", "red_3": "rain-of-ember.png",
 	"red_4": "fire-cone.png", "red_5": "lightning-bolt.png", "green_1": "titanic-leap.png",
 	"green_2": "giant-growth.png", "green_3": "fog.png", "flight": "flying.png", "haste": "haste.png",
@@ -42,7 +42,9 @@ const ICON_FILES: Dictionary = {
 	"aura_rhystic_study": "rhystic-study.png", "aura_orb_of_frost": "orb-of-frost.png",
 	"aura_phyrexian_arena": "phyrexian-arena.png", "aura_grave_pact": "grave-pact.png",
 	"aura_fervor": "fervor.png", "aura_orb_of_fire": "orb-of-fire.png",
-	"aura_trample": "trample.png",
+	"aura_trample": "trample.png", "aura_kodamas_reach": "kodamas-reach.png",
+	"guild_azorius": "guild-azorius.png", "guild_dimir": "guild-dimir.png", "guild_rakdos": "guild-rakdos.png",
+	"guild_gruul": "guild-gruul.png", "guild_selesnya": "guild-selesnya.png",
 }
 
 ## Per-spell definition.
