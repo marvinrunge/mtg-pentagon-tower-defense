@@ -376,9 +376,9 @@ func _fireball_blast_visuals() -> void:
 	get_tree().current_scene.add_child(scorch)
 	scorch.global_position = ground.origin
 	# The blast front running out along the ground.
-	var ring: MeshInstance3D = SpellFx.shockwave(Color(0.85, 0.38, 0.12), radius * 1.3, 0.35)
+	var ring: Node3D = SpellFx.shockwave(Color(0.85, 0.38, 0.12), radius * 1.3, 0.35)
 	get_tree().current_scene.add_child(ring)
-	ring.global_transform = ground
+	ring.global_position = ground.origin
 	# Its own burst rather than the giant's landing thud, which is what it used to
 	# borrow: a fireball detonating and a body hitting the ground are not the same event.
 	SoundBank.play_at(&"spell_fireball_impact", global_position)

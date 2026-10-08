@@ -252,7 +252,8 @@ All 25 spells now go through **`SpellVisuals`** (`scripts/spell_visuals.gd`) - o
 per spell, reached by `NetFx.spell(id, at, size, peer, dir)` so every peer builds the effect
 locally from a few numbers. `tools/tests/spell_showcase.tscn` casts every spell on the light
 stage and writes one sheet per colour (about 80 s for all five); it is how each of the looks
-below was judged.
+below was judged. `tools/tests/wave_shot.tscn` is the close-up for the shockwave, the gust and
+Fire Cone's jet.
 
 | Piece | Where | Used by |
 |---|---|---|
@@ -265,6 +266,8 @@ below was judged.
 | Void blade | `void_blade.gdshader` | Doom Blade's crescent |
 | Zone ground (burnt veins, sludge, holy pool, damp) | `zone_ground.gdshader` | every DoTZone - the hard CSG octagon is gone |
 | Fire and smoke flipbooks | `ExplosionFx.flipbook_particles` | zone flames, falling fire in Rain of Ember, Fire Cone's stream, fog banks, dust, black smoke |
+| Shockwave: a projected ground front (sharp edge in metres, torn wake, speed lines, a flash at the start, pressed ground behind the edge), a low wall of shoved air riding on it, sparks skidding with it; a sector of it for one-way pushes | `shockwave_ground.gdshader`, `shockwave_wall.gdshader`, `SpellFx.shockwave` | every ring and impact on the ground (Wrath of God, Roar, Frost Breath, Titanic Brawl, Fireball); Unsummon's gust as a 104-degree sector with a taller wall. Small impacts (a hit on a chest) stay rings in the air |
+| Flame jet: three cones of streaming fire tongues (jet, hot core, faint haze), embers as streaks, smoke off the tips, flickering light | `flame_jet.gdshader`, `SpellVisuals.fire_stream` | Fire Cone |
 | Forked bolt | `SpellVisuals.lightning_strike` | Lightning Bolt, re-struck twice as it flickers |
 | Ice spikes | `BossTell` ice_spikes | Frost Breath (ring), Wall of Frost (along the wall) |
 

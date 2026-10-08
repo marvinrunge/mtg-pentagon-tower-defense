@@ -2805,14 +2805,9 @@ func _drop_channel_fx() -> void:
 		_channel_voice.stop()
 		_channel_voice.queue_free()
 	_channel_voice = null
-	if is_instance_valid(_channel_fx):
-		# Emission off rather than freed, so the flames already in the air burn out
-		# instead of blinking away mid-frame.
-		_channel_fx.emitting = false
-		var doomed: Node3D = _channel_fx
-		get_tree().create_timer(1.2).timeout.connect(func() -> void:
-			if is_instance_valid(doomed):
-				doomed.queue_free())
+	# Guttered out rather than freed, so the flames already in the air burn out instead of
+	# blinking away mid-frame. The stream frees itself.
+	SpellVisuals.stop_stream(_channel_fx)
 	_channel_fx = null
 
 

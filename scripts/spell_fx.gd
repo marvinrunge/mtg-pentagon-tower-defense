@@ -22,6 +22,8 @@ extends RefCounted
 ## decision. Everything that genuinely needs authored art is listed under TEXTURES below.
 
 const SHOCKWAVE_SHADER := "res://assets/shaders/shockwave.gdshader"
+const SHOCKWAVE_GROUND_SHADER := "res://assets/shaders/shockwave_ground.gdshader"
+const SHOCKWAVE_WALL_SHADER := "res://assets/shaders/shockwave_wall.gdshader"
 const BEAM_SHADER := "res://assets/shaders/energy_beam.gdshader"
 
 ## Drawn AFTER Sky3D's fog, which is the single reason spell effects looked washed out
@@ -173,6 +175,33 @@ static func premul_particle_mesh(size: float, slot: String) -> QuadMesh:
 	return mesh
 
 
+## A streak of light for particles that fly fast: two quads crossed along the particle's Y,
+## so with `particle_flag_align_y` it lies along the travel and reads from any side.
+##
+## Not a billboard: a billboarded particle keeps its Y pointing up the SCREEN whatever
+## align_y says, which drew every gust streak and skidding spark as a vertical tick.
+static func streak_mesh(width: float, length: float, slot: String = "spark") -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var h: float = length * 0.5
+	var w: float = width * 0.5
+	for side: Vector3 in [Vector3.RIGHT, Vector3.BACK]:
+		var corners: Array = [
+			[-side * w + Vector3.DOWN * h, Vector2(0.0, 1.0)], [side * w + Vector3.DOWN * h, Vector2(1.0, 1.0)],
+			[side * w + Vector3.UP * h, Vector2(1.0, 0.0)], [-side * w + Vector3.UP * h, Vector2(0.0, 0.0)],
+		]
+		for index: int in [0, 1, 2, 0, 2, 3]:
+			st.set_color(Color.WHITE)
+			st.set_uv(corners[index][1])
+			st.add_vertex(corners[index][0])
+	var mesh: ArrayMesh = st.commit()
+	var material := (premul_particle_mesh(width, slot).material as StandardMaterial3D).duplicate() as StandardMaterial3D
+	material.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh.surface_set_material(0, material)
+	return mesh
+
+
 static func _curve_texture(points: Array) -> CurveTexture:
 	var curve := Curve.new()
 	for point: Vector2 in points:
@@ -184,38 +213,181 @@ static func _curve_texture(points: Array) -> CurveTexture:
 
 # --- the shapes ----------------------------------------------------------------
 
-## A wave running outward along the ground, at the radius the spell actually used.
+## A front of force running outward along the ground, at the radius the spell actually used.
 ##
-## The ring EXPANDS through a shader uniform rather than by scaling the node, which is the
-## whole difference from the torus this replaces: a scaled ring gets thicker as it grows
-## and reads as a balloon, while a travelling band keeps its width and reads as a front.
-## It is also flat, so it hugs the ground the effect is happening on.
-## `upright` turns the ground wave on its edge: a ring standing across the direction of
-## travel, which is what a pressure front looks like from behind it. Used by `gust`.
+## Two layers: the wave on the ground itself (shockwave_ground.gdshader, projected onto the
+## real surface so it rolls over slopes), and a low wall of shoved air riding on its edge
+## (shockwave_wall.gdshader) that gives it height from any camera angle. Both are keyed to
+## one `progress`, tweened fast out of the centre and easing off - a front losing energy.
+##
+## The edge is a fixed width in metres, not a share of the radius: the old flat ring's band
+## grew with it, so a Wrath of God front was a two-metre glowing tube.
+##
+## `arc_half` limits the wave to a sector round the node's -Z, for a push that goes one way
+## (Unsummon); PI is the full circle. A wave started well above the ground - a hit on an
+## enemy's chest - has no ground to run along and stays a ring in the air (_air_ring).
 static func shockwave(tint: Color, radius: float, duration: float = 0.45,
-		upright: bool = false) -> MeshInstance3D:
+		arc_half: float = PI, wall_height: float = -1.0, on_ground: bool = true) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Shockwave"
+	# Deferred one frame: callers place the node AFTER add_child, so inside tree_entered it
+	# is still at the origin and the ground check would test the wrong spot.
+	root.tree_entered.connect(func() -> void:
+		(func() -> void:
+			if not is_instance_valid(root):
+				return
+			if on_ground:
+				_start_wave(root, tint, radius, duration, arc_half, wall_height)
+			else:
+				root.add_child(_air_ring(tint, radius, duration))
+				root.get_tree().create_timer(duration + 0.1).timeout.connect(root.queue_free)).call_deferred(),
+		CONNECT_ONE_SHOT)
+	return root
+
+
+## How far above the ground a wave may start and still run along it. Gusts are spawned at
+## chest height on purpose (their particles fly there), so this is generous.
+const GROUND_WAVE_REACH := 1.4
+
+
+static func _start_wave(root: Node3D, tint: Color, radius: float, duration: float,
+		arc_half: float, wall_height: float) -> void:
+	var space: PhysicsDirectSpaceState3D = root.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		root.global_position + Vector3(0.0, 0.3, 0.0),
+		root.global_position - Vector3(0.0, GROUND_WAVE_REACH, 0.0), 17)
+	var hit: Dictionary = space.intersect_ray(query)
+	if hit.is_empty():
+		root.add_child(_air_ring(tint, radius, duration))
+		root.get_tree().create_timer(duration + 0.1).timeout.connect(root.queue_free)
+		return
+	# The wave sits ON the ground under the point, however high above it the point was.
+	var holder := Node3D.new()
+	root.add_child(holder)
+	holder.global_position = hit["position"]
+
+	var ground := ShaderMaterial.new()
+	ground.shader = load(SHOCKWAVE_GROUND_SHADER) as Shader
+	ground.set_shader_parameter("tint", tint)
+	ground.set_shader_parameter("radius", radius)
+	ground.set_shader_parameter("edge_width", clampf(radius * 0.05, 0.2, 0.55))
+	ground.set_shader_parameter("wake_length", clampf(radius * 0.4, 0.8, 4.0))
+	ground.set_shader_parameter("arc_half", arc_half)
+	ground.set_shader_parameter("seed", randf() * 100.0)
+	holder.add_child(SpellVisuals.projected_volume(radius * 1.08, ground,
+		clampf(radius * 0.3, 0.5, 3.0), clampf(radius * 0.5, 1.0, 6.0)))
+
+	var height: float = wall_height if wall_height > 0.0 else clampf(radius * 0.16, 0.45, 1.6)
+	# A wall asked for by height is the point of the effect (a gust's front) and keeps most of
+	# it; a ground wave's wall sinks as the wave runs out of strength.
+	var settle: float = 0.7 if wall_height > 0.0 else 0.35
+	var wall := MeshInstance3D.new()
+	var span: float = minf(arc_half * 2.0, TAU)
+	wall.mesh = _arc_wall_mesh(span)
+	wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var air := ShaderMaterial.new()
+	air.shader = load(SHOCKWAVE_WALL_SHADER) as Shader
+	air.render_priority = FX_RENDER_PRIORITY
+	air.set_shader_parameter("tint", tint)
+	air.set_shader_parameter("arc_fraction", span / TAU)
+	air.set_shader_parameter("streak_cells", clampf(radius * span * 1.4, 6.0, 90.0))
+	air.set_shader_parameter("seed", randf() * 100.0)
+	wall.material_override = air
+	wall.scale = Vector3(0.05, height, 0.05)
+	holder.add_child(wall)
+
+	holder.add_child(_edge_sparks(tint, radius, duration, arc_half))
+
+	var tween: Tween = root.create_tween()
+	tween.tween_method(func(t: float) -> void:
+		ground.set_shader_parameter("progress", t)
+		var r: float = maxf(t * radius, 0.05)
+		wall.scale = Vector3(r, height * lerpf(1.0, settle, t), r)
+		air.set_shader_parameter("fade", 1.0 - smoothstep(0.45, 1.0, t)),
+		0.0, 1.0, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_method(func(v: float) -> void: ground.set_shader_parameter("fade", v), 1.0, 0.0, 0.15)
+	tween.tween_callback(root.queue_free)
+
+
+## Sparks skidding along the ground with the front - fast out of the centre and braked to a
+## stop at about the wave's radius, the way the wave itself eases off. Streaked along their
+## travel, so they read as grit thrown by the wave rather than as floating points.
+static func _edge_sparks(tint: Color, radius: float, duration: float, arc_half: float) -> GPUParticles3D:
+	var sparks := GPUParticles3D.new()
+	sparks.name = "EdgeSparks"
+	sparks.amount = clampi(int(radius * 10.0 * arc_half / PI), 10, 90)
+	sparks.lifetime = duration * 1.3
+	sparks.one_shot = true
+	sparks.explosiveness = 1.0
+	sparks.local_coords = false
+	sparks.draw_pass_1 = streak_mesh(0.14, 1.0)
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	process.emission_sphere_radius = 0.2
+	process.direction = Vector3.FORWARD
+	process.spread = rad_to_deg(arc_half) * 0.9
+	process.flatness = 1.0
+	# Out to the radius in about the wave's own time: v0 = 2r/T, braked by v0/T.
+	var speed: float = 2.0 * radius / maxf(duration, 0.05)
+	process.initial_velocity_min = speed * 0.75
+	process.initial_velocity_max = speed
+	process.damping_min = speed / duration
+	process.damping_max = speed / duration
+	process.particle_flag_align_y = true
+	process.scale_min = 0.6
+	process.scale_max = 1.2
+	process.scale_curve = _curve_texture([Vector2(0.0, 1.0), Vector2(0.7, 0.6), Vector2(1.0, 0.0)])
+	process.color_ramp = _premul_ramp(tint)
+	sparks.process_material = process
+	sparks.position.y = 0.12
+	return sparks
+
+
+## An open wall round the origin: radius 1, height 1, `span` radians wide and centred on -Z.
+## UV.x runs along it, UV.y up it. Normals point outward.
+static func _arc_wall_mesh(span: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var segments: int = maxi(8, int(span / TAU * 64.0))
+	for i: int in range(segments):
+		var t0: float = float(i) / float(segments)
+		var t1: float = float(i + 1) / float(segments)
+		var a0: float = -span * 0.5 + span * t0
+		var a1: float = -span * 0.5 + span * t1
+		# Angle measured from -Z, so the middle of the arc faces the node's forward.
+		var d0 := Vector3(sin(a0), 0.0, -cos(a0))
+		var d1 := Vector3(sin(a1), 0.0, -cos(a1))
+		var quad: Array = [
+			[d0, Vector2(t0, 0.0), d0], [d1, Vector2(t1, 0.0), d1], [d1 + Vector3.UP, Vector2(t1, 1.0), d1],
+			[d0, Vector2(t0, 0.0), d0], [d1 + Vector3.UP, Vector2(t1, 1.0), d1], [d0 + Vector3.UP, Vector2(t0, 1.0), d0],
+		]
+		for v: Array in quad:
+			st.set_uv(v[1])
+			st.set_normal(v[2])
+			st.add_vertex(v[0])
+	return st.commit()
+
+
+## The old flat ring, for a wave with no ground under it: a band expanding on a quad laid
+## level, thin so it reads as a ripple in the air rather than a disc.
+static func _air_ring(tint: Color, radius: float, duration: float) -> MeshInstance3D:
 	var wave := MeshInstance3D.new()
-	wave.name = "Shockwave"
+	wave.name = "AirRing"
 	var quad := QuadMesh.new()
 	# The shader fades everything past 0.7 of the quad, so the quad is oversized to let
 	# the band reach the requested radius before it goes.
 	quad.size = Vector2(radius * 2.6, radius * 2.6)
-	# QuadMesh already stands upright in XY; a ground wave is the one that gets laid down.
-	if not upright:
-		quad.orientation = PlaneMesh.FACE_Y
+	quad.orientation = PlaneMesh.FACE_Y
 	wave.mesh = quad
-
 	var material := ShaderMaterial.new()
 	material.shader = load(SHOCKWAVE_SHADER) as Shader
 	material.render_priority = FX_RENDER_PRIORITY
 	material.set_shader_parameter("tint", tint)
 	material.set_shader_parameter("progress", 0.0)
+	material.set_shader_parameter("thickness", 0.1)
 	wave.material_override = material
-
 	wave.tree_entered.connect(func() -> void:
 		var tween: Tween = wave.create_tween()
-		# Fast out of the caster and easing off as it loses energy - a front decelerating
-		# is most of what sells it as one.
 		tween.tween_method(
 			func(value: float) -> void: material.set_shader_parameter("progress", value),
 			0.0, 1.0, duration
@@ -319,14 +491,14 @@ static func sparks(tint: Color, radius: float, amount: int, speed: float = 6.0,
 ##
 ## Two layers, the same split that makes EmberFx's fire work: fast hard particles for the
 ## force, slow soft ones for the air it drags with it.
-static func gust(length: float, tint: Color, slot: String = "shard") -> Node3D:
+static func gust(length: float, tint: Color) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Gust"
 
-	# The front: a ring standing across the direction of travel that both EXPANDS and moves
-	# away. Together those two are what read as pressure - the particles alone read as
-	# debris being thrown, which is a different event.
-	var front: MeshInstance3D = shockwave(tint, length * 0.35, 0.4, true)
+	# The front: the shockwave held to the cone the push actually covers, its wall of air
+	# taller than a ground wave's - this is the thing doing the shoving. A ring standing
+	# across the path used to stand in for it, and read as a white arch.
+	var front: Node3D = shockwave(tint, length, 0.42, deg_to_rad(52.0), 1.9)
 	root.add_child(front)
 
 	var blast := GPUParticles3D.new()
@@ -339,7 +511,9 @@ static func gust(length: float, tint: Color, slot: String = "shard") -> Node3D:
 	# Small. At half a unit these read as ice crystals hanging in the air rather than as
 	# air being displaced - the shape stops mattering once something is moving this fast,
 	# and the size is what decides whether it is debris or wind.
-	blast.draw_pass_1 = premul_particle_mesh(0.22, slot)
+	# Long thin streaks rather than shards: at this speed what reads as wind is a
+	# line of motion, and a shard sliding along only reads as a shard.
+	blast.draw_pass_1 = streak_mesh(0.09, 1.2)
 	var driven := ParticleProcessMaterial.new()
 	# A narrow slab at the caster rather than a point, so the front has width from the
 	# start instead of visibly fanning out of one spot.
@@ -403,12 +577,8 @@ static func gust(length: float, tint: Color, slot: String = "shard") -> Node3D:
 
 	root.tree_entered.connect(func() -> void:
 		var tween: Tween = root.create_tween()
-		# look_at aims -Z at the target, so forward is NEGATIVE Z in the root's own space.
-		# The front travels most of the range while it expands; it is freed by its own
-		# tween, so this one only has to outlive the trip.
-		tween.tween_property(front, "position:z", -length * 0.75, 0.4) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.parallel().tween_property(flash, "light_energy", 0.0, 0.2)
+		# The front is freed by its own tween, so this one only has to outlive the trip.
+		tween.tween_property(flash, "light_energy", 0.0, 0.2)
 		tween.tween_interval(0.9)
 		tween.tween_callback(root.queue_free), CONNECT_ONE_SHOT)
 	return root
@@ -422,7 +592,9 @@ static func gust(length: float, tint: Color, slot: String = "shard") -> Node3D:
 static func impact(tint: Color, radius: float, slot: String = "spark") -> Node3D:
 	var root := Node3D.new()
 	root.name = "SpellImpact"
-	root.add_child(shockwave(tint, radius))
+	# A small impact is a hit on something - a chest, a shield - and its ring belongs in the
+	# air where the hit happened; only a blast big enough to be about the ground runs along it.
+	root.add_child(shockwave(tint, radius, 0.45, PI, -1.0, radius >= 1.5))
 	root.add_child(sparks(tint, radius, 28, radius * 1.6, slot))
 
 	var flash := OmniLight3D.new()

@@ -21,6 +21,7 @@ const SHIELD_DOME_SHADER: Shader = preload("res://assets/shaders/shield_dome.gds
 const GROUND_CRACKS_SHADER: Shader = preload("res://assets/shaders/ground_cracks.gdshader")
 const GROUND_SLASH_SHADER: Shader = preload("res://assets/shaders/ground_slash.gdshader")
 const VOID_BLADE_SHADER: Shader = preload("res://assets/shaders/void_blade.gdshader")
+const FLAME_JET_SHADER: Shader = preload("res://assets/shaders/flame_jet.gdshader")
 
 ## The rune figure each colour draws in its circles (magic_circle.gdshader's `pattern`).
 const CIRCLE_PATTERN: Dictionary = {"white": 0, "blue": 1, "black": 2, "red": 3, "green": 4}
@@ -77,7 +78,6 @@ static func play(scene: Node, payload: Dictionary, owner: Node3D) -> void:
 			_on_ground(scene, rising_motes(Player.FX_WHITE, 0.9, 30, 1.4), at)
 		"blue_1":
 			_on_ground(scene, magic_circle("blue", Player.FX_BLUE, 1.3, 0.3, 0.12, 1.5), at)
-			_on_ground(scene, wind_cone(size, Player.FX_BLUE, _flat(payload)), at + Vector3(0.0, 1.0, 0.0))
 		"blue_2":
 			_on_ground(scene, frost_breath(size), at)
 		"blue_3":
@@ -606,45 +606,6 @@ static func roar(radius: float) -> Node3D:
 
 # --- blue ----------------------------------------------------------------------
 
-## A cone of moving air: streaks pouring away from the caster along `facing`, widening to
-## the edge of the push. Drawn with the light pillar's streaks on a cone laid on its side.
-static func wind_cone(length: float, tint: Color, facing: Vector3) -> Node3D:
-	var root := Node3D.new()
-	root.name = "WindCone"
-	var cone := CylinderMesh.new()
-	cone.top_radius = 0.35
-	cone.bottom_radius = length * 0.38
-	cone.height = length * 0.8
-	cone.cap_top = false
-	cone.cap_bottom = false
-	cone.radial_segments = 24
-	cone.rings = 1
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = cone
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# The cylinder stands along +Y; laid along -Z (forward), its narrow top at the caster.
-	mesh.rotation.x = -PI * 0.5
-	mesh.position.z = -length * 0.4
-	var material := ShaderMaterial.new()
-	material.shader = LIGHT_PILLAR_SHADER
-	material.render_priority = SpellFx.FX_RENDER_PRIORITY
-	material.set_shader_parameter("tint", tint)
-	material.set_shader_parameter("glow", 0.7)
-	material.set_shader_parameter("cover", 0.03)
-	material.set_shader_parameter("flow", 5.0)
-	material.set_shader_parameter("seed", randf() * 100.0)
-	mesh.material_override = material
-	root.add_child(mesh)
-	root.tree_entered.connect(func() -> void:
-		root.look_at(root.global_position + facing, Vector3.UP)
-		var tween: Tween = root.create_tween()
-		root.scale = Vector3(0.3, 0.3, 0.2)
-		tween.tween_property(root, "scale", Vector3.ONE, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tween.tween_method(_setter(material, "fade"), 1.0, 0.0, 0.22)
-		tween.tween_callback(root.queue_free), CONNECT_ONE_SHOT)
-	return root
-
-
 ## Frost Breath: ice breaking out of the ground in a ring around the caster, a cold mist
 ## rolling out with it, and a frost wave running to the edge of the freeze.
 static func frost_breath(radius: float) -> Node3D:
@@ -903,29 +864,166 @@ static func flame_burst(radius: float) -> GPUParticles3D:
 	return flames
 
 
-## A stream of fire poured along -Z for as long as it emits - Fire Cone's channel.
-static func fire_stream(length: float) -> GPUParticles3D:
-	var stream := ExplosionFx.flipbook_particles(ExplosionFx.FIRE_FLIPBOOK, 1.5, 70, 0.6)
-	stream.one_shot = false
-	stream.local_coords = false
-	var process: ParticleProcessMaterial = stream.process_material
-	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	process.emission_sphere_radius = 0.15
-	process.direction = Vector3(0.0, 0.0, -1.0)
-	process.spread = 16.0
-	process.initial_velocity_min = length * 1.6
-	process.initial_velocity_max = length * 2.2
-	process.damping_min = length * 1.2
-	process.damping_max = length * 1.8
-	process.gravity = Vector3(0.0, 1.5, 0.0)
-	process.scale_min = 0.6
-	process.scale_max = 1.0
-	# Small at the hands, a wall of fire by the end of the cone.
-	process.scale_curve = SpellFx._curve_texture([Vector2(0.0, 0.2), Vector2(0.4, 1.2), Vector2(1.0, 2.6)])
-	var ramp := GradientTexture1D.new()
-	ramp.gradient = EmberFx.fire_gradient()
-	process.color_ramp = ramp
-	return stream
+## Fire Cone's channel: a jet of fire poured along -Z from the node for as long as it stands,
+## `length` long. Stop it with `stop_stream`, which lets it gutter out instead of vanishing.
+##
+## Layers: three flame-jet cones (flame_jet.gdshader) - the jet, a narrower, shorter, hotter
+## core inside it, and a wide faint haze around it - then embers streaking out, smoke climbing
+## off the tips, and a light that flickers with it. No flipbook billows: at the jet's speed
+## they read as orange balls thrown along it, not as fire.
+static func fire_stream(length: float) -> Node3D:
+	var root := Node3D.new()
+	root.name = "FireStream"
+	var outer_material := _flame_jet_material(1.0, 2.2, 2.2)
+	var inner_material := _flame_jet_material(0.62, 2.6, 2.8)
+	var outer := MeshInstance3D.new()
+	outer.name = "Jet"
+	outer.mesh = _cone_mesh(0.15, length * 0.3, length)
+	outer.material_override = outer_material
+	outer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(outer)
+	var inner := MeshInstance3D.new()
+	inner.name = "Core"
+	inner.mesh = _cone_mesh(0.08, length * 0.14, length * 0.7)
+	inner.material_override = inner_material
+	inner.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(inner)
+
+	# A wide, soft outer layer: the heat haze of flame around the jet, so its silhouette is
+	# fire thinning into air rather than the edge of a cone.
+	var haze_material := _flame_jet_material(1.1, 1.6, 1.8)
+	haze_material.set_shader_parameter("density", 0.45)
+	var haze := MeshInstance3D.new()
+	haze.name = "Haze"
+	haze.mesh = _cone_mesh(0.3, length * 0.42, length * 1.05)
+	haze.material_override = haze_material
+	haze.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(haze)
+
+	var embers: GPUParticles3D = SpellFx.sparks(Color(1.0, 0.6, 0.2), 0.3, 40, length * 2.2)
+	embers.name = "Embers"
+	embers.one_shot = false
+	embers.explosiveness = 0.0
+	embers.lifetime = 0.6
+	var ep: ParticleProcessMaterial = embers.process_material
+	ep.direction = Vector3(0.0, 0.0, -1.0)
+	ep.spread = 26.0
+	ep.gravity = Vector3(0.0, 1.5, 0.0)
+	ep.particle_flag_align_y = true
+	embers.draw_pass_1 = SpellFx.streak_mesh(0.08, 0.45)
+	root.add_child(embers)
+
+	var smoke: GPUParticles3D = ExplosionFx.flipbook_particles(ExplosionFx.SMOKE_FLIPBOOK, 2.4, 10, 1.6)
+	smoke.name = "Smoke"
+	smoke.one_shot = false
+	smoke.local_coords = false
+	var sp: ParticleProcessMaterial = smoke.process_material
+	sp.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	sp.emission_box_extents = Vector3(length * 0.3, 0.3, length * 0.15)
+	sp.direction = Vector3.UP
+	sp.spread = 20.0
+	sp.initial_velocity_min = 0.6
+	sp.initial_velocity_max = 1.4
+	sp.gravity = Vector3(0.0, 0.8, 0.0)
+	sp.scale_curve = SpellFx._curve_texture([Vector2(0.0, 0.4), Vector2(1.0, 1.5)])
+	var smoke_gradient := Gradient.new()
+	smoke_gradient.set_color(0, Color(0.16, 0.1, 0.08, 0.0))
+	smoke_gradient.add_point(0.2, Color(0.16, 0.1, 0.08, 0.45))
+	smoke_gradient.set_color(smoke_gradient.get_point_count() - 1, Color(0.2, 0.17, 0.15, 0.0))
+	var smoke_ramp := GradientTexture1D.new()
+	smoke_ramp.gradient = smoke_gradient
+	sp.color_ramp = smoke_ramp
+	smoke.position = Vector3(0.0, 0.4, -length * 0.85)
+	root.add_child(smoke)
+
+	var light := OmniLight3D.new()
+	light.name = "Light"
+	light.light_color = Color(1.0, 0.55, 0.2)
+	light.light_energy = 0.0
+	light.omni_range = length * 1.1
+	light.position = Vector3(0.0, 0.0, -length * 0.45)
+	root.add_child(light)
+
+	root.tree_entered.connect(func() -> void:
+		var tween: Tween = root.create_tween()
+		# Catches in a fifth of a second rather than switching on.
+		tween.tween_method(func(v: float) -> void:
+			outer_material.set_shader_parameter("intensity", v)
+			inner_material.set_shader_parameter("intensity", v)
+			haze_material.set_shader_parameter("intensity", v),
+			0.0, 1.0, 0.2)
+		var flicker: Tween = root.create_tween().set_loops()
+		for energy: float in [5.0, 3.2, 4.4, 2.8, 4.8, 3.6]:
+			flicker.tween_property(light, "light_energy", energy, 0.07), CONNECT_ONE_SHOT)
+	return root
+
+
+## Lets a fire stream gutter out: emission stops, the jet thins to nothing, and the node frees
+## itself once the last of its particles has burned out.
+static func stop_stream(stream: Node3D) -> void:
+	if not is_instance_valid(stream):
+		return
+	for child: Node in stream.get_children():
+		if child is GPUParticles3D:
+			(child as GPUParticles3D).emitting = false
+	var materials: Array[ShaderMaterial] = []
+	for jet: String in ["Jet", "Core", "Haze"]:
+		var mesh := stream.get_node_or_null(jet) as MeshInstance3D
+		if mesh != null:
+			materials.append(mesh.material_override as ShaderMaterial)
+	var light := stream.get_node_or_null("Light") as OmniLight3D
+	var tween: Tween = stream.create_tween()
+	tween.tween_method(func(v: float) -> void:
+		for material: ShaderMaterial in materials:
+			material.set_shader_parameter("intensity", v)
+		if light != null:
+			light.light_energy = v * 3.0,
+		1.0, 0.0, 0.3)
+	tween.tween_interval(1.4)
+	tween.tween_callback(stream.queue_free)
+
+
+static func _flame_jet_material(reach: float, glow: float, speed: float) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = FLAME_JET_SHADER
+	material.render_priority = SpellFx.FX_RENDER_PRIORITY
+	material.set_shader_parameter("reach", reach)
+	material.set_shader_parameter("glow", glow)
+	material.set_shader_parameter("speed", speed)
+	material.set_shader_parameter("intensity", 0.0)
+	material.set_shader_parameter("seed", randf() * 100.0)
+	return material
+
+
+## An open cone along -Z: `near_radius` at the origin, `far_radius` at `length`. UV.y runs
+## along it from 0 at the origin, UV.x round it. Normals point outward.
+static func _cone_mesh(near_radius: float, far_radius: float, length: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var around: int = 28
+	var along: int = 8
+	for j: int in range(along):
+		var v0: float = float(j) / float(along)
+		var v1: float = float(j + 1) / float(along)
+		var r0: float = lerpf(near_radius, far_radius, v0)
+		var r1: float = lerpf(near_radius, far_radius, v1)
+		for i: int in range(around):
+			var u0: float = float(i) / float(around)
+			var u1: float = float(i + 1) / float(around)
+			var c0 := Vector2(cos(u0 * TAU), sin(u0 * TAU))
+			var c1 := Vector2(cos(u1 * TAU), sin(u1 * TAU))
+			var p00 := Vector3(c0.x * r0, c0.y * r0, -v0 * length)
+			var p10 := Vector3(c1.x * r0, c1.y * r0, -v0 * length)
+			var p01 := Vector3(c0.x * r1, c0.y * r1, -v1 * length)
+			var p11 := Vector3(c1.x * r1, c1.y * r1, -v1 * length)
+			var n0 := Vector3(c0.x, c0.y, 0.0)
+			var n1 := Vector3(c1.x, c1.y, 0.0)
+			for vert: Array in [[p00, Vector2(u0, v0), n0], [p10, Vector2(u1, v0), n1], [p11, Vector2(u1, v1), n1],
+					[p00, Vector2(u0, v0), n0], [p11, Vector2(u1, v1), n1], [p01, Vector2(u0, v1), n0]]:
+				st.set_uv(vert[1])
+				st.set_normal(vert[2])
+				st.add_vertex(vert[0])
+	return st.commit()
 
 
 ## A forked bolt: a jagged ribbon from `height` down to the node, with a couple of branches,
