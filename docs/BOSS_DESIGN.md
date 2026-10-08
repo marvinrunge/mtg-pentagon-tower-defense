@@ -51,8 +51,8 @@ Two layers, deliberately independent:
   skipped. It is done in the shader rather than with Godot's `Decal` node because `Decal`
   draws nothing in the Compatibility renderer, which the options offer. Hazards (fire, frost)
   and the meteor and leap shadows project the same way, and world-tell spikes are raycast onto
-  the ground one by one. `tools/tests/telegraph_slope_shot.tscn` finds a hillside and renders
-  the widest zones on it.
+  the ground one by one. `tools/tests/telegraph_slope_shot.tscn` renders the widest zones on
+  the flank of a hill.
 - **World tells** (`BossTell`) are part of the attack itself and are shown whatever the
   options say. Only attacks aimed somewhere other than the boss's own feet have one, because
   those are the ones the boss's body cannot announce:
@@ -215,6 +215,10 @@ godot --headless --path . res://tools/tests/boss_soak.tscn
 
 `telegraph_shot.tscn` and `boss_bar_shot.tscn` render the telegraphs and the boss bar to a
 PNG for a look by eye (windowed; on Linux `xvfb-run ... --rendering-driver opengl3` works).
+The effect shots (`telegraph_shot`, `telegraph_styles_shot`, `telegraph_slope_shot`,
+`vfx_audit_shot`, `explosion_shot`) are built on `tools/tests/vfx_stage.gd`, a light stand-in
+for the map - sky, sun, textured ground, a hill and three stones - so they boot in seconds.
+`boss_bar_shot` and `boss_shot` still load `main.tscn`, since they judge the HUD and the map.
 
 Headless runs that load `main.tscn` crash on exit after printing their verdict. Read the
 `TEST RESULT` line, not the exit code.

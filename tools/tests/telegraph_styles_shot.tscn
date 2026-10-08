@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://tools/tests/telegraph_styles_shot.gd" id="1"]
 
-[node name="TelegraphStylesShot" type="Node"]
+[node name="TelegraphStylesShot" type="Node3D"]
 script = ExtResource("1")

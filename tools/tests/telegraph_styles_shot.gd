@@ -1,7 +1,10 @@
-extends Node
+extends "res://tools/tests/vfx_stage.gd"
 ## Compares the telegraph styles side by side: one row per attack, one column per style, the
 ## last column with the ground telegraphs switched off so only the world tells (BossTell) are
 ## left.
+##
+## Shot on the light VfxStage rather than the real map (see vfx_stage.gd): seconds to boot,
+## not minutes.
 ##
 ## Run with (windowed - a headless run draws nothing; on Linux xvfb-run works):
 ##   godot --rendering-driver opengl3 --path . res://tools/tests/telegraph_styles_shot.tscn -- <out.png>
@@ -10,9 +13,6 @@ extends Node
 ## deciding where to go.
 
 const TILE := Vector2i(560, 315)
-## The flat top of the base platform (y=0.5, see boss_shot.gd). Off it the ground rises,
-## and flat telegraphs disappear into the slope.
-const STAGE := Vector3(0.0, 0.5, 18.0)
 const FREEZE_AT := 0.7
 ## [label, attack-indicator style, ground telegraphs shown]
 const COLUMNS: Array = [
@@ -36,32 +36,20 @@ const ROWS: Array = [
 	["Black", "The Hunt", 3, [Vector3(-8, 0, 2)], 0],
 ]
 
-var _frames: int = 0
 var _sheet: Image = null
 var _caption: Label = null
 var _scene: Node = null
 
 
 func _ready() -> void:
-	if get_meta("armed", false):
-		return
-	call_deferred("_boot")
+	build_stage()
+	_start.call_deferred()
 
 
-func _boot() -> void:
-	var shooter: Node = load("res://tools/tests/telegraph_styles_shot.gd").new()
-	shooter.name = "TelegraphStylesShooter"
-	shooter.set_meta("armed", true)
-	get_tree().root.add_child(shooter)
-	get_tree().change_scene_to_file("res://scenes/misc/main.tscn")
-
-
-func _process(_delta: float) -> void:
-	if not get_meta("armed", false):
-		return
-	_frames += 1
-	if _frames == 90:
-		_shoot_all()
+func _start() -> void:
+	for _i: int in range(ready_frames()):
+		await get_tree().physics_frame
+	_shoot_all()
 
 
 class _Stand:

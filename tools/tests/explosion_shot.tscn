@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://tools/tests/explosion_shot.gd" id="1"]
 
-[node name="ExplosionShot" type="Node"]
+[node name="ExplosionShot" type="Node3D"]
 script = ExtResource("1")

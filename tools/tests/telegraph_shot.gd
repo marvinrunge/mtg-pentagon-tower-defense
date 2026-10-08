@@ -1,6 +1,9 @@
-extends Node
+extends "res://tools/tests/vfx_stage.gd"
 ## Photographs the boss telegraphs - every new shape and the ground hazards - as one contact
 ## sheet, so what a player will be asked to read can be judged by eye.
+##
+## Shot on the light VfxStage rather than the real map (see vfx_stage.gd): seconds to boot,
+## not minutes.
 ##
 ## Run with (windowed - a headless run draws nothing; on Linux xvfb-run works):
 ##   godot --rendering-driver opengl3 --path . res://tools/tests/telegraph_shot.tscn -- <out.png>
@@ -11,8 +14,6 @@ extends Node
 
 const TILE := Vector2i(640, 360)
 const COLUMNS := 2
-## The base platform's top is a known flat y=0.5 (see boss_shot.gd).
-const STAGE := Vector3(0.0, 0.5, 18.0)
 
 ## [colour, special display name, phase, stand-in offsets, extra strikes to draw]
 const SHOTS: Array = [
@@ -26,7 +27,6 @@ const SHOTS: Array = [
 	["Black", "The Hunt", 3, [Vector3(-3, 0, 8)], 0],
 ]
 
-var _frames: int = 0
 var _sheet: Image = null
 var _camera: Camera3D = null
 var _caption: Label = null
@@ -34,25 +34,14 @@ var _scene: Node = null
 
 
 func _ready() -> void:
-	if get_meta("armed", false):
-		return
-	call_deferred("_boot")
+	build_stage()
+	_start.call_deferred()
 
 
-func _boot() -> void:
-	var shooter: Node = load("res://tools/tests/telegraph_shot.gd").new()
-	shooter.name = "TelegraphShooter"
-	shooter.set_meta("armed", true)
-	get_tree().root.add_child(shooter)
-	get_tree().change_scene_to_file("res://scenes/misc/main.tscn")
-
-
-func _process(_delta: float) -> void:
-	if not get_meta("armed", false):
-		return
-	_frames += 1
-	if _frames == 90:
-		_shoot_all()
+func _start() -> void:
+	for _i: int in range(ready_frames()):
+		await get_tree().physics_frame
+	_shoot_all()
 
 
 class _Stand:

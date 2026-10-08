@@ -1,6 +1,9 @@
-extends Node
+extends "res://tools/tests/vfx_stage.gd"
 ## Photographs boss telegraphs on a SLOPE, to check they are projected onto the ground rather
 ## than drawn on a flat plane the hill swallows.
+##
+## Shot on the light VfxStage rather than the real map (see vfx_stage.gd): seconds to boot,
+## not minutes.
 ##
 ## Run with (windowed - a headless run draws nothing; on Linux xvfb-run works):
 ##   godot --rendering-driver opengl3 --path . res://tools/tests/telegraph_slope_shot.tscn -- <out.png>
@@ -8,37 +11,24 @@ extends Node
 ## The two renderers rebuild the ground point from depth differently (see
 ## ground_projection.gdshaderinc), so both are worth a look after touching the projection.
 ##
-## Finds its own hillside by raycasting: the spot around the base whose surroundings span the
-## most height within reason. Then stands a Frost Giant there mid Absolute Zero (a 12-unit
-## ring - the widest zone in the game), a Zombie Lord's charge line and a Fire Giant's meteors
-## and burning ground nearby, frozen at 70 % of their windups.
+## Stands a Frost Giant on the flank of the stage hill mid Absolute Zero (a 12-unit ring - the
+## widest zone in the game), a Zombie Lord's charge line and a Fire Giant's meteors and
+## burning ground nearby, frozen at 70 % of their windups.
 
 const FREEZE_AT := 0.7
 
-var _frames: int = 0
 var _scene: Node = null
 
 
 func _ready() -> void:
-	if get_meta("armed", false):
-		return
-	call_deferred("_boot")
+	build_stage()
+	_start.call_deferred()
 
 
-func _boot() -> void:
-	var shooter: Node = load("res://tools/tests/telegraph_slope_shot.gd").new()
-	shooter.name = "TelegraphSlopeShooter"
-	shooter.set_meta("armed", true)
-	get_tree().root.add_child(shooter)
-	get_tree().change_scene_to_file("res://scenes/misc/main.tscn")
-
-
-func _process(_delta: float) -> void:
-	if not get_meta("armed", false):
-		return
-	_frames += 1
-	if _frames == 90:
-		_shoot()
+func _start() -> void:
+	for _i: int in range(ready_frames()):
+		await get_tree().physics_frame
+	_shoot()
 
 
 class _Stand:
@@ -52,38 +42,6 @@ class _Stand:
 		pass
 
 
-func _ground(xz: Vector2) -> Vector3:
-	var space: PhysicsDirectSpaceState3D = (_scene as Node3D).get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(Vector3(xz.x, 200.0, xz.y), Vector3(xz.x, -200.0, xz.y))
-	query.collision_mask = EnemyBase.ENVIRONMENT_LAYER
-	var hit: Dictionary = space.intersect_ray(query)
-	return hit.get("position", Vector3(xz.x, 0.0, xz.y))
-
-
-## The spot near the base where the ground within 10 units spans between 2.5 and 7 metres -
-## a real slope, not a cliff.
-func _find_slope() -> Vector3:
-	var best: Vector3 = Vector3.ZERO
-	var best_span: float = 0.0
-	for ring: float in [32.0, 40.0, 48.0, 56.0]:
-		for step: int in range(24):
-			var a: float = TAU * float(step) / 24.0
-			var center := Vector2(sin(a), cos(a)) * ring
-			var lo: float = INF
-			var hi: float = -INF
-			for k: int in range(8):
-				var b: float = TAU * float(k) / 8.0
-				var y: float = _ground(center + Vector2(sin(b), cos(b)) * 10.0).y
-				lo = minf(lo, y)
-				hi = maxf(hi, y)
-			var span: float = hi - lo
-			if span > best_span and span < 7.0:
-				best_span = span
-				best = _ground(center)
-	print("  slope at %s spans %.1f m" % [best, best_span])
-	return best
-
-
 func _shoot() -> void:
 	_scene = get_tree().current_scene
 	for node: Node in get_tree().get_nodes_in_group("player"):
@@ -95,24 +53,25 @@ func _shoot() -> void:
 		sky.set("game_time_enabled", false)
 		sky.set("current_time", 12.0)
 
-	var spot: Vector3 = _find_slope()
+	# The flank of the stage hill, about 25 degrees steep.
+	var spot: Vector3 = ground_at(Vector2(STAGE_HILL.x + 4.0, STAGE_HILL.z - 3.0))
 	var blue: EnemyBase = _boss("Blue", spot, 3)
-	var near: Node3D = _stand(_ground(Vector2(spot.x + 1.5, spot.z + 1.0)))
+	var near: Node3D = _stand(ground_at(Vector2(spot.x + 1.5, spot.z + 1.0)))
 	blue.current_target = near
 	_begin(blue, "Absolute Zero", 3)
 
-	var black_at: Vector3 = _ground(Vector2(spot.x + 9.0, spot.z - 9.0))
+	var black_at: Vector3 = ground_at(Vector2(spot.x + 9.0, spot.z - 9.0))
 	var black: EnemyBase = _boss("Black", black_at, 3)
-	var weak: Node3D = _stand(_ground(Vector2(black_at.x - 8.0, black_at.z + 3.0)))
+	var weak: Node3D = _stand(ground_at(Vector2(black_at.x - 8.0, black_at.z + 3.0)))
 	(weak as _Stand).hp = 20.0
 	_begin(black, "The Hunt", 3)
 
-	var red_at: Vector3 = _ground(Vector2(spot.x - 12.0, spot.z - 6.0))
+	var red_at: Vector3 = ground_at(Vector2(spot.x - 12.0, spot.z - 6.0))
 	var red: EnemyBase = _boss("Red", red_at, 2)
-	_stand(_ground(Vector2(red_at.x + 4.0, red_at.z + 5.0)))
-	_stand(_ground(Vector2(red_at.x - 3.0, red_at.z + 7.0)))
+	_stand(ground_at(Vector2(red_at.x + 4.0, red_at.z + 5.0)))
+	_stand(ground_at(Vector2(red_at.x - 3.0, red_at.z + 7.0)))
 	_begin(red, "Meteor Strike", 2)
-	_scene.request_effect({"kind": "boss_hazard", "position": _ground(Vector2(red_at.x + 2.0, red_at.z - 4.0)),
+	_scene.request_effect({"kind": "boss_hazard", "position": ground_at(Vector2(red_at.x + 2.0, red_at.z - 4.0)),
 		"style": "fire", "radius": 2.5, "duration": 60.0, "dps": 0.0})
 
 	for boss: EnemyBase in [blue, black, red]:
@@ -129,7 +88,7 @@ func _shoot() -> void:
 	var camera := Camera3D.new()
 	_scene.add_child(camera)
 	var focus: Vector3 = spot + Vector3(-2.0, 0.0, -3.0)
-	camera.global_position = _ground(Vector2(focus.x + 20.0, focus.z + 14.0)) + Vector3(0.0, 13.0, 0.0)
+	camera.global_position = ground_at(Vector2(focus.x + 20.0, focus.z + 14.0)) + Vector3(0.0, 13.0, 0.0)
 	camera.look_at(focus)
 	camera.fov = 62.0
 	camera.current = true

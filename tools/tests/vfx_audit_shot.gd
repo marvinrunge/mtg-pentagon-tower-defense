@@ -1,7 +1,10 @@
-extends Node
+extends "res://tools/tests/vfx_stage.gd"
 ## A contact sheet of the effects most likely to look placeholder - primitive meshes, flat
-## discs, untextured spheres - caught at a chosen moment on the real map, so their look can be
+## discs, untextured spheres - caught at a chosen moment, so their look can be
 ## judged and compared before and after a VFX pass.
+##
+## Shot on the light VfxStage rather than the real map (see vfx_stage.gd): seconds to boot,
+## not minutes.
 ##
 ## Run with (windowed - a headless run draws nothing; on Linux xvfb-run works):
 ##   godot --rendering-driver opengl3 --path . res://tools/tests/vfx_audit_shot.tscn -- <out.png>
@@ -12,10 +15,7 @@ extends Node
 
 const TILE := Vector2i(640, 360)
 const COLUMNS := 2
-## The flat top of the base platform (see telegraph_styles_shot.gd).
-const STAGE := Vector3(0.0, 0.5, 18.0)
 
-var _frames: int = 0
 var _scene: Node = null
 var _camera: Camera3D = null
 var _caption: Label = null
@@ -23,25 +23,14 @@ var _sheet: Image = null
 
 
 func _ready() -> void:
-	if get_meta("armed", false):
-		return
-	call_deferred("_boot")
+	build_stage()
+	_start.call_deferred()
 
 
-func _boot() -> void:
-	var shooter: Node = load("res://tools/tests/vfx_audit_shot.gd").new()
-	shooter.name = "VfxAuditShooter"
-	shooter.set_meta("armed", true)
-	get_tree().root.add_child(shooter)
-	get_tree().change_scene_to_file("res://scenes/misc/main.tscn")
-
-
-func _process(_delta: float) -> void:
-	if not get_meta("armed", false):
-		return
-	_frames += 1
-	if _frames == 90:
-		_shoot_all()
+func _start() -> void:
+	for _i: int in range(ready_frames()):
+		await get_tree().physics_frame
+	_shoot_all()
 
 
 func _shoot_all() -> void:
@@ -174,8 +163,8 @@ func _boss_meteor(tile: int) -> void:
 
 
 func _scorch_on_slope(tile: int) -> void:
-	# The hillside telegraph_slope_shot found, so the flat decal's problem shows.
-	var spot := Vector3(-41.57, 2.75, 24.0)
+	# The flank of the stage hill, so the flat decal's problem shows.
+	var spot: Vector3 = ground_at(Vector2(STAGE_HILL.x + 4.0, STAGE_HILL.z - 3.0))
 	var scorch: MeshInstance3D = SpellFx.ground_decal("decal_scorch", Color(0.07, 0.04, 0.03, 0.85), 4.0)
 	_scene.add_child(scorch)
 	scorch.global_transform = SpellFx.ground_transform(_scene as Node3D, spot)

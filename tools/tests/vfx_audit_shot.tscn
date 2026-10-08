@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://tools/tests/vfx_audit_shot.gd" id="1"]
 
-[node name="VfxAuditShot" type="Node"]
+[node name="VfxAuditShot" type="Node3D"]
 script = ExtResource("1")

@@ -1,67 +1,34 @@
-extends Node
+extends "res://tools/tests/vfx_stage.gd"
 ## The Fireball's detonation as a strip of moments, so its look can be judged frame by frame
 ## and compared before and after a change.
 ##
 ## Run with (windowed - a headless run draws nothing; on Linux xvfb-run works):
-##   godot --rendering-driver opengl3 --path . res://tools/tests/explosion_shot.tscn -- <out.png>
+##   godot --rendering-driver opengl3 --path . res://tools/tests/explosion_shot.tscn -- <out.png> [--glow]
 ##
-## Each moment is its own detonation, photographed that many seconds after it went off - the
-## software renderer is far too slow to catch several moments of one explosion in sequence.
-## The blast is set off through Projectile._fireball_blast_visuals, the same call the game
-## makes, so whatever that builds is what is photographed.
+## Shot on the light VfxStage rather than the real map (see vfx_stage.gd): a few seconds to
+## boot instead of minutes. Each moment is its own detonation, photographed that many seconds
+## after it went off - a software renderer is too slow to catch several moments of one
+## explosion in sequence. The blast is set off through Projectile._fireball_blast_visuals, the
+## same call the game makes, so whatever that builds is what is photographed.
 
 const MOMENTS: Array[float] = [0.04, 0.12, 0.25, 0.45, 0.8, 1.6, 3.0, 6.0]
 const TILE := Vector2i(480, 270)
 const COLUMNS := 4
-const STAGE := Vector3(2.0, 0.5, 16.0)
 
-var _frames: int = 0
-var _scene: Node = null
 var _caption: Label = null
 var _sheet: Image = null
 
 
 func _ready() -> void:
-	if get_meta("armed", false):
-		return
-	call_deferred("_boot")
-
-
-func _boot() -> void:
-	var shooter: Node = load("res://tools/tests/explosion_shot.gd").new()
-	shooter.name = "ExplosionShooter"
-	shooter.set_meta("armed", true)
-	get_tree().root.add_child(shooter)
-	get_tree().change_scene_to_file("res://scenes/misc/main.tscn")
-
-
-func _process(_delta: float) -> void:
-	if not get_meta("armed", false):
-		return
-	_frames += 1
-	if _frames == 90:
-		_shoot_all()
+	build_stage()
+	_shoot_all.call_deferred()
 
 
 func _shoot_all() -> void:
-	_scene = get_tree().current_scene
-	for node: Node in get_tree().get_nodes_in_group("player"):
-		node.remove_from_group("player")
-		(node as Node3D).visible = false
-	for node: Node in _scene.find_children("*", "CanvasLayer", true, false):
-		(node as CanvasLayer).visible = false
-	var sky: Node = _scene.get_node_or_null("Sky3D")
-	if sky != null:
-		sky.set("game_time_enabled", false)
-		sky.set("current_time", 15.0)
-	# `-- <out.png> --glow` renders with the game's bloom, configured straight onto the map's
-	# own sky rather than through GraphicsSettings.apply_glow, which would also save the switch
-	# into the player's settings.
-	if OS.get_cmdline_user_args().has("--glow") and sky is WorldEnvironment:
-		GraphicsSettings.configure_glow((sky as WorldEnvironment).environment, true)
-
+	for _i: int in range(ready_frames()):
+		await get_tree().physics_frame
 	var camera := Camera3D.new()
-	_scene.add_child(camera)
+	add_child(camera)
 	camera.global_position = STAGE + Vector3(0.0, 2.6, -8.5)
 	camera.look_at(STAGE + Vector3(0.0, 1.3, 0.0))
 	camera.current = true
@@ -77,10 +44,9 @@ func _shoot_all() -> void:
 	var rows: int = int(ceil(float(MOMENTS.size()) / float(COLUMNS)))
 	_sheet = Image.create(TILE.x * COLUMNS, TILE.y * rows, false, Image.FORMAT_RGB8)
 	for i: int in range(MOMENTS.size()):
-		var before: Array[Node] = _scene.get_children()
-		var packed: PackedScene = load("res://scenes/misc/projectile.tscn") as PackedScene
-		var projectile: Projectile = packed.instantiate()
-		_scene.add_child(projectile)
+		var before: Array[Node] = get_children()
+		var projectile: Projectile = (load("res://scenes/misc/projectile.tscn") as PackedScene).instantiate()
+		add_child(projectile)
 		projectile.activate(STAGE + Vector3(0.0, 1.2, 0.0), Vector3.FORWARD, 4, false, 1.0, -1.0, 0.0, null, "magic", Color(1.0, 0.45, 0.1))
 		projectile.global_position = STAGE + Vector3(0.0, 1.2, 0.0)
 		projectile.set_physics_process(false)
@@ -94,8 +60,8 @@ func _shoot_all() -> void:
 		frame.resize(TILE.x, TILE.y, Image.INTERPOLATE_BILINEAR)
 		_sheet.blit_rect(frame, Rect2i(Vector2i.ZERO, TILE), Vector2i((i % COLUMNS) * TILE.x, (i / COLUMNS) * TILE.y))
 		print("  +%.2fs" % MOMENTS[i])
-		for child: Node in _scene.get_children():
-			if not before.has(child) and child != camera:
+		for child: Node in get_children():
+			if not before.has(child):
 				child.queue_free()
 		await get_tree().create_timer(0.3).timeout
 
