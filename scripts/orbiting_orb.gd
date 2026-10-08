@@ -546,7 +546,7 @@ func _fire_frost() -> void:
 	var target: Node3D = _nearest_enemy(GameSettings.aura_orb_of_frost_range * _rank_mult("area"))
 	if target == null:
 		return
-	_shoot_bolt(target, COLORS[Mode.FROST])
+	_shoot_bolt(target)
 	_play_shot_sound(&"aura_orb_frost")
 	var damage: float = GameSettings.aura_orb_of_frost_damage * _rank_mult() * _damage_multiplier()
 	if target.has_method("take_damage"):
@@ -650,7 +650,7 @@ func _heal_lowest() -> void:
 	# banking heals through a quiet stretch and dumping them the instant someone is hit.
 	if best == null:
 		return
-	_shoot_bolt(best, COLORS[Mode.HEAL])
+	_shoot_bolt(best)
 	_play_shot_sound(&"aura_orb_heal")
 	# Bound to the player's max HP like every white/green HP number, so the orb scales
 	# with green affinity and Giant Growth instead of falling behind them.
@@ -664,6 +664,8 @@ func _heal_lowest() -> void:
 ## An enemy died near the owner: its soul is drawn into the orb. Called by Player on the
 ## server, where the deaths are. A wisp streaks from the body to the orb so the player can see
 ## WHY the orb just brightened - a count that climbs invisibly is the old Grave Pact again.
+## The wisp goes through NetFx, and it is also what tells every other screen the orb holds one
+## more soul (see mirror_soul).
 ##
 ## Capped: the orb holds a handful and lets the rest go. Without a cap one wave-clearing
 ## Wrath of God would bank enough souls to keep firing for a minute after the fight ended.
@@ -674,16 +676,29 @@ func add_soul(from: Vector3) -> void:
 		return
 	_souls += 1
 	_update_soul_glow()
-	var scene: Node = get_tree().current_scene
-	if scene == null:
-		return
 	var start: Vector3 = from + Vector3(0.0, 1.0, 0.0)
-	var to_orb: Vector3 = global_position - start
-	var length: float = to_orb.length()
-	if length > 0.05:
-		var streak: Node3D = SpellFx.beam(to_orb / length, length, COLORS[Mode.SOUL], 0.16, 0.3)
-		scene.add_child(streak)
-		streak.global_position = start
+	NetFx.spell("orb_soul_wisp", start, 0.0, _owner_peer(), global_position - start)
+
+
+## The souls on a screen that is not the server's. The count is the server's - souls are taken
+## and spent where enemies die - so a client's copy of the orb only ever learns of them from
+## the wisps and shots NetFx brings it, and keeps its glow in step with those. Ignored on the
+## server, whose own count already moved.
+func mirror_soul(change: int) -> void:
+	if mode != Mode.SOUL or Net.is_server():
+		return
+	_souls = clampi(_souls + change, 0, GameSettings.aura_grave_pact_max_souls)
+	_update_soul_glow()
+
+
+## The streak of a soul being drawn from where an enemy died into the orb.
+static func build_soul_wisp(offset: Vector3) -> Node3D:
+	var length: float = offset.length()
+	if length < 0.05:
+		var nothing := Node3D.new()
+		nothing.tree_entered.connect(nothing.queue_free, CONNECT_ONE_SHOT)
+		return nothing
+	return SpellFx.beam(offset / length, length, COLORS[Mode.SOUL], 0.16, 0.3)
 
 
 ## Held souls, for anything that has to read the orb from outside (tests, the HUD one day).
@@ -701,7 +716,7 @@ func _release_soul() -> void:
 		return
 	_souls -= 1
 	_update_soul_glow()
-	_shoot_bolt(target, COLORS[Mode.SOUL])
+	_shoot_bolt(target)
 	_play_shot_sound(&"aura_grave_pact")
 	var damage: float = GameSettings.aura_grave_pact_soul_damage * _rank_mult() * _damage_multiplier()
 	if target.has_method("take_damage"):
@@ -736,33 +751,46 @@ func _rank_mult(curve: String = "damage") -> float:
 
 
 ## The shot from the orb to whatever it just acted on (frost, heal, souls - fire throws a
-## projectile and lightning arcs, see their own payloads): SpellFx.beam's crossed quads with a
-## hot core and tapered ends, drawn premultiplied so it survives a bright sky, and a small
-## landing at the far end - a beam that simply stops is only half an event.
-func _shoot_bolt(target: Node3D, tint: Color) -> void:
+## projectile and lightning arcs, see their own payloads). Sent through NetFx and built on
+## every screen by `build_bolt`: these used to be added to the scene right here, which is to
+## say on the server alone, and a client never saw a teammate's orb fire.
+func _shoot_bolt(target: Node3D) -> void:
 	var muzzle: Vector3 = global_position
 	var hit: Vector3 = target.global_position + Vector3(0.0, 1.0, 0.0)
-	var to_target: Vector3 = hit - muzzle
-	var length: float = to_target.length()
-	if length < 0.05:
+	if muzzle.distance_to(hit) < 0.05:
 		return
+	NetFx.spell("orb_bolt", muzzle, float(mode), _owner_peer(), hit - muzzle)
 
-	var scene: Node = get_tree().current_scene
+
+## One orb shot, built on the node it is placed at (the muzzle) out along `offset`:
+## SpellFx.beam's crossed quads with a hot core and tapered ends, drawn premultiplied so it
+## survives a bright sky, and a small landing at the far end - a beam that simply stops is
+## only half an event.
+static func build_bolt(orb_mode: int, offset: Vector3) -> Node3D:
+	var root := Node3D.new()
+	root.name = "OrbBolt"
+	var length: float = offset.length()
+	if length < 0.05:
+		root.tree_entered.connect(root.queue_free, CONNECT_ONE_SHOT)
+		return root
+	var tint: Color = COLORS.get(orb_mode, COLORS[Mode.FROST])
 	# Thin and quick: this fires every second or two, and a shot as wide or as long-lived
-	# as a spell's beam would leave the player permanently looking at one.
-	var shaft: Node3D = SpellFx.beam(to_target / length, length, tint, _beam_width(), 0.18)
-	scene.add_child(shaft)
-	# Placed at the beam's START, not its middle: SpellFx.beam builds it running out along
-	# its own +X from wherever it is put.
-	shaft.global_position = muzzle
-	_spawn_bolt_impact(scene, hit, tint)
+	# as a spell's beam would leave the player permanently looking at one. Built running out
+	# along its own +X from where it is put, so it sits at the root, the muzzle.
+	root.add_child(SpellFx.beam(offset / length, length, tint, _beam_width(orb_mode), 0.18))
+	var impact: Node3D = _bolt_impact(orb_mode, tint)
+	impact.position = offset
+	root.add_child(impact)
+	root.tree_entered.connect(func() -> void:
+		root.get_tree().create_timer(0.7).timeout.connect(root.queue_free), CONNECT_ONE_SHOT)
+	return root
 
 
 ## How wide each mode's shot is drawn. Frost's is the narrowest - it is a splinter of ice -
 ## and heal's the widest and softest, because it is the one that is not meant to read as a
 ## weapon hitting something.
-func _beam_width() -> float:
-	match mode:
+static func _beam_width(orb_mode: int) -> float:
+	match orb_mode:
 		Mode.HEAL: return 0.26
 		Mode.SOUL: return 0.24
 		_: return 0.17
@@ -771,7 +799,7 @@ func _beam_width() -> float:
 ## The far end of the shot. Deliberately not SpellFx.impact, which builds a shockwave, a
 ## light and 28 sparks sized for a spell landing - at this fire rate that is both far too
 ## much to look at and far too much to spawn. This is the same idea at a tenth the weight.
-func _spawn_bolt_impact(scene: Node, point: Vector3, tint: Color) -> void:
+static func _bolt_impact(orb_mode: int, tint: Color) -> Node3D:
 	var burst := Node3D.new()
 	burst.name = "OrbBoltImpact"
 
@@ -786,15 +814,15 @@ func _spawn_bolt_impact(scene: Node, point: Vector3, tint: Color) -> void:
 	motes.lifetime = 0.4
 	motes.one_shot = true
 	motes.explosiveness = 1.0
-	# Each mode scatters its own shape: ice splinters, fire sparks, and soft rays for the
-	# heal and the souls - the same slot-per-colour split the rest of the effect layer uses.
-	motes.draw_pass_1 = SpellFx.premul_particle_mesh(0.12, _impact_slot())
+	# Each mode scatters its own shape: ice splinters for frost, soft rays for the heal and
+	# the souls - the same slot-per-colour split the rest of the effect layer uses.
+	motes.draw_pass_1 = SpellFx.premul_particle_mesh(0.12, _impact_slot(orb_mode))
 	var scatter := ParticleProcessMaterial.new()
 	scatter.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	scatter.emission_sphere_radius = 0.1
 	scatter.direction = Vector3.UP
 	scatter.spread = 180.0
-	scatter.gravity = Vector3(0.0, -1.5, 0.0) if mode != Mode.HEAL else Vector3(0.0, 0.8, 0.0)
+	scatter.gravity = Vector3(0.0, -1.5, 0.0) if orb_mode != Mode.HEAL else Vector3(0.0, 0.8, 0.0)
 	scatter.initial_velocity_min = 1.0
 	scatter.initial_velocity_max = 2.2
 	scatter.scale_min = 0.3
@@ -803,17 +831,14 @@ func _spawn_bolt_impact(scene: Node, point: Vector3, tint: Color) -> void:
 	motes.process_material = scatter
 	burst.add_child(motes)
 
-	scene.add_child(burst)
-	burst.global_position = point
-	var tween: Tween = burst.create_tween()
-	tween.tween_property(flash, "light_energy", 0.0, 0.14)
-	# Outlives the flash by the particles' own lifetime, or the scatter is cut off mid-air.
-	tween.tween_interval(0.45)
-	tween.tween_callback(burst.queue_free)
+	burst.tree_entered.connect(func() -> void:
+		var tween: Tween = burst.create_tween()
+		tween.tween_property(flash, "light_energy", 0.0, 0.14), CONNECT_ONE_SHOT)
+	return burst
 
 
-func _impact_slot() -> String:
-	match mode:
+static func _impact_slot(orb_mode: int) -> String:
+	match orb_mode:
 		Mode.HEAL, Mode.SOUL: return "mote"
 		_: return "shard"
 
