@@ -138,6 +138,15 @@ if (-not $SkipRuntime) {
     }
     Write-Output "PASS: the Particle Effects setting sizes new and existing particle systems."
 
+    # A killed enemy is thrown away from the hit, on the server, and has to come back down
+    # as a corpse Zombify can still find.
+    $launchResult = Invoke-GodotCheck -Name "death-launch" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/death_launch.tscn") -TimeoutSeconds 90
+    if ($launchResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($launchResult.Output)
+        throw "Killed enemies are not thrown by the hit that killed them."
+    }
+    Write-Output "PASS: killed enemies are thrown away from the fatal hit and land as corpses."
+
     # And that two machines can actually find each other. The host launches a real
     # second process; a single-process fake could not fail the way UDP discovery, a
     # password check over ENet, or a ready round trip fail.

@@ -54,6 +54,24 @@ var is_dying: bool = false
 ## Client-side latch for the death clip. `is_dying` replicates, so it is true on every
 ## frame after the first, and the clip must only be started on that first one.
 var _puppet_death_played: bool = false
+## The death launch: the velocity a killed enemy is thrown away with (see
+## _start_death_launch). Set once, on the server, and replicated, so every peer leans the
+## body into the same throw; the throw itself is the replicated position.
+var death_launch: Vector3 = Vector3.ZERO
+## What the fatal hit was, kept by take_damage for die(): which way it came from and how
+## big it was (a fraction of full health, knockback included).
+var _fatal_hit_dir: Vector3 = Vector3.ZERO
+var _fatal_hit_severity: float = 0.0
+## Seconds since this peer saw the launch begin; -1 before that.
+var _launch_time: float = -1.0
+var _launch_landed: bool = false
+## How long the death clip takes at the speed it was started with, on this peer.
+var _death_clip_seconds: float = 0.0
+## The lean has run its course and the model is back as built; nothing left to do per frame.
+var _lean_done: bool = false
+## The model and its transform as built, so the lean can be laid over it and taken off.
+var _visual_root: Node3D
+var _visual_rest: Transform3D
 
 # Playback multiplier for this enemy's clips. Stays 1.0 for regular enemies;
 # bosses get a size-derived value so bigger ones move more ponderously.
@@ -348,6 +366,8 @@ func setup(data: EnemyData) -> void:
 		visual_instance.scale = Vector3(100, 100, 100)
 		add_child(visual_instance)
 		_ground_visual(visual_instance)
+		_visual_root = visual_instance
+		_visual_rest = visual_instance.transform
 		# find_child rather than get_node: it holds for both the melee scenes (player
 		# is a direct child) and the imported boss scenes, without assuming depth.
 		visual_anim_player = visual_instance.find_child("AnimationPlayer", true, false)
@@ -493,6 +513,9 @@ func _build_synchronizer() -> void:
 	for property: String in [":position", ":rotation", ":health", ":velocity", ":is_dying", ":contagion_timer"]:
 		config.add_property(NodePath(property))
 		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+	# Once per enemy, at death; the lean starts on whichever frame it lands.
+	config.add_property(NodePath(":death_launch"))
+	config.property_set_replication_mode(NodePath(":death_launch"), SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE)
 	# What the HUD's boss bar shows beyond health. Only on bosses, and only when it changes -
 	# both move a handful of times a fight. setup() has run by now, so is_boss() is settled
 	# and every peer builds the same property list for the same enemy.
@@ -541,7 +564,11 @@ func _physics_process(delta: float) -> void:
 		_update_puppet(delta)
 		return
 	if is_dying:
-		_settle_corpse(delta)
+		if death_launch != Vector3.ZERO:
+			_fly_corpse(delta)
+		else:
+			_settle_corpse(delta)
+		_lean_corpse(delta)
 		return
 
 	if _sapling_timer > 0.0:
@@ -899,6 +926,7 @@ func _update_puppet(delta: float) -> void:
 	_sync_contagion_fx()
 	if is_dying:
 		_play_puppet_death()
+		_lean_corpse(delta)
 		return
 	# A boss special, transition or exhaust the server told us about: its clip keeps playing.
 	if _puppet_hold_timer > 0.0:
@@ -931,6 +959,7 @@ func _play_puppet_death() -> void:
 	if death_anim and death_anim.length / death_speed > DEATH_MAX_SECONDS:
 		death_speed = death_anim.length / DEATH_MAX_SECONDS
 	visual_anim_player.play("death", -1, death_speed)
+	_death_clip_seconds = death_anim.length / death_speed if death_anim else 0.0
 
 
 func _update_visual_animation() -> void:
@@ -2791,6 +2820,7 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false, e
 			NetFx.damage_number(spawn_pos + Vector3(0.0, 0.4, 0.0), 0.0, Color(0.75, 0.3, 0.95), "Executed")
 			health = 0.0
 	if health <= 0.0:
+		_record_fatal_hit(amount, source)
 		# The only point that knows both that this hit was fatal and who threw it. die() takes
 		# no source, and SignalBus.enemy_died carries none either - it is a team-wide "one
 		# fewer enemy", which is what the wave counter wants and not what a scoreboard does.
@@ -2877,11 +2907,168 @@ func die() -> void:
 		if death_anim and death_anim.length / death_speed > DEATH_MAX_SECONDS:
 			death_speed = death_anim.length / DEATH_MAX_SECONDS
 		visual_anim_player.play("death", -1, death_speed)
+		_death_clip_seconds = death_anim.length / death_speed if death_anim else 0.0
 		call_deferred("_check_death_animation_started", death_speed)
+		_start_death_launch()
 		_register_corpse()
 	else:
 		push_warning("Enemy death animation unavailable: %s" % _format_death_animation_debug(death_debug_before))
 		queue_free()
+
+
+## Which way the fatal hit came from and how big it was, for _start_death_launch.
+##
+## Away from whoever dealt it - for a spell that is the caster, which is close enough to
+## where the blast came from to read right. A knockback already moving the body (Unsummon,
+## a slam) wins over that, since it is the push the player actually aimed, and it counts
+## towards how hard the body is thrown.
+func _record_fatal_hit(amount: float, source: Node3D) -> void:
+	var dir := Vector3.ZERO
+	var push: float = Vector2(knockback_velocity.x, knockback_velocity.z).length()
+	if push > 0.5:
+		dir = Vector3(knockback_velocity.x, 0.0, knockback_velocity.z)
+	elif is_instance_valid(source):
+		dir = global_position - source.global_position
+		dir.y = 0.0
+	if dir.length_squared() < 0.0001:
+		var angle: float = randf() * TAU
+		dir = Vector3(cos(angle), 0.0, sin(angle))
+	_fatal_hit_dir = dir.normalized()
+	var full: float = maxf(enemy_data.health if enemy_data != null else 100.0, 1.0)
+	_fatal_hit_severity = maxf(amount, 0.0) / full + push * 0.08
+
+
+## Throws a killed enemy away from the hit that killed it. Server only; the body's flight
+## reaches every other screen as its replicated position, and `death_launch` tells them
+## which way to lean it.
+##
+## Not for bosses: a colossus is not thrown across the field by the hit that finishes it,
+## and its long death is a set piece of its own. Elites and minibosses are bigger and go
+## proportionally less far.
+##
+## The body is also turned so its death clip falls the way it is thrown - the clips fall
+## forwards on some rigs and backwards on others, and a body flying back while toppling
+## towards its killer reads as wrong at once.
+func _start_death_launch() -> void:
+	if is_boss() or enemy_data == null or _fatal_hit_dir == Vector3.ZERO:
+		return
+	var t: float = clampf(inverse_lerp(GameSettings.enemy_death_launch_severity_min,
+		GameSettings.enemy_death_launch_severity_full, _fatal_hit_severity), 0.0, 1.0)
+	var heft: float = maxf(enemy_data.model_scale, 1.0)
+	var speed: float = lerpf(GameSettings.enemy_death_launch_speed_min, GameSettings.enemy_death_launch_speed_max, t) / heft
+	var up: float = lerpf(GameSettings.enemy_death_launch_up_min, GameSettings.enemy_death_launch_up_max, t) / heft
+	_face_death_fall(_fatal_hit_dir)
+	velocity = Vector3.ZERO
+	death_launch = _fatal_hit_dir * speed + Vector3.UP * up
+
+
+## Turns the body about Y so the death clip's own fall points along `dir`.
+##
+## Measured off the clip rather than assumed: the hips' rotation on the last key, applied
+## to the rig as it stands now, gives which way the torso ends up lying. The difference
+## between that and `dir` is the turn. Cached per clip - every enemy on a rig shares it.
+static var _death_fall_cache: Dictionary = {}
+
+func _face_death_fall(dir: Vector3) -> void:
+	if visual_anim_player == null or _visual_root == null or not visual_anim_player.has_animation("death"):
+		return
+	var clip: Animation = visual_anim_player.get_animation("death")
+	var skeleton: Skeleton3D = _visual_root.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton == null:
+		return
+	var local_fall: Vector3
+	if _death_fall_cache.has(clip):
+		local_fall = _death_fall_cache[clip]
+	else:
+		local_fall = Vector3.ZERO
+		for track: int in clip.get_track_count():
+			if clip.track_get_type(track) != Animation.TYPE_ROTATION_3D:
+				continue
+			var path: NodePath = clip.track_get_path(track)
+			if path.get_subname_count() == 0 or not String(path.get_subname(0)).ends_with("Hips"):
+				continue
+			var last: Quaternion = clip.track_get_key_value(track, clip.track_get_key_count(track) - 1)
+			var bone: int = skeleton.find_bone(String(path.get_subname(0)))
+			var parent_basis := Basis()
+			if bone >= 0 and skeleton.get_bone_parent(bone) >= 0:
+				parent_basis = skeleton.get_bone_global_rest(skeleton.get_bone_parent(bone)).basis
+			# In the skeleton's own space; the body's yaw is applied below, each time.
+			local_fall = parent_basis * Basis(last) * Vector3.UP
+			break
+		_death_fall_cache[clip] = local_fall
+	var fall: Vector3 = skeleton.global_basis * local_fall
+	fall.y = 0.0
+	if fall.length_squared() < 0.0001:
+		return
+	rotation.y += fall.normalized().signed_angle_to(dir, Vector3.UP)
+
+
+## The flight. Held still for the hitstop, then thrown, falling under gravity; once down it
+## skids to a stop against `friction` and stays. Walls stop it like they stop anything.
+func _fly_corpse(delta: float) -> void:
+	if _launch_time < GameSettings.enemy_death_hitstop:
+		return
+	if velocity == Vector3.ZERO and not _launch_landed:
+		velocity = death_launch
+		# Off the ground this frame, so the first floor check does not land it at once.
+		global_position.y += 0.02
+	var falling_speed: float = -velocity.y
+	velocity.y -= gravity * delta
+	move_and_slide()
+	if is_on_floor() and velocity.y <= 0.0:
+		if not _launch_landed:
+			_launch_landed = true
+			_land_corpse(falling_speed)
+		velocity.y = 0.0
+		var flat := Vector2(velocity.x, velocity.z).move_toward(Vector2.ZERO, GameSettings.enemy_death_launch_friction * delta)
+		velocity.x = flat.x
+		velocity.z = flat.y
+
+
+func _land_corpse(impact_speed: float) -> void:
+	var threshold: float = GameSettings.enemy_death_land_dust_speed
+	if impact_speed < threshold:
+		return
+	NetFx.spell("corpse_land", global_position, clampf(impact_speed / threshold * 0.7, 0.7, 1.6), 0)
+	if impact_speed > threshold * 2.0:
+		NetFx.sound(&"blunt_hit", global_position)
+
+
+## Leans the model into its throw - the body tipping over as it flies - and back upright by
+## the time it lands, so the death clip, which lays the body down on its own, finishes it.
+## Runs on every peer from the replicated `death_launch`: the lean is the model, not the
+## body, and is not replicated itself. Also holds the death clip for the hitstop.
+func _lean_corpse(delta: float) -> void:
+	if death_launch == Vector3.ZERO or _visual_root == null or _lean_done:
+		return
+	if _launch_time < 0.0:
+		_launch_time = 0.0
+	_launch_time += delta
+	var hitstop: float = GameSettings.enemy_death_hitstop
+	var flight: float = maxf(2.0 * death_launch.y / maxf(gravity, 0.01), 0.05)
+	var phase: float = clampf((_launch_time - hitstop) / flight, 0.0, 1.0)
+	if visual_anim_player != null:
+		# Frozen for the hitstop; through the flight, fast enough that the body is most of the
+		# way down when it lands; its own pace after that.
+		var flight_speed: float = maxf(_death_clip_seconds * GameSettings.enemy_death_launch_clip_at_landing / flight, 1.0)
+		if _launch_time < hitstop:
+			visual_anim_player.speed_scale = 0.0
+		elif phase < 1.0:
+			visual_anim_player.speed_scale = flight_speed
+		else:
+			visual_anim_player.speed_scale = 1.0
+	var lean: float = deg_to_rad(GameSettings.enemy_death_launch_lean_degrees) * sin(phase * PI)
+	var throw_dir: Vector3 = Vector3(death_launch.x, 0.0, death_launch.z)
+	if lean <= 0.0001 or throw_dir.length_squared() < 0.0001:
+		_visual_root.transform = _visual_rest
+		_lean_done = phase >= 1.0
+		return
+	# Tipping the top of the body along the throw, about the hips rather than the feet.
+	var axis_world: Vector3 = Vector3.UP.cross(throw_dir.normalized())
+	var axis: Vector3 = (global_basis.orthonormalized().inverse() * axis_world).normalized()
+	var pivot := Vector3(0.0, 0.9, 0.0)
+	var tilt := Transform3D(Basis(axis, lean), Vector3.ZERO)
+	_visual_root.transform = Transform3D(Basis(), pivot) * tilt * Transform3D(Basis(), -pivot) * _visual_rest
 
 
 ## A corpse still falls.

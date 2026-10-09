@@ -1158,6 +1158,32 @@ func rank_level_requirement(rank: int) -> int:
 @export var enemy_elite_crystal_hunter_damage_mult: float = 1.35
 @export var enemy_max_corpses: int = 100
 
+## Death launch (EnemyBase._start_death_launch): a killed enemy is thrown away from what
+## killed it, in an arc, lands, skids and stays where it comes to rest - so a kill has weight.
+## How hard is the fatal hit's damage as a fraction of the enemy's full health, read between
+## `severity_min` (a light finishing tap: the smallest throw) and `severity_full` (anything at
+## or over it: the biggest). A knockback already on the enemy counts towards it too.
+@export var enemy_death_launch_severity_min: float = 0.1
+@export var enemy_death_launch_severity_full: float = 0.9
+## Horizontal and upward speed, m/s, at the two ends of that range.
+@export var enemy_death_launch_speed_min: float = 2.0
+@export var enemy_death_launch_speed_max: float = 7.0
+@export var enemy_death_launch_up_min: float = 1.5
+@export var enemy_death_launch_up_max: float = 4.5
+## How quickly a body that has landed skids to a stop, m/s per second.
+@export var enemy_death_launch_friction: float = 14.0
+## The impact frame: the body holds still this long before it flies, which is what makes
+## the hit read as a hit rather than as the body simply setting off.
+@export var enemy_death_hitstop: float = 0.07
+## How much of its death clip a thrown body has played by the time it lands. The clip is
+## sped up through the flight to get there: at its own pace a body that flew for a second
+## came down still standing and only then keeled over.
+@export var enemy_death_launch_clip_at_landing: float = 0.7
+## How far the body leans into the throw at the top of its arc, degrees.
+@export var enemy_death_launch_lean_degrees: float = 55.0
+## A landing faster than this, m/s downward, throws up dust (and above twice it, a thud).
+@export var enemy_death_land_dust_speed: float = 4.0
+
 # ============================================================
 # BOSSES
 # ============================================================

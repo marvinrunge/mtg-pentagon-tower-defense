@@ -128,6 +128,9 @@ static func play(scene: Node, payload: Dictionary, owner: Node3D) -> void:
 			_on_ground(scene, chain_lightning(payload.get("points", PackedVector3Array())), at)
 		"green_1_launch":
 			_on_ground(scene, dust_ring(1.6, 0.9), at)
+		"corpse_land":
+			# A killed enemy hitting the ground after its death launch (EnemyBase).
+			_on_ground(scene, dust_ring(size, 0.7), at)
 		"green_1":
 			_on_ground(scene, titanic_slam(size), at)
 		"green_2":
