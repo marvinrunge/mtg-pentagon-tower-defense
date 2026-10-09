@@ -21,6 +21,8 @@ var visual: MeshInstance3D
 var _ground_material: ShaderMaterial
 ## The fire zones build these; fog builds _fog.
 var _rain: GPUParticles3D
+var _drops: GPUParticles3D
+var _sparks: GPUParticles3D
 var _ground_fire: GPUParticles3D
 ## Air shimmering over the fire (SpellFx.heat_haze) - a bare Node3D where it is not drawn.
 var _heat: Node3D
@@ -76,8 +78,8 @@ func _ready() -> void:
 	_life_timer = duration
 
 
-## Turns the flat disc into an actual firestorm: embers falling into it from above,
-## flames coming up off the ground, and a light that flickers with them so the effect
+## Turns the flat disc into an actual firestorm: drops of fire falling into it from above,
+## flames coming up off the ground, sparks rising off them, and a light that flickers with them so the effect
 ## lands on everything standing in it rather than only on itself.
 ##
 ## Built here rather than authored as a scene because the zone's radius is a runtime
@@ -88,11 +90,14 @@ func _build_firestorm() -> void:
 	# A one-shot at the cast site would end long before the fire did.
 	SoundBank.attach_loop(&"spell_rain_ember", self, false)
 
-	_rain = EmberFx.build_rain(radius)
+	_rain = EmberFx.build_falling_drops(radius, 60, 0.16, 7.0, 10.0, 0.1, 1.3, 7.0)
 	add_child(_rain)
-	add_child(_build_falling_fire())
+	_drops = _build_falling_fire()
+	add_child(_drops)
 	_ground_fire = _build_flames(radius, 22, 1.1)
 	add_child(_ground_fire)
+	_sparks = EmberFx.build_rising_sparks(radius)
+	add_child(_sparks)
 	_heat = SpellFx.heat_haze(Vector3(radius * 0.7, 0.2, radius * 0.7), clampf(radius * 0.55, 1.4, 2.6),
 		clampi(int(radius * 5.0), 10, 40), 1.3, 1.5, 0.013)
 	_heat.position.y = 0.4
@@ -201,33 +206,10 @@ func _build_flames(size_radius: float, amount: int, lifetime: float) -> GPUParti
 	return flames
 
 
-## Rain of Ember's heavier half: burning lumps that streak down into the zone between the
-## sparks, so the storm has weight as well as glitter.
+## Rain of Ember's heavier half: big drops streaking down into the zone between the small
+## ones, so the storm has weight as well as glitter.
 func _build_falling_fire() -> GPUParticles3D:
-	var lumps := ExplosionFx.flipbook_particles(ExplosionFx.FIRE_FLIPBOOK, 0.9, 9, 0.6)
-	lumps.one_shot = false
-	# A tail behind each lump, so it reads as falling fast rather than hanging in the air:
-	# the ball is a billboard and has no direction of its own.
-	lumps.draw_passes = 2
-	lumps.draw_pass_2 = SpellFx.tail_mesh(1.3, 3.4, Color(1.6, 0.62, 0.16))
-	var process: ParticleProcessMaterial = lumps.process_material
-	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	process.emission_box_extents = Vector3(radius * 0.8, 0.3, radius * 0.8)
-	process.direction = Vector3(0.25, -1.0, 0.1)
-	process.spread = 4.0
-	process.initial_velocity_min = 12.0
-	process.initial_velocity_max = 16.0
-	process.gravity = Vector3(0.0, -8.0, 0.0)
-	process.particle_flag_align_y = true
-	process.angle_min = 0.0
-	process.angle_max = 0.0
-	process.scale_min = 0.8
-	process.scale_max = 1.2
-	var ramp := GradientTexture1D.new()
-	ramp.gradient = EmberFx.fire_gradient()
-	process.color_ramp = ramp
-	lumps.position = Vector3(0.0, 8.0, 0.0)
-	return lumps
+	return EmberFx.build_falling_drops(radius * 0.8, 9, 0.42, 12.0, 16.0, 0.32, 2.8, 8.0)
 
 
 func _process(delta: float) -> void:
@@ -243,10 +225,12 @@ func _process(delta: float) -> void:
 	if _light != null:
 		_flicker_phase += delta
 		EmberFx.flicker(_light, _flicker_phase)
-	# Emitters stop early so the last embers in the air get to finish falling instead
+	# Emitters stop early so the last drops in the air get to finish falling instead
 	# of vanishing with the zone.
 	if _life_timer < 0.6 and _rain != null and _rain.emitting:
 		_rain.emitting = false
+		_drops.emitting = false
+		_sparks.emitting = false
 		_ground_fire.emitting = false
 		if _heat is GPUParticles3D:
 			(_heat as GPUParticles3D).emitting = false

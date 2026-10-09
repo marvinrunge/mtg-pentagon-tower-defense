@@ -202,25 +202,149 @@ static func build_trail(amount: int) -> GPUParticles3D:
 	return particles
 
 
-## Embers raining down INTO a zone from above - the half of Rain of Ember that sells
-## it as something falling rather than as a decal switched on. Sparks rather than
-## flame bodies, because falling fire reads as points of light, not as puffs.
-static func build_rain(radius: float) -> GPUParticles3D:
-	var particles := build_sparks(radius, 70)
-	particles.lifetime = 1.6
-	particles.draw_pass_1 = particle_mesh(0.3, _texture(SPARK_TEXTURE), true)
-	var process: ParticleProcessMaterial = particles.process_material
+## The wind every drop of a Rain of Ember shares, so the big drops and the small ones read
+## as one storm slanting the same way rather than two that disagree.
+const RAIN_SLANT := Vector3(0.2, -1.0, 0.08)
+
+
+## Drops of fire falling INTO a zone from above - the half of Rain of Ember that sells it
+## as something falling rather than as a decal switched on.
+##
+## A plain bright point with a tail, not a textured lump: falling fire reads as a hot point
+## of light dragging its own streak, and a flame texture squashed into a ball read as
+## neither. The head stays almost white while the tail carries the orange, which is what
+## makes it look hot.
+##
+## Premultiplied rather than additive (see SpellFx.premul_particle_mesh), so the drops still
+## read against a bright sky. They do not blink like the sparks do: a tail flickering on and
+## off with its head looked like a fault, not like fire.
+##
+## `height` is where they start above the zone. Lifetime is sized to carry the slowest drop
+## a little past the ground, so drops end by sinking into it rather than vanishing in the air.
+static func build_falling_drops(radius: float, amount: int, size: float, speed_min: float,
+		speed_max: float, tail_width: float, tail_length: float, height: float) -> GPUParticles3D:
+	var gravity: float = 8.0
+	var particles := GPUParticles3D.new()
+	particles.amount = amount
+	# Time for the slowest drop to fall `height` (v t + g t^2 / 2 = h), plus a margin.
+	particles.lifetime = (-speed_min + sqrt(speed_min * speed_min + 2.0 * gravity * height)) / gravity + 0.15
+	particles.randomness = 0.5
+	particles.local_coords = false
+	# Down to the ground and a little under it, plus the slant's drift sideways.
+	particles.visibility_aabb = AABB(Vector3(-radius - 3.0, -height - 2.0, -radius - 3.0),
+		Vector3(radius * 2.0 + 6.0, height + 3.0, radius * 2.0 + 6.0))
+	var head: QuadMesh = SpellFx.premul_particle_mesh(size, "spark")
+	# Above 1 so the head blooms into a hot white core.
+	(head.material as StandardMaterial3D).albedo_color = Color(1.6, 1.45, 1.2)
+	particles.draw_pass_1 = head
+	# The head is a billboard and has no direction of its own; the tail gives it one.
+	particles.draw_passes = 2
+	particles.draw_pass_2 = SpellFx.tail_mesh(tail_width, tail_length, Color(1.6, 0.62, 0.16))
+
+	var process := ParticleProcessMaterial.new()
+	# Spawned in a flat slab well overhead, so they are already falling by the time they
+	# enter frame.
 	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	# Spawned in a flat slab well overhead, so they are already falling by the time
-	# they enter frame.
 	process.emission_box_extents = Vector3(radius, 0.4, radius)
-	process.direction = Vector3.DOWN
-	process.spread = 6.0
-	process.initial_velocity_min = 5.0
-	process.initial_velocity_max = 9.0
-	process.gravity = Vector3(0.0, -6.0, 0.0)
-	particles.position = Vector3(0.0, 7.0, 0.0)
+	process.direction = RAIN_SLANT
+	process.spread = 4.0
+	process.initial_velocity_min = speed_min
+	process.initial_velocity_max = speed_max
+	process.gravity = Vector3(0.0, -gravity, 0.0)
+	process.particle_flag_align_y = true
+	process.scale_min = 0.8
+	process.scale_max = 1.2
+	process.color_ramp = _premul_ramp(_drop_gradient())
+	particles.process_material = process
+	# Shifted up-wind by roughly the drift the slant adds on the way down, so the drops
+	# land on the zone and not beside it.
+	var drift: float = height * 0.8
+	particles.position = Vector3(-RAIN_SLANT.x * drift, height, -RAIN_SLANT.z * drift)
 	return particles
+
+
+## Embers rising off a burning zone the way they rise off a campfire: let go near the
+## ground at random, carried up by the heat, and pushed back and forth by it on the way.
+##
+## The upward drift is a gentle buoyancy held in check by damping, not a launch - a spark
+## that is thrown up and falls back reads as a spray, not as something the fire is shedding.
+## The wandering is a turbulence field, which gives every spark its own path rather than
+## all of them swaying together.
+static func build_rising_sparks(radius: float) -> GPUParticles3D:
+	var particles := GPUParticles3D.new()
+	particles.amount = clampi(int(radius * 10.0), 24, 70)
+	particles.lifetime = 2.6
+	# Let go at uneven moments, not in a steady trickle.
+	particles.randomness = 0.8
+	particles.local_coords = false
+	# Generous bounds: turbulence carries them well outside what the emitter alone would.
+	particles.visibility_aabb = AABB(Vector3(-radius - 2.0, -1.0, -radius - 2.0),
+		Vector3(radius * 2.0 + 4.0, 7.0, radius * 2.0 + 4.0))
+	var mesh: QuadMesh = SpellFx.premul_particle_mesh(0.07, "spark")
+	(mesh.material as StandardMaterial3D).albedo_color = Color(1.5, 1.35, 1.15)
+	particles.draw_pass_1 = mesh
+
+	var process := ParticleProcessMaterial.new()
+	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
+	process.emission_ring_axis = Vector3.UP
+	process.emission_ring_radius = radius * 0.85
+	process.emission_ring_inner_radius = 0.0
+	process.emission_ring_height = 0.3
+	process.direction = Vector3.UP
+	process.spread = 25.0
+	process.initial_velocity_min = 0.8
+	process.initial_velocity_max = 2.0
+	process.gravity = Vector3(0.0, 0.5, 0.0)
+	process.damping_min = 0.4
+	process.damping_max = 0.8
+	process.lifetime_randomness = 0.4
+	process.turbulence_enabled = true
+	process.turbulence_noise_strength = 2.5
+	process.turbulence_noise_scale = 2.0
+	# The pattern itself drifts upward with the heat, so a spark is not pushed the same way
+	# for its whole climb.
+	process.turbulence_noise_speed = Vector3(0.0, 0.6, 0.0)
+	process.turbulence_noise_speed_random = 0.4
+	process.turbulence_influence_min = 0.08
+	process.turbulence_influence_max = 0.22
+	process.scale_min = 0.6
+	process.scale_max = 1.3
+	# A gentle flicker that dies away, rather than the hard blink of the burst sparks.
+	process.scale_curve = _curve_texture([
+		Vector2(0.0, 0.6), Vector2(0.1, 1.0), Vector2(0.3, 0.75), Vector2(0.45, 1.0),
+		Vector2(0.6, 0.7), Vector2(0.75, 0.85), Vector2(1.0, 0.0),
+	])
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1.0, 0.95, 0.7, 1.0))
+	gradient.add_point(0.2, Color(1.0, 0.65, 0.2, 1.0))
+	gradient.add_point(0.6, Color(0.85, 0.25, 0.05, 0.9))
+	gradient.set_color(gradient.get_point_count() - 1, Color(0.4, 0.06, 0.02, 0.0))
+	process.color_ramp = _premul_ramp(gradient)
+	particles.process_material = process
+	particles.position = Vector3(0.0, 0.15, 0.0)
+	return particles
+
+
+## White-hot into orange, holding its alpha almost to the end: a drop is still burning when
+## it lands.
+static func _drop_gradient() -> Gradient:
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1.0, 0.92, 0.7, 1.0))
+	gradient.add_point(0.35, Color(1.0, 0.72, 0.32, 1.0))
+	gradient.add_point(0.85, Color(1.0, 0.48, 0.14, 1.0))
+	gradient.set_color(gradient.get_point_count() - 1, Color(0.9, 0.3, 0.08, 0.0))
+	return gradient
+
+
+## `gradient` with every stop's RGB scaled by its alpha, for the premultiplied meshes - see
+## SpellFx._premul_ramp for why both halves of the blend have to be premultiplied.
+static func _premul_ramp(gradient: Gradient) -> GradientTexture1D:
+	for index: int in gradient.get_point_count():
+		var stop: Color = gradient.get_color(index)
+		gradient.set_color(index, Color(stop.r * stop.a, stop.g * stop.a, stop.b * stop.a, stop.a))
+	var texture := GradientTexture1D.new()
+	texture.gradient = gradient
+	return texture
 
 
 ## The fire actually burning on the ground under that rain. The flame body, spread

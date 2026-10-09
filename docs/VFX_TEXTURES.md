@@ -43,12 +43,12 @@ at these files is the `TEXTURES` dictionary at the top of `scripts/spell_fx.gd`.
 | File | Shape | Used by |
 |---|---|---|
 | `fire_smoke.png` | Turbulent round puff | Flame bodies — the mass of a fire |
-| `spark_glow.png` | Soft radial falloff | Sparks, falling embers, points of light |
+| `spark_glow.png` | Soft radial falloff | Sparks, Rain of Ember's falling drops and rising sparks, points of light |
 | `mote_glint.png` | Four-rayed star | Motes gathering into a cast (`SpellFx.cast_glow`) |
 | `shard_diamond.png` | Sharp at both ends | Blue's splinters (`SpellFx.sparks`, slot `shard`) |
 | `flipbook_fire.png` | 4 x 4 flipbook: a flame puff churning and burning away | Flame puffs of an explosion (`ExplosionFx`) |
 | `flipbook_smoke.png` | 4 x 4 flipbook: a lumpy, top-lit smoke billow growing and thinning | Smoke rolling out of an explosion (`ExplosionFx`) |
-| `trail_trace.png` | A thin streak, hot at the head, thinning into a tail | Tails behind fast fire (`SpellFx.tail_mesh`, slot `trail`): Rain of Ember's falling fire, Orb of Fire's ball |
+| `trail_trace.png` | A thin streak, hot at the head, thinning into a tail | Tails behind fast fire (`SpellFx.tail_mesh`, slot `trail`): every drop of Rain of Ember, Orb of Fire's ball |
 | `lightning_arc.png` | One jagged arc, top to bottom | Lightning Orb's chain and its crackle (slot `arc`) |
 | `swirl_twirl.png` | A curl of wind, bright along its leading edge | Suction's vortex (`SpellFx.vortex`, slot `twirl`) |
 | `dirt_clods_01.png`, `dirt_clods_02.png` | A scatter of earth clods, coarse and fine | Earth thrown up by Titanic Brawl's slam (`SpellVisuals.dirt_burst`, slots `dirt`, `dirt_fine`) |
