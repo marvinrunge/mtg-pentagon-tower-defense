@@ -85,9 +85,10 @@ const IDLE_CLIP := "idle"
 ## Kept between frames so it has two edges: it sets off past the far radius and only stops
 ## inside the near one, instead of stuttering along a single line.
 var _returning: bool = false
-## The ghouls' own green - the tint, the burst and the Soul Orb all share it.
-const UNDEAD_TINT := Color(0.35, 1.0, 0.45)
+## The ghouls' own violet - the glow in their cracks, their light, their bar and their burst.
+const UNDEAD_TINT := Color(0.55, 0.15, 1.0)
 const DECOY_TINT := Color(0.4, 0.75, 1.0)
+const UNDEAD_OVERLAY := preload("res://assets/shaders/undead_overlay.gdshader")
 
 
 ## Everything the ally needs, in one call, BEFORE it enters the tree - the same shape
@@ -208,6 +209,22 @@ func _build_visual() -> void:
 ## cannot see what their own spell did.
 func _apply_tint() -> void:
 	var tint: Color = UNDEAD_TINT if kind == "undead" else DECOY_TINT
+	if kind == "undead":
+		# Dead flesh split by black furrows with violet glowing up out of them - see
+		# undead_overlay.gdshader. The green wash it replaced made a ghoul look poisoned,
+		# not dead.
+		var cracks := ShaderMaterial.new()
+		cracks.shader = UNDEAD_OVERLAY
+		cracks.set_shader_parameter("crack_color", Vector3(tint.r, tint.g, tint.b))
+		cracks.set_shader_parameter("seed", randf() * 10.0)
+		_tint_recursive(_visual, cracks)
+		var ember := OmniLight3D.new()
+		ember.light_color = tint
+		ember.light_energy = 0.5
+		ember.omni_range = 2.2
+		ember.position = Vector3(0.0, 1.2, 0.0)
+		add_child(ember)
+		return
 	var overlay := StandardMaterial3D.new()
 	overlay.albedo_color = Color(tint.r, tint.g, tint.b, 0.55 if kind == "decoy" else 0.85)
 	overlay.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -232,10 +249,12 @@ func _tint_recursive(node: Node, overlay: Material) -> void:
 	if node is MeshInstance3D:
 		(node as MeshInstance3D).material_overlay = overlay
 	elif node is CSGBox3D:
+		# The stand-in box when no model could be found: flat colour, no cracks to lay.
+		var tint: Color = UNDEAD_TINT if kind == "undead" else DECOY_TINT
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = (overlay as StandardMaterial3D).emission
+		mat.albedo_color = tint
 		mat.emission_enabled = true
-		mat.emission = (overlay as StandardMaterial3D).emission
+		mat.emission = tint
 		(node as CSGBox3D).material = mat
 	for child: Node in node.get_children():
 		_tint_recursive(child, overlay)
@@ -489,7 +508,7 @@ func _explode() -> void:
 		var at: Vector3 = centre + Vector3(0.0, 1.0, 0.0)
 		NetFx.ring(centre, UNDEAD_TINT, radius)
 		NetFx.impact(at, UNDEAD_TINT, radius * 0.5)
-		NetFx.decal("decal_blight", Color(0.12, 0.3, 0.1, 0.75), radius * 0.8, centre, 0)
+		NetFx.decal("decal_blight", Color(0.1, 0.04, 0.14, 0.8), radius * 0.8, centre, 0)
 		NetFx.sound(&"zombie_burst", at)
 		NetFx.shake(0.12, 0.2, centre, 0)
 	elif kind == "undead":

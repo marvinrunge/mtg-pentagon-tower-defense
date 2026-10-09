@@ -865,13 +865,14 @@ static func contagion_burst() -> Node3D:
 	return root
 
 
-## Zombify, per corpse: the black circle opens, dark smoke and grave-light rise out of it.
+## Zombify, per corpse: the black circle opens, dark smoke and grave-light rise out of it -
+## in the violet of the cracks the ghoul rises with (TemporaryAlly.UNDEAD_TINT).
 static func raise_dead() -> Node3D:
 	var root := Node3D.new()
 	root.name = "RaiseDead"
-	root.add_child(magic_circle("black", Color(0.55, 0.9, 0.5).lerp(Player.FX_BLACK, 0.4), 1.3, 0.9, 0.2, -0.8))
+	root.add_child(magic_circle("black", TemporaryAlly.UNDEAD_TINT.lerp(Player.FX_BLACK, 0.4), 1.3, 0.9, 0.2, -0.8))
 	root.add_child(void_smoke(1.5, 14, 1.8))
-	root.add_child(rising_motes(Color(0.55, 0.95, 0.5), 0.8, 24, 1.3))
+	root.add_child(rising_motes(TemporaryAlly.UNDEAD_TINT.lerp(Color.WHITE, 0.25), 0.8, 24, 1.3))
 	root.tree_entered.connect(func() -> void:
 		root.get_tree().create_timer(2.6).timeout.connect(root.queue_free), CONNECT_ONE_SHOT)
 	return root
