@@ -1370,6 +1370,16 @@ func rank_level_requirement(rank: int) -> int:
 @export var graphics_particle_quality_scale: Array[float] = [0.3, 0.6, 1.0, 1.6]
 @export var graphics_particle_min_amount: int = 3
 
+## Ragdolls (EnemyRagdoll, GraphicsSettings.ragdoll_quality): how many may simulate at once
+## at each setting - Off, Limited, Full. Past the cap a kill gets the ordinary thrown death.
+@export var ragdoll_max_active: Array[int] = [0, 6, 16]
+## At Limited only the big kills go limp: a throw at least this fast sideways, m/s (the
+## death launch runs from enemy_death_launch_speed_min to _max).
+@export var ragdoll_limited_min_launch_speed: float = 4.5
+## A ragdoll simulates at least this long, and freezes once it is still or this long at most.
+@export var ragdoll_min_seconds: float = 1.0
+@export var ragdoll_max_seconds: float = 4.0
+
 # ============================================================
 # RUN REWARDS
 # ============================================================

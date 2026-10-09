@@ -29,6 +29,7 @@ var _msaa_option: OptionButton
 var _glow_check: CheckBox
 var _parallax_check: CheckBox
 var _particles_option: OptionButton
+var _ragdoll_option: OptionButton
 var _renderer_option: OptionButton
 var _restart_label: Label
 var _restart_button: Button
@@ -235,6 +236,17 @@ func _build_graphics_tab(column: VBoxContainer) -> void:
 		GraphicsSettings.apply_particle_quality(_particles_option.get_item_id(index))
 		_mark_custom())
 	column.add_child(_particles_option)
+
+	_label(column, "Ragdolls")
+	_ragdoll_option = OptionButton.new()
+	_ragdoll_option.add_item("Off", GraphicsSettings.RagdollQuality.OFF)
+	_ragdoll_option.add_item("Limited (big kills)", GraphicsSettings.RagdollQuality.LIMITED)
+	_ragdoll_option.add_item("Full (every kill)", GraphicsSettings.RagdollQuality.FULL)
+	_ragdoll_option.select(_ragdoll_option.get_item_index(GraphicsSettings.ragdoll_quality))
+	_ragdoll_option.item_selected.connect(func(index: int) -> void:
+		GraphicsSettings.apply_ragdoll_quality(_ragdoll_option.get_item_id(index))
+		_mark_custom())
+	column.add_child(_ragdoll_option)
 	_check(column, "VSync", GraphicsSettings.vsync_enabled,
 		func(on: bool) -> void: GraphicsSettings.apply_vsync(on))
 	_check(column, "Show FPS Counter", GraphicsSettings.show_fps,
@@ -282,6 +294,7 @@ func _on_preset_selected(index: int) -> void:
 	_glow_check.button_pressed = GraphicsSettings.glow_enabled
 	_parallax_check.button_pressed = GraphicsSettings.terrain_parallax
 	_particles_option.select(_particles_option.get_item_index(GraphicsSettings.particle_quality))
+	_ragdoll_option.select(_ragdoll_option.get_item_index(GraphicsSettings.ragdoll_quality))
 	_renderer_option.select(maxi(GraphicsSettings.RENDERER_METHODS.find(GraphicsSettings.chosen_rendering_method()), 0))
 	_applying_preset = false
 	_refresh_restart_notice()

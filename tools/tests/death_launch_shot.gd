@@ -5,9 +5,10 @@ extends Node3D
 ## for the frames to be anywhere near the timing they are meant to show.
 ##
 ## Run with (windowed - a headless run renders nothing):
-##   "G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --resolution 1280x720 res://tools/tests/death_launch_shot.tscn -- <folder>
+##   "G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --resolution 1280x720 res://tools/tests/death_launch_shot.tscn -- <folder> [--close]
 ##
-## seq_00.png, seq_01.png, ... land in <folder>.
+## seq_00.png, seq_01.png, ... land in <folder>. `--close` films from nearer in, for judging
+## how the bodies themselves move and lie.
 
 const FRAMES := 36
 const STEP := 0.06
@@ -63,8 +64,12 @@ func _run() -> void:
 	var camera := Camera3D.new()
 	add_child(camera)
 	camera.current = true
-	camera.global_position = Vector3(2.0, 3.0, 12.0)
-	camera.look_at(Vector3(1.0, 0.8, 0.0), Vector3.UP)
+	if args.has("--close"):
+		camera.global_position = Vector3(1.0, 2.2, 6.5)
+		camera.look_at(Vector3(1.0, 0.4, 0.0), Vector3.UP)
+	else:
+		camera.global_position = Vector3(2.0, 3.0, 12.0)
+		camera.look_at(Vector3(1.0, 0.8, 0.0), Vector3.UP)
 	for i: int in 20:
 		await get_tree().physics_frame
 

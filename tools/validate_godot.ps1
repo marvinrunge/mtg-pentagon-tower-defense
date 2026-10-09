@@ -147,6 +147,14 @@ if (-not $SkipRuntime) {
     }
     Write-Output "PASS: killed enemies are thrown away from the fatal hit and land as corpses."
 
+    # Ragdolls follow the setting, respect the cap, and free their bodies once at rest.
+    $ragdollResult = Invoke-GodotCheck -Name "ragdoll" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/ragdoll.tscn") -TimeoutSeconds 90
+    if ($ragdollResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($ragdollResult.Output)
+        throw "Ragdolls do not follow the setting or do not come to rest."
+    }
+    Write-Output "PASS: ragdolls follow the setting and cap, lie down near their corpse and free their bodies."
+
     # And that two machines can actually find each other. The host launches a real
     # second process; a single-process fake could not fail the way UDP discovery, a
     # password check over ENet, or a ready round trip fail.

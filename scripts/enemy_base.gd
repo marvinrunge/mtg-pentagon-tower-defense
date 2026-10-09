@@ -69,6 +69,10 @@ var _launch_landed: bool = false
 var _death_clip_seconds: float = 0.0
 ## The lean has run its course and the model is back as built; nothing left to do per frame.
 var _lean_done: bool = false
+## Stage 2: the body went limp instead (EnemyRagdoll), on this peer. Asked once, as the
+## hitstop ends; from then on the ragdoll owns the model and the lean leaves it alone.
+var _ragdoll_asked: bool = false
+var _ragdoll: EnemyRagdoll
 ## The model and its transform as built, so the lean can be laid over it and taken off.
 var _visual_root: Node3D
 var _visual_rest: Transform3D
@@ -3045,6 +3049,13 @@ func _lean_corpse(delta: float) -> void:
 		_launch_time = 0.0
 	_launch_time += delta
 	var hitstop: float = GameSettings.enemy_death_hitstop
+	if _launch_time >= hitstop and not _ragdoll_asked:
+		_ragdoll_asked = true
+		if EnemyRagdoll.wanted(Vector2(death_launch.x, death_launch.z).length()):
+			_ragdoll = EnemyRagdoll.start(self, _visual_root, visual_anim_player, death_launch)
+	if _ragdoll != null:
+		_lean_done = true
+		return
 	var flight: float = maxf(2.0 * death_launch.y / maxf(gravity, 0.01), 0.05)
 	var phase: float = clampf((_launch_time - hitstop) / flight, 0.0, 1.0)
 	if visual_anim_player != null:

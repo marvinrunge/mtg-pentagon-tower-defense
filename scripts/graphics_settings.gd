@@ -24,6 +24,9 @@ const SECTION := "graphics"
 enum Preset { LOW, MEDIUM, HIGH, CUSTOM }
 ## How dense every particle effect is; see GameSettings.graphics_particle_quality_scale.
 enum ParticleQuality { LOW, MEDIUM, HIGH, ULTRA }
+## Whether killed enemies go limp (EnemyRagdoll): never, only the big kills, or every kill -
+## each capped by GameSettings.ragdoll_max_active.
+enum RagdollQuality { OFF, LIMITED, FULL }
 
 ## The three rendering methods, in the order the menus list them.
 const RENDERER_METHODS: Array[String] = ["forward_plus", "mobile", "gl_compatibility"]
@@ -36,6 +39,7 @@ var terrain_parallax: bool = true
 var vsync_enabled: bool = true
 var show_fps: bool = false
 var particle_quality: int = ParticleQuality.HIGH
+var ragdoll_quality: int = RagdollQuality.FULL
 var preset: int = Preset.HIGH
 
 ## The renderer the engine actually booted with this run (fixed until restart).
@@ -224,6 +228,12 @@ func _scale_particles(particles: GPUParticles3D) -> void:
 	particles.set_meta(&"pq_set", target)
 
 
+## Read by EnemyRagdoll each time something dies; ragdolls already going are left to finish.
+func apply_ragdoll_quality(level: int) -> void:
+	ragdoll_quality = clampi(level, RagdollQuality.OFF, RagdollQuality.FULL)
+	_changed(&"ragdoll_quality")
+
+
 ## Just a persisted flag - the HUD owns the actual FPS counter label since it
 ## lives in the HUD scene, not something reachable via a scene-wide group.
 func set_show_fps(enabled: bool) -> void:
@@ -245,6 +255,7 @@ func apply_preset(p: int) -> void:
 			apply_glow(false)
 			apply_terrain_parallax(false)
 			apply_particle_quality(ParticleQuality.LOW)
+			apply_ragdoll_quality(RagdollQuality.OFF)
 			set_pending_rendering_method("gl_compatibility")
 		Preset.MEDIUM:
 			apply_render_scale(0.8)
@@ -253,6 +264,7 @@ func apply_preset(p: int) -> void:
 			apply_glow(true)
 			apply_terrain_parallax(false)
 			apply_particle_quality(ParticleQuality.MEDIUM)
+			apply_ragdoll_quality(RagdollQuality.LIMITED)
 			set_pending_rendering_method("mobile")
 		Preset.HIGH:
 			apply_render_scale(1.0)
@@ -261,6 +273,7 @@ func apply_preset(p: int) -> void:
 			apply_glow(true)
 			apply_terrain_parallax(true)
 			apply_particle_quality(ParticleQuality.HIGH)
+			apply_ragdoll_quality(RagdollQuality.FULL)
 			set_pending_rendering_method("forward_plus")
 		Preset.CUSTOM:
 			pass
@@ -340,6 +353,7 @@ func _save() -> void:
 		"vsync_enabled": vsync_enabled,
 		"show_fps": show_fps,
 		"particle_quality": particle_quality,
+		"ragdoll_quality": ragdoll_quality,
 		"preset": preset,
 		"rendering_method": method_to_persist,
 	})
@@ -375,6 +389,8 @@ func _load() -> void:
 	show_fps = bool(cfg.get_value(SECTION, "show_fps", show_fps))
 	particle_quality = clampi(int(cfg.get_value(SECTION, "particle_quality", particle_quality)),
 		ParticleQuality.LOW, ParticleQuality.ULTRA)
+	ragdoll_quality = clampi(int(cfg.get_value(SECTION, "ragdoll_quality", ragdoll_quality)),
+		RagdollQuality.OFF, RagdollQuality.FULL)
 	preset = int(cfg.get_value(SECTION, "preset", preset))
 	var saved_method: String = String(cfg.get_value(SECTION, "rendering_method", active_rendering_method))
 	if saved_method != active_rendering_method and RENDERER_METHODS.has(saved_method):
