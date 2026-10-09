@@ -79,8 +79,8 @@ func _ready() -> void:
 
 
 ## Turns the flat disc into an actual firestorm: drops of fire falling into it from above,
-## flames coming up off the ground, sparks rising off them, and a light that flickers with them so the effect
-## lands on everything standing in it rather than only on itself.
+## flames coming up off the ground, sparks rising off them, and a light that flickers with
+## them so the effect lands on everything standing in it rather than only on itself.
 ##
 ## Built here rather than authored as a scene because the zone's radius is a runtime
 ## number - every emitter is sized from it, and a fixed .tscn would only ever be right
