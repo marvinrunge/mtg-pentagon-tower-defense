@@ -264,70 +264,40 @@ static func build_falling_drops(radius: float, amount: int, size: float, speed_m
 
 
 ## Embers rising off a burning zone the way they rise off a campfire: let go near the
-## ground at random, carried up by the heat, and pushed back and forth by it on the way.
+## ground at random, carried up by the heat, swirling and fluttering on the way.
 ##
-## The upward drift is a gentle buoyancy held in check by damping, not a launch - a spark
-## that is thrown up and falls back reads as a spray, not as something the fire is shedding.
-## The wandering is a turbulence field, which gives every spark its own path rather than
-## all of them swaying together.
+## Real sparks are tiny - far smaller than a pixel a few metres off - and what makes them
+## look fine rather than cheap is exactly that. Both halves are shaders of their own:
+## ember_sparks.gdshader moves them (a climb and a swirl kept separate, so they can loop
+## hard and still rise), and ember_spark_streak.gdshader draws each one as a short smear
+## of light along its travel that never blinks out for being below a pixel.
+##
+## Cheap enough to use plenty: one small quad each, no texture.
 static func build_rising_sparks(radius: float) -> GPUParticles3D:
 	var particles := GPUParticles3D.new()
-	particles.amount = clampi(int(radius * 14.0), 30, 90)
-	particles.lifetime = 2.6
+	particles.amount = clampi(int(radius * 24.0), 50, 160)
+	particles.lifetime = 2.4
 	# Let go at uneven moments, not in a steady trickle.
 	particles.randomness = 0.8
 	particles.local_coords = false
-	# Generous bounds: turbulence carries them well outside what the emitter alone would.
+	# Steps the swirl often enough that its fast flutter stays a curve, not a zigzag.
+	particles.fixed_fps = 60
 	particles.visibility_aabb = AABB(Vector3(-radius - 2.0, -1.0, -radius - 2.0),
 		Vector3(radius * 2.0 + 4.0, 7.0, radius * 2.0 + 4.0))
-	# Small, but not so small that it drops below a pixel a few metres away - at 0.07 the
-	# sparks all but vanished in the screenshots.
-	var mesh: QuadMesh = SpellFx.premul_particle_mesh(0.13, "spark")
-	(mesh.material as StandardMaterial3D).albedo_color = Color(1.9, 1.5, 1.0)
-	particles.draw_pass_1 = mesh
 
-	var process := ParticleProcessMaterial.new()
-	process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
-	process.emission_ring_axis = Vector3.UP
-	process.emission_ring_radius = radius * 0.85
-	process.emission_ring_inner_radius = 0.0
-	process.emission_ring_height = 0.3
-	process.direction = Vector3.UP
-	process.spread = 25.0
-	process.initial_velocity_min = 0.8
-	process.initial_velocity_max = 1.8
-	# The buoyancy has to outweigh the damping. Turbulence keeps turning every spark towards
-	# a direction of its own, which over a second or two throws away whatever upward speed
-	# the launch gave it; with damping the stronger of the two, the first version's sparks
-	# ended up hovering at knee height instead of climbing.
-	process.gravity = Vector3(0.0, 1.2, 0.0)
-	process.damping_min = 0.3
-	process.damping_max = 0.5
-	process.lifetime_randomness = 0.4
-	process.turbulence_enabled = true
-	process.turbulence_noise_strength = 2.0
-	process.turbulence_noise_scale = 2.0
-	# The pattern itself drifts upward with the heat, so a spark is not pushed the same way
-	# for its whole climb.
-	process.turbulence_noise_speed = Vector3(0.0, 0.6, 0.0)
-	process.turbulence_noise_speed_random = 0.4
-	process.turbulence_influence_min = 0.05
-	process.turbulence_influence_max = 0.12
-	process.scale_min = 0.6
-	process.scale_max = 1.3
-	# A gentle flicker that dies away, rather than the hard blink of the burst sparks.
-	process.scale_curve = _curve_texture([
-		Vector2(0.0, 0.6), Vector2(0.1, 1.0), Vector2(0.3, 0.75), Vector2(0.45, 1.0),
-		Vector2(0.6, 0.7), Vector2(0.75, 0.85), Vector2(1.0, 0.0),
-	])
-	var gradient := Gradient.new()
-	gradient.set_color(0, Color(1.0, 0.95, 0.7, 1.0))
-	gradient.add_point(0.2, Color(1.0, 0.65, 0.2, 1.0))
-	gradient.add_point(0.6, Color(0.85, 0.25, 0.05, 0.9))
-	gradient.set_color(gradient.get_point_count() - 1, Color(0.4, 0.06, 0.02, 0.0))
-	process.color_ramp = _premul_ramp(gradient)
+	var process := ShaderMaterial.new()
+	process.shader = preload("res://assets/shaders/ember_sparks.gdshader")
+	process.set_shader_parameter("emission_radius", radius * 0.85)
 	particles.process_material = process
-	particles.position = Vector3(0.0, 0.15, 0.0)
+
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2.ONE
+	var draw := ShaderMaterial.new()
+	draw.shader = preload("res://assets/shaders/ember_spark_streak.gdshader")
+	draw.render_priority = SpellFx.FX_RENDER_PRIORITY
+	mesh.material = draw
+	particles.draw_pass_1 = mesh
+	particles.position = Vector3(0.0, 0.1, 0.0)
 	return particles
 
 
