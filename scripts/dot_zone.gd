@@ -90,7 +90,7 @@ func _build_firestorm() -> void:
 	# A one-shot at the cast site would end long before the fire did.
 	SoundBank.attach_loop(&"spell_rain_ember", self, false)
 
-	_rain = EmberFx.build_falling_drops(radius, 60, 0.16, 7.0, 10.0, 0.1, 1.3, 7.0)
+	_rain = EmberFx.build_falling_drops(radius, 60, 0.13, 7.0, 10.0, 0.12, 1.6, 7.0)
 	add_child(_rain)
 	_drops = _build_falling_fire()
 	add_child(_drops)
@@ -209,7 +209,7 @@ func _build_flames(size_radius: float, amount: int, lifetime: float) -> GPUParti
 ## Rain of Ember's heavier half: big drops streaking down into the zone between the small
 ## ones, so the storm has weight as well as glitter.
 func _build_falling_fire() -> GPUParticles3D:
-	return EmberFx.build_falling_drops(radius * 0.8, 9, 0.42, 12.0, 16.0, 0.32, 2.8, 8.0)
+	return EmberFx.build_falling_drops(radius * 0.8, 9, 0.32, 12.0, 16.0, 0.26, 3.2, 8.0)
 
 
 func _process(delta: float) -> void:

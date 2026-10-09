@@ -212,8 +212,8 @@ const RAIN_SLANT := Vector3(0.2, -1.0, 0.08)
 ##
 ## A plain bright point with a tail, not a textured lump: falling fire reads as a hot point
 ## of light dragging its own streak, and a flame texture squashed into a ball read as
-## neither. The head stays almost white while the tail carries the orange, which is what
-## makes it look hot.
+## neither. The head is a warm yellow and the tail a deeper orange, so the two read as one
+## glowing drop rather than a white pearl on a thread.
 ##
 ## Premultiplied rather than additive (see SpellFx.premul_particle_mesh), so the drops still
 ## read against a bright sky. They do not blink like the sparks do: a tail flickering on and
@@ -234,12 +234,12 @@ static func build_falling_drops(radius: float, amount: int, size: float, speed_m
 	particles.visibility_aabb = AABB(Vector3(-radius - 3.0, -height - 2.0, -radius - 3.0),
 		Vector3(radius * 2.0 + 6.0, height + 3.0, radius * 2.0 + 6.0))
 	var head: QuadMesh = SpellFx.premul_particle_mesh(size, "spark")
-	# Above 1 so the head blooms into a hot white core.
-	(head.material as StandardMaterial3D).albedo_color = Color(1.6, 1.45, 1.2)
+	# Above 1 so the head blooms, but warm: a near-white head read as a pearl, not as fire.
+	(head.material as StandardMaterial3D).albedo_color = Color(1.6, 1.15, 0.6)
 	particles.draw_pass_1 = head
 	# The head is a billboard and has no direction of its own; the tail gives it one.
 	particles.draw_passes = 2
-	particles.draw_pass_2 = SpellFx.tail_mesh(tail_width, tail_length, Color(1.6, 0.62, 0.16))
+	particles.draw_pass_2 = _drop_tail_mesh(tail_width, tail_length, size * 0.25, Color(1.8, 0.66, 0.16))
 
 	var process := ParticleProcessMaterial.new()
 	# Spawned in a flat slab well overhead, so they are already falling by the time they
@@ -272,7 +272,7 @@ static func build_falling_drops(radius: float, amount: int, size: float, speed_m
 ## all of them swaying together.
 static func build_rising_sparks(radius: float) -> GPUParticles3D:
 	var particles := GPUParticles3D.new()
-	particles.amount = clampi(int(radius * 10.0), 24, 70)
+	particles.amount = clampi(int(radius * 14.0), 30, 90)
 	particles.lifetime = 2.6
 	# Let go at uneven moments, not in a steady trickle.
 	particles.randomness = 0.8
@@ -280,8 +280,10 @@ static func build_rising_sparks(radius: float) -> GPUParticles3D:
 	# Generous bounds: turbulence carries them well outside what the emitter alone would.
 	particles.visibility_aabb = AABB(Vector3(-radius - 2.0, -1.0, -radius - 2.0),
 		Vector3(radius * 2.0 + 4.0, 7.0, radius * 2.0 + 4.0))
-	var mesh: QuadMesh = SpellFx.premul_particle_mesh(0.07, "spark")
-	(mesh.material as StandardMaterial3D).albedo_color = Color(1.5, 1.35, 1.15)
+	# Small, but not so small that it drops below a pixel a few metres away - at 0.07 the
+	# sparks all but vanished in the screenshots.
+	var mesh: QuadMesh = SpellFx.premul_particle_mesh(0.13, "spark")
+	(mesh.material as StandardMaterial3D).albedo_color = Color(1.9, 1.5, 1.0)
 	particles.draw_pass_1 = mesh
 
 	var process := ParticleProcessMaterial.new()
@@ -293,20 +295,24 @@ static func build_rising_sparks(radius: float) -> GPUParticles3D:
 	process.direction = Vector3.UP
 	process.spread = 25.0
 	process.initial_velocity_min = 0.8
-	process.initial_velocity_max = 2.0
-	process.gravity = Vector3(0.0, 0.5, 0.0)
-	process.damping_min = 0.4
-	process.damping_max = 0.8
+	process.initial_velocity_max = 1.8
+	# The buoyancy has to outweigh the damping. Turbulence keeps turning every spark towards
+	# a direction of its own, which over a second or two throws away whatever upward speed
+	# the launch gave it; with damping the stronger of the two, the first version's sparks
+	# ended up hovering at knee height instead of climbing.
+	process.gravity = Vector3(0.0, 1.2, 0.0)
+	process.damping_min = 0.3
+	process.damping_max = 0.5
 	process.lifetime_randomness = 0.4
 	process.turbulence_enabled = true
-	process.turbulence_noise_strength = 2.5
+	process.turbulence_noise_strength = 2.0
 	process.turbulence_noise_scale = 2.0
 	# The pattern itself drifts upward with the heat, so a spark is not pushed the same way
 	# for its whole climb.
 	process.turbulence_noise_speed = Vector3(0.0, 0.6, 0.0)
 	process.turbulence_noise_speed_random = 0.4
-	process.turbulence_influence_min = 0.08
-	process.turbulence_influence_max = 0.22
+	process.turbulence_influence_min = 0.05
+	process.turbulence_influence_max = 0.12
 	process.scale_min = 0.6
 	process.scale_max = 1.3
 	# A gentle flicker that dies away, rather than the hard blink of the burst sparks.
@@ -325,15 +331,73 @@ static func build_rising_sparks(radius: float) -> GPUParticles3D:
 	return particles
 
 
-## White-hot into orange, holding its alpha almost to the end: a drop is still burning when
+## Yellow into orange, holding its alpha almost to the end: a drop is still burning when
 ## it lands.
 static func _drop_gradient() -> Gradient:
 	var gradient := Gradient.new()
-	gradient.set_color(0, Color(1.0, 0.92, 0.7, 1.0))
-	gradient.add_point(0.35, Color(1.0, 0.72, 0.32, 1.0))
+	gradient.set_color(0, Color(1.0, 0.85, 0.5, 1.0))
+	gradient.add_point(0.35, Color(1.0, 0.7, 0.3, 1.0))
 	gradient.add_point(0.85, Color(1.0, 0.48, 0.14, 1.0))
 	gradient.set_color(gradient.get_point_count() - 1, Color(0.9, 0.3, 0.08, 0.0))
 	return gradient
+
+
+## The streak behind a falling drop: two crossed quads running from just inside the head
+## back along -Y (so `particle_flag_align_y` lays it along the fall), tapering from
+## `width` at the head to a point.
+##
+## Not SpellFx.tail_mesh: trail_trace.png fills only a sliver of its quad and is brightest
+## in the MIDDLE, so a tail built from it was a hairline floating behind the head with a gap
+## in front. This one is brightest where it meets the head and fades out along its length.
+static func _drop_tail_mesh(width: float, length: float, overlap: float, tint: Color) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var head_half: float = width * 0.5
+	var end_half: float = width * 0.12
+	for side: Vector3 in [Vector3.RIGHT, Vector3.BACK]:
+		var corners: Array = [
+			[-side * head_half + Vector3.UP * overlap, Vector2(0.0, 0.0)],
+			[side * head_half + Vector3.UP * overlap, Vector2(1.0, 0.0)],
+			[side * end_half + Vector3.DOWN * length, Vector2(1.0, 1.0)],
+			[-side * end_half + Vector3.DOWN * length, Vector2(0.0, 1.0)],
+		]
+		for index: int in [0, 1, 2, 0, 2, 3]:
+			st.set_color(Color.WHITE)
+			st.set_uv(corners[index][1])
+			st.add_vertex(corners[index][0])
+	var mesh: ArrayMesh = st.commit()
+	var material := StandardMaterial3D.new()
+	material.albedo_texture = _drop_tail_texture()
+	material.albedo_color = tint
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.blend_mode = BaseMaterial3D.BLEND_MODE_PREMULT_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	material.vertex_color_use_as_albedo = true
+	material.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	material.disable_fog = true
+	material.render_priority = SpellFx.FX_RENDER_PRIORITY
+	mesh.surface_set_material(0, material)
+	return mesh
+
+
+static var _tail_texture: Texture2D
+
+
+## Soft across, bright at the head (v = 0) and fading to nothing at the end (v = 1),
+## premultiplied. Built once in code: it is a falloff, not a picture worth a file.
+static func _drop_tail_texture() -> Texture2D:
+	if _tail_texture != null:
+		return _tail_texture
+	var image := Image.create(32, 128, false, Image.FORMAT_RGBA8)
+	for y: int in 128:
+		var along: float = pow(1.0 - float(y) / 127.0, 1.6)
+		for x: int in 32:
+			var across: float = (float(x) + 0.5) / 32.0 * 2.0 - 1.0
+			var a: float = exp(-across * across * 4.0) * along
+			image.set_pixel(x, y, Color(a, a, a, a))
+	_tail_texture = ImageTexture.create_from_image(image)
+	return _tail_texture
 
 
 ## `gradient` with every stop's RGB scaled by its alpha, for the premultiplied meshes - see
