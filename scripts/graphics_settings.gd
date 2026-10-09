@@ -22,6 +22,8 @@ const MOBILE_DRIVER_KEY := "rendering_device/driver.windows"
 const SECTION := "graphics"
 
 enum Preset { LOW, MEDIUM, HIGH, CUSTOM }
+## How dense every particle effect is; see GameSettings.graphics_particle_quality_scale.
+enum ParticleQuality { LOW, MEDIUM, HIGH, ULTRA }
 
 ## The three rendering methods, in the order the menus list them.
 const RENDERER_METHODS: Array[String] = ["forward_plus", "mobile", "gl_compatibility"]
@@ -33,6 +35,7 @@ var glow_enabled: bool = true
 var terrain_parallax: bool = true
 var vsync_enabled: bool = true
 var show_fps: bool = false
+var particle_quality: int = ParticleQuality.HIGH
 var preset: int = Preset.HIGH
 
 ## The renderer the engine actually booted with this run (fixed until restart).
@@ -51,6 +54,10 @@ func _ready() -> void:
 	apply_msaa(msaa_level)
 	apply_vsync(vsync_enabled)
 	apply_terrain_parallax(terrain_parallax)
+	# Every particle system that enters the tree is sized to the setting as it arrives,
+	# which covers the effects built in code and the ones in scenes alike, without each of
+	# them having to ask.
+	get_tree().node_added.connect(_on_node_added)
 	# shadows/glow touch scene nodes (the sun light, the world environment)
 	# that don't exist yet at autoload _ready() - the main scene applies those
 	# itself once its tree is up, via apply_scene_dependent().
@@ -175,6 +182,48 @@ func apply_vsync(enabled: bool) -> void:
 	_changed(&"vsync_enabled")
 
 
+## Thins out or thickens every particle effect in the game.
+##
+## Applied centrally rather than by each effect: there are dozens of them, built in code and
+## in scenes, and a setting each one had to remember to read would be missed by the next one
+## written. Systems already in the tree are resized on the spot.
+func apply_particle_quality(level: int) -> void:
+	particle_quality = clampi(level, ParticleQuality.LOW, ParticleQuality.ULTRA)
+	for node: Node in get_tree().root.find_children("*", "GPUParticles3D", true, false):
+		_scale_particles(node as GPUParticles3D)
+	_changed(&"particle_quality")
+
+
+func _on_node_added(node: Node) -> void:
+	if node is GPUParticles3D:
+		_scale_particles(node as GPUParticles3D)
+
+
+## Up to High, `amount_ratio` emits a share of the authored count, which costs nothing and
+## does not restart the system. Ultra has to raise `amount` itself, as the ratio stops at 1.
+##
+## The authored count is remembered on the node, so applying this again - a new setting, the
+## node moved to another parent - always scales from it and never compounds. A script that
+## changed `amount` since is taken at its word.
+func _scale_particles(particles: GPUParticles3D) -> void:
+	var base: int = particles.amount
+	if particles.has_meta(&"pq_base") and particles.amount == int(particles.get_meta(&"pq_set")):
+		base = int(particles.get_meta(&"pq_base"))
+	var scales: Array[float] = GameSettings.graphics_particle_quality_scale
+	var factor: float = scales[clampi(particle_quality, 0, scales.size() - 1)]
+	var target: int = base
+	var ratio: float = 1.0
+	if factor > 1.0:
+		target = int(ceil(float(base) * factor))
+	else:
+		ratio = maxf(factor, minf(1.0, float(GameSettings.graphics_particle_min_amount) / float(maxi(base, 1))))
+	if particles.amount != target:
+		particles.amount = target
+	particles.amount_ratio = ratio
+	particles.set_meta(&"pq_base", base)
+	particles.set_meta(&"pq_set", target)
+
+
 ## Just a persisted flag - the HUD owns the actual FPS counter label since it
 ## lives in the HUD scene, not something reachable via a scene-wide group.
 func set_show_fps(enabled: bool) -> void:
@@ -195,6 +244,7 @@ func apply_preset(p: int) -> void:
 			apply_msaa(0)
 			apply_glow(false)
 			apply_terrain_parallax(false)
+			apply_particle_quality(ParticleQuality.LOW)
 			set_pending_rendering_method("gl_compatibility")
 		Preset.MEDIUM:
 			apply_render_scale(0.8)
@@ -202,6 +252,7 @@ func apply_preset(p: int) -> void:
 			apply_msaa(1)
 			apply_glow(true)
 			apply_terrain_parallax(false)
+			apply_particle_quality(ParticleQuality.MEDIUM)
 			set_pending_rendering_method("mobile")
 		Preset.HIGH:
 			apply_render_scale(1.0)
@@ -209,6 +260,7 @@ func apply_preset(p: int) -> void:
 			apply_msaa(2)
 			apply_glow(true)
 			apply_terrain_parallax(true)
+			apply_particle_quality(ParticleQuality.HIGH)
 			set_pending_rendering_method("forward_plus")
 		Preset.CUSTOM:
 			pass
@@ -287,6 +339,7 @@ func _save() -> void:
 		"terrain_parallax": terrain_parallax,
 		"vsync_enabled": vsync_enabled,
 		"show_fps": show_fps,
+		"particle_quality": particle_quality,
 		"preset": preset,
 		"rendering_method": method_to_persist,
 	})
@@ -320,6 +373,8 @@ func _load() -> void:
 	terrain_parallax = bool(cfg.get_value(SECTION, "terrain_parallax", terrain_parallax))
 	vsync_enabled = bool(cfg.get_value(SECTION, "vsync_enabled", vsync_enabled))
 	show_fps = bool(cfg.get_value(SECTION, "show_fps", show_fps))
+	particle_quality = clampi(int(cfg.get_value(SECTION, "particle_quality", particle_quality)),
+		ParticleQuality.LOW, ParticleQuality.ULTRA)
 	preset = int(cfg.get_value(SECTION, "preset", preset))
 	var saved_method: String = String(cfg.get_value(SECTION, "rendering_method", active_rendering_method))
 	if saved_method != active_rendering_method and RENDERER_METHODS.has(saved_method):

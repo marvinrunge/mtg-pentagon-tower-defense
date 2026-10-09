@@ -129,6 +129,15 @@ if (-not $SkipRuntime) {
     }
     Write-Output "PASS: all 25 spells and 10 auras have an observable effect."
 
+    # The Particle Effects option is applied centrally to every particle system, so a
+    # regression there quietly thins or doubles every effect in the game at once.
+    $particleResult = Invoke-GodotCheck -Name "particle-quality" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/particle_quality.tscn") -TimeoutSeconds 60
+    if ($particleResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($particleResult.Output)
+        throw "The Particle Effects setting does not reach the particle systems."
+    }
+    Write-Output "PASS: the Particle Effects setting sizes new and existing particle systems."
+
     # And that two machines can actually find each other. The host launches a real
     # second process; a single-process fake could not fail the way UDP discovery, a
     # password check over ENet, or a ready round trip fail.

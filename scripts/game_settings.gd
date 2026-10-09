@@ -1334,6 +1334,13 @@ func rank_level_requirement(rank: int) -> int:
 @export var graphics_terrain_parallax_depth: float = 0.1
 @export var graphics_terrain_parallax_range: float = 30.0
 
+## Particle effects (GraphicsSettings.particle_quality): how many particles every effect
+## spawns at each setting - Low, Medium, High, Ultra - as a fraction of what it was authored
+## with. Below 1 thins the effect out; Ultra raises its count. An effect authored with only a
+## handful never drops below `graphics_particle_min_amount`, so nothing vanishes outright.
+@export var graphics_particle_quality_scale: Array[float] = [0.3, 0.6, 1.0, 1.6]
+@export var graphics_particle_min_amount: int = 3
+
 # ============================================================
 # RUN REWARDS
 # ============================================================

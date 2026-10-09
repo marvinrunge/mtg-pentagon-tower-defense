@@ -275,7 +275,7 @@ static func build_falling_drops(radius: float, amount: int, size: float, speed_m
 ## Cheap enough to use plenty: one small quad each, no texture.
 static func build_rising_sparks(radius: float) -> GPUParticles3D:
 	var particles := GPUParticles3D.new()
-	particles.amount = clampi(int(radius * 24.0), 50, 160)
+	particles.amount = clampi(int(radius * 36.0), 80, 240)
 	particles.lifetime = 2.4
 	# Let go at uneven moments, not in a steady trickle.
 	particles.randomness = 0.8

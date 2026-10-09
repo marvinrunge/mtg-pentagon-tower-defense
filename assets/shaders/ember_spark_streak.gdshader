@@ -18,7 +18,7 @@ uniform float width = 0.018;
 uniform float streak_length = 0.075;
 uniform float min_pixels = 1.5;
 // Above 1 so the core blooms where glow is on.
-uniform float energy = 2.4;
+uniform float energy = 3.4;
 
 varying float coverage;
 
