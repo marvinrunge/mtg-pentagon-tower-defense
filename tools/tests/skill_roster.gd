@@ -354,6 +354,18 @@ func _check_black() -> void:
 	_cast("black_5")
 	var raised: Array[Node] = _nodes_of("TemporaryAlly")
 	_check("black_5 Zombify", raised.size() >= 1 and raised[0].kind == "undead", "nothing raised")
+	# Ghouls only fight hand to hand, so a raised archer or mage has to come back on a melee
+	# rig - their own `attack` clips are a bow drawn and a spell cast.
+	var archer := TemporaryAlly.new()
+	archer.configure("undead", 100.0, 5.0, 10.0, _player)
+	archer.visual_color = "Red"
+	archer.visual_class = "Ranged"
+	_scene.add_child(archer)
+	var melee_rig: Node = (EnemyBase.MELEE_VISUAL_SCENES["Red"] as PackedScene).instantiate()
+	var on_melee_rig: bool = archer._visual != null and archer._visual.scene_file_path == melee_rig.scene_file_path
+	melee_rig.free()
+	archer.free()
+	_check("black_5 a raised archer rises on a melee rig", on_melee_rig, "kept its ranged model")
 	# A ghoul FIGHTS: an enemy put in front of it has to lose health to its swings, over real
 	# physics frames, without the ghoul bursting - Zombify alone has no burst at all.
 	var had_guild: bool = _player.has_guild("guild_rakdos")

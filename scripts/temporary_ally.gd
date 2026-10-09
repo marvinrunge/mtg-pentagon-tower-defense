@@ -6,8 +6,8 @@ class_name TemporaryAlly
 ## class rather than two: black's **Zombify** raises corpses as ghouls, and blue's
 ## **Phantasmal Decoy** drops an illusion that enemies attack instead of the player.
 ##
-## A ghoul FIGHTS. It sprints at the nearest enemy and trades blows with it, swinging with
-## the `attack` clip of the model it died in, until its time runs out or something kills
+## A ghoul FIGHTS, and only up close. It sprints at the nearest enemy and trades blows with
+## it, swinging with a melee rig's `attack` clip, until its time runs out or something kills
 ## it. (It once stood and swung with no attack clip at all, playing its walk cycle on the
 ## spot; the enemy rigs have had a real one since, and that is what it uses.)
 ##
@@ -46,7 +46,7 @@ var attack_serial: int = 0
 ## map would end up bursting in a lane nobody asked it to.
 var leash_range: float = 26.0
 var owner_player: Node3D = null
-## What this used to be, for Zombify - a raised corpse wears the model it died in. Null
+## What this used to be, for Zombify - a raised corpse rises in the colour it died in. Null
 ## for a decoy, which is an illusion of nothing in particular.
 ##
 ## A field rather than node metadata: `set_meta(name, null)` stores nothing at all, and
@@ -154,14 +154,23 @@ func _build_synchronizer() -> void:
 	add_child(sync)
 
 
-## A raised corpse wears the model it died in; an illusion is a translucent blue copy of
-## nothing in particular. Both go through the same path so the two only differ in the
-## material laid over them.
+## A raised corpse rises as a melee body in the colour it died in; an illusion is a
+## translucent blue copy of nothing in particular. Both go through the same path so the two
+## only differ in the material laid over them.
+##
+## Always the MELEE model for a ghoul, whatever class the corpse was: a ghoul only ever
+## fights hand to hand, and the archer's and the mage's `attack` clips are a bow being
+## drawn and a spell being cast - a raised archer "hitting" something by aiming a bow at it
+## read as broken. Their rigs are not all the same skeleton as the melee one either (six of
+## its swing's tracks miss on some of them), so lending them the melee swing instead would
+## distort on exactly those.
 func _build_visual() -> void:
 	var source: EnemyData = visual_source
 	# The resource when there is one, the two replicated strings when there is not.
 	var color: String = source.color_identity if source != null else visual_color
 	var enemy_class: String = source.enemy_class if source != null else visual_class
+	if kind == "undead":
+		enemy_class = "Melee"
 	var scene: PackedScene = null
 	if color != "":
 		if enemy_class == "Ranged" and EnemyBase.RANGED_VISUAL_SCENES.has(color):
