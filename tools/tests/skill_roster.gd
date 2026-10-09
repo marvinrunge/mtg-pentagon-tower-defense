@@ -134,6 +134,15 @@ func _under_crosshair(distance: float) -> Vector3:
 
 ## Casts through the same entry point the game uses on the server, so the test exercises
 ## the real match statement rather than calling the implementations directly.
+## Sets a ghoul off with an enemy standing beside it: [health before, health after].
+func _ghoul_burst_drop(ghoul: Node3D) -> Array[float]:
+	var bystander: EnemyBase = _spawn_enemy(Vector3.ZERO)
+	bystander.global_position = ghoul.global_position + Vector3(1.0, 0.0, 0.0)
+	var before: float = bystander.health
+	ghoul._explode()
+	return [before, bystander.health]
+
+
 func _cast(spell_id: String) -> void:
 	_player._run_spell_effect(spell_id, 1.0)
 
@@ -346,15 +355,31 @@ func _check_black() -> void:
 	var raised: Array[Node] = _nodes_of("TemporaryAlly")
 	_check("black_5 Zombify", raised.size() >= 1 and raised[0].kind == "undead", "nothing raised")
 	# A ghoul does not fight, it BURSTS - so the check is an enemy beside it losing health when
-	# it goes off, not a swing landing.
+	# it goes off, not a swing landing. The burst's DAMAGE belongs to Mayhem Devil, the
+	# black+red guild node (TemporaryAlly._explode), not to Zombify: without the node a ghoul
+	# still pops but hurts nothing, and with it the same pop does. Both halves are checked,
+	# so neither the gate nor the damage behind it can go missing unnoticed.
+	var had_guild: bool = _player.has_guild("guild_rakdos")
+	_player.guild_ranks.erase("guild_rakdos")
 	if not raised.is_empty():
-		var ghoul: Node3D = raised[0] as Node3D
-		var bystander: EnemyBase = _spawn_enemy(Vector3.ZERO)
-		bystander.global_position = ghoul.global_position + Vector3(1.0, 0.0, 0.0)
-		var bystander_before: float = bystander.health
-		ghoul._explode()
-		_check("black_5 ghouls burst", bystander.health < bystander_before,
-			"%.0f -> %.0f" % [bystander_before, bystander.health])
+		var drop: Array[float] = _ghoul_burst_drop(raised[0] as Node3D)
+		_check("black_5 ghoul burst is harmless without Mayhem Devil", drop[1] >= drop[0],
+			"%.0f -> %.0f" % [drop[0], drop[1]])
+	_clear_spawned()
+	_clear_enemies()
+	_player.guild_ranks["guild_rakdos"] = 1
+	corpse = _spawn_enemy(Vector3(2.0, 0.0, 2.0))
+	corpse._register_corpse()
+	_cast("black_5")
+	raised = _nodes_of("TemporaryAlly")
+	if raised.is_empty():
+		_check("black_5 ghouls burst with Mayhem Devil", false, "nothing raised")
+	else:
+		var drop: Array[float] = _ghoul_burst_drop(raised[0] as Node3D)
+		_check("black_5 ghouls burst with Mayhem Devil", drop[1] < drop[0],
+			"%.0f -> %.0f" % [drop[0], drop[1]])
+	if not had_guild:
+		_player.guild_ranks.erase("guild_rakdos")
 	_clear_spawned()
 	_clear_enemies()
 	_done_with("black")
