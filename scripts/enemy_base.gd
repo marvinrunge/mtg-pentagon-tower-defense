@@ -3372,6 +3372,7 @@ func _raise_as_dimir_ghoul() -> void:
 		"position": global_position,
 		"hp": GameSettings.spell_black_zombify_hp,
 		"duration": GameSettings.spell_black_zombify_duration,
+		"hit_damage": GameSettings.spell_black_zombify_hit_damage,
 		"damage": GameSettings.spell_black_zombify_burst_damage,
 		"caster": raiser.get_multiplayer_authority() if Net.is_active() else 1,
 		"color": enemy_data.color_identity,

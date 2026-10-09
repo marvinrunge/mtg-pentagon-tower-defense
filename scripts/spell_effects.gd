@@ -527,7 +527,8 @@ static func cast_black_zombify(caster: Player) -> void:
 			"position": caster._ground_snap(where) + Vector3(0.0, 0.5, 0.0),
 			"hp": GameSettings.spell_black_zombify_hp * caster._rank_damage(),
 			"duration": GameSettings.spell_black_zombify_duration * caster._rank_duration(),
-			# What its burst deals - a ghoul does not fight, it runs in and bursts.
+			# One swing, and the burst it ends in when its raiser owns Mayhem Devil.
+			"hit_damage": GameSettings.spell_black_zombify_hit_damage * caster.get_spell_damage_multiplier() * caster._rank_damage(),
 			"damage": GameSettings.spell_black_zombify_burst_damage * caster.get_spell_damage_multiplier() * caster._rank_damage(),
 			"color": source.color_identity if source != null else "",
 			"class": source.enemy_class if source != null else "",

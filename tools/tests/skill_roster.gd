@@ -159,7 +159,7 @@ func _run() -> void:
 
 	_check_white()
 	_check_blue()
-	_check_black()
+	await _check_black()
 	await _check_red()
 	_check_green()
 	_check_auras()
@@ -354,14 +354,30 @@ func _check_black() -> void:
 	_cast("black_5")
 	var raised: Array[Node] = _nodes_of("TemporaryAlly")
 	_check("black_5 Zombify", raised.size() >= 1 and raised[0].kind == "undead", "nothing raised")
-	# A ghoul does not fight, it BURSTS - so the check is an enemy beside it losing health when
-	# it goes off, not a swing landing. The burst's DAMAGE belongs to Mayhem Devil, the
-	# black+red guild node (TemporaryAlly._explode), not to Zombify: without the node a ghoul
-	# still pops but hurts nothing, and with it the same pop does. Both halves are checked,
-	# so neither the gate nor the damage behind it can go missing unnoticed.
+	# A ghoul FIGHTS: an enemy put in front of it has to lose health to its swings, over real
+	# physics frames, without the ghoul bursting - Zombify alone has no burst at all.
 	var had_guild: bool = _player.has_guild("guild_rakdos")
 	_player.guild_ranks.erase("guild_rakdos")
 	if not raised.is_empty():
+		var fighter: TemporaryAlly = raised[0] as TemporaryAlly
+		var foe: EnemyBase = _spawn_enemy(Vector3.ZERO)
+		foe.global_position = fighter.global_position + Vector3(1.0, 0.0, 0.0)
+		var foe_before: float = foe.health
+		for frame: int in 150:
+			await get_tree().physics_frame
+			if not is_instance_valid(foe) or foe.health < foe_before:
+				break
+		var foe_after: float = foe.health if is_instance_valid(foe) else 0.0
+		_check("black_5 ghouls fight", foe_after < foe_before and fighter.attack_serial > 0,
+			"%.0f -> %.0f, swings %d" % [foe_before, foe_after, fighter.attack_serial])
+		_check("black_5 ghouls do not burst on contact", is_instance_valid(fighter) and not fighter._burst,
+			"burst on reaching its target")
+		_clear_enemies()
+	# The END of a ghoul is where Mayhem Devil, the black+red guild node, comes in
+	# (TemporaryAlly._explode): without the node it crumbles and hurts nothing, with it the
+	# same end is a burst. Both halves are checked, so neither the gate nor the damage behind
+	# it can go missing unnoticed.
+	if not raised.is_empty() and is_instance_valid(raised[0]):
 		var drop: Array[float] = _ghoul_burst_drop(raised[0] as Node3D)
 		_check("black_5 ghoul burst is harmless without Mayhem Devil", drop[1] >= drop[0],
 			"%.0f -> %.0f" % [drop[0], drop[1]])

@@ -53,7 +53,7 @@ const GUILD_NODES: Array[Dictionary] = [
 		"id": "guild_rakdos",
 		"name": "Mayhem Devil",
 		"colors": ["black", "red"],
-		"desc": "Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time, instead of fizzling out harmlessly.",
+		"desc": "Zombify's raised ghouls explode for area damage when they are killed or run out of time, instead of just crumbling.",
 	},
 	{
 		"id": "guild_gruul",

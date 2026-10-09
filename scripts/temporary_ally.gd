@@ -6,15 +6,15 @@ class_name TemporaryAlly
 ## class rather than two: black's **Zombify** raises corpses as ghouls, and blue's
 ## **Phantasmal Decoy** drops an illusion that enemies attack instead of the player.
 ##
-## A ghoul does not fight. It SPRINTS at the nearest enemy and bursts on contact - or
-## wherever it stands when its time runs out, or when something kills it first. It used to
-## stand and trade blows with an animation it did not have, playing its walk cycle on the
-## spot while numbers came off its target; bursting needs no attack animation at all.
+## A ghoul FIGHTS. It sprints at the nearest enemy and trades blows with it, swinging with
+## the `attack` clip of the model it died in, until its time runs out or something kills
+## it. (It once stood and swung with no attack clip at all, playing its walk cycle on the
+## spot; the enemy rigs have had a real one since, and that is what it uses.)
 ##
-## The burst only HURTS anything once its raiser owns Mayhem Devil, the black+red
-## guild node (see TemporaryAlly._explode and docs/GUILD_PLAN.md Stage 1) - without it a
-## ghoul still runs in and still pops, it is just a distraction with no payoff. Zombify
-## alone was the area damage black was missing; now that is the guild node's to add.
+## Its end is where Mayhem Devil, the black+red guild node, comes in (TemporaryAlly._explode,
+## docs/GUILD_PLAN.md Stage 1): with it, a ghoul that is cut down or runs out of time BURSTS
+## for area damage; without it, it simply crumbles. Zombify alone is a few bodies that hold
+## and hit; the guild node turns each one into a bomb on top.
 ##
 ## It is deliberately NOT an EnemyBase with a flipped team. EnemyBase carries a wave
 ## registration, a colour identity, mana and XP on death, an elite modifier and a boss
@@ -26,16 +26,22 @@ class_name TemporaryAlly
 ## `EnemyBase.evaluate_target`, which treats the group exactly the way it treats a myr.
 ## Both kinds are in it: a ghoul nothing would swing at could run the whole lane untouched.
 
-## Which of the two this is. "undead" rushes and bursts; "decoy" stands where it was put
+## Which of the two this is. "undead" rushes in and fights; "decoy" stands where it was put
 ## and soaks attention.
 var kind: String = "undead"
 var health: float = 100.0
 var max_health: float = 100.0
-## For a ghoul, what its burst deals to everything in the radius. Unused by a decoy.
+## For a ghoul, what its burst deals to everything in the radius - only ever dealt with
+## Mayhem Devil. Unused by a decoy.
 var attack_damage: float = 20.0
+## For a ghoul, what one of its swings deals. Unused by a decoy.
+var hit_damage: float = 20.0
 var move_speed: float = 4.5
-## How close a ghoul has to get before it bursts.
-var burst_trigger_range: float = 1.8
+## How close a ghoul stops to swing, from its centre to its target's.
+var attack_range: float = 1.8
+## Bumped by the server on every swing and replicated, so each peer starts the same swing
+## clip from it rather than guessing at one from velocity.
+var attack_serial: int = 0
 ## How far it will run to find something. Small on purpose: a ghoul that chased across the
 ## map would end up bursting in a lane nobody asked it to.
 var leash_range: float = 26.0
@@ -66,6 +72,11 @@ var _anim: AnimationPlayer
 var _move_clip: String = ""
 var _bar_fill: MeshInstance3D
 var _burst: bool = false
+## Seconds until the next swing may start, and until the current one lands (-1: none due).
+var _attack_cooldown: float = 0.0
+var _impact_timer: float = -1.0
+## The swing being played on this peer, so a new `attack_serial` is noticed once.
+var _seen_attack_serial: int = 0
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 const RETARGET_INTERVAL := 0.4
@@ -133,7 +144,7 @@ func _build_synchronizer() -> void:
 	if not Net.is_active():
 		return
 	var config := SceneReplicationConfig.new()
-	for property: String in [":position", ":rotation", ":velocity", ":health"]:
+	for property: String in [":position", ":rotation", ":velocity", ":health", ":attack_serial"]:
 		config.add_property(NodePath(property))
 		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
 	var sync := MultiplayerSynchronizer.new()
@@ -247,6 +258,16 @@ func _build_health_bar() -> void:
 func _update_animation() -> void:
 	if _anim == null or _move_clip == "":
 		return
+	if attack_serial != _seen_attack_serial:
+		_seen_attack_serial = attack_serial
+		if _anim.has_animation("attack"):
+			# Stretched to fill exactly one swing interval, the way EnemyBase.perform_attack
+			# does, so it finishes as the next swing starts instead of restarting mid-way.
+			var clip: Animation = _anim.get_animation("attack")
+			_anim.play("attack", 0.1, clip.length / GameSettings.spell_black_zombify_attack_interval)
+			return
+	if _swinging():
+		return
 	var moving: bool = Vector2(velocity.x, velocity.z).length() > 0.4
 	var wanted: String = _move_clip
 	if not moving:
@@ -288,8 +309,16 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	_attack_cooldown -= delta
+	if _impact_timer >= 0.0:
+		_impact_timer -= delta
+		if _impact_timer < 0.0:
+			_land_hit()
+
 	_retarget_timer -= delta
-	if _retarget_timer <= 0.0:
+	# A swing is committed to its target; picking another mid-swing would land it on
+	# something it was never aimed at.
+	if _retarget_timer <= 0.0 and _impact_timer < 0.0:
 		_retarget_timer = RETARGET_INTERVAL
 		_acquire_target()
 
@@ -300,14 +329,58 @@ func _physics_process(delta: float) -> void:
 
 	var to_target: Vector3 = _target.global_position - global_position
 	to_target.y = 0.0
-	if to_target.length() <= burst_trigger_range:
-		_explode()
+	if to_target.length() <= attack_range or _swinging():
+		# In reach: stand, face it and swing. Rooted for the whole swing, like an enemy's -
+		# the clip has no root motion, so sliding through it would look like skating.
+		velocity.x = 0.0
+		velocity.z = 0.0
+		if to_target.length() > 0.01:
+			rotation.y = lerp_angle(rotation.y, atan2(to_target.x, to_target.z), 10.0 * delta)
+		if _attack_cooldown <= 0.0 and to_target.length() <= attack_range:
+			_start_swing()
+		move_and_slide()
 		return
 	var direction: Vector3 = to_target.normalized()
 	velocity.x = direction.x * move_speed
 	velocity.z = direction.z * move_speed
 	rotation.y = lerp_angle(rotation.y, atan2(direction.x, direction.z), 10.0 * delta)
 	move_and_slide()
+
+
+func _swinging() -> bool:
+	return _anim != null and _anim.current_animation == "attack" and _anim.is_playing()
+
+
+## Server only. The clip itself starts on every peer from the replicated `attack_serial`
+## (see _update_animation); what lands, and when, is decided here.
+func _start_swing() -> void:
+	var interval: float = GameSettings.spell_black_zombify_attack_interval
+	_attack_cooldown = interval
+	attack_serial += 1
+	var impact_ratio: float = 0.5
+	if _anim != null and _anim.has_animation("attack"):
+		impact_ratio = float(_anim.get_animation("attack").get_meta("hit_ratio", 0.5))
+	_impact_timer = maxf(impact_ratio * interval, 0.01)
+	SoundBank.play_at(&"blunt_swing", global_position)
+
+
+## The swing's measured hit frame. Lands only if the target is still there and still in
+## reach - stepping out of a ghoul's swing works the way stepping out of an enemy's does.
+##
+## Credited to the player who raised it, like the burst: what it kills is theirs and leaves
+## an ordinary corpse. Not flagged as melee - the player's own melee perks (an execute
+## threshold, say) are about their weapon, not about their summons.
+func _land_hit() -> void:
+	if not is_instance_valid(_target) or _target.is_queued_for_deletion():
+		return
+	var reach: float = attack_range * GameSettings.enemy_attack_impact_range_grace
+	if global_position.distance_to(_target.global_position) > reach + 0.5:
+		return
+	if not _target.has_method("take_damage"):
+		return
+	var credited: Node3D = owner_player if is_instance_valid(owner_player) else null
+	SoundBank.play_at(&"blunt_hit", _target.global_position)
+	_target.take_damage(hit_damage * Player.anthem_damage_mult(self), credited)
 
 
 ## Nothing to chase: stay with the player who raised it. A ghoul left standing where its
@@ -367,7 +440,8 @@ func take_damage(amount: float, _source: Node3D = null, _is_melee: bool = false)
 ## losing its own summon, a raised corpse must not be raisable a second time, and a ghoul's
 ## end is not a death Grave Pact takes a soul from (it never emits enemy_died_at).
 ##
-## A ghoul's end is its burst, however it comes - reached, timed out or cut down.
+## A ghoul's end goes through _explode however it comes - timed out or cut down - and
+## _explode decides whether that end is a burst or a crumble.
 func _expire() -> void:
 	if is_queued_for_deletion():
 		return
@@ -377,15 +451,14 @@ func _expire() -> void:
 	queue_free()
 
 
-## The burst: everything around the ghoul takes its damage, credited to the player who
+## The ghoul's end. With Mayhem Devil (black+red guild node, docs/GUILD_PLAN.md Stage 1)
+## it is a burst: everything around the ghoul takes its damage, credited to the player who
 ## raised it - so what it kills counts as theirs and leaves an ordinary corpse to raise.
-## Server only; the visuals go out through NetFx so every screen sees the same burst.
+## Without it the ghoul crumbles and hurts nothing. Server only; the visuals go out through
+## NetFx so every screen sees the same end.
 ##
-## The damage itself is Mayhem Devil (black+red guild node, docs/GUILD_PLAN.md
-## Stage 1), not Zombify - without it a ghoul still runs at an enemy and still ends the
-## same way, it just does not hurt anything on the way out. Checked on owner_player
-## rather than on `self`: a ghoul is a TemporaryAlly, not a Player, and has no skill tree
-## of its own to ask.
+## Checked on owner_player rather than on `self`: a ghoul is a TemporaryAlly, not a Player,
+## and has no skill tree of its own to ask.
 func _explode() -> void:
 	if _burst or not Net.is_server():
 		return
@@ -410,4 +483,8 @@ func _explode() -> void:
 		NetFx.decal("decal_blight", Color(0.12, 0.3, 0.1, 0.75), radius * 0.8, centre, 0)
 		NetFx.sound(&"zombie_burst", at)
 		NetFx.shake(0.12, 0.2, centre, 0)
+	elif kind == "undead":
+		# No guild node: it falls apart where it stands. A small puff so it reads as the
+		# summon ending, not as a model vanishing mid-frame.
+		NetFx.impact(centre + Vector3(0.0, 0.8, 0.0), UNDEAD_TINT, 0.6)
 	queue_free()

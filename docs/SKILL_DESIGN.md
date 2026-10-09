@@ -178,7 +178,7 @@ outright. Reworked 2026-09-30 - see *The black rework* below for what changed an
 | **Contagion** 🆕✅ | Spreading curse | A plague on the enemy in the sights: damage over time, and every second it **jumps to the nearest uninfected enemy** within 4.5m. One cast reaches 8 enemies (16 at rank 5). | Damage, duration, jump radius, victims | `EnemyBase.apply_contagion`, shared `outbreak` record |
 | **Kill** ✅ | Targeted | **Instantly kills** one non-boss enemy. Bosses are executed only **below 33% health**. | Cooldown (40s -> 24s), boss execute threshold | Direct `die()`; boss HP check |
 | **Wall of Souls** ✅ | Placed | Enemies that pass through take **double damage from every source** while marked - black's one damage amplifier. | Wall length, mark duration, damage multiplier | `curse_timer` / `curse_mult` |
-| **Zombify** 🆕✅ | Summon | Raises the corpses lying nearby as **ghouls that sprint at the nearest enemy and burst** - on contact, when their time runs out, or when something kills them. What the burst kills leaves an ordinary corpse. | Ghouls raised (3 -> 7), burst damage, duration | `TemporaryAlly._explode`, corpse registry |
+| **Zombify** 🆕✅ | Summon | Raises the corpses lying nearby as **ghouls that sprint at the nearest enemy and fight it** with their model's attack clip, until their time runs out or something kills them. With **Mayhem Devil** (black+red guild node) that end is a burst; what it kills leaves an ordinary corpse. | Ghouls raised (3 -> 7), hit and burst damage, duration | `TemporaryAlly`, corpse registry |
 | **Aura: Grave Pact** 🆕✅ | Aura | A **Soul Orb** in the player's halo. Every enemy dying within 12m gives it a soul (up to 6); it throws them one at a time at the nearest enemy. A raised ghoul's burst releases no soul. | Soul damage, range | `OrbitingOrb.Mode.SOUL`, `SignalBus.enemy_died_at` |
 
 ### The black rework (2026-09-30)
@@ -194,7 +194,7 @@ dead.**
 |---|---|---|
 | Fear | **Contagion** | Fear scattered the packs every area skill wants, its vulnerability was Wall of Souls' a second time, and the crystal-protection half is Roar's and Unsummon's. `EnemyBase.apply_fear` is kept, unused. |
 | Kill, 60s | **Kill, 40s** | One elite a minute was too rare to feel like a skill in a horde game. The boss window is unchanged. |
-| Zombify: undead that fight | **Ghouls that burst** | They traded blows with no attack animation, walking on the spot. A burst needs none, and it is black's area damage. |
+| Zombify: undead that fight | **Ghouls that burst** -> **fight again** | They traded blows with no attack animation, walking on the spot, so they became bursts. The burst then moved behind Mayhem Devil, which left Zombify alone as ghouls that ran in and vanished. The enemy rigs have a real `attack` clip by now, so the ghouls fight with it again; the burst is Mayhem Devil's ending on top. |
 | Doom Blade: wider with rank | **Longer with rank** | A wider line is a cone; reach is the skill shot getting better. |
 | Grave Pact: heal + stacking damage | **Soul Orb** | Its heal was the black affinity's lifesteal and its damage was red's number. Now it is a Manifestation that visibly fights, like the other orbs. |
 | Phyrexian Arena: +25% damage, +15% speed, HP drain | **Phyrexian mana** | Both halves were other nodes' numbers. Now: cast a spell still on cooldown by paying life, 1.2% of maximum health per second left (0.7% at rank 5). Never enough to kill. |

@@ -615,13 +615,16 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_black_wall_mark_duration: float = 8.0
 @export var spell_black_wall_mark_mult: float = 2.0
 ## Zombify (black_5). Raises corpses that are already lying on the field as ghouls that
-## SPRINT at the nearest enemy and burst on contact - or wherever they are when their time
-## runs out, or when something kills them first. A raised corpse used to stand and trade
-## blows it had no animation for; a bursting one needs none, and it is black's area damage.
+## sprint at the nearest enemy and FIGHT it, swinging with their model's attack clip, until
+## their time runs out or something kills them. With Mayhem Devil (black+red guild node)
+## that end is a burst for `burst_damage` in `burst_radius`; without it they just crumble.
 @export var spell_black_zombify_count: int = 3
 @export var spell_black_zombify_hp: float = 160.0
 @export var spell_black_zombify_duration: float = 14.0
 @export var spell_black_zombify_speed: float = 7.0
+## One swing's damage, and the time from one swing to the next.
+@export var spell_black_zombify_hit_damage: float = 22.0
+@export var spell_black_zombify_attack_interval: float = 1.2
 @export var spell_black_zombify_burst_damage: float = 90.0
 @export var spell_black_zombify_burst_radius: float = 3.5
 ## With nothing to chase a ghoul stays with the player who raised it: it sets off once it is

@@ -768,6 +768,7 @@ static func build_effect(info: Dictionary, caster: Node3D) -> Node3D:
 			)
 			# What it looked like when it died. The EnemyData itself cannot cross the wire;
 			# these two strings are everything TemporaryAlly reads off it.
+			ally.hit_damage = float(info.get("hit_damage", GameSettings.spell_black_zombify_hit_damage))
 			ally.visual_color = String(info.get("color", ""))
 			ally.visual_class = String(info.get("class", ""))
 			node = ally

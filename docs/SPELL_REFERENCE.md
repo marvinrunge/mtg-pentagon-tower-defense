@@ -91,7 +91,7 @@ ranks 11-20 grant 1% each, and ranks 21+ grant 0.5% each.
 | 2 | Contagion | 1 | 12s | No | Damage over time, spreading | Aimed target, 4.5m jumps | Plagues the enemy in the sights; every second it jumps to the nearest uninfected enemy, up to 8 victims (16 at rank 5). Replaced Fear. |
 | 3 | Kill | 1 | 40s (24s at rank 5) | No | Execute | Single target | Instantly kills an enemy; bosses must be below one third health (half at rank 5). |
 | 4 | Wall of Souls | 1 | 20s | No | Damage amplifier | Wall | Enemies crossing the wall take increased damage. |
-| 5 | Zombify | 1 | 30s | No | Burst damage | Corpse area | Raises corpses as ghouls that sprint at the nearest enemy and burst on contact, on expiry or when killed (90 damage in 3.5m at rank 1). |
+| 5 | Zombify | 1 | 30s | No | Melee damage | Corpse area | Raises corpses as ghouls that sprint at the nearest enemy and fight it (22 damage per swing every 1.2s at rank 1). With Mayhem Devil they also burst when killed or on expiry (90 damage in 3.5m). |
 
 ## Charge Formulas
 

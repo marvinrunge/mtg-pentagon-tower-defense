@@ -37,7 +37,7 @@ exactly where the old passives stood.
 |---|---|---|---|
 | Azorius | W + U | **Azorius Justiciar** ✅ | Enemies you freeze, stun or knock back deal 30% less damage for 5s afterwards. Control that protects. |
 | Dimir | U + B | **Dimir Guildmage** ✅ | Enemies that die frozen, stunned or cursed (Wall of Souls, Contagion) rise immediately as your own ghoul, exactly like one Zombify raised - control feeds the same graveyard black already works from. Not bosses - same rule Zombify's own cast follows. |
-| Rakdos | B + R | **Mayhem Devil** ✅ | Zombify's raised ghouls explode for area damage when they reach an enemy or run out of time. Without this, a ghoul still runs in and still pops - it just does not hurt anything. |
+| Rakdos | B + R | **Mayhem Devil** ✅ | Zombify's raised ghouls explode for area damage when they are killed or run out of time. Without this they still fight - they just crumble at the end instead of bursting. |
 | Gruul | R + G | **Rubblebelt Rioters** ✅ | After Titanic Brawl or Fire Dash, your next three melee hits deal +50% and knock back further. |
 | Selesnya | G + W | **Trostani, Selesnya's Voice** ✅ | Every shield and heal you cast on yourself lands on your myrs within 10m as well. |
 

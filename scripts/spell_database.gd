@@ -198,7 +198,7 @@ const SPELLS: Dictionary = {
 	},
 	"black_5": {
 		"name": "Zombify",
-		"desc": "Raises the corpses lying nearby as ghouls that rush the nearest enemy and burst.",
+		"desc": "Raises the corpses lying nearby as ghouls that rush the nearest enemy and fight it.",
 		"cooldown": 30.0, "chargeable": false,
 		"cast_clip": "cast_black", "cast_duration": 0.9, "roots": true,
 	},
