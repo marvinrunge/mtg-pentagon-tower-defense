@@ -27,6 +27,7 @@ var _settings_menu: VBoxContainer
 ## The equipment screen (I). Added here so it exists wherever a run does - see
 ## scripts/equipment_menu.gd.
 const EquipmentMenuScript := preload("res://scripts/equipment_menu.gd")
+const InputHint := preload("res://scripts/input_hint.gd")
 ## A hotbar slot whose spell is on cooldown but could be paid for in life right now
 ## (Phyrexian Arena) - its overlay turns blood red, so the option is visible, not remembered.
 const BLOOD_CAST_TINT := Color(1.0, 0.45, 0.5, 1.0)

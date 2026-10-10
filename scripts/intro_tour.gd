@@ -1,5 +1,4 @@
 extends Node
-class_name IntroTour
 ## A camera flight over the map at the start of a run: from high over the volcano, round the
 ## outside of the pentagon looking down each lane from where its warband spawns, then down
 ## onto the crystal and into the player's own camera. It shows the player what they are
@@ -11,6 +10,8 @@ class_name IntroTour
 ## warbands spawn 180 m out and take far longer than this to reach the hub.
 ##
 ## Any key, click or gamepad button skips to the last moment of the descent.
+##
+## Deliberately no `class_name` - preloaded by path, see scripts/icon_style.gd.
 
 ## True while a tour is flying. Player reads it: no walking, looking or attacking while the
 ## camera is somewhere else.

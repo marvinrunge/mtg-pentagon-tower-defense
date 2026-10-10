@@ -1,6 +1,8 @@
 extends Node3D
 class_name MainController
 
+const IntroTour := preload("res://scripts/intro_tour.gd")
+
 @export var player_scene: PackedScene = preload("res://scenes/misc/player.tscn")
 @export var myr_scene: PackedScene = preload("res://scenes/misc/myr.tscn")
 @export var enemy_scene: PackedScene = preload("res://scenes/misc/enemy.tscn")

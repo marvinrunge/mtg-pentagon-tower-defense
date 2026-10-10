@@ -17,6 +17,7 @@ extends Node
 signal changed(key: StringName)
 
 const SettingsFile := preload("res://scripts/settings_file.gd")
+const InputHint := preload("res://scripts/input_hint.gd")
 
 const BUS_MASTER := &"Master"
 const BUS_MUSIC := &"Music"

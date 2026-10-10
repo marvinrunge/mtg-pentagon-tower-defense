@@ -1,4 +1,4 @@
-class_name InputHint
+extends RefCounted
 ## The button to name in an on-screen prompt - "[E]", "[X]", "[Square]" - depending on what
 ## the player last touched and, for a gamepad, which kind it is.
 ##
@@ -7,6 +7,8 @@ class_name InputHint
 ## reach it. The names here follow project.godot's input map and have to be changed with it;
 ## SettingsMenu's Controls table reads its gamepad column from here too, so the table and the
 ## prompts cannot disagree.
+##
+## Deliberately no `class_name` - preloaded by path, see scripts/icon_style.gd.
 ##
 ## Gamepad buttons are named by POSITION ("bottom", "left"...), because that is how Godot
 ## numbers them: button 0 is the bottom face button on every pad. Jump is the same thumb

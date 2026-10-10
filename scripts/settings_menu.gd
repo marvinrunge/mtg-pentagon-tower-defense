@@ -15,6 +15,7 @@ extends VBoxContainer
 ## Deliberately no `class_name` - hosts preload it by path. See scripts/icon_style.gd.
 
 const TAB_SEPARATION := 14
+const InputHint := preload("res://scripts/input_hint.gd")
 
 var _tabs: TabContainer
 ## The first control of the first tab, so a host can put keyboard focus somewhere useful.

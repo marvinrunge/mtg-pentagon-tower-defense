@@ -7,6 +7,8 @@ extends Node
 ## Prints "TEST RESULT: PASS" or a FAIL listing what did not hold, and leaves frames of both
 ## in <folder> to look at.
 
+const IntroTour := preload("res://scripts/intro_tour.gd")
+
 var _frames: int = 0
 var _started: bool = false
 var _failures: Array[String] = []

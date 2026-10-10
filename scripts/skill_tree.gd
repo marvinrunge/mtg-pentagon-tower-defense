@@ -4,6 +4,7 @@ class_name SkillTree
 const COLOR_NAMES: Array[String] = ["white", "blue", "black", "red", "green"]
 ## Rounds every node icon by the same fraction the hotbar rounds its own.
 const IconStyle := preload("res://scripts/icon_style.gd")
+const InputHint := preload("res://scripts/input_hint.gd")
 ## The hub at the middle of the pentagon. It belongs to no colour and gates no
 ## spell - it is the one colourless purchase, paid for out of any mana, and it
 ## lengthens the player's light attack chain by a stage.

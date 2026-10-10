@@ -24,6 +24,7 @@ extends Node
 ## Otherwise five peers each bank their own kills and the pool disagrees with itself.
 
 const COLORS: Array[String] = ["White", "Blue", "Black", "Red", "Green"]
+const InputHint := preload("res://scripts/input_hint.gd")
 
 # --- XP and levels ------------------------------------------------------------
 

@@ -14,6 +14,7 @@ extends CanvasLayer
 
 const EquipmentDatabase := preload("res://scripts/equipment_database.gd")
 const IconStyle := preload("res://scripts/icon_style.gd")
+const InputHint := preload("res://scripts/input_hint.gd")
 
 const CARD_SIZE := Vector2(300.0, 104.0)
 const ICON_SIZE := 64.0

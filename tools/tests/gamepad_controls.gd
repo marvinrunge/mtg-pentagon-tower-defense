@@ -7,6 +7,8 @@ extends Node
 ##   "G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --resolution 1280x720 res://tools/tests/gamepad_controls.tscn
 ## Prints "TEST RESULT: PASS" or a FAIL listing what did not hold.
 
+const InputHint := preload("res://scripts/input_hint.gd")
+
 var _frames: int = 0
 var _started: bool = false
 var _failures: Array[String] = []

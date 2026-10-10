@@ -8,6 +8,8 @@ class_name Player
 @export var projectile_scene: PackedScene = preload("res://scenes/misc/projectile.tscn")
 ## By path, not by class_name - see the note on `_charge_orb`.
 const CHARGE_ORB_SCRIPT := preload("res://scripts/charge_orb.gd")
+const InputHint := preload("res://scripts/input_hint.gd")
+const IntroTour := preload("res://scripts/intro_tour.gd")
 ## How far in front of the caster the charged ball floats. See _update_charge_orb.
 const CHARGE_ORB_REACH := 0.42
 
