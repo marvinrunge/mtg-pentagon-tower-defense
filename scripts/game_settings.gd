@@ -51,6 +51,11 @@ extends Node
 @export var player_jump_velocity: float = 4.5
 @export var player_mouse_sensitivity: float = 0.002
 @export var player_gamepad_look_sensitivity: float = 2.5
+## The player's own look preferences, from the Controls tab (UserSettings loads and saves
+## them). The two scales multiply the base sensitivities above, so 1.0 is the tuned feel.
+@export var mouse_sensitivity_scale: float = 1.0
+@export var gamepad_look_sensitivity_scale: float = 1.0
+@export var invert_look_y: bool = false
 ## Harvesting by hand, at a well, alongside the myrs. Not the main line - a myr works the
 ## well continuously and the player cannot - but a player standing in a lane they are
 ## already defending should not have to watch mana they could be picking up. Held, not

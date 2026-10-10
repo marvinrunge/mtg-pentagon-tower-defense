@@ -102,6 +102,12 @@ func _on_upkeep_started(duration: float) -> void:
 	show()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_refresh()
+	# A gamepad cannot point, so it starts on Ready - A ends the phase, and the stick or
+	# D-pad walks up to the shop from there. Half a second late, because A is also jump: a
+	# player mid-hop as the last enemy fell would otherwise skip the whole shop.
+	get_tree().create_timer(0.5).timeout.connect(func() -> void:
+		if _active and is_instance_valid(_ready_button) and get_viewport().gui_get_focus_owner() == null:
+			_ready_button.grab_focus())
 
 
 ## Ends Upkeep and starts the next wave. Any proposal still open simply lapses and its

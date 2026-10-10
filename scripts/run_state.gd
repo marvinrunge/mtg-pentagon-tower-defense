@@ -172,7 +172,7 @@ func _apply_equipment_drop(item_id: String, at: Vector3) -> void:
 	if not equipment_unlocked.has(item_id):
 		equipment_unlocked.append(item_id)
 	var tint: Color = Color(1.0, 0.85, 0.4)
-	SignalBus.lane_warning_requested.emit("", "%s found! Press I to equip it." % EquipmentDatabase.display_name(item_id), tint)
+	SignalBus.lane_warning_requested.emit("", "%s found! Press %s to equip it." % [EquipmentDatabase.display_name(item_id), InputHint.key("equipment")], tint)
 	if at.is_finite():
 		NetFx.ring(at, tint, 3.4)
 	SignalBus.equipment_unlocked_changed.emit(item_id)

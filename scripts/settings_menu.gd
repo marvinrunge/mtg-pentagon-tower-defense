@@ -90,6 +90,42 @@ func focus_first() -> void:
 		_first_control.grab_focus()
 
 
+## The first control under `root` a keyboard or gamepad can land on - visible, enabled and
+## focusable - or null. Static so the main menu can point focus at its pages with it too.
+static func first_focusable(root: Node) -> Control:
+	for child: Node in root.get_children():
+		var control := child as Control
+		if control == null or not control.visible:
+			continue
+		if control.focus_mode != Control.FOCUS_NONE and not (control is BaseButton and (control as BaseButton).disabled):
+			return control
+		var inner: Control = first_focusable(control)
+		if inner != null:
+			return inner
+	return null
+
+
+## LB and RB page through the tabs, as console menus do - the tab bar is otherwise a long
+## way up from wherever focus is. Read off the buttons rather than through actions: in a run
+## LB and RB are sprint and cast, which mean nothing while this is open.
+func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or not (event is InputEventJoypadButton) or not event.is_pressed():
+		return
+	var step: int = 0
+	match (event as InputEventJoypadButton).button_index:
+		JOY_BUTTON_LEFT_SHOULDER:
+			step = -1
+		JOY_BUTTON_RIGHT_SHOULDER:
+			step = 1
+	if step == 0:
+		return
+	_tabs.current_tab = wrapi(_tabs.current_tab + step, 0, _tabs.get_tab_count())
+	var target: Control = first_focusable(_tabs.get_current_tab_control())
+	if target != null:
+		target.grab_focus()
+	get_viewport().set_input_as_handled()
+
+
 # --- tabs ---------------------------------------------------------------------
 
 func _build_gameplay_tab(column: VBoxContainer) -> void:
@@ -126,6 +162,15 @@ func _build_gameplay_tab(column: VBoxContainer) -> void:
 ## table used to be a GridContainer of Labels striped with self_modulate - which on a Label
 ## tints the TEXT, so the header and every second row were drawn near-black on the dark panel.
 func _build_controls_tab(column: VBoxContainer) -> void:
+	_slider(column, "Mouse Sensitivity", 0.2, 3.0, 0.05, UserSettings.mouse_sensitivity,
+		func(value: float) -> String: return "x%.2f" % value,
+		func(value: float) -> void: UserSettings.set_value(&"mouse_sensitivity", value))
+	_slider(column, "Stick Sensitivity", 0.2, 3.0, 0.05, UserSettings.stick_sensitivity,
+		func(value: float) -> String: return "x%.2f" % value,
+		func(value: float) -> void: UserSettings.set_value(&"stick_sensitivity", value))
+	_check(column, "Invert Vertical Look", UserSettings.invert_look_y,
+		func(on: bool) -> void: UserSettings.set_value(&"invert_look_y", on))
+
 	var rows: Array = [
 		["Movement", "WASD / Arrow keys", "Left stick"],
 		["Camera", "Mouse", "Right stick"],
@@ -139,9 +184,12 @@ func _build_controls_tab(column: VBoxContainer) -> void:
 		["Interact", "E", "X"],
 		["Kick", "F", "B"],
 		["Skill tree", "P", "Y"],
-		["Equipment", "I", "R3 (click right stick)"],
+		["Equipment", "I", "D-pad down"],
 		["Wave info (hold)", "Tab", "Back / View"],
 		["Menu", "Esc", "Start"],
+		["Menus: confirm / back", "Click / Esc", "A / B"],
+		["Menus: switch tab", "Click", "LB / RB"],
+		["Skill tree: spell to hotbar", "1 - 8", "X (next slot)"],
 	]
 	var table := VBoxContainer.new()
 	table.add_theme_constant_override("separation", 0)

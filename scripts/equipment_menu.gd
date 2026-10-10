@@ -36,8 +36,14 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("equipment") or (visible and event.is_action_pressed("ui_cancel")):
-		# Not over another menu: the skill tree and the settings each own the screen while open.
+	var toggle: bool = event.is_action_pressed("equipment")
+	# On a gamepad the key is D-pad down, which inside this screen is how focus moves
+	# between the cards - so there it navigates and never closes. B and Start close it.
+	if toggle and visible and event is InputEventJoypadButton:
+		toggle = false
+	if toggle or (visible and event.is_action_pressed("ui_cancel")):
+		# Not over another menu: the skill tree and the settings each own the screen while
+		# open, and the skill tree moves its selection with the same D-pad.
 		if not visible and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			return
 		set_open(not visible)
@@ -54,6 +60,8 @@ func set_open(open: bool) -> void:
 	if open:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		_refresh()
+		# Somewhere for a gamepad to start from; A then puts that piece on.
+		(_cards[EquipmentDatabase.ORDER[0]]["panel"] as Control).grab_focus()
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -142,9 +150,16 @@ func _build_card(item_id: String) -> Control:
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	card.tooltip_text = EquipmentDatabase.source_text(item_id)
+	# Focusable, so a gamepad can walk the grid; A on the focused card is the click.
+	card.focus_mode = Control.FOCUS_ALL
 	card.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			_toggle(item_id))
+			_toggle(item_id)
+		elif event.is_action_pressed("ui_accept"):
+			_toggle(item_id)
+			card.accept_event())
+	card.focus_entered.connect(func() -> void: _refresh())
+	card.focus_exited.connect(func() -> void: _refresh())
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
@@ -217,8 +232,8 @@ func _refresh() -> void:
 
 	var limit: int = GameSettings.equipment_max_equipped
 	var worn_text: String = ("%d/%d worn" % [worn, limit]) if limit > 0 else ("%d worn" % worn)
-	_summary.text = "Bosses drop equipment for the whole team - %d of %d found, %s. Click a piece to put it on or take it off." % [
-		found, EquipmentDatabase.ORDER.size(), worn_text]
+	_summary.text = "Bosses drop equipment for the whole team - %d of %d found, %s. %s a piece to put it on or take it off." % [
+		found, EquipmentDatabase.ORDER.size(), worn_text, "Press A on" if InputHint.gamepad else "Click"]
 	_debug_button.visible = GameSettings.debug_mode and Net.is_server() and found < EquipmentDatabase.ORDER.size()
 
 
@@ -234,18 +249,22 @@ func _style_card(item_id: String, unlocked: bool, equipped: bool) -> void:
 	if equipped:
 		box.bg_color = Color(0.13, 0.11, 0.05, 1.0)
 		box.border_color = GOLD
-		status.text = "Equipped - click to take off"
+		status.text = "Equipped - %s to take off" % ("A" if InputHint.gamepad else "click")
 		status.add_theme_color_override("font_color", GOLD)
 	elif unlocked:
 		box.bg_color = Color(0.06, 0.07, 0.09, 1.0)
 		box.border_color = Color(0.38, 0.42, 0.5)
-		status.text = "Found - click to equip"
+		status.text = "Found - %s to equip" % ("A" if InputHint.gamepad else "click")
 		status.add_theme_color_override("font_color", Color(0.6, 0.9, 0.62))
 	else:
 		box.bg_color = Color(0.04, 0.045, 0.055, 1.0)
 		box.border_color = Color(0.2, 0.22, 0.26)
 		status.text = EquipmentDatabase.source_text(item_id)
 		status.add_theme_color_override("font_color", Color(0.55, 0.56, 0.6))
+	# The card a gamepad is on. A PanelContainer draws no focus ring of its own.
+	if panel.has_focus():
+		box.border_color = Color(1.0, 1.0, 1.0)
+		box.set_border_width_all(3)
 	panel.add_theme_stylebox_override("panel", box)
 	(card["icon"] as TextureRect).modulate = Color.WHITE if unlocked else Color(0.3, 0.31, 0.34)
 	(card["name"] as Label).add_theme_color_override(

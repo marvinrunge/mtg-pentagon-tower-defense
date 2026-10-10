@@ -304,7 +304,8 @@ var _invulnerable_timer: float = 0.0
 # --- Interaction notifications ---
 var _notification_text: String = ""
 var _notification_timer: float = 0.0
-var _last_input_was_gamepad: bool = false
+## The physics frame a menu was last seen open - see _menu_blocks_input.
+var _menu_seen_frame: int = -10
 
 # --- Downed & Revive State ---
 var is_downed: bool = false
@@ -535,10 +536,29 @@ func _update_camera_shake(delta: float) -> void:
 	if _shake_timer <= 0.0:
 		camera.position = Vector3.ZERO
 
-## Interact prompts hardcode "[E]" - swap to the gamepad button label when a
-## controller was the last input device used, so the prompt matches what's in hand.
+## "[E]" or "[X]", whichever the player last had in hand. See InputHint.
 func _interact_key_label() -> String:
-	return "[X]" if _last_input_was_gamepad else "[E]"
+	return InputHint.key("interact")
+
+
+## Whether the gameplay buttons are someone else's right now: true while a menu is open,
+## and for the frame after one closes.
+##
+## A menu takes the mouse (Input.mouse_mode), and that is what the combat buttons already
+## checked. Movement, the stick look, jump and interact did not, so with the skill tree open
+## the left stick picked a node AND walked the character, and A both confirmed and jumped.
+## The extra frame is for the button that closed the menu: B closes one and is also kick,
+## and the menu closes in _input, before this frame's physics polls the same press.
+func _menu_blocks_input() -> bool:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		_menu_seen_frame = Engine.get_physics_frames()
+		return true
+	return Engine.get_physics_frames() - _menu_seen_frame <= 1
+
+## -1 when the player asked for inverted vertical look, applied to mouse and stick alike.
+func _look_y_sign() -> float:
+	return -1.0 if GameSettings.invert_look_y else 1.0
+
 
 ## Shared by mouse-motion look (per-event, already-scaled pixel delta) and the
 ## gamepad right-stick poll in _physics_process (per-frame, delta-scaled).
@@ -627,19 +647,21 @@ func _exit_tree() -> void:
 	PlayerRegistry.unregister(self)
 
 
+## _input rather than _unhandled_input, so a button pressed inside a menu - which the
+## menu consumes - still counts towards which device the player is holding.
+func _input(event: InputEvent) -> void:
+	if is_local:
+		InputHint.observe(event)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	# A remote player's node exists on this machine but is not driven by this keyboard.
 	if not is_local:
 		return
-	# Ignore small joypad motion (idle stick drift/noise) so this doesn't flicker
-	# true just from a controller sitting connected but unused.
-	if event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.3):
-		_last_input_was_gamepad = true
-	elif event is InputEventKey or event is InputEventMouseButton or event is InputEventMouseMotion:
-		_last_input_was_gamepad = false
 
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		_apply_look_delta(-event.relative.x * mouse_sensitivity, -event.relative.y * mouse_sensitivity)
+		var mouse_scale: float = mouse_sensitivity * GameSettings.mouse_sensitivity_scale
+		_apply_look_delta(-event.relative.x * mouse_scale, -event.relative.y * mouse_scale * _look_y_sign())
 
 	if is_downed:
 		return
@@ -2595,7 +2617,7 @@ func _update_mana_harvest(delta: float, revive_available: bool) -> bool:
 	# Standing still AND holding. Moving gives it up, so harvesting costs the player their
 	# position as well as their time - otherwise it is passive income with extra steps.
 	var moving: bool = Vector2(velocity.x, velocity.z).length_squared() > 0.25
-	if not Input.is_action_pressed("interact") or moving:
+	if not Input.is_action_pressed("interact") or moving or _menu_blocks_input():
 		_harvest_left = 0.0
 		_harvest_well = null
 		SignalBus.interact_prompt_changed.emit("Hold %s to Harvest Mana" % _interact_key_label(), true)
@@ -2669,10 +2691,11 @@ func _update_revive_channel(delta: float, in_range_of_someone: bool) -> void:
 		or not target.is_downed
 		or global_position.distance_to(target.global_position) > GameSettings.player_revive_range
 		or _wants_to_move()
-		or Input.is_action_just_pressed("attack")
-		or Input.is_action_just_pressed("cast_spell")
-		or Input.is_action_just_pressed("kick")
-		or Input.is_action_just_pressed("jump")
+		or (not _menu_blocks_input() and (
+			Input.is_action_just_pressed("attack")
+			or Input.is_action_just_pressed("cast_spell")
+			or Input.is_action_just_pressed("kick")
+			or Input.is_action_just_pressed("jump")))
 	)
 	if interrupted:
 		_revive_channel_target = null
@@ -3163,7 +3186,7 @@ func _update_actions(delta: float) -> void:
 
 	if not is_local:
 		return
-	if is_downed or _stagger_timer > 0.0 or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if is_downed or _stagger_timer > 0.0 or _menu_blocks_input():
 		_clear_pending_swing()
 		return
 
@@ -3384,7 +3407,7 @@ func _advance_light_chain() -> void:
 ## whatever they are holding, and a chain that started standing would lock itself into
 ## standing until it lapsed.
 func _wants_to_move() -> bool:
-	if not is_local:
+	if not is_local or _menu_blocks_input():
 		return false
 	return Input.get_vector("move_left", "move_right", "move_forward", "move_back").length_squared() > 0.01
 
@@ -3830,7 +3853,7 @@ func _physics_process(delta: float) -> void:
 			fall_gravity *= GameSettings.equipment_cobbled_wings_glide_gravity_mult
 		velocity.y -= fall_gravity * delta
 
-	if is_local and Input.is_action_just_pressed("jump") and is_on_floor():
+	if is_local and Input.is_action_just_pressed("jump") and is_on_floor() and not _menu_blocks_input():
 		velocity.y = jump_velocity * (1.0 + equipment_value("cobbled_wings"))
 		animator.start_jump(velocity.y)
 
@@ -3893,7 +3916,7 @@ func _physics_process(delta: float) -> void:
 			var dist = global_position.distance_to(teammate.global_position)
 			if dist < GameSettings.player_revive_range:
 				revived_teammate = true
-				if _revive_channel_target == null and Input.is_action_just_pressed("interact"):
+				if _revive_channel_target == null and Input.is_action_just_pressed("interact") and not _menu_blocks_input():
 					_revive_channel_target = teammate
 					_revive_channel_left = GameSettings.player_revive_channel_time
 				break
@@ -3913,7 +3936,7 @@ func _physics_process(delta: float) -> void:
 			is_at_base = near_base
 			SignalBus.at_base_changed.emit(is_at_base)
 
-		if is_at_base and is_local and Input.is_action_just_pressed("interact"):
+		if is_at_base and is_local and Input.is_action_just_pressed("interact") and not _menu_blocks_input():
 			if main_node.base_ui_instance and not main_node.base_ui_instance.visible:
 				main_node.base_ui_instance.open(main_node)
 
@@ -3930,14 +3953,18 @@ func _physics_process(delta: float) -> void:
 
 	# Gamepad right-stick look (mouse look is event-driven in _unhandled_input;
 	# a held stick deflection needs continuous per-frame polling instead).
-	var look_input := Input.get_vector("look_left", "look_right", "look_up", "look_down", 0.2) if is_local else Vector2.ZERO
+	var menu_open: bool = _menu_blocks_input()
+	var look_input := Input.get_vector("look_left", "look_right", "look_up", "look_down", 0.2) if is_local and not menu_open else Vector2.ZERO
 	if look_input != Vector2.ZERO:
-		_apply_look_delta(-look_input.x * GameSettings.player_gamepad_look_sensitivity * delta,
-			-look_input.y * GameSettings.player_gamepad_look_sensitivity * delta)
+		var stick_scale: float = GameSettings.player_gamepad_look_sensitivity * GameSettings.gamepad_look_sensitivity_scale * delta
+		_apply_look_delta(-look_input.x * stick_scale, -look_input.y * stick_scale * _look_y_sign())
 
-	# Movement
-	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if is_local else Vector2.ZERO
-	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+	# Movement. The stick's deflection is kept rather than normalised away: half a push is
+	# half speed, so a gamepad can walk. get_vector already caps the length at 1, which is
+	# what keeps a keyboard diagonal at full speed rather than faster. The basis is
+	# normalised on its own because it carries the giant-growth scale.
+	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if is_local and not menu_open else Vector2.ZERO
+	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized() * input_dir.length()
 	
 	var current_speed = speed
 	# Swiftfoot Boots: the one thing in the game that makes a player move faster. Fervor,

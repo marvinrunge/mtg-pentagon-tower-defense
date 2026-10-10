@@ -463,6 +463,22 @@ func _show_page(page: Page) -> void:
 		NetOnline.refresh_now()
 	if page == Page.LOBBY:
 		_refresh_lobby()
+	# Deferred, so a page whose buttons the line above has just shown or hidden is focused
+	# on what it actually offers.
+	_focus_page.call_deferred()
+
+
+## Puts focus on the first thing the visible page offers. Without it nothing in the menu
+## had focus, and a gamepad - which can only move focus, never point - could not even
+## start a game.
+func _focus_page() -> void:
+	for key in _pages:
+		var page := _pages[key] as Control
+		if page.visible:
+			var target: Control = SettingsMenuScript.first_focusable(page)
+			if target != null:
+				target.grab_focus()
+			return
 
 
 func _refresh_lobby() -> void:
@@ -625,6 +641,8 @@ func _set_settings_open(open: bool) -> void:
 	_settings_overlay.visible = open
 	if open:
 		_settings_menu.focus_first()
+	else:
+		_focus_page()
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -684,7 +684,11 @@ func update_health(current: float, max_health: float) -> void:
 		if game_over_panel:
 			game_over_panel.show()
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-			restart_btn.grab_focus()
+			# A moment late: A and Space are jump as well as confirm, and a player
+			# mid-fight as the crystal falls would otherwise restart before reading this.
+			get_tree().create_timer(1.0).timeout.connect(func() -> void:
+				if game_over_panel.visible:
+					restart_btn.grab_focus())
 	elif current < max_health * 0.03:
 		status_label.text = "CRITICAL WARNING: BASE UNDER ATTACK!"
 		status_label.add_theme_color_override("font_color", Color(1, 0.5, 0))
@@ -826,6 +830,11 @@ func _input(event: InputEvent) -> void:
 		# press did something different again.
 		if not settings_panel.visible and not _open_menus.is_empty():
 			return
+		# B is "back" in a menu and kick in play, so it closes this panel but never opens
+		# it - Start and Escape do that. Left unhandled, so the kick still happens.
+		var joy_button := event as InputEventJoypadButton
+		if not settings_panel.visible and joy_button != null and joy_button.button_index == JOY_BUTTON_B:
+			return
 		set_settings_open(not settings_panel.visible)
 		get_viewport().set_input_as_handled()
 
@@ -940,7 +949,7 @@ func _apply_minimap_size(requested_side: float) -> void:
 
 func _on_at_base_changed(is_at_base: bool) -> void:
 	if interact_label:
-		interact_label.text = "Press [E] to Manage Base"
+		interact_label.text = "Press %s to Manage Base" % InputHint.key("interact")
 		interact_label.visible = is_at_base
 
 ## Everything that belongs to PLAYING, as opposed to the panels that sit over the game.

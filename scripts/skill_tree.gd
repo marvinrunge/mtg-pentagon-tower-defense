@@ -245,6 +245,11 @@ func _input(event: InputEvent) -> void:
 		# explain than any widget would be.
 		_bind_hovered_to_slot(event.keycode - KEY_1)
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("interact"):
+		# The gamepad's way to the same loadout: no number keys, so X walks the selected
+		# spell along the bar one slot at a time, swapping with whatever is there.
+		_bind_selected_to_next_slot()
+		get_viewport().set_input_as_handled()
 
 func _select_node(color_index: int, branch_index: int) -> void:
 	var color: String = COLOR_NAMES[color_index]
@@ -479,6 +484,25 @@ func _bind_hovered_to_slot(slot_index: int) -> void:
 	if player.assign_quick_slot(slot_index, String(info["id"])):
 		update_ui()
 		_show_details(String(record["color"]), int(record["branch_index"]), info)
+
+
+## Moves the selected spell one hotbar slot to the right, wrapping round; an unbound spell
+## goes into the first free slot, or the first slot if the bar is full. assign_quick_slot
+## swaps, so whatever sat in the target slot takes this spell's old place.
+func _bind_selected_to_next_slot() -> void:
+	var record: Dictionary = _hovered_record
+	if record.is_empty():
+		record = _find_record(COLOR_NAMES[_selected_color_index], _selected_branch_index)
+	if record.is_empty():
+		return
+	var player = PlayerRegistry.get_local()
+	if player == null or not ("quick_slots" in player):
+		return
+	var current: int = _slot_of(player, String(record["info"].get("id", ""))) - 1
+	var target: int = (current + 1) % Player.QUICK_SLOT_COUNT
+	if current < 0:
+		target = maxi(int(player.first_free_quick_slot()), 0)
+	_bind_hovered_to_slot(target)
 
 
 ## Which hotbar key casts this spell, or 0 for one that is not bound. Printed in the
@@ -1000,7 +1024,11 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 		if GameSettings.debug_free_skills and rank < GameSettings.spell_max_rank:
 			status += "  (free: debug)"
 		var slot: int = _slot_of(player, spell_id)
-		var binding: String = ("Key %d" % slot) if slot > 0 else "Unbound - press 1-5"
+		var binding: String
+		if InputHint.gamepad:
+			binding = ("Slot %d - %s next slot" % [slot, InputHint.key("next_slot")]) if slot > 0 else ("Unbound - %s to put on the hotbar" % InputHint.key("next_slot"))
+		else:
+			binding = ("Key %d" % slot) if slot > 0 else "Unbound - press 1-%d" % Player.QUICK_SLOT_COUNT
 		_detail_status.text = "%s  %s  |  %s  |  Points %d  |  Cooldown %.1fs" % [
 			COLOR_SYMBOL[color], status, binding, _skill_points(player), SpellDatabase.get_cooldown(spell_id),
 		]

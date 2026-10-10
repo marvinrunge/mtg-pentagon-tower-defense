@@ -41,6 +41,9 @@ const SECTIONS: Dictionary = {
 	&"camera_shake_enabled": "interface",
 	&"show_minimap": "interface",
 	&"minimap_size": "interface",
+	&"mouse_sensitivity": "controls",
+	&"stick_sensitivity": "controls",
+	&"invert_look_y": "controls",
 }
 
 ## Empty until the player has typed one; the main menu shows "Player" in its place.
@@ -57,6 +60,10 @@ var attack_indicator_style: String = "themed"
 var camera_shake_enabled: bool = true
 var show_minimap: bool = true
 var minimap_size: float = 200.0
+## Look speed as a multiple of the tuned default, for the mouse and the right stick.
+var mouse_sensitivity: float = 1.0
+var stick_sensitivity: float = 1.0
+var invert_look_y: bool = false
 
 var _save_queued: bool = false
 
@@ -132,6 +139,12 @@ func _apply(key: StringName) -> void:
 			GameSettings.attack_indicator_style = attack_indicator_style
 		&"camera_shake_enabled":
 			GameSettings.camera_shake_enabled = camera_shake_enabled
+		&"mouse_sensitivity":
+			GameSettings.mouse_sensitivity_scale = mouse_sensitivity
+		&"stick_sensitivity":
+			GameSettings.gamepad_look_sensitivity_scale = stick_sensitivity
+		&"invert_look_y":
+			GameSettings.invert_look_y = invert_look_y
 
 
 func _set_bus_volume(bus_name: StringName, linear: float) -> void:
@@ -178,3 +191,6 @@ func _load() -> void:
 	master_volume = clampf(master_volume, 0.0, 1.0)
 	music_volume = clampf(music_volume, 0.0, 1.0)
 	sfx_volume = clampf(sfx_volume, 0.0, 1.0)
+	# The slider's own range, so a hand-edited 0 cannot leave the camera unable to turn.
+	mouse_sensitivity = clampf(mouse_sensitivity, 0.2, 3.0)
+	stick_sensitivity = clampf(stick_sensitivity, 0.2, 3.0)
