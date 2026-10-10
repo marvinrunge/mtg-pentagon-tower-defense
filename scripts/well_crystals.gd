@@ -1,6 +1,8 @@
 extends Node3D
 ## Mana crystals round every mana well: a cluster to each side of the lane, shard groups
 ## between them, and a light in the well's colour so it reads from across the map at night.
+## And at the hub (place_hub), where all five colours meet: round the base crystal, at the
+## foot of the standing stones, and a spire of each colour at the five carved pillars.
 ##
 ## Placed at runtime, round wherever each ManaSource stands, rather than painted into the
 ## terrain like the crystals in the wild (tools/build_nature_terrabrush.gd): TerraBrush's
@@ -14,13 +16,14 @@ extends Node3D
 ##
 ## Deliberately no `class_name` - preloaded by path, see scripts/icon_style.gd.
 
-## Lane -> [cluster scene, shards scene], the biome tints built by the nature pipeline.
+## Lane -> [cluster scene, shards scene, spire scene], the biome tints built by the nature
+## pipeline.
 const CRYSTALS: Dictionary = {
-	"White": ["nature-white-dawn-crystal-cluster", "nature-white-dawn-shards"],
-	"Blue": ["nature-blue-sapphire-cluster", "nature-blue-tide-shards"],
-	"Black": ["nature-black-void-amethyst", "nature-black-void-shards"],
-	"Red": ["nature-red-ruby-crystals", "nature-red-ember-shards"],
-	"Green": ["nature-green-emerald-root-crystals", "nature-green-emerald-shards"],
+	"White": ["nature-white-dawn-crystal-cluster", "nature-white-dawn-shards", "nature-white-sunspire-crystal"],
+	"Blue": ["nature-blue-sapphire-cluster", "nature-blue-tide-shards", "nature-blue-tide-crystal-spires"],
+	"Black": ["nature-black-void-amethyst", "nature-black-void-shards", "nature-black-rootbound-obelisk"],
+	"Red": ["nature-red-ruby-crystals", "nature-red-ember-shards", "nature-red-magma-spire"],
+	"Green": ["nature-green-emerald-root-crystals", "nature-green-emerald-shards", "nature-green-verdant-spire"],
 }
 ## Around each well, as [degrees from the lane's outward direction, which scene: 0 cluster,
 ## 1 shards]. Nothing within 40 degrees of the lane line, either way along it.
@@ -46,9 +49,7 @@ func place(wells: Array, lane_names: Array, crystal: Vector3, terrain: StaticBod
 		var outward := Vector3(well.x - crystal.x, 0.0, well.z - crystal.z).normalized()
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash("well_crystals:" + lane)
-		var scenes: Array = []
-		for id: String in CRYSTALS[lane]:
-			scenes.append(load("res://assets/nature/scenes/%s.tscn" % id) as PackedScene)
+		var scenes: Array = [_scene(lane, 0), _scene(lane, 1)]
 		for slot: Array in RING:
 			var scene: PackedScene = scenes[int(slot[1])]
 			if scene == null:
@@ -73,6 +74,75 @@ func place(wells: Array, lane_names: Array, crystal: Vector3, terrain: StaticBod
 		light.distance_fade_length = 25.0
 		add_child(light)
 		light.global_position = Vector3(well.x, _ground(well) + 2.2, well.z)
+
+
+## The hub, where all five colours meet. Round the base crystal: a cluster of each colour in
+## the gaps between the lanes - the lanes run straight in to it - with shards between them.
+## At the foot of every standing stone, on its outer side: a cluster or shards of a random
+## colour. At each of the five carved pillars: a spire, one per colour, glowing.
+##
+## `lane_angles` are the lanes' directions out from the crystal, in radians.
+func place_hub(crystal: Vector3, lane_angles: Array, stones: Array, pillars: Array, terrain: StaticBody3D) -> void:
+	_terrain = terrain
+	var colours: Array = CRYSTALS.keys()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("hub_crystals")
+
+	# Round the base crystal.
+	for i: int in lane_angles.size():
+		var gap: float = float(lane_angles[i]) + PI / float(lane_angles.size())
+		_put(_scene(colours[i % colours.size()], 0), crystal + Vector3(cos(gap), 0.0, sin(gap)) * rng.randf_range(4.5, 5.5), rng, 0.9)
+		for side: float in [-0.22, 0.22]:
+			var angle: float = gap + side + rng.randf_range(-0.06, 0.06)
+			_put(_scene(colours[rng.randi() % colours.size()], 1), crystal + Vector3(cos(angle), 0.0, sin(angle)) * rng.randf_range(3.8, 5.0), rng, 1.0)
+
+	# At the foot of every standing stone, on the side away from the crystal.
+	for stone: Node3D in stones:
+		var at: Vector3 = stone.global_position
+		var outward := Vector3(at.x - crystal.x, 0.0, at.z - crystal.z).normalized()
+		var reach: float = _footprint(stone) + rng.randf_range(0.4, 1.0)
+		var angle: float = rng.randf_range(-0.9, 0.9)
+		var kind: int = 0 if rng.randf() < 0.6 else 1
+		_put(_scene(colours[rng.randi() % colours.size()], kind), at + outward.rotated(Vector3.UP, angle) * reach, rng, 1.0)
+
+	# A spire of each colour at the five carved pillars, lit.
+	for i: int in pillars.size():
+		var pillar: Node3D = pillars[i]
+		var at: Vector3 = pillar.global_position
+		var outward := Vector3(at.x - crystal.x, 0.0, at.z - crystal.z).normalized()
+		var spire: Node3D = _put(_scene(colours[i % colours.size()], 2), at + outward * (_footprint(pillar) + 1.2), rng, 1.0)
+		if spire != null:
+			# Added after the navmesh bake, so it may not block: enemies would walk into a
+			# solid the navmesh does not know about.
+			for body: Node in spire.find_children("*", "StaticBody3D", true, false):
+				body.queue_free()
+
+
+func _scene(colour: String, kind: int) -> PackedScene:
+	return load("res://assets/nature/scenes/%s.tscn" % CRYSTALS[colour][kind]) as PackedScene
+
+
+## One crystal of `scene` stood on the ground at `spot`, turned and sized at random.
+func _put(scene: PackedScene, spot: Vector3, rng: RandomNumberGenerator, scale_mult: float) -> Node3D:
+	if scene == null:
+		return null
+	var node := scene.instantiate() as Node3D
+	add_child(node)
+	node.global_position = Vector3(spot.x, _ground(spot), spot.z)
+	node.rotation.y = rng.randf_range(0.0, TAU)
+	node.scale = Vector3.ONE * rng.randf_range(0.85, 1.25) * scale_mult
+	return node
+
+
+## Half the widest side of what `node` draws on the ground, in metres.
+func _footprint(node: Node3D) -> float:
+	var widest: float = 0.5
+	for mesh: MeshInstance3D in node.find_children("*", "MeshInstance3D", true, false):
+		if mesh.mesh == null:
+			continue
+		var box: AABB = mesh.global_transform * mesh.mesh.get_aabb()
+		widest = maxf(widest, maxf(box.size.x, box.size.z) * 0.5)
+	return widest
 
 
 ## The terrain's height under `at`; the Environment layer also holds trees and rocks, so
