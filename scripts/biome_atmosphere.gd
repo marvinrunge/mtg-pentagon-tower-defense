@@ -24,7 +24,7 @@ class_name BiomeAtmosphere
 ##   exposure      multiplier on the environment's tonemap exposure - the whole frame
 const BIOMES: Dictionary = {
 	"White": {
-		"tint": Color(1.0, 0.93, 0.78), "brightness": 1.1, "amount": 0.45,
+		"tint": Color(1.0, 0.93, 0.78), "brightness": 0.8, "amount": 0.35,
 		"density_mult": 1.0, "fog_start": 50.0, "fog_end": 100.0, "fog_falloff": 3.0,
 		"exposure": 1.0,
 	},

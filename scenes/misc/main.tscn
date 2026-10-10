@@ -259,9 +259,10 @@ background_mode = 2
 sky = SubResource("Sky_rg1j2")
 ambient_light_source = 3
 ambient_light_color = Color(1, 1, 1, 1)
-ambient_light_energy = 1.105
+ambient_light_energy = 0.5
 reflected_light_source = 2
 tonemap_mode = 3
+tonemap_exposure = 0.82
 tonemap_white = 6.0
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributesPractical_sq54b"]
@@ -510,7 +511,7 @@ current_time = 14.29
 minutes_per_day = 60.0
 skydome_energy = 0.84
 cloud_intensity = 0.52
-ambient_energy = 1.105
+ambient_energy = 0.5
 moon_energy = 0.15
 night_ambient_boost = false
 wind_direction = 2.35619451204804
