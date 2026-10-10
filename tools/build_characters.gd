@@ -18,6 +18,7 @@ extends SceneTree
 ## the same second half on its own.
 
 const LocomotionPass = preload("res://tools/locomotion_pass.gd")
+const RetargetPass = preload("res://tools/retarget_pass.gd")
 
 
 ## Deferred to the first real frame: the locomotion pass below poses characters through an
@@ -33,5 +34,8 @@ func _run() -> void:
 	# its stride measurement cannot be taken in there - so a build is only finished once
 	# this has run, and EnemyBase falls back to "always walk" for any character it misses.
 	var failed: int = LocomotionPass.apply_all()
+	# Every library is written with the clips copied raw; the feet only come right once the
+	# retarget pass has run over them (tools/retarget_pass.gd). Already-done clips are skipped.
+	RetargetPass.run()
 	print("Locomotion pass done. %d libraries failed." % failed)
 	quit(1 if failed > 0 else 0)

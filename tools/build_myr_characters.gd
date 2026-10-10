@@ -11,6 +11,12 @@ extends SceneTree
 ## While the editor is open, invoke MyrCharacterBuilder.build_all() directly
 ## instead, e.g. through Godot MCP's execute_editor_script.
 
+const RetargetPass = preload("res://tools/retarget_pass.gd")
+
+
 func _init() -> void:
 	MyrCharacterBuilder.build_all()
+	# Every library is written with the clips copied raw; the feet only come right once the
+	# retarget pass has run over them (tools/retarget_pass.gd). Already-done clips are skipped.
+	RetargetPass.run()
 	quit()

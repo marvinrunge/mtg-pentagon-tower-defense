@@ -16,7 +16,11 @@ extends SceneTree
 ## instead, e.g. through Godot MCP's execute_editor_script.
 
 const Builder = preload("res://tools/player_character_builder.gd")
+const RetargetPass = preload("res://tools/retarget_pass.gd")
 
 func _init() -> void:
 	Builder.build()
+	# Every library is written with the clips copied raw; the feet only come right once the
+	# retarget pass has run over them (tools/retarget_pass.gd). Already-done clips are skipped.
+	RetargetPass.run()
 	quit()

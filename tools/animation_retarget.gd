@@ -33,7 +33,12 @@ const SAMPLE_FPS := 30.0
 
 ## A copy of `anim` (made for `source`) whose rotation tracks pose `target` the same way.
 ## Bones `target` does not have are dropped; bones only `target` has keep their rest.
-static func retarget(anim: Animation, source: Skeleton3D, target: Skeleton3D) -> Animation:
+##
+## `only`, when given, limits the rewrite to those bones: every other track stays exactly as
+## it is and poses its bone as it always did, and the bones in `only` are carried over
+## relative to that. For a source whose rest is right on some bones only - see
+## retarget_pass.gd.
+static func retarget(anim: Animation, source: Skeleton3D, target: Skeleton3D, only: PackedStringArray = PackedStringArray()) -> Animation:
 	var out: Animation = anim.duplicate(true)
 	# Rotation tracks by bone name, from the clip.
 	var tracks: Dictionary = {}
@@ -56,7 +61,7 @@ static func retarget(anim: Animation, source: Skeleton3D, target: Skeleton3D) ->
 	# bone name -> Array of [time, local rotation] for the target.
 	var keys: Dictionary = {}
 	for name: String in tracks:
-		if target.find_bone(name) >= 0 and source.find_bone(name) >= 0:
+		if target.find_bone(name) >= 0 and source.find_bone(name) >= 0 and (only.is_empty() or only.has(name)):
 			keys[name] = []
 
 	var source_global: Array[Quaternion] = []
@@ -83,6 +88,9 @@ static func retarget(anim: Animation, source: Skeleton3D, target: Skeleton3D) ->
 				var delta: Quaternion = source_global[source_bone] * source_rest_global[source_bone].inverse()
 				target_global[bone] = (delta * target_rest_global[bone]).normalized()
 				(keys[name] as Array).append([time, (parent_global.inverse() * target_global[bone]).normalized()])
+			elif tracks.has(name):
+				# A track left as it is: it poses this bone at runtime exactly as it says.
+				target_global[bone] = (parent_global * anim.rotation_track_interpolate(tracks[name], time)).normalized()
 			else:
 				# No track on this bone: at runtime it holds its rest, so it does here too.
 				target_global[bone] = (parent_global * target.get_bone_rest(bone).basis.get_rotation_quaternion()).normalized()
@@ -96,6 +104,8 @@ static func retarget(anim: Animation, source: Skeleton3D, target: Skeleton3D) ->
 			continue
 		var name: String = String(path.get_subname(0))
 		if not keys.has(name):
+			if not only.is_empty() and target.find_bone(name) >= 0:
+				continue
 			out.remove_track(track)
 			continue
 		for key: int in range(out.track_get_key_count(track) - 1, -1, -1):
@@ -105,8 +115,14 @@ static func retarget(anim: Animation, source: Skeleton3D, target: Skeleton3D) ->
 	return out
 
 
-## The skeleton the clip in `fbx_path` was exported with - the "without skin" downloads
-## still carry it. Null if the file has none.
+## The skeleton inside `fbx_path`. Null if the file has none.
+##
+## For a rigged model this is the right source for its clips. A "without skin" download
+## carries a skeleton too, but not quite the model's: Mixamo writes it in its own T-pose,
+## while the models here were rigged standing in an A-pose. Hips, spine, neck, head, feet
+## and toes come out exactly as on the model (0.0 degrees, on every pair checked); the
+## shoulders, arms and hands are 50-90 degrees off and the legs about 6. Retargeting against
+## it is only right on the first group - see retarget_pass.gd.
 static func source_skeleton(fbx_path: String) -> Skeleton3D:
 	var scene: PackedScene = ResourceLoader.load(fbx_path, "", ResourceLoader.CACHE_MODE_REPLACE)
 	if scene == null:

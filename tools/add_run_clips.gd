@@ -14,6 +14,7 @@ extends SceneTree
 ## Deadlocks if a Godot editor already has the project open (project lock).
 
 const LocomotionPass = preload("res://tools/locomotion_pass.gd")
+const RetargetPass = preload("res://tools/retarget_pass.gd")
 
 
 ## Deferred to the first real frame rather than run straight from _init(). The pass poses
@@ -26,5 +27,8 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed: int = LocomotionPass.apply_all()
+	# Every library is written with the clips copied raw; the feet only come right once the
+	# retarget pass has run over them (tools/retarget_pass.gd). Already-done clips are skipped.
+	RetargetPass.run()
 	print("Locomotion pass done. %d libraries failed." % failed)
 	quit(1 if failed > 0 else 0)

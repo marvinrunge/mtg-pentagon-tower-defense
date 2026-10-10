@@ -14,6 +14,7 @@ extends SceneTree
 ## transforms and are deliberately not regenerated - see tools/reclip_pass.gd.
 
 const ReclipPass = preload("res://tools/reclip_pass.gd")
+const RetargetPass = preload("res://tools/retarget_pass.gd")
 
 ## Human and Merfolk. Elf Ranged is on the bow set and always had the right clip; Goblin
 ## and Zombie Ranged use the zombie rig's, which measures as a proper flinch.
@@ -27,5 +28,8 @@ func _init() -> void:
 
 func _run() -> void:
 	var failed: int = ReclipPass.apply_all("hit", SUBJECTS)
+	# Every library is written with the clips copied raw; the feet only come right once the
+	# retarget pass has run over them (tools/retarget_pass.gd). Already-done clips are skipped.
+	RetargetPass.run()
 	print("Ranged hit clips updated. %d failed." % failed)
 	quit(1 if failed > 0 else 0)
