@@ -365,6 +365,23 @@ func _place(lane: String, actor: Dictionary) -> void:
 		anim_player.play(anim)
 		anim_player.seek(minf(phase * length, length - 0.001), true)
 		anim_player.pause()
+	_ground_pose(node)
+
+
+## Stands a posed figure on the ground it was placed on: lifts or lowers it until its lowest
+## bone - the toe tips, Mixamo's Toe_End, which sit on the sole - is at its own origin height.
+## The models' origins are not at their feet, so without this they stood half sunk into the
+## terrain. By the pose rather than the mesh bounds (what EnemyBase._ground_visual does),
+## because these are frozen mid-stride, mid-swing or lying dead.
+func _ground_pose(node: Node3D) -> void:
+	var skeleton: Skeleton3D = node.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton == null:
+		return
+	var lowest: float = INF
+	for bone: int in skeleton.get_bone_count():
+		lowest = minf(lowest, (skeleton.global_transform * skeleton.get_bone_global_pose(bone)).origin.y)
+	if is_finite(lowest):
+		node.global_position.y += node.global_position.y - lowest
 
 
 ## The bare model of a unit - no AI, no health bar - at the size EnemyBase gives it.
