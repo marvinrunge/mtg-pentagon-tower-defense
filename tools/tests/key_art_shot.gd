@@ -6,7 +6,7 @@ extends Node
 ## docs/SCREEN_ART_PROMPTS.md.
 ##
 ## Run with (windowed - a headless run renders nothing):
-##   "G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --resolution 2560x1440 res://tools/tests/key_art_shot.tscn -- <folder> [shot,shot...]
+##   "G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --windowed --resolution 2400x1350 res://tools/tests/key_art_shot.tscn -- <folder> [shot,shot...]
 ##   ... -- --probe     prints the lanes, the crystal and every model's animation clips
 ##   ... -- <png> --map  a top-down picture of the whole map at noon, for planning shots
 ##                       (orthographic, 440 m across, +X to the right and -Z up)

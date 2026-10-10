@@ -277,6 +277,20 @@ func _build_audio_tab(column: VBoxContainer) -> void:
 
 
 func _build_graphics_tab(column: VBoxContainer) -> void:
+	_label(column, "Display Mode")
+	var display_option := OptionButton.new()
+	display_option.add_item("Fullscreen", 1)
+	display_option.add_item("Windowed", 0)
+	display_option.select(0 if GraphicsSettings.fullscreen else 1)
+	display_option.tooltip_text = "F11 or Alt+Enter switches at any time."
+	display_option.item_selected.connect(func(index: int) -> void:
+		GraphicsSettings.apply_fullscreen(index == 0))
+	column.add_child(display_option)
+	# F11 and Alt+Enter change it from outside this menu; keep the choice in step.
+	GraphicsSettings.changed.connect(func(key: StringName) -> void:
+		if key == &"fullscreen" and is_instance_valid(display_option):
+			display_option.select(0 if GraphicsSettings.fullscreen else 1))
+
 	_label(column, "Quality Preset")
 	_preset_option = OptionButton.new()
 	_preset_option.add_item("Low", GraphicsSettings.Preset.LOW)

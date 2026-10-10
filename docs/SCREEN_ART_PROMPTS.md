@@ -9,7 +9,7 @@ the creatures the ones the player actually fights; the generator supplies the pa
 Re-render after a map or model change:
 
 ```
-"G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --resolution 2400x1350 res://tools/tests/key_art_shot.tscn -- "G:/Projekte/mtg-pentagon-tower-defense/docs/screen_art/renders" [splash,menu,...]
+"G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --windowed --resolution 2400x1350 res://tools/tests/key_art_shot.tscn -- "G:/Projekte/mtg-pentagon-tower-defense/docs/screen_art/renders" [splash,menu,...]
 ```
 
 The shots, their cameras and who stands where are in `tools/tests/key_art_shot.gd` (`_shots()`).

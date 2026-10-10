@@ -35,6 +35,10 @@ Net="*res://scripts/net.gd"
 NetFx="*res://scripts/net_fx.gd"
 UserSettings="*res://scripts/user_settings.gd"
 
+[display]
+
+window/size/mode=3
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg", "res://addons/sky_3d/plugin.cfg")

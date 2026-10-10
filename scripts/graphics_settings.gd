@@ -37,6 +37,10 @@ var msaa_level: int = 0 # 0 = Off, 1 = MSAA 2x, 2 = MSAA 4x
 var glow_enabled: bool = true
 var terrain_parallax: bool = true
 var vsync_enabled: bool = true
+## Borderless fullscreen, or a window. Fullscreen by default - project.godot boots that way -
+## and kept in OVERRIDE_PATH as well, so the engine opens in the chosen mode before the boot
+## splash rather than switching after it.
+var fullscreen: bool = true
 var show_fps: bool = false
 var particle_quality: int = ParticleQuality.HIGH
 var ragdoll_quality: int = RagdollQuality.FULL
@@ -58,6 +62,8 @@ func _ready() -> void:
 	apply_msaa(msaa_level)
 	apply_vsync(vsync_enabled)
 	apply_terrain_parallax(terrain_parallax)
+	# Deferred: the first scene is not in the tree yet while autoloads get ready.
+	_apply_startup_window_mode.call_deferred()
 	# Every particle system that enters the tree is sized to the setting as it arrives,
 	# which covers the effects built in code and the ones in scenes alike, without each of
 	# them having to ask.
@@ -178,6 +184,56 @@ func apply_terrain_parallax(enabled: bool) -> void:
 	RenderingServer.global_shader_parameter_set(&"terrain_parallax_depth", GameSettings.graphics_terrain_parallax_depth)
 	RenderingServer.global_shader_parameter_set(&"terrain_parallax_range", GameSettings.graphics_terrain_parallax_range)
 	_changed(&"terrain_parallax")
+
+
+func apply_fullscreen(enabled: bool) -> void:
+	fullscreen = enabled
+	_apply_window_mode(enabled)
+	_changed(&"fullscreen")
+
+
+## F11 and Alt+Enter switch between fullscreen and a window from anywhere - the menu, a run,
+## a loading screen - the way most PC games let you.
+func _input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo:
+		return
+	if key.keycode == KEY_F11 or (key.keycode == KEY_ENTER and key.alt_pressed):
+		apply_fullscreen(not fullscreen)
+		get_viewport().set_input_as_handled()
+
+
+func _apply_window_mode(enabled: bool) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	if enabled:
+		if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_FULLSCREEN:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		return
+	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_WINDOWED:
+		return
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	# Three quarters of the screen, centred.
+	var screen: Rect2i = DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+	var size := Vector2i(Vector2(screen.size) * 0.75)
+	DisplayServer.window_set_size(size)
+	DisplayServer.window_set_position(screen.position + (screen.size - size) / 2)
+
+
+## The window mode at start, once the first scene is in. Only the game proper - started on
+## its main menu - takes the player's choice. A test or tool scene, the map run on its own
+## from the editor, or a `-s` script gets a window: the engine boots fullscreen (project
+## default and OVERRIDE_PATH), and their screenshots and frame timings assume a window.
+## Godot keeps `--resolution` and `--windowed` to itself, so they cannot be asked about; a
+## tool that needs its exact size passes `--windowed` and is a window from the first frame.
+func _apply_startup_window_mode() -> void:
+	var scene: Node = get_tree().current_scene
+	var main_scene: String = String(ProjectSettings.get_setting("application/run/main_scene", ""))
+	if scene == null or scene.scene_file_path != main_scene:
+		if DisplayServer.get_name() != "headless" and DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		return
+	_apply_window_mode(fullscreen)
 
 
 func apply_vsync(enabled: bool) -> void:
@@ -351,6 +407,7 @@ func _save() -> void:
 		"glow_enabled": glow_enabled,
 		"terrain_parallax": terrain_parallax,
 		"vsync_enabled": vsync_enabled,
+		"fullscreen": fullscreen,
 		"show_fps": show_fps,
 		"particle_quality": particle_quality,
 		"ragdoll_quality": ragdoll_quality,
@@ -364,6 +421,8 @@ func _save() -> void:
 	var override_cfg := ConfigFile.new()
 	override_cfg.load(OVERRIDE_PATH) # ignore error - fine if it doesn't exist yet
 	override_cfg.set_value("rendering", "renderer/rendering_method", method_to_persist)
+	# The window mode too, so the next launch opens in it: 3 is fullscreen, 0 windowed.
+	override_cfg.set_value("display", "window/size/mode", 3 if fullscreen else 0)
 	# The Mobile renderer runs on Vulkan, not on the project's D3D12. On D3D12 it cannot build
 	# TerraBrush's terrain shader - CreateGraphicsPipelineState fails with E_OUTOFMEMORY
 	# (0x8007000e) and the whole terrain is simply not drawn. Forward+ and Compatibility keep
@@ -386,6 +445,7 @@ func _load() -> void:
 	glow_enabled = bool(cfg.get_value(SECTION, "glow_enabled", glow_enabled))
 	terrain_parallax = bool(cfg.get_value(SECTION, "terrain_parallax", terrain_parallax))
 	vsync_enabled = bool(cfg.get_value(SECTION, "vsync_enabled", vsync_enabled))
+	fullscreen = bool(cfg.get_value(SECTION, "fullscreen", fullscreen))
 	show_fps = bool(cfg.get_value(SECTION, "show_fps", show_fps))
 	particle_quality = clampi(int(cfg.get_value(SECTION, "particle_quality", particle_quality)),
 		ParticleQuality.LOW, ParticleQuality.ULTRA)
