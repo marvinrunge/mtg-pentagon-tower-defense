@@ -43,6 +43,7 @@ const SECTIONS: Dictionary = {
 	&"intro_tour": "interface",
 	&"show_minimap": "interface",
 	&"hud_scale": "interface",
+	&"minimap_scale": "interface",
 	&"mouse_sensitivity": "controls",
 	&"stick_sensitivity": "controls",
 	&"invert_look_y": "controls",
@@ -69,6 +70,11 @@ var show_minimap: bool = true
 var hud_scale: float = 1.0
 const HUD_SCALE_MIN := 0.75
 const HUD_SCALE_MAX := 2.0
+## The minimap's own size on top of hud_scale, for a player who wants a bigger or smaller
+## map without resizing the rest of the HUD.
+var minimap_scale: float = 1.0
+const MINIMAP_SCALE_MIN := 0.5
+const MINIMAP_SCALE_MAX := 2.0
 ## Look speed as a multiple of the tuned default, for the mouse and the right stick.
 var mouse_sensitivity: float = 1.0
 var stick_sensitivity: float = 1.0
@@ -214,3 +220,4 @@ func _load() -> void:
 	if not cfg.has_section_key("interface", "hud_scale") and cfg.has_section_key("interface", "minimap_size"):
 		hud_scale = float(cfg.get_value("interface", "minimap_size", 200.0)) / 200.0
 	hud_scale = clampf(hud_scale, HUD_SCALE_MIN, HUD_SCALE_MAX)
+	minimap_scale = clampf(minimap_scale, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX)

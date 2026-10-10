@@ -138,6 +138,10 @@ func _build_gameplay_tab(column: VBoxContainer) -> void:
 		UserSettings.hud_scale * 100.0,
 		func(value: float) -> String: return "%d%%" % int(round(value)),
 		func(value: float) -> void: UserSettings.set_value(&"hud_scale", value / 100.0))
+	_slider(column, "Minimap Size", UserSettings.MINIMAP_SCALE_MIN * 100.0, UserSettings.MINIMAP_SCALE_MAX * 100.0, 5.0,
+		UserSettings.minimap_scale * 100.0,
+		func(value: float) -> String: return "%d%%" % int(round(value)),
+		func(value: float) -> void: UserSettings.set_value(&"minimap_scale", value / 100.0))
 	_check(column, "Show Damage Numbers", UserSettings.show_damage_numbers,
 		func(on: bool) -> void: UserSettings.set_value(&"show_damage_numbers", on))
 	_check(column, "Show Enemy Health Bars", UserSettings.show_enemy_health_bars,

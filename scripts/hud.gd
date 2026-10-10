@@ -193,8 +193,10 @@ const XP_BAR_MIN_WIDTH: float = 120.0
 const MINIMAP_MAX_VIEWPORT_SHARE := Vector2(0.22, 0.30)
 
 ## The minimap's side at HUD scale 1. The player's HUD Scale multiplies it like everything
-## else; the viewport cap above still applies on top.
+## else, then their Minimap Size on its own; the viewport cap above still applies on top.
 const MINIMAP_BASE_SIDE := 200.0
+## The player's Minimap Size (UserSettings.minimap_scale): the minimap alone, on top of hud_scale.
+var minimap_scale: float = 1.0
 ## The player's HUD Scale (UserSettings.hud_scale): a multiplier on the window-derived scale
 ## for every readout in the strip, the crystal's bar and the mana row above it.
 var hud_scale: float = 1.0
@@ -310,7 +312,8 @@ func _ready() -> void:
 	_lay_out_hotbar_slots()
 	_setup_mana_icons()
 	hud_scale = UserSettings.hud_scale
-	_minimap_preferred_side = MINIMAP_BASE_SIDE * hud_scale
+	minimap_scale = UserSettings.minimap_scale
+	_minimap_preferred_side = MINIMAP_BASE_SIDE * hud_scale * minimap_scale
 	SignalBus.active_spell_changed.connect(_on_active_spell_changed)
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
 	SignalBus.upkeep_started.connect(func(_d: float): _upkeep_open = true)
@@ -1137,6 +1140,8 @@ func _on_user_setting_changed(key: StringName) -> void:
 			minimap_container.visible = UserSettings.show_minimap
 		&"hud_scale":
 			set_hud_scale(UserSettings.hud_scale)
+		&"minimap_scale":
+			set_minimap_scale(UserSettings.minimap_scale)
 
 
 func _on_restart_pressed() -> void:
@@ -1153,10 +1158,15 @@ func _on_free_skills_toggled(button_pressed: bool) -> void:
 
 func set_hud_scale(value: float) -> void:
 	hud_scale = value
-	_minimap_preferred_side = MINIMAP_BASE_SIDE * value
+	_minimap_preferred_side = MINIMAP_BASE_SIDE * hud_scale * minimap_scale
 	# Through the strip rather than straight to _apply_minimap_size: a wider minimap takes
 	# room the XP bar and the hotbar were using, and both have to give it up in the same frame.
 	_layout_bottom_hud()
+
+
+func set_minimap_scale(value: float) -> void:
+	minimap_scale = value
+	set_hud_scale(hud_scale)
 
 
 ## Resizes the minimap AND the container holding it.
