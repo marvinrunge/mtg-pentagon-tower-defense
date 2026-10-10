@@ -119,57 +119,70 @@ func _build_gameplay_tab(column: VBoxContainer) -> void:
 		func(on: bool) -> void: UserSettings.set_value(&"camera_shake_enabled", on))
 
 
-## Volumes are sliders from silent to full. The bottom of each is OFF, not merely quiet -
-## the old music slider stopped at -24 dB, which is still clearly audible.
+## What every input does, as a striped table. Read off project.godot's input map by hand,
+## so a rebinding there has to be repeated here.
+##
+## Each row is its own PanelContainer, because that is what can carry a background. The
+## table used to be a GridContainer of Labels striped with self_modulate - which on a Label
+## tints the TEXT, so the header and every second row were drawn near-black on the dark panel.
 func _build_controls_tab(column: VBoxContainer) -> void:
-	var table := GridContainer.new()
-	table.columns = 3
-	table.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	table.add_theme_constant_override("h_separation", 18)
-	table.add_theme_constant_override("v_separation", 8)
-	column.add_child(table)
-
-	var header_color := Color(0.18, 0.22, 0.30, 1.0)
-	var alt_row_color := Color(0.12, 0.14, 0.18, 1.0)
-	var headers: Array = ["Action", "Keyboard", "Gamepad"]
-	for header_text: String in headers:
-		var header_label := Label.new()
-		header_label.text = header_text
-		header_label.add_theme_font_size_override("font_size", 14)
-		header_label.add_theme_color_override("font_color", Color(0.75, 0.82, 0.95))
-		header_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		header_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
-		header_label.self_modulate = header_color
-		table.add_child(header_label)
-
 	var rows: Array = [
-		["Movement", "W / A / S / D or Arrow Keys", "Left stick"],
+		["Movement", "WASD / Arrow keys", "Left stick"],
+		["Camera", "Mouse", "Right stick"],
 		["Jump", "Space", "A"],
-		["Main spell", "Q", "RT"],
-		["Attack", "Left mouse button", "LT"],
-		["Block", "Right mouse button", "LB"],
+		["Sprint", "Shift", "LB"],
+		["Attack", "Left mouse button", "RT"],
+		["Block", "Right mouse button", "LT"],
+		["Cast spell", "Q", "RB"],
+		["Hotbar (select + cast)", "1 - 8", "-"],
+		["Cycle spell", "Mouse wheel", "D-pad left / right"],
 		["Interact", "E", "X"],
 		["Kick", "F", "B"],
-		["Hotbar", "1 - 8", "-"],
-		["Cycle spell", "Mouse wheel", "L/R shoulder"],
 		["Skill tree", "P", "Y"],
+		["Equipment", "I", "R3 (click right stick)"],
+		["Wave info (hold)", "Tab", "Back / View"],
 		["Menu", "Esc", "Start"],
-		["Sprint", "Shift", "L3"],
-		["Wave info", "F1", "-"],
 	]
-	for row_index: int in range(rows.size()):
-		for value_idx: int in range(3):
-			var cell := Label.new()
-			cell.text = String(rows[row_index][value_idx])
-			cell.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			if row_index % 2 == 1:
-				cell.self_modulate = alt_row_color
-			if value_idx == 0:
-				cell.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
-			table.add_child(cell)
+	var table := VBoxContainer.new()
+	table.add_theme_constant_override("separation", 0)
+	column.add_child(table)
+	table.add_child(_controls_row(["Action", "Keyboard", "Gamepad"], Color(0.18, 0.22, 0.30), true))
+	for i: int in range(rows.size()):
+		var stripe := Color(1.0, 1.0, 1.0, 0.04) if i % 2 == 1 else Color(0.0, 0.0, 0.0, 0.0)
+		table.add_child(_controls_row(rows[i], stripe, false))
 
 
+## One row of the controls table: three columns on a background, the action a little wider.
+func _controls_row(cells: Array, background: Color, header: bool) -> PanelContainer:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.content_margin_left = 10.0
+	style.content_margin_right = 10.0
+	style.content_margin_top = 6.0
+	style.content_margin_bottom = 6.0
+	panel.add_theme_stylebox_override("panel", style)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	panel.add_child(row)
+	for i: int in range(cells.size()):
+		var cell := Label.new()
+		cell.text = String(cells[i])
+		cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cell.size_flags_stretch_ratio = 1.3 if i == 0 else 1.0
+		cell.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		if header:
+			cell.add_theme_color_override("font_color", Color(0.75, 0.82, 0.95))
+		elif i == 0:
+			cell.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+		else:
+			cell.add_theme_color_override("font_color", Color(0.78, 0.8, 0.84))
+		row.add_child(cell)
+	return panel
+
+
+## Volumes are sliders from silent to full. The bottom of each is OFF, not merely quiet -
+## the old music slider stopped at -24 dB, which is still clearly audible.
 func _build_audio_tab(column: VBoxContainer) -> void:
 	_slider(column, "Master Volume", 0.0, 100.0, 1.0, UserSettings.master_volume * 100.0,
 		_percent_text, func(value: float) -> void: UserSettings.set_value(&"master_volume", value / 100.0))
