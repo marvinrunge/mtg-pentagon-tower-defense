@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/tests/key_art_shot.gd" id="1_kas"]
+
+[node name="KeyArtShot" type="Node"]
+script = ExtResource("1_kas")
