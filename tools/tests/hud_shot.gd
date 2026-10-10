@@ -2,7 +2,7 @@ extends Node
 ## A screenshot of the gameplay HUD over the running map, for judging HUD changes.
 ##
 ## Run with (windowed - a headless run renders nothing):
-##   "G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --windowed --resolution 1600x900 res://tools/tests/hud_shot.tscn -- <out.png> [hour]
+##   "G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --windowed --resolution 1600x900 res://tools/tests/hud_shot.tscn -- <out.png> [hour] [hud_scale]
 
 var _frames: int = 0
 var _done: bool = false
@@ -35,6 +35,9 @@ func _process(_delta: float) -> void:
 	if sky != null:
 		sky.set("game_time_enabled", false)
 		sky.set("current_time", float(args[1]) if args.size() > 1 else 13.0)
+	if args.size() > 2:
+		# Straight onto the HUD rather than through UserSettings, which would save it.
+		get_tree().current_scene.get_node("HUD").call("set_hud_scale", float(args[2]))
 	for i: int in 30:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw

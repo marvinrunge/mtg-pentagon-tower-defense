@@ -42,7 +42,7 @@ const SECTIONS: Dictionary = {
 	&"camera_shake_enabled": "interface",
 	&"intro_tour": "interface",
 	&"show_minimap": "interface",
-	&"minimap_size": "interface",
+	&"hud_scale": "interface",
 	&"mouse_sensitivity": "controls",
 	&"stick_sensitivity": "controls",
 	&"invert_look_y": "controls",
@@ -64,7 +64,11 @@ var camera_shake_enabled: bool = true
 ## Whether a run entered from the menu opens with the camera flight over the map.
 var intro_tour: bool = true
 var show_minimap: bool = true
-var minimap_size: float = 200.0
+## The gameplay HUD's size - bars, hotbar, minimap, mana symbols - as a multiple of its
+## authored size. It replaced a minimap-only size; see _load for how an old one carries over.
+var hud_scale: float = 1.0
+const HUD_SCALE_MIN := 0.75
+const HUD_SCALE_MAX := 2.0
 ## Look speed as a multiple of the tuned default, for the mouse and the right stick.
 var mouse_sensitivity: float = 1.0
 var stick_sensitivity: float = 1.0
@@ -205,3 +209,8 @@ func _load() -> void:
 	# The slider's own range, so a hand-edited 0 cannot leave the camera unable to turn.
 	mouse_sensitivity = clampf(mouse_sensitivity, 0.2, 3.0)
 	stick_sensitivity = clampf(stick_sensitivity, 0.2, 3.0)
+	# A player who had sized only the minimap gets the HUD at the same scale: the minimap's
+	# old slider was in pixels against a 200px default, so 400px meant twice the size.
+	if not cfg.has_section_key("interface", "hud_scale") and cfg.has_section_key("interface", "minimap_size"):
+		hud_scale = float(cfg.get_value("interface", "minimap_size", 200.0)) / 200.0
+	hud_scale = clampf(hud_scale, HUD_SCALE_MIN, HUD_SCALE_MAX)

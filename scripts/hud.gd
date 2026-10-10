@@ -192,6 +192,13 @@ const XP_BAR_MIN_WIDTH: float = 120.0
 ## screen, and shrinking it against the player's wishes on a large one would be wrong.
 const MINIMAP_MAX_VIEWPORT_SHARE := Vector2(0.22, 0.30)
 
+## The minimap's side at HUD scale 1. The player's HUD Scale multiplies it like everything
+## else; the viewport cap above still applies on top.
+const MINIMAP_BASE_SIDE := 200.0
+## The player's HUD Scale (UserSettings.hud_scale): a multiplier on the window-derived scale
+## for every readout in the strip, the crystal's bar and the mana row above it.
+var hud_scale: float = 1.0
+
 ## What the player asked the minimap to be, before that cap. Kept because the cap is a
 ## function of the window: widening it again has to give back the size they chose, and
 ## reading it off the clamped map would ratchet it permanently smaller.
@@ -302,7 +309,8 @@ func _ready() -> void:
 	_ensure_hotbar_icons()
 	_lay_out_hotbar_slots()
 	_setup_mana_icons()
-	_minimap_preferred_side = UserSettings.minimap_size
+	hud_scale = UserSettings.hud_scale
+	_minimap_preferred_side = MINIMAP_BASE_SIDE * hud_scale
 	SignalBus.active_spell_changed.connect(_on_active_spell_changed)
 	SignalBus.skill_unlocked.connect(_on_skill_unlocked)
 	SignalBus.upkeep_started.connect(func(_d: float): _upkeep_open = true)
@@ -509,7 +517,7 @@ func bottom_hud_rects(vp: Vector2) -> Dictionary:
 	# a narrow one has for its width.
 	var scale: float = clampf(
 		minf(vp.x / HUD_REFERENCE_SIZE.x, vp.y / HUD_REFERENCE_SIZE.y), HUD_MIN_SCALE, 1.0
-	)
+	) * hud_scale
 	var gap: float = HUD_GAP * scale
 	var bar_height: float = 30.0 * scale
 	var margin: float = 30.0 * scale
@@ -520,7 +528,9 @@ func bottom_hud_rects(vp: Vector2) -> Dictionary:
 	var minimap_side: float = _effective_minimap_side(vp)
 	var minimap_width: float = minimap_side + minimap_margin
 
-	var health_width: float = 250.0 * scale
+	# Capped so the XP bar keeps at least its minimum between the two: a big HUD Scale on a
+	# small window would otherwise grow the health bar straight into it.
+	var health_width: float = minf(250.0 * scale, centre - margin - gap - XP_BAR_MIN_WIDTH * 0.5)
 	var health := Rect2(margin, row_top, health_width, bar_height)
 
 	# The XP bar stays CENTRED on the screen and gives up width instead of moving - dropped
@@ -587,12 +597,31 @@ func _layout_bottom_hud() -> void:
 	xp_bar.offset_bottom = xp.end.y - vp.y
 	xp_bar.custom_minimum_size = xp.size
 
+	_scale_hud_text(scale)
 	_lay_out_hotbar_slots(plan["slot"])
 	var hotbar_container: Control = $Control/HotbarContainer
 	hotbar_container.offset_left = hotbar.position.x - vp.x * 0.5
 	hotbar_container.offset_right = hotbar.end.x - vp.x * 0.5
 	hotbar_container.offset_top = hotbar.position.y - vp.y
 	hotbar_container.offset_bottom = hotbar.end.y - vp.y
+
+
+## Text and icons in the readouts at `scale` times their authored size: the numbers on the
+## bars, the hotbar's keys and cooldowns, the mana row and the crystal's warning line. Set
+## as real font sizes, not a Control scale, so the text is drawn sharp at every size; each
+## label's authored size is kept as meta the first time, so repeated layouts never compound.
+func _scale_hud_text(scale: float) -> void:
+	var roots: Array[Node] = [$Control/MarginContainer, player_health_bar, xp_bar, $Control/HotbarContainer]
+	for root: Node in roots:
+		if root == null:
+			continue
+		for label: Label in root.find_children("*", "Label", true, false):
+			if not label.has_meta("hud_base_font_size"):
+				label.set_meta("hud_base_font_size", label.get_theme_font_size("font_size"))
+			var base: int = int(label.get_meta("hud_base_font_size"))
+			label.add_theme_font_size_override("font_size", maxi(8, roundi(float(base) * scale)))
+	for icon: Node in $Control/MarginContainer.find_children("ManaIcon*", "TextureRect", true, false):
+		(icon as TextureRect).custom_minimum_size = Vector2(24.0, 24.0) * scale
 
 
 ## The slot size that makes the whole row fit `available` pixels, never larger than the
@@ -607,7 +636,7 @@ func _hotbar_slot_size(scale: float, available: float) -> float:
 	# of those make the row 4px wider than the container was given, which it takes by growing
 	# past its own offsets and back under the minimap. Flooring makes the width this function
 	# reports the width the row actually occupies.
-	return floorf(clampf(minf(wanted, fits), HOTBAR_SLOT_SIZE * HUD_MIN_SCALE, HOTBAR_SLOT_SIZE))
+	return floorf(clampf(minf(wanted, fits), HOTBAR_SLOT_SIZE * HUD_MIN_SCALE, HOTBAR_SLOT_SIZE * hud_scale))
 
 
 func _hotbar_separation() -> float:
@@ -1106,8 +1135,8 @@ func _on_user_setting_changed(key: StringName) -> void:
 	match key:
 		&"show_minimap":
 			minimap_container.visible = UserSettings.show_minimap
-		&"minimap_size":
-			_on_minimap_size_changed(UserSettings.minimap_size)
+		&"hud_scale":
+			set_hud_scale(UserSettings.hud_scale)
 
 
 func _on_restart_pressed() -> void:
@@ -1122,8 +1151,9 @@ func _on_free_skills_toggled(button_pressed: bool) -> void:
 	GameSettings.debug_free_skills = button_pressed
 	SignalBus.mana_changed.emit(RunState.mana_pool)
 
-func _on_minimap_size_changed(value: float) -> void:
-	_minimap_preferred_side = value
+func set_hud_scale(value: float) -> void:
+	hud_scale = value
+	_minimap_preferred_side = MINIMAP_BASE_SIDE * value
 	# Through the strip rather than straight to _apply_minimap_size: a wider minimap takes
 	# room the XP bar and the hotbar were using, and both have to give it up in the same frame.
 	_layout_bottom_hud()

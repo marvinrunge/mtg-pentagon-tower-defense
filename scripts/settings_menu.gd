@@ -134,9 +134,10 @@ func _input(event: InputEvent) -> void:
 func _build_gameplay_tab(column: VBoxContainer) -> void:
 	_first_control = _check(column, "Show Minimap", UserSettings.show_minimap,
 		func(on: bool) -> void: UserSettings.set_value(&"show_minimap", on))
-	_slider(column, "Minimap Size", 100.0, 400.0, 10.0, UserSettings.minimap_size,
-		func(value: float) -> String: return "%d px" % int(value),
-		func(value: float) -> void: UserSettings.set_value(&"minimap_size", value))
+	_slider(column, "HUD Scale", UserSettings.HUD_SCALE_MIN * 100.0, UserSettings.HUD_SCALE_MAX * 100.0, 5.0,
+		UserSettings.hud_scale * 100.0,
+		func(value: float) -> String: return "%d%%" % int(round(value)),
+		func(value: float) -> void: UserSettings.set_value(&"hud_scale", value / 100.0))
 	_check(column, "Show Damage Numbers", UserSettings.show_damage_numbers,
 		func(on: bool) -> void: UserSettings.set_value(&"show_damage_numbers", on))
 	_check(column, "Show Enemy Health Bars", UserSettings.show_enemy_health_bars,

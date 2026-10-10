@@ -30,10 +30,10 @@ const SIZES: Array[Vector2] = [
 	Vector2(900, 900),
 ]
 
-## The minimap is the player's own setting, and a big one is the case most likely to collide.
-## Both ends of its slider are checked, because the cap that keeps it off the rest of the HUD
-## only engages at the top end.
-const MINIMAP_SIDES: Array[float] = [100.0, 200.0, 400.0]
+## The player's HUD Scale grows every readout at once, and a big one is the case most likely
+## to collide. Both ends of its slider are checked, because the caps that keep the readouts
+## off each other only engage at the top end.
+const HUD_SCALES: Array[float] = [0.75, 1.0, 1.5, 2.0]
 
 var _frames: int = 0
 var _done: bool = false
@@ -57,22 +57,23 @@ func _run() -> void:
 		print("TEST RESULT: FAIL (no HUD in the scene)")
 		return
 
-	for minimap_side: float in MINIMAP_SIDES:
-		hud._minimap_preferred_side = minimap_side
+	for hud_scale: float in HUD_SCALES:
+		hud.hud_scale = hud_scale
+		hud._minimap_preferred_side = hud.MINIMAP_BASE_SIDE * hud_scale
 		for size: Vector2 in SIZES:
-			_check_size(hud, size, minimap_side)
+			_check_size(hud, size, hud_scale)
 
 	if _failures.is_empty():
-		print("TEST RESULT: PASS (%d sizes x %d minimap sizes)" % [SIZES.size(), MINIMAP_SIDES.size()])
+		print("TEST RESULT: PASS (%d sizes x %d HUD scales)" % [SIZES.size(), HUD_SCALES.size()])
 		return
 	print("TEST RESULT: FAIL")
 	for failure: String in _failures:
 		print("  " + failure)
 
 
-func _check_size(hud: Node, size: Vector2, minimap_side: float) -> void:
+func _check_size(hud: Node, size: Vector2, hud_scale: float) -> void:
 	var plan: Dictionary = hud.bottom_hud_rects(size)
-	var label: String = "%dx%d minimap=%d" % [size.x, size.y, minimap_side]
+	var label: String = "%dx%d hud_scale=%.2f" % [size.x, size.y, hud_scale]
 
 	# Nothing in the strip may touch anything else in it. The minimap is included: it is the
 	# element the hotbar reached under, and it is the one whose size the player controls.
