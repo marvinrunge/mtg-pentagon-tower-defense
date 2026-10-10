@@ -59,6 +59,9 @@ var _fps_update_timer: float = 0.0
 var _open_menus: Dictionary = {}
 ## The crystal is down and the game-over panel is waiting out its destruction.
 var _game_over_pending: bool = false
+## The "are you sure?" over the options panel, while it is up - see _open_confirm.
+var _confirm_layer: Control = null
+const MENU_SCENE: String = "res://scenes/ui/main_menu.tscn"
 ## Exactly what this hid when a menu opened, so closing it restores those and nothing else.
 ## Without this, a wave panel the player had put away with Tab would come back every time
 ## they closed the skill tree.
@@ -256,6 +259,7 @@ func _ready() -> void:
 		log_message("The crystal has shattered", Color(1.0, 0.4, 0.35)))
 	
 	_build_settings_menu()
+	_build_leave_buttons()
 	# What the options panel changes that only the HUD can apply. Everything else it sets
 	# is read live off UserSettings / GameSettings by whoever uses it.
 	UserSettings.changed.connect(_on_user_setting_changed)
@@ -679,6 +683,141 @@ func _gradient_fill_style(light: Color, dark: Color) -> StyleBoxTexture:
 	return style
 
 
+## MAIN MENU and QUIT GAME under the options, each behind an "are you sure?" - a run is lost
+## the moment either goes through. The defeat screen gets a MAIN MENU of its own, unasked:
+## that run is already over.
+func _build_leave_buttons() -> void:
+	var row := HBoxContainer.new()
+	row.name = "LeaveRow"
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.add_theme_constant_override("separation", 12)
+	var to_menu := Button.new()
+	to_menu.text = "Main Menu"
+	to_menu.custom_minimum_size = Vector2(150.0, 36.0)
+	to_menu.pressed.connect(func() -> void:
+		_open_confirm("Leave this run and return to the main menu?" + _host_warning(), "Leave", _return_to_menu))
+	row.add_child(to_menu)
+	var quit := Button.new()
+	quit.text = "Quit Game"
+	quit.custom_minimum_size = Vector2(150.0, 36.0)
+	quit.pressed.connect(func() -> void:
+		_open_confirm("Quit Pentafall?" + _host_warning(), "Quit", _quit_game))
+	row.add_child(quit)
+	_settings_menu.add_child(row)
+
+	var defeat_column: VBoxContainer = game_over_panel.get_node("MarginContainer/VBoxContainer")
+	var defeat_menu := Button.new()
+	defeat_menu.text = "Main Menu"
+	defeat_menu.custom_minimum_size = restart_btn.custom_minimum_size
+	defeat_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	defeat_menu.add_theme_font_size_override("font_size", 18)
+	defeat_menu.pressed.connect(_return_to_menu)
+	defeat_column.add_child(defeat_menu)
+
+
+## A host leaving takes the whole session down with it, which is worth saying before it happens.
+func _host_warning() -> String:
+	if Net.is_active() and Net.is_server():
+		return "
+
+You are hosting - this ends the game for everyone."
+	return ""
+
+
+## A small modal over the options panel: `message`, a Cancel that has the focus - so a stray
+## A press answers no - and `confirm_text`, which runs `action`.
+func _open_confirm(message: String, confirm_text: String, action: Callable) -> void:
+	_close_confirm()
+	var layer := Control.new()
+	layer.name = "ConfirmLayer"
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Over the options panel, which hud.tscn draws at z_index 1.
+	layer.z_index = settings_panel.z_index + 1
+	settings_panel.get_parent().add_child(layer)
+	_confirm_layer = layer
+
+	var shade := ColorRect.new()
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0.0, 0.0, 0.0, 0.55)
+	layer.add_child(shade)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(440.0, 0.0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.022, 0.03, 0.97)
+	style.border_color = Color(0.62, 0.52, 0.38, 0.9)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	for side: String in ["left", "right", "top", "bottom"]:
+		style.set("content_margin_" + side, 22.0)
+	panel.add_theme_stylebox_override("panel", style)
+	layer.add_child(panel)
+
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 18)
+	panel.add_child(column)
+	var label := Label.new()
+	label.text = message
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size = Vector2(396.0, 0.0)
+	label.add_theme_font_size_override("font_size", 18)
+	column.add_child(label)
+
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 16)
+	column.add_child(buttons)
+	var cancel := Button.new()
+	cancel.text = "Cancel"
+	cancel.custom_minimum_size = Vector2(130.0, 38.0)
+	cancel.pressed.connect(_close_confirm)
+	buttons.add_child(cancel)
+	var confirm := Button.new()
+	confirm.text = confirm_text
+	confirm.custom_minimum_size = Vector2(130.0, 38.0)
+	confirm.pressed.connect(func() -> void:
+		_close_confirm()
+		action.call())
+	buttons.add_child(confirm)
+	# Focus stays between the two: a D-pad must not wander back into the options behind.
+	for button: Button in [cancel, confirm]:
+		button.focus_neighbor_top = button.get_path()
+		button.focus_neighbor_bottom = button.get_path()
+	cancel.focus_neighbor_left = confirm.get_path()
+	confirm.focus_neighbor_right = cancel.get_path()
+	cancel.grab_focus()
+
+
+func _close_confirm() -> void:
+	if is_instance_valid(_confirm_layer):
+		_confirm_layer.queue_free()
+	_confirm_layer = null
+	if settings_panel.visible and _settings_menu != null:
+		_settings_menu.focus_first()
+
+
+## Back to the main menu, leaving the session the way the menu's own LEAVE does: nothing to
+## reconnect to, nothing to carry over - this was the player's choice, not a drop.
+func _return_to_menu() -> void:
+	Net.leave()
+	Net.forget_last_join()
+	PlayerRegistry.clear_saved_build()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	get_tree().change_scene_to_file(MENU_SCENE)
+
+
+## Leaves the session first, so an online lobby comes off the browser now rather than when
+## it times out.
+func _quit_game() -> void:
+	Net.leave()
+	get_tree().quit()
+
+
 ## The defeat screen: the DEFEAT lettering in place of hud.tscn's plain red label, on a
 ## light veil rather than a box, over the burning hub the crystal's destruction left behind.
 func _style_game_over_panel() -> void:
@@ -841,6 +980,12 @@ func update_spell(spell_name: String) -> void:
 	pass
 
 func _input(event: InputEvent) -> void:
+	# Back out of an "are you sure?" first: Escape or B answers no, and leaves the options
+	# panel open underneath rather than closing both.
+	if is_instance_valid(_confirm_layer) and event.is_action_pressed("ui_cancel"):
+		_close_confirm()
+		get_viewport().set_input_as_handled()
+		return
 	if game_over_panel and game_over_panel.visible:
 		return
 	if _upkeep_open:
