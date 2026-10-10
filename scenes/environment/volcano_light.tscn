@@ -23,6 +23,7 @@ light_color = Color(1, 0.38, 0.12, 1)
 light_energy = 6.0
 light_volumetric_fog_energy = 2.0
 light_specular = 0.3
+shadow_enabled = true
 omni_range = 150.0
 omni_attenuation = 0.6
 script = ExtResource("1_flicker")
