@@ -332,6 +332,7 @@ tracks/46/path = NodePath("Skeleton3D:mixamorig_RightHandRing3")
 tracks/46/interp = 1
 tracks/46/loop_wrap = true
 tracks/46/keys = PackedFloat32Array(0, 1, 0.33421263, 0.004041566, 0.024652803, 0.94216657)
+metadata/made_for = "white_paladin"
 metadata/hit_ratio = 0.44230768313774693
 
 [sub_resource type="Animation" id="Animation_78c8g"]
@@ -666,6 +667,7 @@ tracks/46/path = NodePath("Skeleton3D:mixamorig_RightHandRing3")
 tracks/46/interp = 1
 tracks/46/loop_wrap = true
 tracks/46/keys = PackedFloat32Array(0, 1, 0.33421278, 0.0040416047, 0.0246528, 0.9421665)
+metadata/made_for = "white_paladin"
 
 [sub_resource type="Animation" id="Animation_o05px"]
 resource_name = "mixamo_com"
@@ -999,6 +1001,7 @@ tracks/46/path = NodePath("Skeleton3D:mixamorig_RightHandRing3")
 tracks/46/interp = 1
 tracks/46/loop_wrap = true
 tracks/46/keys = PackedFloat32Array(0, 1, 0.33423054, 0.004083621, 0.024522645, 0.9421634, 0.033333335, 1, 0.33313403, 0.0040716785, 0.024479203, 0.94255286, 0.06666667, 1, 0.3283116, 0.004019525, 0.024288917, 0.94424856, 0.1, 1, 0.32612932, 0.0039961017, 0.024202814, 0.94500685, 0.13333334, 1, 0.32758322, 0.0040116752, 0.024260186, 0.9445023, 0.16666667, 1, 0.33238015, 0.004063628, 0.024449663, 0.9428198, 0.23333333, 1, 0.33373946, 0.004078404, 0.024503274, 0.942338, 0.26666668, 1, 0.33686176, 0.0041120606, 0.024626171, 0.941223, 0.3, 1, 0.33952063, 0.0041409573, 0.02473102, 0.9402643, 0.36666667, 1, 0.34041062, 0.004150466, 0.024766093, 0.9399415, 0.4, 1, 0.33938736, 0.0041395114, 0.024725748, 0.94031256, 0.43333334, 1, 0.33765948, 0.0041206353, 0.0246578, 0.94093627, 0.5, 1, 0.33653423, 0.004108363, 0.02461341, 0.94134057, 0.53333336, 1, 0.33545366, 0.004096845, 0.02457085, 0.94172734, 0.73333335, 1, 0.33407876, 0.0041216877, 0.02446318, 0.9422186, 0.76666665, 1, 0.33424225, 0.0041145566, 0.024501529, 0.9421597)
+metadata/made_for = "white_paladin"
 
 [sub_resource type="Animation" id="Animation_dks5x"]
 resource_name = "mixamo_com"
@@ -1332,6 +1335,7 @@ tracks/46/path = NodePath("Skeleton3D:mixamorig_RightHandRing3")
 tracks/46/interp = 1
 tracks/46/loop_wrap = true
 tracks/46/keys = PackedFloat32Array(0, 1, 0.33421284, 0.0040416657, 0.024652747, 0.9421665)
+metadata/made_for = "white_paladin"
 
 [sub_resource type="Animation" id="Animation_6wlt4"]
 resource_name = "mixamo_com"
@@ -1666,6 +1670,7 @@ tracks/46/path = NodePath("Skeleton3D:mixamorig_RightHandRing3")
 tracks/46/interp = 1
 tracks/46/loop_wrap = true
 tracks/46/keys = PackedFloat32Array(0, 1, 0.33423883, 0.0040873215, 0.024615264, 0.94215804, 0.1, 1, 0.3355377, 0.0040645376, 0.024721527, 0.94169354, 0.4, 1, 0.3344044, 0.004054816, 0.024676178, 0.94209784, 0.56666666, 1, 0.33319473, 0.0041145226, 0.02458867, 0.94252837, 0.8, 1, 0.3342339, 0.004017641, 0.024740046, 0.9421568, 1.1, 1, 0.33417684, 0.0040201885, 0.024726637, 0.9421774)
+metadata/made_for = "white_paladin"
 
 [resource]
 _data = {

@@ -22,6 +22,8 @@ extends RefCounted
 ## Godot MCP's execute_editor_script instead.
 
 const AnimationImpact = preload("res://tools/animation_impact.gd")
+## By path, not by class_name: a headless --script run does not rescan the project.
+const Retarget = preload("res://tools/animation_retarget.gd")
 
 const ANIM_ROOT := "res://assets/animations/boss/"
 const LIBRARY_DIR := "res://assets/animations/boss/"
@@ -77,6 +79,27 @@ const ANIM_SETS := {
 	},
 }
 
+## Which boss each source file was downloaded FOR - the model uploaded to Mixamo when the
+## clip was exported. Its rotations only mean the intended pose on that model's skeleton,
+## so every other boss gets the clip retargeted from it (AnimationRetarget) rather than
+## copied by bone name. A raw copy pitched the borrowing bosses' feet 22-41 degrees off.
+##
+## Not recorded at download time; measured afterwards from the skeleton each "without
+## skin" file still carries, by its leg and foot bones' rest against every boss mesh: each
+## source matches exactly one boss at 2-3 degrees, the rest at 7 degrees or more. (Over all
+## bones the match is muddy - T-pose against A-pose arms swamp it.) The fire giant has no
+## clip of its own: everything it plays was made for the frost giant.
+##
+## Folder entries cover every file in that folder; a file entry wins over its folder.
+const CLIP_MADE_FOR := {
+	"standing_melee/": "frost_giant",
+	"mutant/": "treant",
+	"sword_shield/": "white_paladin",
+	"zombie/": "zombie_lord",
+	"common/hit_react_gut.fbx": "frost_giant",
+	"common/death_collapse.fbx": "treant",
+}
+
 const LOOPING_CLIPS := ["walk"]
 
 ## Bone names used to find "where the feet are" for the grounding correction
@@ -121,6 +144,75 @@ static func build_all() -> void:
 	print("Done. Built %d boss scenes from %d animation sets." % [built, templates.size()])
 
 
+## Rebuilds ONLY the per-boss animation libraries (assets/animations/boss/lib_<boss>.tres),
+## measured against the boss scenes as they stand. The scenes themselves are read, never
+## written - the same split tools/add_run_clips.gd uses for the enemies, so whatever has
+## been tuned in a boss scene by hand survives. This is the one to run after changing
+## anything about the clips.
+static func build_libraries() -> void:
+	var templates: Dictionary = {}
+	for set_name in ANIM_SETS.keys():
+		var library := _build_animation_library(set_name)
+		if library != null:
+			templates[set_name] = library
+	var built := 0
+	for boss_name in BOSSES.keys():
+		var config: Dictionary = BOSSES[boss_name]
+		var scene: PackedScene = ResourceLoader.load(SCENE_DIR + "%s.tscn" % boss_name, "", ResourceLoader.CACHE_MODE_REPLACE)
+		if scene == null or not templates.has(config["set"]):
+			push_error("Cannot rebuild the library for %s" % boss_name)
+			continue
+		var root: Node3D = scene.instantiate()
+		var anim_player: AnimationPlayer = root.find_child("AnimationPlayer", true, false)
+		var skeleton: Skeleton3D = root.find_child("Skeleton3D", true, false)
+		if anim_player == null or skeleton == null:
+			push_error("%s's scene has no AnimationPlayer or Skeleton3D" % boss_name)
+			root.free()
+			continue
+		var library: AnimationLibrary = _ground_correct_library(templates[config["set"]], anim_player, root, skeleton, boss_name)
+		var impact_ratio: float = AnimationImpact.annotate(library, "attack", skeleton, anim_player, root)
+		var library_path: String = LIBRARY_DIR + "lib_%s.tres" % boss_name
+		if ResourceSaver.save(library, library_path) != OK:
+			push_error("Failed saving %s" % library_path)
+		else:
+			built += 1
+			print("Saved ", library_path, " (attack impact at ", "%.0f%%" % (impact_ratio * 100.0), ")")
+		root.free()
+	print("Done. Rebuilt %d boss animation libraries; no scene was touched." % built)
+
+
+## The boss a source file was made for, from CLIP_MADE_FOR. Empty when unknown, which
+## leaves the clip copied as it is.
+static func _made_for(source_fbx_path: String) -> String:
+	var relative: String = source_fbx_path.trim_prefix(ANIM_ROOT)
+	if CLIP_MADE_FOR.has(relative):
+		return CLIP_MADE_FOR[relative]
+	for key: String in CLIP_MADE_FOR:
+		if key.ends_with("/") and relative.begins_with(key):
+			return CLIP_MADE_FOR[key]
+	return ""
+
+
+static var _model_skeletons: Dictionary = {}
+
+
+## `anim` as it should play on `boss_name`'s skeleton: retargeted from the boss it was made
+## for, or as it is when it was made for this one (or nobody knows who it was made for).
+static func _retarget_for(anim: Animation, boss_name: String, skeleton: Skeleton3D) -> Animation:
+	var made_for: String = String(anim.get_meta("made_for", ""))
+	if made_for == "" or made_for == boss_name or not BOSSES.has(made_for):
+		return anim
+	if not _model_skeletons.has(made_for):
+		_model_skeletons[made_for] = Retarget.source_skeleton(BOSSES[made_for]["mesh"])
+	var source: Skeleton3D = _model_skeletons[made_for]
+	if source == null:
+		push_warning("No skeleton for %s; %s plays its clips unretargeted" % [made_for, boss_name])
+		return anim
+	var retargeted: Animation = Retarget.retarget(anim, source, skeleton)
+	retargeted.set_meta("retargeted_from", made_for)
+	return retargeted
+
+
 ## Builds the un-grounded template for one animation set - every clip's Hips
 ## position track still carries whatever absolute Y baseline Mixamo happened to
 ## bake in, which does NOT line up with any particular boss's own proportions
@@ -138,6 +230,7 @@ static func _build_animation_library(set_name: String) -> AnimationLibrary:
 			push_error("Could not extract '%s' for set '%s' from %s" % [clip_name, set_name, clips[clip_name]])
 			return null
 		anim.loop_mode = Animation.LOOP_LINEAR if clip_name in LOOPING_CLIPS else Animation.LOOP_NONE
+		anim.set_meta("made_for", _made_for(clips[clip_name]))
 		# Mixamo exports these with forward travel baked into the Hips track (walk
 		# and the lunging attacks drift up to 1.5 body-lengths). The enemy is a
 		# CharacterBody3D driven by navigation, so that translation would fight
@@ -166,7 +259,8 @@ static func _extract_animation(source_fbx_path: String) -> Animation:
 	return anim
 
 
-## Builds a per-boss copy of `template_library` with every clip's Hips position
+## Builds a per-boss copy of `template_library`: every clip retargeted onto this boss's
+## skeleton when it was made for another one (see CLIP_MADE_FOR), and every clip's Hips position
 ## track shifted vertically so its feet actually reach y=0 (this boss's own
 ## floor, in the coordinate frame `root`'s already-normalized transform defines)
 ## at that clip's own lowest point - see _build_animation_library's docstring
@@ -176,7 +270,7 @@ static func _extract_animation(source_fbx_path: String) -> Animation:
 ## carries a position track here, every other bone is rotation-only, so a
 ## constant vertical offset on Hips moves the whole character without touching
 ## the walk cycle's own leg motion/bob at all.
-static func _ground_correct_library(template_library: AnimationLibrary, anim_player: AnimationPlayer, root: Node3D, skeleton: Skeleton3D) -> AnimationLibrary:
+static func _ground_correct_library(template_library: AnimationLibrary, anim_player: AnimationPlayer, root: Node3D, skeleton: Skeleton3D, boss_name: String) -> AnimationLibrary:
 	var skeleton_to_root: Transform3D = _transform_to_ancestor(skeleton, root)
 	# _measure_min_foot_height reads through root.transform, so it returns a
 	# WORLD-scale value (post the ~85x normalization factor). The Hips position
@@ -187,7 +281,9 @@ static func _ground_correct_library(template_library: AnimationLibrary, anim_pla
 	var corrected := AnimationLibrary.new()
 
 	for clip_name in template_library.get_animation_list():
-		var anim: Animation = template_library.get_animation(clip_name).duplicate(true)
+		# Retargeted BEFORE grounding: the feet's lowest point depends on how the legs are
+		# posed, and that is exactly what the retarget changes.
+		var anim: Animation = _retarget_for(template_library.get_animation(clip_name).duplicate(true), boss_name, skeleton)
 		var min_foot_y: float = _measure_min_foot_height(anim_player, skeleton, root, skeleton_to_root, anim)
 		if is_finite(min_foot_y):
 			_shift_hips_y(anim, "mixamorig_Hips", -min_foot_y / factor)
@@ -300,7 +396,7 @@ static func _build_boss(boss_name: String, mesh_fbx_path: String, template_libra
 	if skeleton == null:
 		push_error("%s has no Skeleton3D" % mesh_fbx_path)
 		return false
-	var library: AnimationLibrary = _ground_correct_library(template_library, anim_player, root, skeleton)
+	var library: AnimationLibrary = _ground_correct_library(template_library, anim_player, root, skeleton, boss_name)
 	# Records where the ordinary swing actually connects, so EnemyBase can pay the
 	# hit out on that frame instead of on the frame the swing started. The SPECIAL is
 	# deliberately not measured: its impact moment is authored in BossDatabase

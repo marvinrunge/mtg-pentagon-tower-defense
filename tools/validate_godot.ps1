@@ -164,6 +164,15 @@ if (-not $SkipRuntime) {
     }
     Write-Output "PASS: enemies that fall through the ground or leave the walkable map are put back on it, alive."
 
+    # Clips borrowed between the bosses are retargeted, not copied by bone name: a raw copy
+    # pitched the borrowing bosses' feet 22-41 degrees.
+    $retargetResult = Invoke-GodotCheck -Name "animation-retarget" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/animation_retarget.tscn") -TimeoutSeconds 120
+    if ($retargetResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($retargetResult.Output)
+        throw "A boss clip does not move its feet the way the clip was made to."
+    }
+    Write-Output "PASS: every boss clip moves its feet the way it was made to, borrowed or not."
+
     # And that two machines can actually find each other. The host launches a real
     # second process; a single-process fake could not fail the way UDP discovery, a
     # password check over ENet, or a ready round trip fail.
