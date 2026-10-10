@@ -88,14 +88,20 @@ func place_hub(crystal: Vector3, lane_angles: Array, stones: Array, pillars: Arr
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("hub_crystals")
 
-	# Round the base crystal.
-	for i: int in lane_angles.size():
-		var gap: float = float(lane_angles[i]) + PI / float(lane_angles.size())
-		# Close in under the hovering crystal, so they read as growing from where it floats.
-		_put(_scene(colours[i % colours.size()], 0), crystal + Vector3(cos(gap), 0.0, sin(gap)) * rng.randf_range(2.4, 3.0), rng, 0.9)
-		for side: float in [-0.38, 0.38]:
-			var angle: float = gap + side + rng.randf_range(-0.06, 0.06)
-			_put(_scene(colours[rng.randi() % colours.size()], 1), crystal + Vector3(cos(angle), 0.0, sin(angle)) * rng.randf_range(1.8, 2.6), rng, 1.0)
+	# Round the base crystal: one ring of 15, leaning outward like a crown opening round
+	# where the crystal floats. Every third is a cluster - one of each colour, since 0, 3,
+	# 6, 9, 12 land on all five - with two shard groups between each pair, packed close so
+	# the ring reads as one growth rather than a scatter.
+	var crown: int = 15
+	var start: float = rng.randf_range(0.0, TAU)
+	for k: int in crown:
+		var angle: float = start + TAU * float(k) / float(crown) + rng.randf_range(-0.05, 0.05)
+		var outward := Vector3(cos(angle), 0.0, sin(angle))
+		var cluster: bool = k % 3 == 0
+		var radius: float = rng.randf_range(2.3, 2.6) if cluster else rng.randf_range(1.9, 2.4)
+		var lean: float = deg_to_rad(rng.randf_range(24.0, 32.0) if cluster else rng.randf_range(30.0, 40.0))
+		_put_leaning(_scene(colours[k % colours.size()], 0 if cluster else 1), crystal + outward * radius,
+			outward, lean, rng.randf_range(0.9, 1.15) * (0.95 if cluster else 1.0), rng)
 
 	# At the foot of every standing stone, on the side away from the crystal.
 	for stone: Node3D in stones:
@@ -132,6 +138,20 @@ func _put(scene: PackedScene, spot: Vector3, rng: RandomNumberGenerator, scale_m
 	node.global_position = Vector3(spot.x, _ground(spot), spot.z)
 	node.rotation.y = rng.randf_range(0.0, TAU)
 	node.scale = Vector3.ONE * rng.randf_range(0.85, 1.25) * scale_mult
+	return node
+
+
+## A crystal at `spot` that leans `lean` radians away from the centre, along `outward`:
+## turned about its own axis first, at random, so no two in a ring are the same, then
+## tipped over. Set a little into the ground, since a tipped base lifts on its low side.
+func _put_leaning(scene: PackedScene, spot: Vector3, outward: Vector3, lean: float, size: float,
+		rng: RandomNumberGenerator) -> Node3D:
+	var node: Node3D = _put(scene, spot, rng, 1.0)
+	if node == null:
+		return null
+	var tip := Basis(Vector3.UP.cross(outward).normalized(), lean)
+	node.global_basis = (tip * Basis(Vector3.UP, rng.randf_range(0.0, TAU))).scaled(Vector3.ONE * size)
+	node.global_position.y -= 0.12 * size
 	return node
 
 
