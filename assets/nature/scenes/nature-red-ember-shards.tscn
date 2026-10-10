@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-ember-shards.res" id="1_kvi2g"]
+
+[node name="NatureRedEmberShards" type="Node3D" unique_id=330614061]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=282544894]
+cast_shadow = 0
+mesh = ExtResource("1_kvi2g")

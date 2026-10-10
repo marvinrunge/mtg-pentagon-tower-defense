@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-dawn-crystal-cluster.res" id="1_lhv6r"]
+
+[node name="NatureWhiteDawnCrystalCluster" type="Node3D" unique_id=1113685796]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=747037762]
+mesh = ExtResource("1_lhv6r")

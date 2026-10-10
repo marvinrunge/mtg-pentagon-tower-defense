@@ -1,0 +1,17 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_tmkx7"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-magma-spire.tscn" id="2_3ncag"]
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_h0q84"]
+objectFrequency = 24
+randomRange = 2.88
+noiseTexture = ExtResource("1_tmkx7")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.9
+randomSizeFactorMax = 1.1
+objectScenes = Array[PackedScene]([ExtResource("2_3ncag")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_h0q84")

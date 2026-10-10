@@ -1,0 +1,16 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_lycdh"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-tide-crystal-spires.tscn" id="2_b7nin"]
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_lfwjd"]
+objectFrequency = 9
+randomRange = 1.08
+noiseTexture = ExtResource("1_lycdh")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+objectScenes = Array[PackedScene]([ExtResource("2_b7nin")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_lfwjd")

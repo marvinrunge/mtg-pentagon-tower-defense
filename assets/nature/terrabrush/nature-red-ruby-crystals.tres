@@ -1,0 +1,37 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-ruby-crystals.res" id="1_xmxbl"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_p0wdv"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_ourh6"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_pcg4v"]
+maxDistance = 260.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_3bkld"]
+mesh = ExtResource("1_xmxbl")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_15rwc"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_3bkld")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_aobra"]
+mesh = ExtResource("1_xmxbl")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_l7nnb"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_aobra")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_r43gb"]
+strategy = 2
+objectFrequency = 9
+randomRange = 1.08
+noiseTexture = ExtResource("2_p0wdv")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_ourh6"), SubResource("ObjectOctreeLODDefinitionResource_pcg4v")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_15rwc"), SubResource("ObjectOctreeLODMeshesDefinitionResource_l7nnb")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_r43gb")

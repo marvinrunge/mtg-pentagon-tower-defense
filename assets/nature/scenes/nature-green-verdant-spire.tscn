@@ -1,0 +1,29 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-verdant-spire.res" id="1_lxufx"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_d6knk"]
+height = 4.5
+radius = 0.49029842
+
+[node name="NatureGreenVerdantSpire" type="Node3D" unique_id=686619324]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=2105338394]
+mesh = ExtResource("1_lxufx")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=1536475828]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=899326418]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
+shape = SubResource("CylinderShape3D_d6knk")
+
+[node name="Glow" type="OmniLight3D" parent="." unique_id=471579148]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
+light_color = Color(0.3, 1, 0.45, 1)
+light_energy = 1.5
+distance_fade_enabled = true
+distance_fade_begin = 50.0
+distance_fade_length = 20.0
+omni_range = 7.0

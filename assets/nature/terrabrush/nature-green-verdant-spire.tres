@@ -1,0 +1,17 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_bqjrn"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-verdant-spire.tscn" id="2_s1pw0"]
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_swlux"]
+objectFrequency = 24
+randomRange = 2.88
+noiseTexture = ExtResource("1_bqjrn")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.9
+randomSizeFactorMax = 1.1
+objectScenes = Array[PackedScene]([ExtResource("2_s1pw0")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_swlux")

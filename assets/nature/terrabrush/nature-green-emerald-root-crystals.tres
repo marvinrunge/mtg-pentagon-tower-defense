@@ -1,0 +1,37 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-emerald-root-crystals.res" id="1_nw5in"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_523nj"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_avaer"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_bd1ch"]
+maxDistance = 260.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_83e0p"]
+mesh = ExtResource("1_nw5in")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_5aaij"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_83e0p")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_osijf"]
+mesh = ExtResource("1_nw5in")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_qp7xf"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_osijf")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_0qlfg"]
+strategy = 2
+objectFrequency = 9
+randomRange = 1.08
+noiseTexture = ExtResource("2_523nj")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_avaer"), SubResource("ObjectOctreeLODDefinitionResource_bd1ch")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_5aaij"), SubResource("ObjectOctreeLODMeshesDefinitionResource_qp7xf")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_0qlfg")

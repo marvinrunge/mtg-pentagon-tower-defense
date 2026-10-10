@@ -1,0 +1,29 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-tide-crystal-spires.res" id="1_sxjkb"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_7shsu"]
+height = 4.5
+radius = 0.49029842
+
+[node name="NatureBlueTideCrystalSpires" type="Node3D" unique_id=333748170]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=6600231]
+mesh = ExtResource("1_sxjkb")
+
+[node name="Body" type="StaticBody3D" parent="." unique_id=36568676]
+collision_layer = 16
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1246510226]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
+shape = SubResource("CylinderShape3D_7shsu")
+
+[node name="Glow" type="OmniLight3D" parent="." unique_id=1088255802]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
+light_color = Color(0.35, 0.7, 1, 1)
+light_energy = 1.5
+distance_fade_enabled = true
+distance_fade_begin = 50.0
+distance_fade_length = 20.0
+omni_range = 7.0

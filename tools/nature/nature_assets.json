@@ -426,6 +426,14 @@
       "collision": "hull"
     },
     {
+      "id": "nature-white-dawn-shards",
+      "biome": "white",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-shard-cluster",
+      "tier": "clutter"
+    },
+    {
       "id": "nature-white-puffball-cluster",
       "biome": "white",
       "category": "fungus",
@@ -604,6 +612,23 @@
       "shape": "crystal-spire",
       "tier": "crystal",
       "light": true
+    },
+    {
+      "id": "nature-blue-sapphire-cluster",
+      "biome": "blue",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-cluster",
+      "tier": "crystal",
+      "note": "Stands in for nature-blue-sapphire-geode until the geode shape is meshed; drop it then."
+    },
+    {
+      "id": "nature-blue-tide-shards",
+      "biome": "blue",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-shard-cluster",
+      "tier": "clutter"
     },
     {
       "id": "nature-blue-lantern-caps",
@@ -800,6 +825,14 @@
       "tier": "landmark",
       "light": true,
       "collision": "hull"
+    },
+    {
+      "id": "nature-black-void-shards",
+      "biome": "black",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-shard-cluster",
+      "tier": "clutter"
     },
     {
       "id": "nature-black-witch-toadstools",
@@ -1045,6 +1078,14 @@
       "collision": "hull"
     },
     {
+      "id": "nature-red-ember-shards",
+      "biome": "red",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-shard-cluster",
+      "tier": "clutter"
+    },
+    {
       "id": "nature-red-ember-caps",
       "biome": "red",
       "category": "fungus",
@@ -1237,6 +1278,14 @@
       "tier": "landmark",
       "light": true,
       "collision": "hull"
+    },
+    {
+      "id": "nature-green-emerald-shards",
+      "biome": "green",
+      "category": "crystal",
+      "route": "tint",
+      "shape": "crystal-shard-cluster",
+      "tier": "clutter"
     },
     {
       "id": "nature-green-toadstool-cluster",

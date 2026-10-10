@@ -144,6 +144,36 @@
 [ext_resource type="Image" uid="uid://bhc8ntql2dp02" path="res://scenes/misc/Main/Object_0_0_9.res" id="tree_o9_mask"]
 [ext_resource type="ObjectResource" uid="uid://dgc0juce3cbmt" path="res://assets/nature/terrabrush/nature-green-tall-fir.tres" id="tree_o10"]
 [ext_resource type="Image" uid="uid://bbg83xk4jg7xy" path="res://scenes/misc/Main/Object_0_0_10.res" id="tree_o10_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-white-dawn-crystal-cluster.tres" id="crystal_o0"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-dawn-crystal-cluster.res" id="crystal_o0_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-white-sunspire-crystal.tres" id="crystal_o1"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-sunspire-crystal.res" id="crystal_o1_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-white-dawn-shards.tres" id="crystal_o2"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-dawn-shards.res" id="crystal_o2_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-tide-crystal-spires.tres" id="crystal_o3"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-tide-crystal-spires.res" id="crystal_o3_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-sapphire-cluster.tres" id="crystal_o4"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-sapphire-cluster.res" id="crystal_o4_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-tide-shards.tres" id="crystal_o5"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-tide-shards.res" id="crystal_o5_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-void-amethyst.tres" id="crystal_o6"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-void-amethyst.res" id="crystal_o6_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-rootbound-obelisk.tres" id="crystal_o7"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-rootbound-obelisk.res" id="crystal_o7_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-void-shards.tres" id="crystal_o8"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-void-shards.res" id="crystal_o8_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-red-ruby-crystals.tres" id="crystal_o9"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-ruby-crystals.res" id="crystal_o9_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-red-magma-spire.tres" id="crystal_o10"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-magma-spire.res" id="crystal_o10_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-red-ember-shards.tres" id="crystal_o11"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-ember-shards.res" id="crystal_o11_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-emerald-root-crystals.tres" id="crystal_o12"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-emerald-root-crystals.res" id="crystal_o12_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-verdant-spire.tres" id="crystal_o13"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-verdant-spire.res" id="crystal_o13_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-emerald-shards.tres" id="crystal_o14"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-emerald-shards.res" id="crystal_o14_mask"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_w4i7m"]
 shader = ExtResource("2_tafxk")
@@ -462,7 +492,7 @@ customShader = SubResource("ShaderMaterial_water")
 heightMapImage = ExtResource("41_q2y6g")
 splatmapsImage = Array[Image]([ExtResource("42_esgqe"), ExtResource("47_bif71"), ExtResource("80_xy1ao"), ExtResource("93_gcobm"), ExtResource("106_sdwp7")])
 foliagesImage = Array[Image]([ExtResource("grass_f0_mask"), ExtResource("grass_f1_mask"), ExtResource("grass_f2_mask"), ExtResource("grass_f3_mask"), ExtResource("grass_f4_mask"), ExtResource("grass_f5_mask"), ExtResource("grass_f6_mask"), ExtResource("grass_f7_mask"), ExtResource("grass_f8_mask"), ExtResource("grass_f9_mask")])
-objectsImage = Array[Image]([ExtResource("tree_o0_mask"), ExtResource("tree_o1_mask"), ExtResource("tree_o2_mask"), ExtResource("tree_o3_mask"), ExtResource("tree_o4_mask"), ExtResource("tree_o5_mask"), ExtResource("tree_o6_mask"), ExtResource("tree_o7_mask"), ExtResource("tree_o8_mask"), ExtResource("tree_o9_mask"), ExtResource("tree_o10_mask")])
+objectsImage = Array[Image]([ExtResource("tree_o0_mask"), ExtResource("tree_o1_mask"), ExtResource("tree_o2_mask"), ExtResource("tree_o3_mask"), ExtResource("tree_o4_mask"), ExtResource("tree_o5_mask"), ExtResource("tree_o6_mask"), ExtResource("tree_o7_mask"), ExtResource("tree_o8_mask"), ExtResource("tree_o9_mask"), ExtResource("tree_o10_mask"), ExtResource("crystal_o0_mask"), ExtResource("crystal_o1_mask"), ExtResource("crystal_o2_mask"), ExtResource("crystal_o3_mask"), ExtResource("crystal_o4_mask"), ExtResource("crystal_o5_mask"), ExtResource("crystal_o6_mask"), ExtResource("crystal_o7_mask"), ExtResource("crystal_o8_mask"), ExtResource("crystal_o9_mask"), ExtResource("crystal_o10_mask"), ExtResource("crystal_o11_mask"), ExtResource("crystal_o12_mask"), ExtResource("crystal_o13_mask"), ExtResource("crystal_o14_mask")])
 waterImage = ExtResource("94_54asi")
 
 [sub_resource type="ZonesResource" id="ZonesResource_k7hcf"]
@@ -682,7 +712,7 @@ useAntiTile = false
 heightBlendFactor = 2.0
 slopeTextureThreshold = 0.682
 foliages = Array[FoliageResource]([ExtResource("grass_f0"), ExtResource("grass_f1"), ExtResource("grass_f2"), ExtResource("grass_f3"), ExtResource("grass_f4"), ExtResource("grass_f5"), ExtResource("grass_f6"), ExtResource("grass_f7"), ExtResource("grass_f8"), ExtResource("grass_f9")])
-objects = Array[ObjectResource]([ExtResource("tree_o0"), ExtResource("tree_o1"), ExtResource("tree_o2"), ExtResource("tree_o3"), ExtResource("tree_o4"), ExtResource("tree_o5"), ExtResource("tree_o6"), ExtResource("tree_o7"), ExtResource("tree_o8"), ExtResource("tree_o9"), ExtResource("tree_o10")])
+objects = Array[ObjectResource]([ExtResource("tree_o0"), ExtResource("tree_o1"), ExtResource("tree_o2"), ExtResource("tree_o3"), ExtResource("tree_o4"), ExtResource("tree_o5"), ExtResource("tree_o6"), ExtResource("tree_o7"), ExtResource("tree_o8"), ExtResource("tree_o9"), ExtResource("tree_o10"), ExtResource("crystal_o0"), ExtResource("crystal_o1"), ExtResource("crystal_o2"), ExtResource("crystal_o3"), ExtResource("crystal_o4"), ExtResource("crystal_o5"), ExtResource("crystal_o6"), ExtResource("crystal_o7"), ExtResource("crystal_o8"), ExtResource("crystal_o9"), ExtResource("crystal_o10"), ExtResource("crystal_o11"), ExtResource("crystal_o12"), ExtResource("crystal_o13"), ExtResource("crystal_o14")])
 waterDefinition = SubResource("WaterResource_o72nt")
 terrainZones = SubResource("ZonesResource_k7hcf")
 physics_interpolation_mode = 2

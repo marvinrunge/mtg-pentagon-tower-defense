@@ -1,0 +1,37 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-sapphire-cluster.res" id="1_amf64"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_sbl1s"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_u7vrs"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_n3o0k"]
+maxDistance = 260.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_l23ro"]
+mesh = ExtResource("1_amf64")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_kp6s4"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_l23ro")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_lq0b7"]
+mesh = ExtResource("1_amf64")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_gm78u"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_lq0b7")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_lybb5"]
+strategy = 2
+objectFrequency = 9
+randomRange = 1.08
+noiseTexture = ExtResource("2_sbl1s")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_u7vrs"), SubResource("ObjectOctreeLODDefinitionResource_n3o0k")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_kp6s4"), SubResource("ObjectOctreeLODMeshesDefinitionResource_gm78u")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_lybb5")

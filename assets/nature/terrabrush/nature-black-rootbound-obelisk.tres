@@ -1,0 +1,17 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_t5oe4"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-rootbound-obelisk.tscn" id="2_1sakj"]
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_e82l8"]
+objectFrequency = 24
+randomRange = 2.88
+noiseTexture = ExtResource("1_t5oe4")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.9
+randomSizeFactorMax = 1.1
+objectScenes = Array[PackedScene]([ExtResource("2_1sakj")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_e82l8")

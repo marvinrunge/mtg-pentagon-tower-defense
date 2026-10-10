@@ -29,6 +29,11 @@ extends SceneTree
 ##     grass can outnumber flowers. One layer, not one per asset, because TerraBrush
 ##     runs its whole MultiMesh grid per foliage entry whether a cell is painted or not.
 ##
+## Per TINT asset (a mana crystal: one of the colourless shared shapes, recoloured for a
+## biome - docs/NATURE_ASSETS.md 3a): built exactly like a mesh asset from its shape's glb,
+## with assets/shaders/mana_crystal.gdshader in the biome's `crystal_glow` in place of the
+## shape's material. A tint whose shape has no glb yet is skipped.
+##
 ## Scatter: one mask image per entry, saved as scenes/misc/Main/Nature_<name>.res -
 ## the zone image TerraBrush paints into, so the result can be touched up by hand
 ## with TerraBrush's brushes afterwards. Only assets built in this run are repainted;
@@ -75,13 +80,15 @@ func _init() -> void:
 	for asset: Dictionary in manifest["assets"]:
 		# Procedural trees (tools/nature/blender/build_trees.py) land in the same
 		# assets/generated/<id>/ folder as Meshy models and are built the same way.
-		if not (asset["route"] in ["mesh", "procedural"]) or not _selected(asset):
+		if not (asset["route"] in ["mesh", "procedural", "tint"]) or not _selected(asset):
 			continue
 		if asset["biome"] == "shared":
-			# Colourless shapes tinted per biome (docs/NATURE_ASSETS.md 3a) - the tint
-			# material and the per-biome "tint" entries are not wired in yet.
-			print("[nature] %s: shared crystal shape, tinting not built yet - skipped" % asset["id"])
+			# A colourless shape: never placed itself, only through the biome tints below.
 			continue
+		if asset["route"] == "tint":
+			asset = _tint_asset(asset)
+			if asset.is_empty():
+				continue
 		var built := _build_mesh_asset(asset)
 		if not built.is_empty():
 			objects.append(built)
@@ -110,7 +117,7 @@ func _init() -> void:
 	# The library lists everything built so far, not just this run - `apply` replaces
 	# the scene's arrays with it, so a partial list would drop the rest.
 	for asset: Dictionary in manifest["assets"]:
-		if asset["route"] in ["mesh", "procedural"] and ResourceLoader.exists(TB_DIR + asset["id"] + ".tres"):
+		if asset["route"] in ["mesh", "procedural", "tint"] and ResourceLoader.exists(TB_DIR + asset["id"] + ".tres"):
 			_add_to_library("objects", asset["id"])
 	for key: String in layers:
 		var layer_name := "foliage_" + key.replace("/", "_")
@@ -134,7 +141,7 @@ func _add_to_library(kind: String, entry_name: String) -> void:
 
 func _build_mesh_asset(asset: Dictionary) -> Array:
 	var id: String = asset["id"]
-	var glb := "res://assets/generated/%s/%s.glb" % [id, id]
+	var glb: String = asset.get("glb", "res://assets/generated/%s/%s.glb" % [id, id])
 	if not ResourceLoader.exists(glb):
 		print("[nature] %s: no imported glb yet, skipped" % id)
 		return []
@@ -157,8 +164,10 @@ func _build_mesh_asset(asset: Dictionary) -> Array:
 	var definition: Resource = ClassDB.instantiate("ObjectDefinitionResource")
 	var spacing: int = tier["spacing_m"]
 	definition.set("objectFrequency", spacing)
-	# TerraBrush jitters each placement within +-randomRange of its grid point.
-	definition.set("randomRange", spacing * 0.4)
+	# TerraBrush jitters each placement within +-randomRange of its grid point. Crystals
+	# much less: they are placed for a reason - by a tree, at the foot of a slope - and a
+	# jitter of most of the grid would carry them away from it.
+	definition.set("randomRange", spacing * (0.12 if asset.get("crystal", false) else 0.4))
 	definition.set("noiseTexture", placement_noise)
 	definition.set("randomRotation", true)
 	definition.set("randomRotationMin", Vector3.ZERO)
@@ -270,7 +279,9 @@ func _bake_mesh(asset: Dictionary, packed: PackedScene) -> ArrayMesh:
 			if not (instance.mesh.surface_get_format(surface) & Mesh.ARRAY_FORMAT_TANGENT):
 				surface_tool.generate_tangents()
 			var material := _leaf_material(_non_metallic(instance.get_active_material(surface)))
-			if glow:
+			if asset.get("crystal", false):
+				material = _crystal_material(material, asset)
+			elif glow:
 				material = _glow_material(material, asset)
 			importer.add_surface(Mesh.PRIMITIVE_TRIANGLES, surface_tool.commit_to_arrays(), [], {}, material, "")
 	importer.generate_lods(25.0, 60.0, [])
@@ -343,6 +354,53 @@ func _non_metallic(source: Material) -> Material:
 	material.metallic = 0.0
 	material.metallic_texture = null
 	return material
+
+
+## A tint entry made whole: its shape's size, triangle budget and glb, with the tint's own
+## id, biome, tier, light and collision on top. Empty when the shape has no mesh yet - the
+## Blue geode, until its concept is approved and meshed.
+func _tint_asset(tint: Dictionary) -> Dictionary:
+	var shape: Dictionary = {}
+	for candidate: Dictionary in manifest["assets"]:
+		if candidate["id"] == tint["shape"]:
+			shape = candidate
+	var glb := "res://assets/generated/%s/%s.glb" % [tint["shape"], tint["shape"]]
+	if shape.is_empty() or not ResourceLoader.exists(glb):
+		print("[nature] %s: shape %s not meshed yet, skipped" % [tint["id"], tint["shape"]])
+		return {}
+	var asset := shape.duplicate()
+	asset.merge(tint, true)
+	asset["glb"] = glb
+	asset["crystal"] = true
+	asset["glow"] = false
+	# A finer grid than the tier's default: crystals only go where _crystal_spot likes the
+	# ground, so most grid points are turned down and the few good ones need to be there.
+	var scatter: Dictionary = CRYSTAL_SCATTER.get(asset["tier"], {})
+	asset["scatter"] = scatter.merged(asset.get("scatter", {}), true)
+	return asset
+
+
+## Grid and odds for crystals, per tier - see _tint_asset and _crystal_spot.
+const CRYSTAL_SCATTER := {
+	"clutter": {"spacing_m": 5, "density": 0.1},
+	"crystal": {"spacing_m": 9, "density": 0.14},
+	"landmark": {"spacing_m": 24, "density": 0.25},
+}
+## How brightly each tier lights itself. The small shards stay dim, so the clusters and the
+## spires - and the wells - read as the sources of light.
+const CRYSTAL_GLOW := {"clutter": 0.9, "crystal": 1.6, "landmark": 2.2}
+const CRYSTAL_SHADER := "res://assets/shaders/mana_crystal.gdshader"
+
+
+func _crystal_material(source: Material, asset: Dictionary) -> Material:
+	var crystal := ShaderMaterial.new()
+	crystal.shader = load(CRYSTAL_SHADER)
+	if source is StandardMaterial3D:
+		crystal.set_shader_parameter("albedo_texture", (source as StandardMaterial3D).albedo_texture)
+	var glow: Array = manifest["biomes"][asset["biome"]]["crystal_glow"]
+	crystal.set_shader_parameter("tint", Color(glow[0], glow[1], glow[2]))
+	crystal.set_shader_parameter("glow_strength", float(CRYSTAL_GLOW.get(asset["tier"], 1.6)))
+	return crystal
 
 
 ## Meshy's emission map is black in practice (.agents/learnings.md), so crystals and
@@ -639,9 +697,18 @@ func _paint_objects(objects: Array, terrain: Dictionary) -> void:
 					continue
 				if tier["blocking"] and _in_lane_corridor(point):
 					continue
+				var spot: float = 1.0
+				if asset.get("crystal", false):
+					# Never in a lane, blocking or not: a crystal in the middle of the path
+					# reads as clutter, not as a place.
+					if _in_lane_corridor(point):
+						continue
+					spot = _crystal_spot(x, y, terrain)
+					if spot <= 0.0:
+						continue
 				if occupied[y * size + x]:
 					continue
-				var chance: float = tier["density"] * (0.5 + 0.5 * clump.get_noise_2d(x, y)) * 2.0
+				var chance: float = tier["density"] * spot * (0.5 + 0.5 * clump.get_noise_2d(x, y)) * 2.0
 				if random.randf() >= chance:
 					continue
 				mask.set_pixel(x, y, Color(1, 0, 0, 1))
@@ -649,6 +716,94 @@ func _paint_objects(objects: Array, terrain: Dictionary) -> void:
 				placed += 1
 		ResourceSaver.save(mask, mask_path)
 		print("[nature] %s: %d placed" % [asset["id"], placed])
+
+
+## Where a crystal likes to stand, 0 to 1: beside a tree (1), or on the band of slope where
+## the flat ground of a lane turns up into higher terrain (0.75) - and nowhere else. The
+## trunk itself is off limits.
+func _crystal_spot(x: int, y: int, terrain: Dictionary) -> float:
+	var size: int = terrain["size"]
+	if _tree_near.is_empty():
+		_tree_near = _trees_near(size)
+	var index: int = y * size + x
+	if _tree_near[index] == TREE_TRUNK:
+		return 0.0
+	if _tree_near[index] == TREE_NEAR:
+		return 1.0
+	var slope: float = terrain["slope"][index]
+	if slope >= SLOPE_FOOT_DEG.x and slope <= SLOPE_FOOT_DEG.y:
+		return 0.75
+	return 0.0
+
+
+## The slope band, in degrees, that reads as the foot of higher ground: steeper than a lane's
+## floor, gentler than a cliff face.
+const SLOPE_FOOT_DEG := Vector2(12.0, 34.0)
+## Rings round every tree placement: within TRUNK metres is the tree, out to NEAR is beside it.
+const TREE_TRUNK_M := 2.5
+const TREE_NEAR_M := 9.0
+const TREE_TRUNK := 2
+const TREE_NEAR := 1
+var _tree_near := PackedByteArray()
+
+
+## Every tree placed so far, read back off its mask, as a per-pixel map of "trunk" and
+## "beside a tree". The masks hold TerraBrush's grid points, and TerraBrush jitters each
+## placement by up to 40% of the tree's spacing, so "beside" is generous on purpose.
+##
+## The mask is the one main.tscn actually pairs with the tree (see _scene_object_masks) -
+## the trees on the map were painted by hand into TerraBrush's own Object_* images, and the
+## pipeline's Nature_* scatter masks no longer say where they stand.
+func _trees_near(size: int) -> PackedByteArray:
+	var near := PackedByteArray()
+	near.resize(size * size)
+	var scene_masks := _scene_object_masks()
+	for asset: Dictionary in manifest["assets"]:
+		if asset.get("tier", "") != "tree":
+			continue
+		var mask_path: String = scene_masks.get(asset["id"], MASK_DIR + "Nature_%s.res" % asset["id"])
+		if not ResourceLoader.exists(mask_path):
+			continue
+		var mask := load(mask_path) as Image
+		var spacing: int = _tier(asset)["spacing_m"]
+		for y in range(0, mini(size, mask.get_height()), spacing):
+			for x in range(0, mini(size, mask.get_width()), spacing):
+				if mask.get_pixel(x, y).a <= 0.0:
+					continue
+				var reach := int(TREE_NEAR_M)
+				for dy in range(-reach, reach + 1):
+					for dx in range(-reach, reach + 1):
+						var px := x + dx
+						var py := y + dy
+						if px < 0 or py < 0 or px >= size or py >= size:
+							continue
+						var distance := sqrt(float(dx * dx + dy * dy))
+						var index := py * size + px
+						if distance <= TREE_TRUNK_M:
+							near[index] = TREE_TRUNK
+						elif distance <= TREE_NEAR_M and near[index] != TREE_TRUNK:
+							near[index] = TREE_NEAR
+	return near
+
+
+## Asset id -> the mask image main.tscn pairs with its ObjectResource, read off the scene's
+## ext_resources: `<x>` for the object, `<x>_mask` for its image, as `apply` and the hand
+## wiring both write them.
+func _scene_object_masks() -> Dictionary:
+	var text := FileAccess.get_file_as_string("res://scenes/misc/main.tscn")
+	var objects := {}  # ext id -> asset id
+	var images := {}  # ext id -> image path
+	var line_re := RegEx.create_from_string('\\[ext_resource type="(ObjectResource|Image)"[^\\]]*path="([^"]+)" id="([^"]+)"\\]')
+	for found: RegExMatch in line_re.search_all(text):
+		if found.get_string(1) == "ObjectResource":
+			objects[found.get_string(3)] = found.get_string(2).get_file().get_basename()
+		else:
+			images[found.get_string(3)] = found.get_string(2)
+	var masks := {}
+	for ext_id: String in objects:
+		if images.has(ext_id + "_mask"):
+			masks[objects[ext_id]] = images[ext_id + "_mask"]
+	return masks
 
 
 func _claim(occupied: PackedByteArray, size: int, cx: int, cy: int, radius: int) -> void:

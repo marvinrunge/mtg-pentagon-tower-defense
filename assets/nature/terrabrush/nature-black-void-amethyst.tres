@@ -1,0 +1,37 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-void-amethyst.res" id="1_tqr8g"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_kd4ee"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_tx4g3"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_ykcxh"]
+maxDistance = 260.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_d5c0b"]
+mesh = ExtResource("1_tqr8g")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_2l6un"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_d5c0b")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_a67pe"]
+mesh = ExtResource("1_tqr8g")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_3l02v"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_a67pe")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_1i8e1"]
+strategy = 2
+objectFrequency = 9
+randomRange = 1.08
+noiseTexture = ExtResource("2_kd4ee")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_tx4g3"), SubResource("ObjectOctreeLODDefinitionResource_ykcxh")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_2l6un"), SubResource("ObjectOctreeLODMeshesDefinitionResource_3l02v")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_1i8e1")

@@ -1,0 +1,37 @@
+[gd_resource type="ObjectResource" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-dawn-crystal-cluster.res" id="1_gsxk3"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_uh5l0"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_1ed8l"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_iuxei"]
+maxDistance = 260.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_i2oa3"]
+mesh = ExtResource("1_gsxk3")
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_ef61s"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_i2oa3")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_6bddd"]
+mesh = ExtResource("1_gsxk3")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_257p2"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_6bddd")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_mcsfj"]
+strategy = 2
+objectFrequency = 9
+randomRange = 1.08
+noiseTexture = ExtResource("2_uh5l0")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_1ed8l"), SubResource("ObjectOctreeLODDefinitionResource_iuxei")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_ef61s"), SubResource("ObjectOctreeLODMeshesDefinitionResource_257p2")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_mcsfj")
