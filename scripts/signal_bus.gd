@@ -13,6 +13,9 @@ signal player_health_changed(current_health: float, max_health: float)
 signal player_shield_changed(amount: float)
 signal mana_changed(mana_pool: Dictionary)
 signal game_over()
+## The map has its ground and its players: the moment the loading screen can lift. Sent by
+## MainController once the terrain is built and the avatars are standing on it.
+signal map_ready()
 
 signal enemy_died()
 ## Where it died. `enemy_died` carries nothing, which is enough for a counter and not

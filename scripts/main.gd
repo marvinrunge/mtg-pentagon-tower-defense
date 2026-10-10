@@ -312,6 +312,7 @@ func bake_map_navigation() -> void:
 
 	# Players only need the ground, not the navmesh, so they do not sit through the bake.
 	spawn_entities()
+	SignalBus.map_ready.emit()
 	# The flight over the map plays over the bake, so the seconds it takes are spent
 	# looking at the map rather than at a frozen start.
 	if GameSettings.intro_tour_pending:

@@ -10,11 +10,15 @@ config_version=5
 
 [application]
 
-config/name="MTG-Pentagon-Tower-Defense"
+config/name="Pentafall"
 run/main_scene="res://scenes/ui/main_menu.tscn"
 config/project_settings_override="user://override.cfg"
 config/features=PackedStringArray("4.7", "Forward Plus")
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/stretch_mode=4
+boot_splash/image="res://assets/images/boot_splash.png"
 config/icon="res://icon.svg"
+boot_splash/minimum_display_time=1500
 
 [autoload]
 

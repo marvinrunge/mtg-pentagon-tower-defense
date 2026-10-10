@@ -154,11 +154,20 @@ foreground a fallen warrior in fur and dark plate armour lies in the dust. Blood
 smoke, embers, tragic and final.
 ```
 
-## Wiring them in (once the finals exist)
+## Where the finished images live
 
-| Screen | Where it goes |
+The painted versions are in `assets/images/`; the white-background originals of the two
+lettering images, and the splash painting the boot splash is composed from, are in
+`docs/screen_art/source/` (not shipped).
+
+| Image | Used by |
 |---|---|
-| Splash | `project.godot` → `application/boot_splash/image`, plus a title card in the main menu |
-| Menu | backdrop of `scripts/main_menu.gd` (`_build_ui`), menu panel moved to the left |
-| Loading | a new loading screen between the menu and `main.tscn` (the map is loaded threaded) |
-| Game over | behind the game-over panel in `scenes/ui/hud.tscn`, after the crystal explosion |
+| `boot_splash.png` | `project.godot` → `application/boot_splash/image`: the splash painting with the logo composed on it. Also laid over the main menu the first time it opens and faded out, so the start flows into the menu. |
+| `menu.jpg` | the main menu's backdrop (`scripts/main_menu.gd`, `_build_backdrop`) - the painting first made for game over |
+| `loading_<colour>.jpg` | `scripts/loading_screen.gd`, one at random per load |
+| `logo_pentafall.png` | the main menu column and the loading screen |
+| `title_defeat.png` | the defeat panel (`scripts/hud.gd`, `_style_game_over_panel`), over the burning hub - there is no game-over painting |
+
+The lettering was cut out of its white background with `tools/cut_out_lettering.py`
+(`python -I tools/cut_out_lettering.py <in> <out.png> [min_hole_px] [white_threshold]`;
+DEFEAT used a threshold of 175 to take its pale halo with the background).

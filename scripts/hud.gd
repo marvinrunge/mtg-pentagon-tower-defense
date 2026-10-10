@@ -28,6 +28,7 @@ var _settings_menu: VBoxContainer
 ## scripts/equipment_menu.gd.
 const EquipmentMenuScript := preload("res://scripts/equipment_menu.gd")
 const InputHint := preload("res://scripts/input_hint.gd")
+const DEFEAT_TITLE: Texture2D = preload("res://assets/images/title_defeat.png")
 ## A hotbar slot whose spell is on cooldown but could be paid for in life right now
 ## (Phyrexian Arena) - its overlay turns blood red, so the option is visible, not remembered.
 const BLOOD_CAST_TINT := Color(1.0, 0.45, 0.5, 1.0)
@@ -268,6 +269,7 @@ func _ready() -> void:
 	restart_btn.pressed.connect(_on_restart_pressed)
 	settings_panel.hide()
 	game_over_panel.hide()
+	_style_game_over_panel()
 	_build_wave_ui()
 	
 	# hud.tscn authors the first five; the rest are duplicates of it, so the bar follows
@@ -674,6 +676,38 @@ func _gradient_fill_style(light: Color, dark: Color) -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()
 	style.texture = ImageTexture.create_from_image(image)
 	return style
+
+
+## The defeat screen: the DEFEAT lettering in place of hud.tscn's plain red label, on a
+## light veil rather than a box, over the burning hub the crystal's destruction left behind.
+func _style_game_over_panel() -> void:
+	var column: VBoxContainer = game_over_panel.get_node("MarginContainer/VBoxContainer")
+	var title_label: Label = column.get_node_or_null("Title")
+	if title_label != null:
+		title_label.hide()
+	var title := TextureRect.new()
+	title.name = "DefeatTitle"
+	title.texture = DEFEAT_TITLE
+	title.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	title.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	title.custom_minimum_size = Vector2(560.0, 243.0)
+	column.add_child(title)
+	column.move_child(title, 0)
+	var message: Label = column.get_node_or_null("Message")
+	if message != null:
+		message.text = "The crystal has fallen."
+		message.add_theme_color_override("font_color", Color(0.92, 0.88, 0.8))
+		message.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
+		message.add_theme_constant_override("outline_size", 5)
+		message.add_theme_font_size_override("font_size", 22)
+	game_over_panel.offset_left = -360.0
+	game_over_panel.offset_right = 360.0
+	game_over_panel.offset_top = -260.0
+	game_over_panel.offset_bottom = 230.0
+	var veil := StyleBoxFlat.new()
+	veil.bg_color = Color(0.0, 0.0, 0.0, 0.35)
+	veil.set_corner_radius_all(12)
+	game_over_panel.add_theme_stylebox_override("panel", veil)
 
 
 func update_health(current: float, max_health: float) -> void:

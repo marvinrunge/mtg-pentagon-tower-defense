@@ -48,6 +48,21 @@ var _start_button: Button
 
 ## The same options panel the HUD opens on Escape, over the menu. See scripts/settings_menu.gd.
 const SettingsMenuScript := preload("res://scripts/settings_menu.gd")
+const LoadingScreenScript := preload("res://scripts/loading_screen.gd")
+const LOGO: Texture2D = preload("res://assets/images/logo_pentafall.png")
+const MENU_ART: Texture2D = preload("res://assets/images/menu.jpg")
+## The boot splash (assets/images/boot_splash.png - the splash painting with the logo on it),
+## faded out over the menu the first time it opens.
+const SPLASH: Texture2D = preload("res://assets/images/boot_splash.png")
+## Whether this session has already faded the splash into the menu. Static, so returning to
+## the menu from a run does not play it again.
+static var _splash_shown: bool = false
+## The logo's height in the menu column, between these - see _fit_logo.
+const LOGO_HEIGHT_MAX := 240.0
+const LOGO_HEIGHT_MIN := 110.0
+var _column: VBoxContainer
+var _logo: TextureRect
+var _panel: PanelContainer
 var _settings_overlay: Control
 var _settings_menu: VBoxContainer
 
@@ -430,7 +445,7 @@ func _on_match_started() -> void:
 func _enter_map() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	GameSettings.intro_tour_pending = true
-	get_tree().change_scene_to_file(MAP_SCENE)
+	LoadingScreenScript.begin(get_tree(), MAP_SCENE)
 
 
 # --- helpers ------------------------------------------------------------------
@@ -464,9 +479,20 @@ func _show_page(page: Page) -> void:
 		NetOnline.refresh_now()
 	if page == Page.LOBBY:
 		_refresh_lobby()
+	_fit_logo.call_deferred()
 	# Deferred, so a page whose buttons the line above has just shown or hidden is focused
 	# on what it actually offers.
 	_focus_page.call_deferred()
+
+
+## Sizes the logo to the room the open page leaves in the column: full size on a short page
+## or a tall window, smaller when the Join page has to fit a 720p one.
+func _fit_logo() -> void:
+	if _logo == null or _panel == null or _column == null:
+		return
+	var separation: float = float(_column.get_theme_constant("separation"))
+	var room: float = _column.size.y - _panel.get_combined_minimum_size().y - separation
+	_logo.custom_minimum_size.y = clampf(room, LOGO_HEIGHT_MIN, LOGO_HEIGHT_MAX)
 
 
 ## Puts focus on the first thing the visible page offers. Without it nothing in the menu
@@ -522,22 +548,40 @@ func _refresh_lobby() -> void:
 # --- ui -----------------------------------------------------------------------
 
 func _build_ui() -> void:
-	var backdrop := ColorRect.new()
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	backdrop.color = Color(0.015, 0.018, 0.025)
-	add_child(backdrop)
+	_build_backdrop()
+
+	# The logo and the menu share one column down the left, over the shaded side of the
+	# painting. The panel is as tall as the page it shows and hangs under the logo, which
+	# is as big as the room the page leaves allows - see _fit_logo.
+	var column := VBoxContainer.new()
+	_column = column
+	column.anchor_bottom = 1.0
+	column.offset_left = 64.0
+	column.offset_right = 64.0 + 600.0
+	column.offset_top = 28.0
+	column.offset_bottom = -36.0
+	column.add_theme_constant_override("separation", 14)
+	add_child(column)
+
+	var logo := TextureRect.new()
+	logo.texture = LOGO
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = Vector2(0.0, LOGO_HEIGHT_MAX)
+	column.add_child(logo)
+	_logo = logo
 
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-300.0, -250.0)
-	panel.size = Vector2(600.0, 500.0)
+	_panel = panel
+	get_viewport().size_changed.connect(_fit_logo)
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.04, 0.045, 0.055, 0.98)
-	style.border_color = Color(0.4, 0.66, 0.95)
+	style.bg_color = Color(0.02, 0.022, 0.03, 0.82)
+	# Worn metal, after the lettering above it.
+	style.border_color = Color(0.62, 0.52, 0.38, 0.85)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(6)
 	panel.add_theme_stylebox_override("panel", style)
-	add_child(panel)
+	column.add_child(panel)
 
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -547,13 +591,6 @@ func _build_ui() -> void:
 	var rows := VBoxContainer.new()
 	rows.add_theme_constant_override("separation", 10)
 	margin.add_child(rows)
-
-	var heading := Label.new()
-	heading.text = "MTG PENTAGON TOWER DEFENSE"
-	heading.add_theme_font_size_override("font_size", 24)
-	heading.add_theme_color_override("font_color", Color(0.55, 0.78, 1.0))
-	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rows.add_child(heading)
 
 	# One name field for the whole menu: the player types it once and it is used by
 	# whichever page they end up on - and remembered for the next time the game starts.
@@ -594,6 +631,56 @@ func _build_ui() -> void:
 	rows.add_child(_status_label)
 
 	_build_settings_overlay()
+
+
+## The painting behind the menu, a shade down the left so the panel reads over it, and - the
+## first time the menu opens in a session - the boot splash laid on top and faded out, so
+## the picture the engine started on turns into the menu instead of cutting to it.
+func _build_backdrop() -> void:
+	var black := ColorRect.new()
+	black.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	black.color = Color.BLACK
+	add_child(black)
+	var art := TextureRect.new()
+	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	art.texture = MENU_ART
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(art)
+
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0.0, 0.0, 0.0, 0.88))
+	gradient.set_color(1, Color(0.0, 0.0, 0.0, 0.0))
+	var shade_texture := GradientTexture2D.new()
+	shade_texture.gradient = gradient
+	shade_texture.fill_from = Vector2(0.35, 0.0)
+	shade_texture.fill_to = Vector2(1.0, 0.0)
+	var shade := TextureRect.new()
+	shade.texture = shade_texture
+	shade.anchor_bottom = 1.0
+	shade.anchor_right = 0.62
+	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shade.stretch_mode = TextureRect.STRETCH_SCALE
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(shade)
+
+	if _splash_shown:
+		return
+	_splash_shown = true
+	var splash := TextureRect.new()
+	splash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	splash.texture = SPLASH
+	splash.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	splash.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	splash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Over everything the menu builds after this, menu panel included.
+	splash.z_index = 10
+	add_child(splash)
+	var fade := splash.create_tween()
+	fade.tween_interval(0.6)
+	fade.tween_property(splash, "modulate:a", 0.0, 1.2).set_trans(Tween.TRANS_SINE)
+	fade.tween_callback(splash.queue_free)
 
 
 ## The options panel, hidden until SETTINGS is pressed. An overlay over the whole menu

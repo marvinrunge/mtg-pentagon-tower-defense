@@ -25,7 +25,7 @@ const DESCENT_SECONDS := 2.4
 const SETTLE_SECONDS := 1.4
 ## How far out and how high the ring is flown, metres from the crystal.
 const RING_RADIUS := 110.0
-const RING_HEIGHT := 40.0
+const RING_HEIGHT := 48.0
 ## How thin the biome fog is while the camera is up - see BiomeAtmosphere.fog_scale. Back to
 ## 1 over the settle, so the player lands in the fog they will play in.
 const FOG_SCALE := 0.3
@@ -53,11 +53,13 @@ func setup(crystal: Vector3, spawners: Array, lane_names: Array, player_camera: 
 	# Opening: beside the Red lane, looking at the volcano - which stands ~225 m out along
 	# that lane and ~17 m to its right.
 	var volcano: Vector3 = crystal + first * 225.0 + first_side * 17.0 + Vector3.UP * 45.0
-	_key(crystal + first * 135.0 - first_side * 70.0 + Vector3.UP * 45.0, volcano, 0.0)
+	_key(crystal + first * 135.0 - first_side * 70.0 + Vector3.UP * 65.0, volcano, 0.0)
 	for i: int in LANE_ORDER.size():
 		var forward: Vector3 = _lane_forward(crystal, spawners, lane_names, LANE_ORDER[i])
 		var height: float = float(LANE_HEIGHTS.get(LANE_ORDER[i], RING_HEIGHT))
-		_key(crystal + forward * RING_RADIUS + Vector3.UP * height, crystal + forward * 35.0,
+		# The look point is lifted off the ground so the turns between lanes - the first one
+		# swings right round from the volcano - stay level instead of staring at the floor.
+		_key(crystal + forward * RING_RADIUS + Vector3.UP * height, crystal + forward * 35.0 + Vector3.UP * 8.0,
 			OPENING_SECONDS if i == 0 else LANE_SECONDS)
 	# The descent comes in over the player's shoulder, so the settle that follows is a short
 	# move rather than a swing round - and inside the ring of standing stones (~25 m out),

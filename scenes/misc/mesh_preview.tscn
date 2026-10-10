@@ -99,7 +99,7 @@ theme_override_constants/separation = 15
 [node name="Title" type="Label" parent="UI/TopPanel/HBox" unique_id=1414877891]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "MTG Pentagon TD — 3D Model & Animation Inspector"
+text = "Pentafall — 3D Model & Animation Inspector"
 
 [node name="Spacer" type="Control" parent="UI/TopPanel/HBox" unique_id=340220470]
 layout_mode = 2

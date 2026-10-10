@@ -54,7 +54,7 @@ The workflow asks the API after uploading and **fails the run** if the binary is
 attached, so a release with nothing to download can no longer pass quietly. Look for:
 
 ```
-OK - MTG-Pentagon-Tower-Defense-windows.zip is on the release.
+OK - Pentafall-windows.zip is on the release.
 ```
 
 Beware of one thing when checking by eye: **every** GitHub release shows *Source code
