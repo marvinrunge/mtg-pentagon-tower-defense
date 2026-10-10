@@ -76,6 +76,11 @@ const BIOMES: Dictionary = {
 
 const _LUMA := Vector3(0.2126, 0.7152, 0.0722)
 
+## Below 1 thins every biome's fog and pushes it further out, by the same factor. The intro
+## camera flight (IntroTour) lowers it: the fog is tuned for a player on the ground, and from
+## a camera 100 m out and 40 m up the White lane's - fully closed by 100 m - is all there is.
+static var fog_scale: float = 1.0
+
 var _sky3d: Node = null
 var _dome: Node = null
 var _fog_material: ShaderMaterial = null
@@ -221,9 +226,10 @@ func _apply() -> void:
 		var moon: Color = _moon.light_color
 		floor_color = Vector3(moon.r, moon.g, moon.b) * _moon.light_energy * night_fog_strength
 	_fog_material.set_shader_parameter("fog_color_floor", floor_color)
-	_dome.fog_density = _base_density * float(_current["density_mult"])
-	_dome.fog_start = float(_current["fog_start"])
-	_dome.fog_end = maxf(float(_current["fog_end"]), float(_current["fog_start"]) + 1.0)
+	var scale: float = maxf(fog_scale, 0.05)
+	_dome.fog_density = _base_density * float(_current["density_mult"]) * scale
+	_dome.fog_start = float(_current["fog_start"]) / scale
+	_dome.fog_end = maxf(float(_current["fog_end"]), float(_current["fog_start"]) + 1.0) / scale
 	_dome.fog_falloff = float(_current["fog_falloff"])
 	if _environment != null:
 		_environment.tonemap_exposure = _base_exposure * float(_current["exposure"])

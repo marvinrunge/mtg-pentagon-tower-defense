@@ -39,6 +39,7 @@ const SECTIONS: Dictionary = {
 	&"show_attack_indicators": "interface",
 	&"attack_indicator_style": "interface",
 	&"camera_shake_enabled": "interface",
+	&"intro_tour": "interface",
 	&"show_minimap": "interface",
 	&"minimap_size": "interface",
 	&"mouse_sensitivity": "controls",
@@ -59,6 +60,8 @@ var show_enemy_health_bars: bool = true
 var show_attack_indicators: bool = true
 var attack_indicator_style: String = "themed"
 var camera_shake_enabled: bool = true
+## Whether a run entered from the menu opens with the camera flight over the map.
+var intro_tour: bool = true
 var show_minimap: bool = true
 var minimap_size: float = 200.0
 ## Look speed as a multiple of the tuned default, for the mouse and the right stick.

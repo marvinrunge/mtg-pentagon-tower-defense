@@ -1604,6 +1604,13 @@ const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
 ## for the same reason as debug_free_skills - but it does outlive a restart, so testing
 ## wave 15 over and over does not mean setting it again every run.
 @export var debug_start_wave: int = 1
+## Set by the main menu on its way into a run, cleared by the map once it has looked: the
+## intro camera flight plays for a run entered from the menu, never on Restart or in a test
+## scene that loads the map directly. See IntroTour.
+var intro_tour_pending: bool = false
+## Seconds between the crystal's health reaching zero and the game-over panel: the time the
+## crystal's destruction plays out in (MainController._destroy_crystal).
+@export var crystal_death_seconds: float = 3.6
 @export var damage_number_pool_size: int = 40
 @export var show_enemy_health_bars: bool = true
 @export var enemy_health_bar_height: float = 2.35

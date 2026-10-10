@@ -16,6 +16,9 @@ const MENU_SCENE: String = "res://scenes/ui/main_menu.tscn"
 @onready var crystal_visual: Node3D = $NavigationRegion3D/MainCrystal
 
 var _crystal_motion_time: float = 0.0
+## Set once the crystal's destruction has started, so a second zero-health update does not
+## play it again.
+var _crystal_destroyed: bool = false
 var _crystal_base_position: Vector3
 
 # Lists of markers for spawners and mana sources (populated from static nodes)
@@ -50,6 +53,11 @@ func _ready() -> void:
 	Net.match_connection_lost.connect(_on_match_connection_lost)
 	SignalBus.mana_deposited.connect(_on_mana_deposited)
 	SignalBus.damage_number_requested.connect(_on_damage_number_requested)
+	# Every peer sees the crystal's health reach zero - the server applies it, clients are
+	# synced it - so every peer plays the destruction on its own screen from this.
+	SignalBus.health_changed.connect(func(current: float, _maximum: float) -> void:
+		if current <= 0.0 and not _crystal_destroyed:
+			_destroy_crystal())
 
 	GraphicsSettings.apply_scene_dependent()
 
@@ -146,6 +154,74 @@ func _process(delta: float) -> void:
 		0.0
 	)
 
+## The crystal's end: a camera cut to it, a chain of fireballs that crack it and then blow it
+## apart, and what is left smouldering behind the game-over panel, which the HUD holds back
+## for GameSettings.crystal_death_seconds so this plays first.
+##
+## Local to each peer and purely visual - the run is already lost; the server ended it in
+## game_over(). The camera is this machine's own, pointed from where its player stands.
+func _destroy_crystal() -> void:
+	_crystal_destroyed = true
+	SignalBus.menu_opened.emit("crystal_death", true)
+	var centre: Vector3 = crystal_visual.global_position if crystal_visual != null else crystal_anchor.global_position + Vector3.UP * 5.0
+
+	var from := Vector3(0.0, 0.0, 1.0)
+	var avatar: Node3D = PlayerRegistry.get_local() as Node3D
+	if avatar != null:
+		var flat := Vector3(avatar.global_position.x - centre.x, 0.0, avatar.global_position.z - centre.z)
+		if flat.length() > 1.0:
+			from = flat.normalized()
+	var camera := Camera3D.new()
+	camera.name = "CrystalDeathCamera"
+	camera.fov = 55.0
+	camera.far = 4000.0
+	add_child(camera)
+	# Inside the ring of standing stones (~25 m out), so none of them stands in front of it.
+	camera.global_position = centre + from * 20.0 + Vector3.UP * -1.0
+	camera.look_at(centre, Vector3.UP)
+	camera.make_current()
+	# A slow push in for the whole sequence, so it never sits still.
+	var push := create_tween()
+	push.tween_property(camera, "global_position", centre + from * 14.5 + Vector3.UP * 0.5,
+		GameSettings.crystal_death_seconds + 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+	# Cracks first: three smaller blasts on the crystal's faces, then the one that ends it.
+	var cracks: Array[Vector3] = [Vector3(1.2, 1.5, 0.4), Vector3(-1.0, -1.2, 0.8), Vector3(0.3, 0.2, -1.1)]
+	for i: int in cracks.size():
+		get_tree().create_timer(0.25 + 0.35 * float(i)).timeout.connect(func() -> void:
+			_crystal_blast(centre + cracks[i], 3.0))
+	get_tree().create_timer(1.35).timeout.connect(func() -> void:
+		_crystal_blast(centre, 10.0)
+		_shake(camera, 0.7, 0.45)
+		if crystal_visual != null:
+			# Its lights are its children, so the colour goes out of the hub with it.
+			crystal_visual.visible = false
+		var scorch: Node3D = ExplosionFx.scorch(9.0, 30.0)
+		add_child(scorch)
+		scorch.global_position = crystal_anchor.global_position)
+
+
+func _crystal_blast(at: Vector3, radius: float) -> void:
+	var blast: Node3D = ExplosionFx.fireball(radius)
+	add_child(blast)
+	blast.global_position = at
+	SoundBank.play_at(&"spell_fireball_impact", at)
+
+
+## Shakes `camera` for `seconds`, `strength` metres at the start and settling to nothing.
+func _shake(camera: Camera3D, strength: float, seconds: float) -> void:
+	if not GameSettings.camera_shake_enabled:
+		return
+	var tween := create_tween()
+	var steps: int = 12
+	for i: int in steps:
+		var amount: float = strength * (1.0 - float(i) / float(steps))
+		tween.tween_property(camera, "h_offset", randf_range(-amount, amount), seconds / steps)
+		tween.parallel().tween_property(camera, "v_offset", randf_range(-amount, amount), seconds / steps)
+	tween.tween_property(camera, "h_offset", 0.0, 0.05)
+	tween.parallel().tween_property(camera, "v_offset", 0.0, 0.05)
+
+
 func _style_crystal_visual() -> void:
 	for mesh_instance: MeshInstance3D in crystal_visual.find_children("*", "MeshInstance3D", true, false):
 		if mesh_instance.mesh == null:
@@ -234,6 +310,12 @@ func bake_map_navigation() -> void:
 
 	# Players only need the ground, not the navmesh, so they do not sit through the bake.
 	spawn_entities()
+	# The flight over the map plays over the bake, so the seconds it takes are spent
+	# looking at the map rather than at a frozen start.
+	if GameSettings.intro_tour_pending:
+		GameSettings.intro_tour_pending = false
+		if UserSettings.intro_tour:
+			_play_intro_tour()
 
 	# A 512 m heightmap takes a couple of seconds to bake - on a thread, so the map is
 	# not frozen while it does.
@@ -426,6 +508,18 @@ func spawn_entities() -> void:
 
 
 ## Everything that needs the navmesh, once it is in the navigation map.
+## The camera flight over the map, for this machine's own player. Nothing to fly into for a
+## peer joining a match under way - its avatar arrives later - so it is skipped there.
+func _play_intro_tour() -> void:
+	var avatar: Node = PlayerRegistry.get_local()
+	if avatar == null or not ("camera" in avatar) or avatar.camera == null:
+		return
+	var tour := IntroTour.new()
+	tour.name = "IntroTour"
+	tour.setup(crystal_anchor.global_position, enemy_spawners, LANE_NAMES, avatar.camera)
+	add_child(tour)
+
+
 func _start_match() -> void:
 	if Net.is_joining():
 		# Joining a match already under way. The map has to be complete BEFORE the

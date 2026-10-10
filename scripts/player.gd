@@ -548,9 +548,11 @@ func _interact_key_label() -> String:
 ## checked. Movement, the stick look, jump and interact did not, so with the skill tree open
 ## the left stick picked a node AND walked the character, and A both confirmed and jumped.
 ## The extra frame is for the button that closed the menu: B closes one and is also kick,
-## and the menu closes in _input, before this frame's physics polls the same press.
+## and the menu closes in _input, before this frame's physics polls the same press. The
+## intro camera flight counts as a menu here too - the player is not looking at their
+## character while it flies.
 func _menu_blocks_input() -> bool:
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or IntroTour.playing:
 		_menu_seen_frame = Engine.get_physics_frames()
 		return true
 	return Engine.get_physics_frames() - _menu_seen_frame <= 1
@@ -659,7 +661,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_local:
 		return
 
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not IntroTour.playing:
 		var mouse_scale: float = mouse_sensitivity * GameSettings.mouse_sensitivity_scale
 		_apply_look_delta(-event.relative.x * mouse_scale, -event.relative.y * mouse_scale * _look_y_sign())
 

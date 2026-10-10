@@ -55,6 +55,8 @@ var _fps_update_timer: float = 0.0
 ## Which full-screen menus are up right now. A set rather than a flag because more than one
 ## can be open at a time, and the HUD has to stay out of the way until the LAST one closes.
 var _open_menus: Dictionary = {}
+## The crystal is down and the game-over panel is waiting out its destruction.
+var _game_over_pending: bool = false
 ## Exactly what this hid when a menu opened, so closing it restores those and nothing else.
 ## Without this, a wave panel the player had put away with Tab would come back every time
 ## they closed the skill tree.
@@ -681,14 +683,18 @@ func update_health(current: float, max_health: float) -> void:
 	if current <= 0:
 		status_label.text = "DEFEAT - THE CRYSTAL SHATTERED!"
 		status_label.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
-		if game_over_panel:
-			game_over_panel.show()
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-			# A moment late: A and Space are jump as well as confirm, and a player
-			# mid-fight as the crystal falls would otherwise restart before reading this.
-			get_tree().create_timer(1.0).timeout.connect(func() -> void:
-				if game_over_panel.visible:
-					restart_btn.grab_focus())
+		if game_over_panel and not game_over_panel.visible and not _game_over_pending:
+			# After the crystal's destruction has played (MainController._destroy_crystal),
+			# not over it.
+			_game_over_pending = true
+			get_tree().create_timer(GameSettings.crystal_death_seconds).timeout.connect(func() -> void:
+				game_over_panel.show()
+				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+				# A moment late: A and Space are jump as well as confirm, and a player
+				# mid-fight as the crystal falls would otherwise restart before reading this.
+				get_tree().create_timer(1.0).timeout.connect(func() -> void:
+					if game_over_panel.visible:
+						restart_btn.grab_focus()))
 	elif current < max_health * 0.03:
 		status_label.text = "CRITICAL WARNING: BASE UNDER ATTACK!"
 		status_label.add_theme_color_override("font_color", Color(1, 0.5, 0))
@@ -950,7 +956,7 @@ func _apply_minimap_size(requested_side: float) -> void:
 func _on_at_base_changed(is_at_base: bool) -> void:
 	if interact_label:
 		interact_label.text = "Press %s to Manage Base" % InputHint.key("interact")
-		interact_label.visible = is_at_base
+		interact_label.visible = is_at_base and _open_menus.is_empty()
 
 ## Everything that belongs to PLAYING, as opposed to the panels that sit over the game.
 ##
@@ -1017,7 +1023,9 @@ func _refresh_gameplay_hud() -> void:
 func _on_interact_prompt_changed(text: String, visible: bool) -> void:
 	if interact_label:
 		interact_label.text = text
-		interact_label.visible = visible
+		# The player re-sends its prompt every frame, so a menu - or the intro flight, or
+		# the crystal's destruction - has to be checked here, not only when it opens.
+		interact_label.visible = visible and _open_menus.is_empty()
 
 func _update_hotbar_display(active_idx: int) -> void:
 	for i in range(_hotbar_slots.size()):

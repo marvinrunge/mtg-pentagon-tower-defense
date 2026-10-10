@@ -429,6 +429,7 @@ func _on_match_started() -> void:
 
 func _enter_map() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	GameSettings.intro_tour_pending = true
 	get_tree().change_scene_to_file(MAP_SCENE)
 
 

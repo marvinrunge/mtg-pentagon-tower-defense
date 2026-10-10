@@ -155,6 +155,8 @@ func _build_gameplay_tab(column: VBoxContainer) -> void:
 	column.add_child(style_option)
 	_check(column, "Camera Shake", UserSettings.camera_shake_enabled,
 		func(on: bool) -> void: UserSettings.set_value(&"camera_shake_enabled", on))
+	_check(column, "Intro Camera Flight", UserSettings.intro_tour,
+		func(on: bool) -> void: UserSettings.set_value(&"intro_tour", on))
 
 
 ## What every input does, as a striped table, under the look settings.

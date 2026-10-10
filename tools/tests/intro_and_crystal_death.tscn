@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/tests/intro_and_crystal_death.gd" id="1_icd"]
+
+[node name="IntroAndCrystalDeath" type="Node"]
+script = ExtResource("1_icd")
