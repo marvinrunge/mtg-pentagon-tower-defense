@@ -1158,6 +1158,17 @@ func rank_level_requirement(rank: int) -> int:
 @export var enemy_elite_crystal_hunter_damage_mult: float = 1.35
 @export var enemy_max_corpses: int = 100
 
+## Recovery (EnemyBase._check_recovery): an enemy that has left the walkable map is put back
+## on the nearest point of the navmesh rather than killed - a wave cannot end while one of
+## its enemies is stuck under the ground or off the edge, and killing it would hand out a
+## kill nobody made. Checked this often, seconds; an enemy this far BELOW the navmesh is back
+## at once (it fell through the ground), one this far beside it only after it has been off
+## for `off_seconds` (a knockback carrying it briefly over an edge is not a fall).
+@export var enemy_recovery_check_interval: float = 0.5
+@export var enemy_recovery_below_distance: float = 2.0
+@export var enemy_recovery_off_distance: float = 3.0
+@export var enemy_recovery_off_seconds: float = 1.5
+
 ## Death launch (EnemyBase._start_death_launch): a killed enemy is thrown away from what
 ## killed it, in an arc, lands, skids and stays where it comes to rest - so a kill has weight.
 ## How hard is the fatal hit's damage as a fraction of the enemy's full health, read between

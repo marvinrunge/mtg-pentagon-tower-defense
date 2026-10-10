@@ -155,6 +155,15 @@ if (-not $SkipRuntime) {
     }
     Write-Output "PASS: ragdolls follow the setting and cap, lie down near their corpse and free their bodies."
 
+    # An enemy that falls through the ground or ends up off the walkable map is put back on
+    # the navmesh, alive - otherwise its wave could never end.
+    $recoveryResult = Invoke-GodotCheck -Name "enemy-recovery" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/enemy_recovery.tscn") -TimeoutSeconds 120
+    if ($recoveryResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($recoveryResult.Output)
+        throw "Enemies that leave the walkable map are not put back on it."
+    }
+    Write-Output "PASS: enemies that fall through the ground or leave the walkable map are put back on it, alive."
+
     # And that two machines can actually find each other. The host launches a real
     # second process; a single-process fake could not fail the way UDP discovery, a
     # password check over ENet, or a ready round trip fail.

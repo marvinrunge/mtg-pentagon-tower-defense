@@ -162,6 +162,10 @@ var _puppet_hold_timer: float = 0.0
 ## Set on a treant's sapling, on the server: whom it heals if it is left standing.
 var sapling_boss: Node3D = null
 var _sapling_timer: float = -1.0
+## Recovery (see _check_recovery): time to the next check, and how long this enemy has been
+## standing off the navmesh.
+var _recovery_timer: float = 0.0
+var _off_navmesh_time: float = 0.0
 ## A sapling that withered on its own was not killed, and pays nothing.
 var _skip_kill_rewards: bool = false
 
@@ -573,6 +577,9 @@ func _physics_process(delta: float) -> void:
 		else:
 			_settle_corpse(delta)
 		_lean_corpse(delta)
+		return
+
+	if _check_recovery(delta):
 		return
 
 	if _sapling_timer > 0.0:
@@ -2918,6 +2925,57 @@ func die() -> void:
 	else:
 		push_warning("Enemy death animation unavailable: %s" % _format_death_animation_debug(death_debug_before))
 		queue_free()
+
+
+## Puts an enemy that has left the walkable map back on it. Server only; the move reaches
+## every other screen as the replicated position. True on the frame it happens, so the rest
+## of that frame's movement does not carry the old velocity on from the new spot.
+##
+## The navmesh is the one thing that knows where an enemy may stand, so it is the test:
+## further below its nearest point than `below_distance` means the body has gone through
+## the ground and only ever falls further; further beside it than `off_distance` for longer
+## than `off_seconds` means it has been pushed or walked somewhere it cannot path out of -
+## over a cliff, into a wall, off the edge of the map. Both end with the enemy standing on
+## that nearest point with nothing carrying it, and a fresh path.
+##
+## Not a kill: the wave still has to deal with it, and nobody is paid for an enemy the map
+## lost. Every recovery is logged with where it happened, which is how a hole in the map is
+## found.
+func _check_recovery(delta: float) -> bool:
+	_recovery_timer -= delta
+	if _recovery_timer > 0.0:
+		return false
+	var interval: float = GameSettings.enemy_recovery_check_interval
+	_recovery_timer = interval
+	var map: RID = get_world_3d().navigation_map
+	# Nothing to measure against until the navmesh is in: an empty map answers (0, 0, 0)
+	# for everything, and every enemy would be "off" it.
+	if NavigationServer3D.map_get_iteration_id(map) == 0:
+		return false
+	var nearest: Vector3 = NavigationServer3D.map_get_closest_point(map, global_position)
+	if nearest == Vector3.ZERO and global_position.length() > 5.0:
+		return false
+	var below: float = nearest.y - global_position.y
+	var beside: float = Vector2(nearest.x - global_position.x, nearest.z - global_position.z).length()
+	var reason: String = ""
+	if below > GameSettings.enemy_recovery_below_distance:
+		reason = "below the ground"
+	elif beside > GameSettings.enemy_recovery_off_distance:
+		_off_navmesh_time += interval
+		if _off_navmesh_time >= GameSettings.enemy_recovery_off_seconds:
+			reason = "off the walkable map"
+	else:
+		_off_navmesh_time = 0.0
+	if reason == "":
+		return false
+	print("Enemy recovered (%s): %s at %s -> %s" % [reason, name, global_position, nearest])
+	_off_navmesh_time = 0.0
+	velocity = Vector3.ZERO
+	knockback_velocity = Vector3.ZERO
+	global_position = nearest + Vector3(0.0, 0.1, 0.0)
+	NetFx.spell("corpse_land", nearest, 0.8, 0)
+	update_path(true)
+	return true
 
 
 ## Which way the fatal hit came from and how big it was, for _start_death_launch.
