@@ -91,10 +91,11 @@ func place_hub(crystal: Vector3, lane_angles: Array, stones: Array, pillars: Arr
 	# Round the base crystal.
 	for i: int in lane_angles.size():
 		var gap: float = float(lane_angles[i]) + PI / float(lane_angles.size())
-		_put(_scene(colours[i % colours.size()], 0), crystal + Vector3(cos(gap), 0.0, sin(gap)) * rng.randf_range(4.5, 5.5), rng, 0.9)
-		for side: float in [-0.22, 0.22]:
+		# Close in under the hovering crystal, so they read as growing from where it floats.
+		_put(_scene(colours[i % colours.size()], 0), crystal + Vector3(cos(gap), 0.0, sin(gap)) * rng.randf_range(2.4, 3.0), rng, 0.9)
+		for side: float in [-0.38, 0.38]:
 			var angle: float = gap + side + rng.randf_range(-0.06, 0.06)
-			_put(_scene(colours[rng.randi() % colours.size()], 1), crystal + Vector3(cos(angle), 0.0, sin(angle)) * rng.randf_range(3.8, 5.0), rng, 1.0)
+			_put(_scene(colours[rng.randi() % colours.size()], 1), crystal + Vector3(cos(angle), 0.0, sin(angle)) * rng.randf_range(1.8, 2.6), rng, 1.0)
 
 	# At the foot of every standing stone, on the side away from the crystal.
 	for stone: Node3D in stones:
