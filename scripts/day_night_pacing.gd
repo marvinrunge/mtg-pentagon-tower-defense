@@ -53,9 +53,32 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _sky == null:
 		return
+	_update_crystal_night(float(_sky.current_time))
 	var night_now: bool = _is_night(float(_sky.current_time))
 	if night_now != _night_active:
 		_apply(night_now)
+
+
+## How far into the night it is for the crystals' glow - the `crystal_night` shader global
+## (assets/shaders/mana_crystal.gdshader) and the base crystal's own light. 0 through the
+## day, 1 through the night, eased across dusk and dawn rather than switched, so they come
+## on as it gets dark. By the light, not by dawn_hour/dusk_hour: the sun is down well
+## before the phase changes.
+const CRYSTAL_DUSK := Vector2(17.5, 20.5)
+const CRYSTAL_DAWN := Vector2(5.0, 7.0)
+var crystal_night: float = -1.0
+
+
+func _update_crystal_night(hour: float) -> void:
+	var night: float
+	if hour >= CRYSTAL_DUSK.x:
+		night = smoothstep(CRYSTAL_DUSK.x, CRYSTAL_DUSK.y, hour)
+	else:
+		night = 1.0 - smoothstep(CRYSTAL_DAWN.x, CRYSTAL_DAWN.y, hour)
+	if absf(night - crystal_night) < 0.002:
+		return
+	crystal_night = night
+	RenderingServer.global_shader_parameter_set(&"crystal_night", night)
 
 
 ## The night window wraps midnight, so it is "after dusk OR before dawn" rather than a

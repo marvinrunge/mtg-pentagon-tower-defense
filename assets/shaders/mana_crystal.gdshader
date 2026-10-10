@@ -17,9 +17,13 @@ uniform float glow_strength : hint_range(0.0, 8.0) = 1.6;
 // The edge light, facing away from the camera.
 uniform float rim_strength : hint_range(0.0, 8.0) = 1.2;
 uniform float rim_power : hint_range(0.5, 8.0) = 3.0;
-// One dial for every crystal in the game at once, on top of each material's own strengths:
-// at 1 they jumped out of every view, so they sit at half - present, not shouting.
-uniform float emission_scale : hint_range(0.0, 2.0) = 0.5;
+// How far into the night it is, 0 by day to 1 at night - set every frame by DayNightPacing
+// from the clock. By day the crystals are matte, like the base crystal, and barely light
+// themselves: lit up in daylight they jumped out of every view. At night they glow fully,
+// which is what they are there for.
+global uniform float crystal_night;
+uniform float day_glow : hint_range(0.0, 2.0) = 0.12;
+uniform float night_glow : hint_range(0.0, 2.0) = 1.0;
 
 void fragment() {
 	vec3 white = texture(albedo_texture, UV).rgb;
@@ -27,10 +31,12 @@ void fragment() {
 	// A floor under the brightness so the shaded faces still carry the colour instead of
 	// going grey.
 	ALBEDO = tint * mix(0.25, 0.8, brightness);
-	ROUGHNESS = 0.12;
+	// The base crystal's own surface by day; glassier at night, when the glow carries them.
+	ROUGHNESS = mix(0.35, 0.12, crystal_night);
 	SPECULAR = 0.75;
 	METALLIC = 0.0;
 	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
 	float rim = pow(1.0 - facing, rim_power);
-	EMISSION = tint * (brightness * brightness * glow_strength + rim * rim_strength) * emission_scale;
+	EMISSION = tint * (brightness * brightness * glow_strength + rim * rim_strength)
+		* mix(day_glow, night_glow, crystal_night);
 }

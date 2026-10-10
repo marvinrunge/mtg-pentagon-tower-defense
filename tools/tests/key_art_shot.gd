@@ -14,7 +14,8 @@ extends Node
 ##                       to the right and -Z up. Plans shots, and at 360 across it is the
 ##                       minimap's picture (assets/images/minimap.png - see Minimap)
 ##
-## Shots are written as <folder>/<shot>.png.
+## Shots are written as <folder>/<shot>.png. `--time=H` renders every shot at hour H instead of
+## its own time of day.
 
 ## Which race each colour's units are, for res://scenes/<kind>/<race>_<kind>.tscn.
 const RACES: Dictionary = {
@@ -234,7 +235,11 @@ func _stage(shot: Dictionary) -> void:
 	var sky: Node = _scene.get_node_or_null("Sky3D")
 	if sky != null:
 		sky.set("game_time_enabled", false)
-		sky.set("current_time", float(shot["time"]))
+		var hour: float = float(shot["time"])
+		for arg: String in OS.get_cmdline_user_args():
+			if arg.begins_with("--time="):
+				hour = float(arg.trim_prefix("--time="))
+		sky.set("current_time", hour)
 	var lane: String = shot["lane"]
 	_camera.fov = float(shot.get("fov", 55.0))
 	var cam: Vector3 = shot["cam"]

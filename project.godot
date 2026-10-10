@@ -226,6 +226,10 @@ rendering_device/driver.windows="d3d12"
 
 [shader_globals]
 
+crystal_night={
+"type": "float",
+"value": 0.0
+}
 terrain_parallax_strength={
 "type": "float",
 "value": 1.0

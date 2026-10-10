@@ -150,6 +150,7 @@ func _process(delta: float) -> void:
 	if crystal_visual == null:
 		return
 	_crystal_motion_time += delta
+	_update_crystal_glow()
 	crystal_visual.rotation.y = _crystal_motion_time * 0.22
 	crystal_visual.position = _crystal_base_position + Vector3(
 		0.0,
@@ -249,9 +250,31 @@ func _style_crystal_visual() -> void:
 			var albedo_color: Color = crystal_material.albedo_color
 			albedo_color.a = 1.0
 			crystal_material.albedo_color = albedo_color
-			crystal_material.emission_enabled = false
-			crystal_material.emission_energy_multiplier = 0.0
+			# A light of its own, from its own colours: faint by day, stronger by night,
+			# following the same clock as the mana crystals (see _update_crystal_glow).
+			crystal_material.emission_enabled = true
+			crystal_material.emission = Color.WHITE
+			crystal_material.emission_texture = crystal_material.albedo_texture
+			crystal_material.emission_operator = BaseMaterial3D.EMISSION_OP_MULTIPLY
+			crystal_material.emission_energy_multiplier = CRYSTAL_GLOW.x
+			_crystal_materials.append(crystal_material)
 			mesh_instance.set_surface_override_material(surface_index, crystal_material)
+## The base crystal's glow, by day and by night - see _update_crystal_glow.
+const CRYSTAL_GLOW := Vector2(0.35, 1.1)
+var _crystal_materials: Array[StandardMaterial3D] = []
+
+
+## Follows the crystals' clock (DayNightPacing.crystal_night): a little of its own light by
+## day, so it reads among the matte mana crystals round it, more at night.
+func _update_crystal_glow() -> void:
+	var pacing: Node = get_node_or_null("Sky3D/DayNightPacing")
+	if pacing == null or _crystal_materials.is_empty():
+		return
+	var energy: float = lerpf(CRYSTAL_GLOW.x, CRYSTAL_GLOW.y, maxf(float(pacing.get("crystal_night")), 0.0))
+	for material: StandardMaterial3D in _crystal_materials:
+		material.emission_energy_multiplier = energy
+
+
 ## Reach of each of the five coloured lights ringing the crystal. Generous on purpose:
 ## the crystal visual is scaled 5x, so the previous range of 5 barely cleared the mesh
 ## itself and none of the colour reached the ground around the base.

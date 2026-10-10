@@ -84,6 +84,10 @@ func _run() -> void:
 			for enemy: Node in get_tree().get_nodes_in_group("enemies"):
 				enemy.queue_free()
 			sky.set("current_time", hour)
+			# The pacing node is stopped above, and it is what keeps the crystals' night
+			# glow in step with the clock - so it is told the hour here instead.
+			if pacing != null:
+				pacing.call("_update_crystal_night", hour)
 			for i: int in SETTLE_FRAMES:
 				await get_tree().process_frame
 			await RenderingServer.frame_post_draw

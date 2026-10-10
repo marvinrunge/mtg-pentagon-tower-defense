@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cv5bwmruwhx20"
-path="res://.godot/imported/crystal-shard-cluster_0.jpg-6bc51ff44c89e46341285ecd4aef9da4.ctex"
+path.s3tc="res://.godot/imported/crystal-shard-cluster_0.jpg-6bc51ff44c89e46341285ecd4aef9da4.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "58af601e11d63b8c2ed8d2f4460aa59e"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/generated/crystal-shard-cluster/crystal-shard-cluster_0.jpg"
-dest_files=["res://.godot/imported/crystal-shard-cluster_0.jpg-6bc51ff44c89e46341285ecd4aef9da4.ctex"]
+dest_files=["res://.godot/imported/crystal-shard-cluster_0.jpg-6bc51ff44c89e46341285ecd4aef9da4.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
