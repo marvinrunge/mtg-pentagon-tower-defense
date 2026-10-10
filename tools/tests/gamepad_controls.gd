@@ -45,6 +45,7 @@ func _process(_delta: float) -> void:
 	for enemy: Node in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
 	await _run()
+	await _labels()
 	await _main_menu()
 	if _failures.is_empty():
 		print("TEST RESULT: PASS")
@@ -186,6 +187,41 @@ func _run() -> void:
 	forward.y = 0.0
 	_check(moved.dot(forward.normalized()) > 0.5, "the Up arrow walks forwards",
 		"%.2f m along facing, %.2f m total" % [moved.dot(forward.normalized()), Vector2(moved.x, moved.z).length()])
+
+
+## Button names follow the controller: detected from the name the OS gives it, or forced by
+## the Button Labels setting - and the Controls table follows along.
+func _labels() -> void:
+	var names: Dictionary = {
+		"PS5 Controller": "playstation", "DualSense Wireless Controller": "playstation",
+		"PS4 Controller": "playstation", "Nintendo Switch Pro Controller": "nintendo",
+		"Xbox Series X Controller": "xbox", "XInput Gamepad": "xbox", "Generic USB Joystick": "xbox",
+	}
+	var wrong: Array = []
+	for joy_name: String in names:
+		if InputHint.family_from_name(joy_name) != names[joy_name]:
+			wrong.append("%s -> %s" % [joy_name, InputHint.family_from_name(joy_name)])
+	_check(wrong.is_empty(), "controllers are recognised by name", "wrong: %s" % [wrong])
+
+	var before: String = UserSettings.button_labels
+	UserSettings.set_value(&"button_labels", "playstation")
+	InputHint.gamepad = true
+	_check(InputHint.key("interact") == "[Square]" and InputHint.pad("bottom") == "Cross",
+		"the PlayStation setting names PlayStation buttons", "%s, %s" % [InputHint.key("interact"), InputHint.pad("bottom")])
+	UserSettings.set_value(&"button_labels", "nintendo")
+	_check(InputHint.pad("bottom") == "B" and InputHint.pad("rt") == "ZR",
+		"the Nintendo setting names Nintendo buttons", "%s, %s" % [InputHint.pad("bottom"), InputHint.pad("rt")])
+
+	var hud: Node = _scene.get_node("HUD")
+	var tabs: TabContainer = (hud.get("settings_panel") as Control).find_child("SettingsTabs", true, false)
+	var controls: Node = tabs.get_node("Controls")
+	var texts: PackedStringArray = []
+	for label: Node in controls.find_children("*", "Label", true, false):
+		texts.append((label as Label).text)
+	_check(texts.has("Gamepad (Nintendo)") and texts.has("ZR"), "the Controls table follows the setting",
+		"header found %s, ZR found %s" % [texts.has("Gamepad (Nintendo)"), texts.has("ZR")])
+	UserSettings.set_value(&"button_labels", before)
+	InputHint.gamepad = false
 
 
 ## The main menu has to be usable before a run exists: something must hold focus, or a

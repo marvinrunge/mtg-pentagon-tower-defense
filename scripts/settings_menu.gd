@@ -33,6 +33,8 @@ var _ragdoll_option: OptionButton
 var _renderer_option: OptionButton
 var _restart_label: Label
 var _restart_button: Button
+## The Controls tab's table, refilled when the gamepad's button names change.
+var _controls_table: VBoxContainer
 ## True while a preset is being applied programmatically, so the handlers of the controls it
 ## moves don't each flip the preset back to Custom.
 var _applying_preset: bool = false
@@ -155,8 +157,7 @@ func _build_gameplay_tab(column: VBoxContainer) -> void:
 		func(on: bool) -> void: UserSettings.set_value(&"camera_shake_enabled", on))
 
 
-## What every input does, as a striped table. Read off project.godot's input map by hand,
-## so a rebinding there has to be repeated here.
+## What every input does, as a striped table, under the look settings.
 ##
 ## Each row is its own PanelContainer, because that is what can carry a background. The
 ## table used to be a GridContainer of Labels striped with self_modulate - which on a Label
@@ -170,34 +171,64 @@ func _build_controls_tab(column: VBoxContainer) -> void:
 		func(value: float) -> void: UserSettings.set_value(&"stick_sensitivity", value))
 	_check(column, "Invert Vertical Look", UserSettings.invert_look_y,
 		func(on: bool) -> void: UserSettings.set_value(&"invert_look_y", on))
+	_label(column, "Button Labels")
+	var labels_option := OptionButton.new()
+	for style: String in InputHint.STYLES:
+		labels_option.add_item(String(InputHint.STYLE_NAMES[style]))
+		labels_option.set_item_metadata(labels_option.item_count - 1, style)
+		if style == UserSettings.button_labels:
+			labels_option.select(labels_option.item_count - 1)
+	labels_option.tooltip_text = "Auto names the buttons after the controller in use."
+	labels_option.item_selected.connect(func(index: int) -> void:
+		UserSettings.set_value(&"button_labels", String(labels_option.get_item_metadata(index))))
+	column.add_child(labels_option)
 
+	_controls_table = VBoxContainer.new()
+	_controls_table.add_theme_constant_override("separation", 0)
+	column.add_child(_controls_table)
+	_fill_controls_table()
+	# The gamepad column names the buttons of the pad in use, which can change between two
+	# openings of this panel - a controller plugged in, or the setting above moved.
+	UserSettings.changed.connect(func(key: StringName) -> void:
+		if key == &"button_labels":
+			_fill_controls_table())
+	visibility_changed.connect(func() -> void:
+		if is_visible_in_tree():
+			_fill_controls_table())
+
+
+## (Re)writes the table. The keyboard column is read off project.godot's input map by hand,
+## and the gamepad column off InputHint, which follows the same map - a rebinding there has
+## to be repeated in both.
+func _fill_controls_table() -> void:
+	for child: Node in _controls_table.get_children():
+		_controls_table.remove_child(child)
+		child.queue_free()
 	var rows: Array = [
 		["Movement", "WASD / Arrow keys", "Left stick"],
 		["Camera", "Mouse", "Right stick"],
-		["Jump", "Space", "A"],
-		["Sprint", "Shift", "LB"],
-		["Attack", "Left mouse button", "RT"],
-		["Block", "Right mouse button", "LT"],
-		["Cast spell", "Q", "RB"],
+		["Jump", "Space", InputHint.pad("bottom")],
+		["Sprint", "Shift", InputHint.pad("lb")],
+		["Attack", "Left mouse button", InputHint.pad("rt")],
+		["Block", "Right mouse button", InputHint.pad("lt")],
+		["Cast spell", "Q", InputHint.pad("rb")],
 		["Hotbar (select + cast)", "1 - 8", "-"],
 		["Cycle spell", "Mouse wheel", "D-pad left / right"],
-		["Interact", "E", "X"],
-		["Kick", "F", "B"],
-		["Skill tree", "P", "Y"],
+		["Interact", "E", InputHint.pad("left")],
+		["Kick", "F", InputHint.pad("right")],
+		["Skill tree", "P", InputHint.pad("top")],
 		["Equipment", "I", "D-pad down"],
-		["Wave info (hold)", "Tab", "Back / View"],
-		["Menu", "Esc", "Start"],
-		["Menus: confirm / back", "Click / Esc", "A / B"],
-		["Menus: switch tab", "Click", "LB / RB"],
-		["Skill tree: spell to hotbar", "1 - 8", "X (next slot)"],
+		["Wave info (hold)", "Tab", InputHint.pad("back")],
+		["Menu", "Esc", InputHint.pad("start")],
+		["Menus: confirm / back", "Click / Esc", "%s / %s" % [InputHint.pad("bottom"), InputHint.pad("right")]],
+		["Menus: switch tab", "Click", "%s / %s" % [InputHint.pad("lb"), InputHint.pad("rb")]],
+		["Skill tree: spell to hotbar", "1 - 8", "%s (next slot)" % InputHint.pad("left")],
 	]
-	var table := VBoxContainer.new()
-	table.add_theme_constant_override("separation", 0)
-	column.add_child(table)
-	table.add_child(_controls_row(["Action", "Keyboard", "Gamepad"], Color(0.18, 0.22, 0.30), true))
+	var family: String = String(InputHint.STYLE_NAMES[InputHint.pad_family()])
+	_controls_table.add_child(_controls_row(["Action", "Keyboard", "Gamepad (%s)" % family], Color(0.18, 0.22, 0.30), true))
 	for i: int in range(rows.size()):
 		var stripe := Color(1.0, 1.0, 1.0, 0.04) if i % 2 == 1 else Color(0.0, 0.0, 0.0, 0.0)
-		table.add_child(_controls_row(rows[i], stripe, false))
+		_controls_table.add_child(_controls_row(rows[i], stripe, false))
 
 
 ## One row of the controls table: three columns on a background, the action a little wider.

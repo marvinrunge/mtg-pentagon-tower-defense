@@ -233,7 +233,7 @@ func _refresh() -> void:
 	var limit: int = GameSettings.equipment_max_equipped
 	var worn_text: String = ("%d/%d worn" % [worn, limit]) if limit > 0 else ("%d worn" % worn)
 	_summary.text = "Bosses drop equipment for the whole team - %d of %d found, %s. %s a piece to put it on or take it off." % [
-		found, EquipmentDatabase.ORDER.size(), worn_text, "Press A on" if InputHint.gamepad else "Click"]
+		found, EquipmentDatabase.ORDER.size(), worn_text, ("Press %s on" % InputHint.pad("bottom")) if InputHint.gamepad else "Click"]
 	_debug_button.visible = GameSettings.debug_mode and Net.is_server() and found < EquipmentDatabase.ORDER.size()
 
 
@@ -249,12 +249,12 @@ func _style_card(item_id: String, unlocked: bool, equipped: bool) -> void:
 	if equipped:
 		box.bg_color = Color(0.13, 0.11, 0.05, 1.0)
 		box.border_color = GOLD
-		status.text = "Equipped - %s to take off" % ("A" if InputHint.gamepad else "click")
+		status.text = "Equipped - %s to take off" % (InputHint.pad("bottom") if InputHint.gamepad else "click")
 		status.add_theme_color_override("font_color", GOLD)
 	elif unlocked:
 		box.bg_color = Color(0.06, 0.07, 0.09, 1.0)
 		box.border_color = Color(0.38, 0.42, 0.5)
-		status.text = "Found - %s to equip" % ("A" if InputHint.gamepad else "click")
+		status.text = "Found - %s to equip" % (InputHint.pad("bottom") if InputHint.gamepad else "click")
 		status.add_theme_color_override("font_color", Color(0.6, 0.9, 0.62))
 	else:
 		box.bg_color = Color(0.04, 0.045, 0.055, 1.0)

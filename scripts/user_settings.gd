@@ -44,6 +44,7 @@ const SECTIONS: Dictionary = {
 	&"mouse_sensitivity": "controls",
 	&"stick_sensitivity": "controls",
 	&"invert_look_y": "controls",
+	&"button_labels": "controls",
 }
 
 ## Empty until the player has typed one; the main menu shows "Player" in its place.
@@ -64,6 +65,8 @@ var minimap_size: float = 200.0
 var mouse_sensitivity: float = 1.0
 var stick_sensitivity: float = 1.0
 var invert_look_y: bool = false
+## Which names gamepad buttons are shown under: "auto" or a family. See InputHint.
+var button_labels: String = "auto"
 
 var _save_queued: bool = false
 
@@ -145,6 +148,10 @@ func _apply(key: StringName) -> void:
 			GameSettings.gamepad_look_sensitivity_scale = stick_sensitivity
 		&"invert_look_y":
 			GameSettings.invert_look_y = invert_look_y
+		&"button_labels":
+			if not InputHint.STYLES.has(button_labels):
+				button_labels = "auto"
+			InputHint.label_style = button_labels
 
 
 func _set_bus_volume(bus_name: StringName, linear: float) -> void:
