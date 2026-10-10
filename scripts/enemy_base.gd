@@ -163,8 +163,9 @@ var _puppet_hold_timer: float = 0.0
 var sapling_boss: Node3D = null
 var _sapling_timer: float = -1.0
 ## Recovery (see _check_recovery): time to the next check, and how long this enemy has been
-## standing off the navmesh.
-var _recovery_timer: float = 0.0
+## standing off the navmesh. The first check lands at a random point in the interval, so a
+## squad spawned in one frame does not run all its checks in one frame from then on.
+var _recovery_timer: float = randf() * GameSettings.enemy_recovery_check_interval
 var _off_navmesh_time: float = 0.0
 ## A sapling that withered on its own was not killed, and pays nothing.
 var _skip_kill_rewards: bool = false
@@ -2941,12 +2942,22 @@ func die() -> void:
 ## Not a kill: the wave still has to deal with it, and nobody is paid for an enemy the map
 ## lost. Every recovery is logged with where it happened, which is how a hole in the map is
 ## found.
+##
+## Asking the navmesh is expensive, though: map_get_closest_point searches the whole terrain
+## navmesh, about 1.3 ms a call on this map, and with every enemy asking every half second it
+## was most of the frame drops in a crowded wave. So the path the agent last planned is asked
+## first - every point of it lies on the navmesh, so an enemy standing on it by the same two
+## measures is on the map, and only an enemy that has strayed from its path pays for the
+## real question.
 func _check_recovery(delta: float) -> bool:
 	_recovery_timer -= delta
 	if _recovery_timer > 0.0:
 		return false
 	var interval: float = GameSettings.enemy_recovery_check_interval
 	_recovery_timer = interval
+	if _on_planned_path():
+		_off_navmesh_time = 0.0
+		return false
 	var map: RID = get_world_3d().navigation_map
 	# Nothing to measure against until the navmesh is in: an empty map answers (0, 0, 0)
 	# for everything, and every enemy would be "off" it.
@@ -2976,6 +2987,30 @@ func _check_recovery(delta: float) -> bool:
 	NetFx.spell("corpse_land", nearest, 0.8, 0)
 	update_path(true)
 	return true
+
+
+## Whether this enemy stands on the path its agent last planned, by the same two measures
+## _check_recovery uses: no further beside it than `off_distance`, no further below it than
+## `below_distance`. Only the legs either side of the waypoint it is walking to are tried -
+## an enemy anywhere else along its path has been moved off it, and the full check should
+## run. A false here is never a verdict, only "ask the navmesh".
+func _on_planned_path() -> bool:
+	if nav_agent == null:
+		return false
+	var path: PackedVector3Array = nav_agent.get_current_navigation_path()
+	if path.is_empty():
+		return false
+	var here: Vector3 = global_position
+	var index: int = clampi(nav_agent.get_current_navigation_path_index(), 0, path.size() - 1)
+	var off_squared: float = GameSettings.enemy_recovery_off_distance * GameSettings.enemy_recovery_off_distance
+	for i: int in range(maxi(index - 1, 0), mini(index + 1, path.size() - 1) + 1):
+		var point: Vector3 = path[i]
+		if i + 1 < path.size():
+			point = Geometry3D.get_closest_point_to_segment(here, path[i], path[i + 1])
+		var beside: float = Vector2(point.x - here.x, point.z - here.z).length_squared()
+		if beside <= off_squared and point.y - here.y <= GameSettings.enemy_recovery_below_distance:
+			return true
+	return false
 
 
 ## Which way the fatal hit came from and how big it was, for _start_death_launch.
