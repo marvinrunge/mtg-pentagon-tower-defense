@@ -85,9 +85,10 @@ const SHIELD_EDGE_COLOR: Color = Color(1.0, 1.0, 1.0, 0.95)
 ## Small, because it is stretched to the bar: only the ramp and the corner shape have to
 ## survive, and neither carries any detail worth more pixels than this.
 ## The frame every readout shares - both bars and the minimap. Kept as constants because
-## the point of it is that they MATCH; three copies of "2px, this grey, 8px corners" drift
-## the first time one of them is nudged.
-const BAR_BORDER_COLOR: Color = Color(0.42, 0.5, 0.6, 0.9)
+## the point of it is that they MATCH; three copies of "2px, this colour, 8px corners" drift
+## the first time one of them is nudged. Black, so the readouts sit in the dark of the
+## night and the painted screens rather than in a blue-grey UI frame.
+const BAR_BORDER_COLOR: Color = Color(0.0, 0.0, 0.0, 0.95)
 const BAR_BORDER_WIDTH: int = 2
 const BAR_CORNER_RADIUS: int = 8
 
