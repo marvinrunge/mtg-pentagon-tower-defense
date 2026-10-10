@@ -131,9 +131,10 @@ config (mesh, textures, clip table, weapon grips) and writes
 speed from root motion, hit ratios inside attack clips - stays as it is. Death and the
 spellcasting poses are still borrowed from the enemy rig and shared.
 
-**Choice and network.** The class is picked in the lobby, kept in the peer info and in
-`PlayerRegistry`, and travels with the build (`export_build` / `apply_build`) so a
-reconnect comes back as the same class. `Player._ready` loads that class's visual.
+**Choice and network.** The class is picked in the lobby before the match and is fixed for
+the run. It is kept in the peer info and in `PlayerRegistry`, and travels with the build
+(`export_build` / `apply_build`) so a reconnect comes back as the same class.
+`Player._ready` loads that class's visual. Any number of players may pick the same class.
 
 **"Melee" in existing skills becomes "basic attack".** Rubblebelt Rioters ("your next three
 melee hits"), Executioner's Capsule (melee execute) and Blade Dance all say melee; anything
@@ -142,7 +143,8 @@ nothing to an archer or a mage.
 
 ## Mixamo assets
 
-- One character uploaded per class; every animation downloaded onto it - FBX, the first
+- Every class has a Meshy model of its own. One character uploaded per class; every
+  animation downloaded onto it - FBX, the first
   *with skin*, the rest *without skin*. Bone names then match by construction.
 - Leave **In Place unticked** for locomotion: the builder measures travel speed from the
   root motion, as it does for the current set.
@@ -164,8 +166,10 @@ nothing to an archer or a mage.
    asserts every class skill has an observable effect, the way it already does for every
    spell.
 
-## Open questions
+## Decisions
 
-1. **Models.** Its own Meshy model per class, or the same orc with other gear?
-2. **Switching.** Is the class fixed for the whole run, or can it change (say, at Upkeep)?
-3. **Two of a class.** Can two players on a team be the same class?
+| Question | Decision | What follows from it |
+|---|---|---|
+| Models | **A model of its own per class** (Meshy) | Each class is its own Mixamo upload and its own builder run; nothing is shared between them but the borrowed death and casting clips. The axe fighter keeps the current orc. |
+| Switching | **Fixed for the whole run** | Picked in the lobby before the match starts; there is no class change at Upkeep. A reconnect comes back as the same class (it travels with the build); a new run is a new choice. |
+| Duplicates | **Allowed** - two players may be the same class | The lobby does not lock a class once someone has picked it, and nothing may assume one player per class (no per-class singletons, no "the archer"). |
