@@ -342,13 +342,9 @@ func bake_map_navigation() -> void:
 	add_child(well_crystals)
 	well_crystals.place(mana_sources, LANE_NAMES, crystal_anchor.global_position, terrain_body)
 	# And at the hub, every colour together.
-	var lane_angles: Array = []
-	for spawner: Node3D in enemy_spawners:
-		var out := spawner.global_position - crystal_anchor.global_position
-		lane_angles.append(atan2(out.z, out.x))
 	var stones: Array = get_node("StoneRings").get_children() if has_node("StoneRings") else []
 	var pillars: Array = get_node("OuterStoneRing").get_children() if has_node("OuterStoneRing") else []
-	well_crystals.place_hub(crystal_anchor.global_position, lane_angles, stones, pillars, terrain_body)
+	well_crystals.place_hub(crystal_anchor.global_position, stones, pillars, terrain_body)
 	SignalBus.map_ready.emit()
 	# The flight over the map plays over the bake, so the seconds it takes are spent
 	# looking at the map rather than at a frozen start.

@@ -1,8 +1,8 @@
 extends Node3D
 ## Mana crystals round every mana well: a cluster to each side of the lane, shard groups
 ## between them, and a light in the well's colour so it reads from across the map at night.
-## And at the hub (place_hub), where all five colours meet: round the base crystal, at the
-## foot of the standing stones, and a spire of each colour at the five carved pillars.
+## And at the hub (place_hub), where all five colours meet: at the foot of the standing
+## stones, and a spire of each colour at the five carved pillars.
 ##
 ## Placed at runtime, round wherever each ManaSource stands, rather than painted into the
 ## terrain like the crystals in the wild (tools/build_nature_terrabrush.gd): TerraBrush's
@@ -76,32 +76,16 @@ func place(wells: Array, lane_names: Array, crystal: Vector3, terrain: StaticBod
 		light.global_position = Vector3(well.x, _ground(well) + 2.2, well.z)
 
 
-## The hub, where all five colours meet. Round the base crystal: a cluster of each colour in
-## the gaps between the lanes - the lanes run straight in to it - with shards between them.
-## At the foot of every standing stone, on its outer side: a cluster or shards of a random
-## colour. At each of the five carved pillars: a spire, one per colour, glowing.
-##
-## `lane_angles` are the lanes' directions out from the crystal, in radians.
-func place_hub(crystal: Vector3, lane_angles: Array, stones: Array, pillars: Array, terrain: StaticBody3D) -> void:
+## The hub, where all five colours meet. At the foot of every standing stone, on its outer
+## side: a cluster or shards of a random colour. At each of the five carved pillars: a
+## spire, one per colour, glowing. The base crystal itself stands alone - a crown of small
+## crystals under it was tried and taken out again; it cluttered the one thing that has to
+## read on its own.
+func place_hub(crystal: Vector3, stones: Array, pillars: Array, terrain: StaticBody3D) -> void:
 	_terrain = terrain
 	var colours: Array = CRYSTALS.keys()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("hub_crystals")
-
-	# Round the base crystal: one ring of 15, leaning outward like a crown opening round
-	# where the crystal floats. Every third is a cluster - one of each colour, since 0, 3,
-	# 6, 9, 12 land on all five - with two shard groups between each pair, packed close so
-	# the ring reads as one growth rather than a scatter.
-	var crown: int = 15
-	var start: float = rng.randf_range(0.0, TAU)
-	for k: int in crown:
-		var angle: float = start + TAU * float(k) / float(crown) + rng.randf_range(-0.05, 0.05)
-		var outward := Vector3(cos(angle), 0.0, sin(angle))
-		var cluster: bool = k % 3 == 0
-		var radius: float = rng.randf_range(2.3, 2.6) if cluster else rng.randf_range(1.9, 2.4)
-		var lean: float = deg_to_rad(rng.randf_range(24.0, 32.0) if cluster else rng.randf_range(30.0, 40.0))
-		_put_leaning(_scene(colours[k % colours.size()], 0 if cluster else 1), crystal + outward * radius,
-			outward, lean, rng.randf_range(0.9, 1.15) * (0.95 if cluster else 1.0), rng)
 
 	# At the foot of every standing stone, on the side away from the crystal.
 	for stone: Node3D in stones:
@@ -138,20 +122,6 @@ func _put(scene: PackedScene, spot: Vector3, rng: RandomNumberGenerator, scale_m
 	node.global_position = Vector3(spot.x, _ground(spot), spot.z)
 	node.rotation.y = rng.randf_range(0.0, TAU)
 	node.scale = Vector3.ONE * rng.randf_range(0.85, 1.25) * scale_mult
-	return node
-
-
-## A crystal at `spot` that leans `lean` radians away from the centre, along `outward`:
-## turned about its own axis first, at random, so no two in a ring are the same, then
-## tipped over. Set a little into the ground, since a tipped base lifts on its low side.
-func _put_leaning(scene: PackedScene, spot: Vector3, outward: Vector3, lean: float, size: float,
-		rng: RandomNumberGenerator) -> Node3D:
-	var node: Node3D = _put(scene, spot, rng, 1.0)
-	if node == null:
-		return null
-	var tip := Basis(Vector3.UP.cross(outward).normalized(), lean)
-	node.global_basis = (tip * Basis(Vector3.UP, rng.randf_range(0.0, TAU))).scaled(Vector3.ONE * size)
-	node.global_position.y -= 0.12 * size
 	return node
 
 
