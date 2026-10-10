@@ -29,6 +29,10 @@ var _settings_menu: VBoxContainer
 const EquipmentMenuScript := preload("res://scripts/equipment_menu.gd")
 const InputHint := preload("res://scripts/input_hint.gd")
 const DEFEAT_TITLE: Texture2D = preload("res://assets/images/title_defeat.png")
+## The map from straight above, the square Minimap.world_radius spans: rendered by
+## tools/tests/key_art_shot.gd --map --map-size=360, water recoloured and darkened a little so
+## the dots read over it.
+const MINIMAP_PICTURE: Texture2D = preload("res://assets/images/minimap.png")
 ## A hotbar slot whose spell is on cooldown but could be paid for in life right now
 ## (Phyrexian Arena) - its overlay turns blood red, so the option is visible, not remembered.
 const BLOOD_CAST_TINT := Color(1.0, 0.45, 0.5, 1.0)
@@ -458,6 +462,18 @@ func _style_minimap(background: StyleBoxFlat) -> void:
 		backdrop.add_theme_stylebox_override("panel", background.duplicate())
 		minimap_container.add_child(backdrop)
 		minimap_container.move_child(backdrop, 0)
+	if minimap_container.get_node_or_null("MinimapPicture") == null:
+		# The map itself under the dots, rounded like everything else in the frame. The
+		# icon shader's 0.25 ratio is MINIMAP_CORNER_RATIO, so the corners meet exactly.
+		var picture := TextureRect.new()
+		picture.name = "MinimapPicture"
+		picture.texture = MINIMAP_PICTURE
+		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		picture.stretch_mode = TextureRect.STRETCH_SCALE
+		picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		picture.material = IconStyle.rounded_material()
+		minimap_container.add_child(picture)
+		minimap_container.move_child(picture, 1)
 	# Cleared, or the square corners of its own fill show outside the rounded frame.
 	minimap.color = Color(0.0, 0.0, 0.0, 0.0)
 	_add_border_overlay(minimap, _minimap_corner_radius())

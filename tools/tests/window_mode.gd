@@ -42,7 +42,7 @@ func _key(code: Key, alt: bool = false) -> void:
 func _override_mode() -> Variant:
 	var cfg := ConfigFile.new()
 	cfg.load(GraphicsSettings.OVERRIDE_PATH)
-	return cfg.get_value("display", "window/size/mode", null)
+	return cfg.get_value("display", "window/size/mode.template", null)
 
 
 func _run() -> void:

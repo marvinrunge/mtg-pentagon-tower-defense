@@ -8,8 +8,11 @@ extends Node
 ## Run with (windowed - a headless run renders nothing):
 ##   "G:\Godot\Godot_v4.7-stable_win64_console.exe" --path . --windowed --resolution 2400x1350 res://tools/tests/key_art_shot.tscn -- <folder> [shot,shot...]
 ##   ... -- --probe     prints the lanes, the crystal and every model's animation clips
-##   ... -- <png> --map  a top-down picture of the whole map at noon, for planning shots
-##                       (orthographic, 440 m across, +X to the right and -Z up)
+##   ... -- <png> --map [--map-size=440]
+##                       a top-down picture of the map at noon, without fog or people:
+##                       orthographic, map-size metres across centred on the crystal, +X
+##                       to the right and -Z up. Plans shots, and at 360 across it is the
+##                       minimap's picture (assets/images/minimap.png - see Minimap)
 ##
 ## Shots are written as <folder>/<shot>.png.
 
@@ -57,7 +60,11 @@ func _process(_delta: float) -> void:
 	if args.has("--probe"):
 		_probe()
 	elif args.has("--map"):
-		await _map(args[0])
+		var size: float = 440.0
+		for arg: String in args:
+			if arg.begins_with("--map-size="):
+				size = float(arg.trim_prefix("--map-size="))
+		await _map(args[0], size)
 	else:
 		await _render_all(args)
 	get_tree().quit()
@@ -295,10 +302,22 @@ func _ground(at: Vector3) -> float:
 	return 0.0
 
 
-func _map(path: String) -> void:
+func _map(path: String, size: float) -> void:
 	var hud: Node = _scene.get_node_or_null("HUD")
 	if hud is CanvasLayer:
 		(hud as CanvasLayer).visible = false
+	var waves: Node = _scene.get_node_or_null("WaveManager")
+	if waves != null:
+		waves.set_process(false)
+	for enemy: Node in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	var avatar: Node3D = PlayerRegistry.get_local() as Node3D
+	if avatar != null:
+		avatar.visible = false
+	# From straight above, the volcano's smoke is a grey blot over a corner of the map.
+	var smoke: Node3D = _scene.get_node_or_null("VolcanoSmoke") as Node3D
+	if smoke != null:
+		smoke.visible = false
 	var sky: Node = _scene.get_node_or_null("Sky3D")
 	if sky != null:
 		sky.set("game_time_enabled", false)
@@ -313,7 +332,7 @@ func _map(path: String) -> void:
 			dome.set("fog_visible", false)
 	var camera := Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 440.0
+	camera.size = size
 	camera.far = 2000.0
 	_scene.add_child(camera)
 	camera.global_position = Vector3(0.0, 600.0, 0.0)

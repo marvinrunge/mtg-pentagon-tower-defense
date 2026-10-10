@@ -37,9 +37,12 @@ var msaa_level: int = 0 # 0 = Off, 1 = MSAA 2x, 2 = MSAA 4x
 var glow_enabled: bool = true
 var terrain_parallax: bool = true
 var vsync_enabled: bool = true
-## Borderless fullscreen, or a window. Fullscreen by default - project.godot boots that way -
-## and kept in OVERRIDE_PATH as well, so the engine opens in the chosen mode before the boot
-## splash rather than switching after it.
+## Borderless fullscreen, or a window. Fullscreen by default. An exported game boots in it -
+## project.godot and OVERRIDE_PATH set the window mode under the `template` feature tag, so
+## the engine opens in the chosen mode before the boot splash instead of switching after it.
+## Only exports: a run from the editor binary - the editor's play button, every test and
+## tool - boots a plain window at the size it asked for (a fullscreen boot made Godot fit
+## the window borders inside a tool's --resolution), and _apply_startup_window_mode decides.
 var fullscreen: bool = true
 var show_fps: bool = false
 var particle_quality: int = ParticleQuality.HIGH
@@ -221,11 +224,9 @@ func _apply_window_mode(enabled: bool) -> void:
 
 
 ## The window mode at start, once the first scene is in. Only the game proper - started on
-## its main menu - takes the player's choice. A test or tool scene, the map run on its own
-## from the editor, or a `-s` script gets a window: the engine boots fullscreen (project
-## default and OVERRIDE_PATH), and their screenshots and frame timings assume a window.
-## Godot keeps `--resolution` and `--windowed` to itself, so they cannot be asked about; a
-## tool that needs its exact size passes `--windowed` and is a window from the first frame.
+## its main menu - takes the player's choice; an export already booted in it, a run from
+## the editor switches here. A test or tool scene, the map run on its own from the editor,
+## or a `-s` script stays a window: their screenshots and frame timings assume one.
 func _apply_startup_window_mode() -> void:
 	var scene: Node = get_tree().current_scene
 	var main_scene: String = String(ProjectSettings.get_setting("application/run/main_scene", ""))
@@ -421,8 +422,11 @@ func _save() -> void:
 	var override_cfg := ConfigFile.new()
 	override_cfg.load(OVERRIDE_PATH) # ignore error - fine if it doesn't exist yet
 	override_cfg.set_value("rendering", "renderer/rendering_method", method_to_persist)
-	# The window mode too, so the next launch opens in it: 3 is fullscreen, 0 windowed.
-	override_cfg.set_value("display", "window/size/mode", 3 if fullscreen else 0)
+	# The window mode too, so the next launch of the exported game opens in it: 3 is
+	# fullscreen, 0 windowed. Under `template`, so editor and tool runs are left alone.
+	override_cfg.set_value("display", "window/size/mode.template", 3 if fullscreen else 0)
+	if override_cfg.has_section_key("display", "window/size/mode"):
+		override_cfg.erase_section_key("display", "window/size/mode")
 	# The Mobile renderer runs on Vulkan, not on the project's D3D12. On D3D12 it cannot build
 	# TerraBrush's terrain shader - CreateGraphicsPipelineState fails with E_OUTOFMEMORY
 	# (0x8007000e) and the whole terrain is simply not drawn. Forward+ and Compatibility keep

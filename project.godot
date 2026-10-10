@@ -37,7 +37,7 @@ UserSettings="*res://scripts/user_settings.gd"
 
 [display]
 
-window/size/mode=3
+window/size/mode.template=3
 
 [editor_plugins]
 
