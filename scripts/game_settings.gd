@@ -1594,6 +1594,11 @@ const ENCHANTMENT_DESCRIPTIONS: Dictionary = {
 ## Deliberately not persisted: it resets to off every launch, so it cannot be left on
 ## by accident. Toggled from the in-game options panel.
 @export var debug_free_skills: bool = false
+## Debug: the wave a run starts at, 1 being the ordinary opening. Set from the in-game
+## options panel, which can also jump the current run there on the spot. Not persisted,
+## for the same reason as debug_free_skills - but it does outlive a restart, so testing
+## wave 15 over and over does not mean setting it again every run.
+@export var debug_start_wave: int = 1
 @export var damage_number_pool_size: int = 40
 @export var show_enemy_health_bars: bool = true
 @export var enemy_health_bar_height: float = 2.35

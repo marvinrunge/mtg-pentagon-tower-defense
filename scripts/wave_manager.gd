@@ -73,7 +73,7 @@ func _ready() -> void:
 
 func start_waves(controller: Node3D) -> void:
 	main_controller = controller
-	current_wave = 0
+	current_wave = maxi(GameSettings.debug_start_wave - 1, 0)
 	# Only the server plans and deploys. A client's wave number arrives with the wave
 	# itself (see _net_wave_started) - it used to be planned locally from random numbers,
 	# which meant every peer announced a different lane and, because nothing ever advanced
@@ -587,6 +587,29 @@ func _trigger_next_wave() -> void:
 	if Net.is_active():
 		_net_upkeep_started.rpc(GameSettings.upkeep_duration)
 	SignalBus.upkeep_started.emit(GameSettings.upkeep_duration)
+
+
+## Debug: abandons whatever the run is doing and starts `wave_number` now. The wave in
+## progress is cleared without a death among it - nobody is paid and nothing drops, it
+## simply was never there - and an open Upkeep is closed the ordinary way, through
+## upkeep_finished, so its panel shuts on every peer and the new wave is what it starts.
+## Server only: the server owns the waves, and a client's copy follows from the spawns.
+func debug_jump_to_wave(wave_number: int) -> void:
+	if not Net.is_server():
+		return
+	pending_groups.clear()
+	pending_enemies = 0
+	is_spawning = false
+	_disband_squads()
+	for enemy: Node in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	active_enemies = 0
+	current_wave = maxi(wave_number - 1, 0)
+	print("Debug: jumping to wave ", current_wave + 1)
+	if in_upkeep:
+		SignalBus.upkeep_finished.emit()
+	else:
+		start_next_wave()
 
 
 ## Nothing should be marching during Upkeep or after the crystal falls, and a squad whose

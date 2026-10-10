@@ -865,6 +865,30 @@ func _build_settings_menu() -> void:
 	free_skills.toggled.connect(_on_free_skills_toggled)
 	debug.add_child(free_skills)
 
+	var wave_row := HBoxContainer.new()
+	var wave_label := Label.new()
+	wave_label.text = "Start wave"
+	wave_row.add_child(wave_label)
+	var wave_spin := SpinBox.new()
+	wave_spin.min_value = 1
+	wave_spin.max_value = 100
+	wave_spin.value = GameSettings.debug_start_wave
+	wave_spin.tooltip_text = "Every run started from now on begins at this wave."
+	wave_spin.value_changed.connect(func(value: float) -> void:
+		GameSettings.debug_start_wave = int(value))
+	wave_row.add_child(wave_spin)
+	var jump := Button.new()
+	jump.text = "Jump now"
+	# The waves are the host's; a client pressing this would only clear its own copy.
+	jump.disabled = not Net.is_server()
+	jump.tooltip_text = "Clears the current wave and starts this one." if Net.is_server() else "Host only."
+	jump.pressed.connect(func() -> void:
+		var waves: Node = get_tree().current_scene.get_node_or_null("WaveManager")
+		if waves != null:
+			waves.debug_jump_to_wave(int(wave_spin.value)))
+	wave_row.add_child(jump)
+	debug.add_child(wave_row)
+
 
 func _on_user_setting_changed(key: StringName) -> void:
 	match key:
