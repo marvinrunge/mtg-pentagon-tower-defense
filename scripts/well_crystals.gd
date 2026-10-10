@@ -29,9 +29,10 @@ const CRYSTALS: Dictionary = {
 ## 1 shards]. Nothing within 40 degrees of the lane line, either way along it.
 const RING: Array = [[90.0, 0], [-90.0, 0], [55.0, 1], [125.0, 1], [-55.0, 1], [-125.0, 1]]
 const RING_RADIUS := Vector2(5.5, 7.5)
+## The crystals' tip colours (`crystal_glow` in tools/nature/nature_assets.json).
 const LIGHT_COLORS: Dictionary = {
-	"White": Color(1.0, 0.86, 0.55), "Blue": Color(0.35, 0.7, 1.0), "Black": Color(0.62, 0.3, 1.0),
-	"Red": Color(1.0, 0.35, 0.12), "Green": Color(0.3, 1.0, 0.45),
+	"White": Color(1.0, 0.96, 0.82), "Blue": Color(0.45, 0.88, 1.0), "Black": Color(0.68, 0.34, 1.0),
+	"Red": Color(1.0, 0.56, 0.12), "Green": Color(0.5, 1.0, 0.35),
 }
 
 var _terrain: StaticBody3D

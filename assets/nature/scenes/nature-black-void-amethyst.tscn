@@ -2,7 +2,7 @@
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-void-amethyst.res" id="1_r2ovv"]
 
-[node name="NatureBlackVoidAmethyst" type="Node3D" unique_id=243795948]
+[node name="NatureBlackVoidAmethyst" type="Node3D" unique_id=1196229577]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=148641011]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1228978976]
 mesh = ExtResource("1_r2ovv")

@@ -2,8 +2,8 @@
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-void-shards.res" id="1_yqm0v"]
 
-[node name="NatureBlackVoidShards" type="Node3D" unique_id=291646246]
+[node name="NatureBlackVoidShards" type="Node3D" unique_id=1708164767]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=2106723]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=85352543]
 cast_shadow = 0
 mesh = ExtResource("1_yqm0v")

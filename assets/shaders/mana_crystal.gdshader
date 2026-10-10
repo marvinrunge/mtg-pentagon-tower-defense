@@ -11,7 +11,14 @@ render_mode cull_back, diffuse_burley, specular_schlick_ggx;
 // sees by.
 
 uniform sampler2D albedo_texture : source_color, filter_linear_mipmap, repeat_enable;
+// The colour at the tips - the light end - and at the root, blended up the crystal's height:
+// deep and dark where it grows from the ground, bright where it ends, so each reads as lit
+// from within rather than painted one flat colour.
 uniform vec3 tint : source_color = vec3(1.0);
+uniform vec3 tint_root : source_color = vec3(1.0);
+// The crystal's height in its own mesh space (baked with its base at 0), which the blend
+// runs over.
+uniform float height_m = 1.5;
 // How strongly the crystal lights itself, from its brightest parts outward.
 uniform float glow_strength : hint_range(0.0, 8.0) = 1.6;
 // The edge light, facing away from the camera.
@@ -25,18 +32,27 @@ global uniform float crystal_night;
 uniform float day_glow : hint_range(0.0, 2.0) = 0.12;
 uniform float night_glow : hint_range(0.0, 2.0) = 1.0;
 
+varying float v_height;
+
+void vertex() {
+	v_height = clamp(VERTEX.y / max(height_m, 0.01), 0.0, 1.0);
+}
+
 void fragment() {
 	vec3 white = texture(albedo_texture, UV).rgb;
 	float brightness = dot(white, vec3(0.299, 0.587, 0.114));
 	// A floor under the brightness so the shaded faces still carry the colour instead of
 	// going grey.
-	ALBEDO = tint * mix(0.25, 0.8, brightness);
+	// Eased, so the root colour holds through the lower part and the tip colour arrives
+	// towards the end, like light gathering at the points.
+	vec3 colour = mix(tint_root, tint, smoothstep(0.1, 0.95, v_height));
+	ALBEDO = colour * mix(0.25, 0.8, brightness);
 	// The base crystal's own surface by day; glassier at night, when the glow carries them.
 	ROUGHNESS = mix(0.35, 0.12, crystal_night);
 	SPECULAR = 0.75;
 	METALLIC = 0.0;
 	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
 	float rim = pow(1.0 - facing, rim_power);
-	EMISSION = tint * (brightness * brightness * glow_strength + rim * rim_strength)
+	EMISSION = colour * (brightness * brightness * glow_strength + rim * rim_strength)
 		* mix(day_glow, night_glow, crystal_night);
 }

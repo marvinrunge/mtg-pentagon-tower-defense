@@ -6,22 +6,22 @@
 height = 4.5
 radius = 0.49029842
 
-[node name="NatureWhiteSunspireCrystal" type="Node3D" unique_id=779069500]
+[node name="NatureWhiteSunspireCrystal" type="Node3D" unique_id=1873644573]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1758371815]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1903074121]
 mesh = ExtResource("1_jtieb")
 
-[node name="Body" type="StaticBody3D" parent="." unique_id=213850956]
+[node name="Body" type="StaticBody3D" parent="." unique_id=1691444390]
 collision_layer = 16
 collision_mask = 0
 
-[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1054587354]
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=2034934463]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
 shape = SubResource("CylinderShape3D_glar6")
 
-[node name="Glow" type="OmniLight3D" parent="." unique_id=1748911599]
+[node name="Glow" type="OmniLight3D" parent="." unique_id=612130474]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
-light_color = Color(1, 0.86, 0.55, 1)
+light_color = Color(1, 0.96, 0.82, 1)
 light_energy = 1.5
 distance_fade_enabled = true
 distance_fade_begin = 50.0

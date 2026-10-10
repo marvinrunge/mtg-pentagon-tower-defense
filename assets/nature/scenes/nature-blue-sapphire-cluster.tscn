@@ -2,7 +2,7 @@
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-sapphire-cluster.res" id="1_467c6"]
 
-[node name="NatureBlueSapphireCluster" type="Node3D" unique_id=651488894]
+[node name="NatureBlueSapphireCluster" type="Node3D" unique_id=1433363410]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1634133782]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=351410798]
 mesh = ExtResource("1_467c6")

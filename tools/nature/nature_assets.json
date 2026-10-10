@@ -46,8 +46,13 @@
       "palette": "warm gold, cream limestone, sage green, soft sky-blue accents",
       "crystal_glow": [
         1.0,
-        0.86,
-        0.55
+        0.96,
+        0.82
+      ],
+      "crystal_root": [
+        0.85,
+        0.55,
+        0.18
       ]
     },
     "blue": {
@@ -56,9 +61,14 @@
       "mood": "windswept coast and tidal flats, wet stone, sea spray and a calm arcane stillness",
       "palette": "deep teal, sea blue, wet slate grey, sand beige, pearl accents",
       "crystal_glow": [
-        0.35,
-        0.7,
+        0.45,
+        0.88,
         1.0
+      ],
+      "crystal_root": [
+        0.04,
+        0.16,
+        0.5
       ]
     },
     "black": {
@@ -67,9 +77,14 @@
       "mood": "rotting bayou of black water, low mist, decay and quiet menace",
       "palette": "charcoal, deep aubergine, sickly olive, bone white, deep violet accents",
       "crystal_glow": [
-        0.62,
-        0.3,
+        0.68,
+        0.34,
         1.0
+      ],
+      "crystal_root": [
+        0.07,
+        0.02,
+        0.13
       ]
     },
     "red": {
@@ -79,8 +94,13 @@
       "palette": "basalt black, rust red, ember orange, ash grey, sulphur-yellow accents",
       "crystal_glow": [
         1.0,
-        0.35,
+        0.56,
         0.12
+      ],
+      "crystal_root": [
+        0.5,
+        0.03,
+        0.03
       ]
     },
     "green": {
@@ -89,9 +109,14 @@
       "mood": "primeval old-growth forest, thick moss, dappled light and wild growth",
       "palette": "deep forest green, moss green, bark brown, cream and red mushroom accents",
       "crystal_glow": [
-        0.3,
+        0.5,
         1.0,
-        0.45
+        0.35
+      ],
+      "crystal_root": [
+        0.02,
+        0.24,
+        0.1
       ]
     }
   },

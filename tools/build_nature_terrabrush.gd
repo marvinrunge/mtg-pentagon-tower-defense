@@ -397,8 +397,14 @@ func _crystal_material(source: Material, asset: Dictionary) -> Material:
 	crystal.shader = load(CRYSTAL_SHADER)
 	if source is StandardMaterial3D:
 		crystal.set_shader_parameter("albedo_texture", (source as StandardMaterial3D).albedo_texture)
-	var glow: Array = manifest["biomes"][asset["biome"]]["crystal_glow"]
+	var biome: Dictionary = manifest["biomes"][asset["biome"]]
+	var glow: Array = biome["crystal_glow"]
+	var root: Array = biome.get("crystal_root", glow)
 	crystal.set_shader_parameter("tint", Color(glow[0], glow[1], glow[2]))
+	crystal.set_shader_parameter("tint_root", Color(root[0], root[1], root[2]))
+	# The mesh is baked to the manifest height with its base at 0 (_bake_mesh), so this is
+	# the span the root-to-tip blend runs over.
+	crystal.set_shader_parameter("height_m", float((asset["size_m"] as Array)[1]))
 	crystal.set_shader_parameter("glow_strength", float(CRYSTAL_GLOW.get(asset["tier"], 1.6)))
 	return crystal
 

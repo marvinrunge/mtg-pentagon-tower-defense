@@ -6,22 +6,22 @@
 height = 4.5
 radius = 0.49029842
 
-[node name="NatureRedMagmaSpire" type="Node3D" unique_id=2055585497]
+[node name="NatureRedMagmaSpire" type="Node3D" unique_id=1677494638]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=510409542]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=839759266]
 mesh = ExtResource("1_rm8c8")
 
-[node name="Body" type="StaticBody3D" parent="." unique_id=772354832]
+[node name="Body" type="StaticBody3D" parent="." unique_id=161933131]
 collision_layer = 16
 collision_mask = 0
 
-[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1182940563]
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=393013909]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
 shape = SubResource("CylinderShape3D_eleyu")
 
-[node name="Glow" type="OmniLight3D" parent="." unique_id=1895012248]
+[node name="Glow" type="OmniLight3D" parent="." unique_id=238426806]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
-light_color = Color(1, 0.35, 0.12, 1)
+light_color = Color(1, 0.56, 0.12, 1)
 light_energy = 1.5
 distance_fade_enabled = true
 distance_fade_begin = 50.0

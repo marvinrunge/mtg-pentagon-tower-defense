@@ -192,6 +192,14 @@ func _shots() -> Dictionary:
 		"cam": Vector3(-15.0, 2.0, 1.4), "look": Vector3(0.0, 0.0, 3.6),
 		"actors": over,
 	}
+	# Close-ups of each lane's mana well and the crystals round it (WellCrystals) - for
+	# judging crystal and well looks, not key art.
+	for color: String in COLORS:
+		shots["well_" + color.to_lower()] = {
+			"lane": color, "time": 15.0, "fov": 45.0,
+			"cam": Vector3(103.0, -8.0, 1.8), "look": Vector3(112.0, 0.0, 1.0),
+			"actors": [],
+		}
 	return shots
 
 

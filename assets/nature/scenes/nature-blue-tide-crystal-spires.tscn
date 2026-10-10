@@ -6,22 +6,22 @@
 height = 4.5
 radius = 0.49029842
 
-[node name="NatureBlueTideCrystalSpires" type="Node3D" unique_id=333748170]
+[node name="NatureBlueTideCrystalSpires" type="Node3D" unique_id=1347440406]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=6600231]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1517776128]
 mesh = ExtResource("1_sxjkb")
 
-[node name="Body" type="StaticBody3D" parent="." unique_id=36568676]
+[node name="Body" type="StaticBody3D" parent="." unique_id=1133764608]
 collision_layer = 16
 collision_mask = 0
 
-[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1246510226]
+[node name="Shape" type="CollisionShape3D" parent="Body" unique_id=793401192]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
 shape = SubResource("CylinderShape3D_7shsu")
 
-[node name="Glow" type="OmniLight3D" parent="." unique_id=1088255802]
+[node name="Glow" type="OmniLight3D" parent="." unique_id=2050937941]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
-light_color = Color(0.35, 0.7, 1, 1)
+light_color = Color(0.45, 0.88, 1, 1)
 light_energy = 1.5
 distance_fade_enabled = true
 distance_fade_begin = 50.0

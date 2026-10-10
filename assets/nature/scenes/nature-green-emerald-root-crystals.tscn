@@ -2,7 +2,7 @@
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-emerald-root-crystals.res" id="1_4f4aj"]
 
-[node name="NatureGreenEmeraldRootCrystals" type="Node3D" unique_id=468552867]
+[node name="NatureGreenEmeraldRootCrystals" type="Node3D" unique_id=91983098]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1433118459]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=5980540]
 mesh = ExtResource("1_4f4aj")

@@ -2,8 +2,8 @@
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-tide-shards.res" id="1_y3cnw"]
 
-[node name="NatureBlueTideShards" type="Node3D" unique_id=1962961924]
+[node name="NatureBlueTideShards" type="Node3D" unique_id=2001863670]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1360457715]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1299399318]
 cast_shadow = 0
 mesh = ExtResource("1_y3cnw")
