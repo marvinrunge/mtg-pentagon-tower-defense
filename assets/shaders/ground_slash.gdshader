@@ -19,19 +19,7 @@ uniform vec3 scar_color : source_color = vec3(0.06, 0.02, 0.08);
 uniform vec3 glow_color : source_color = vec3(0.62, 0.25, 0.92);
 uniform float glow = 2.2;
 
-float hash(vec2 p) {
-	p = fract(p * vec2(123.34, 456.21));
-	p += dot(p, p + 45.32);
-	return fract(p.x * p.y);
-}
-
-float noise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	vec2 u = f * f * (3.0 - 2.0 * f);
-	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
-		mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
-}
+#include "res://assets/shaders/noise.gdshaderinc"
 
 void fragment() {
 	vec4 ground = project_to_ground(SCREEN_UV, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX, MODEL_MATRIX);

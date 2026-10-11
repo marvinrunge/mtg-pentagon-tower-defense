@@ -33,12 +33,7 @@ uniform float glow = 1.25;
 uniform float spin_speed = 0.6;
 uniform float seed = 0.0;
 
-
-float hash(vec2 p) {
-	p = fract(p * vec2(123.34, 456.21));
-	p += dot(p, p + 45.32);
-	return fract(p.x * p.y);
-}
+#include "res://assets/shaders/noise.gdshaderinc"
 
 // A line of `width` metres (scaled by `px` for screen-space softness) at distance `d`.
 float stroke(float d, float width, float px) {
