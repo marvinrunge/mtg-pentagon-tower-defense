@@ -2,6 +2,11 @@
 
 New prompts for the five mana wells, replacing `assets/structures/mana-well-<colour>`.
 
+**Revision 2:** the wells are **natural, magical formations**, not built shrines. Each one
+is a place where mana wells up out of the land on its own: a raised volcanic basin, a
+giant magical plant, a natural spring. Their basins are modelled **empty**; the magical
+water, lava or ooze is made in Godot.
+
 ## Why the current ones look wrong
 
 They were made with Meshy **text-to-3D on its `lowpoly` model type**, from prompts that
@@ -13,45 +18,46 @@ New route, the same as the nature assets:
 
 1. **Concept image:** generate it from the prompt below (Gemini, or any image model).
 2. **Approval:** you pick the one you like.
-3. **Mesh:** Meshy **image-to-3D, Smart Topology (meshy-t2)**, about 3,000 triangles.
+3. **Mesh:** Meshy **image-to-3D, Smart Topology (meshy-t2)**, about 3,000-4,000 triangles.
 
 ## Rules every well follows
 
-Gameplay sets these, so every prompt carries them:
+Gameplay and the Meshy pipeline set these, so every prompt carries them:
 
-- **Size:** about 3 m wide and 2.4 m tall. The model is scaled to that in the engine.
+- **Natural origin:** grown, eroded or erupted, never built. No masonry, no carved
+  ornament, no metal, nothing made by hands.
+- **Size:** about 3 m wide and 1.6-2.2 m tall, scaled to that in the engine.
 - **Compact base:** at most about 1.6 m from the centre. Myrs stand round the well at
-  2.3 m to harvest (`myr_well_slot_radius`), so there must be open ground there. No wide
-  steps, platforms or stairs.
-- **Five-sided:** a pentagonal basin with five uprights. Five colours, five lanes, and the
-  map is a pentagon.
-- **An empty cradle on top:** the uprights curve inward over the centre and hold nothing.
-  The game puts that colour's glowing mana crystal there (the same tinted crystals now in
-  the world), plus a glowing mana pool in the basin, a light and rising motes. That is why:
-  - **No glow, no liquid, no light in the concept:** Meshy bakes a glow into the texture as
-    a fog shell around the model, and liquid as a solid lump.
-  - **Dry, empty basin:** the colour of the magic comes from the engine, so it stays
-    tunable for free, and can glow brighter at night.
-- **Colour identity from materials and shape,** not from coloured light.
-- **Readable from 100 m:** each well needs a silhouette you can tell apart from the
-  other four at a glance.
+  2.3 m to harvest (`myr_well_slot_radius`), so the ground there stays open. No wide
+  spreading roots, ledges or slopes beyond that.
+- **A raised, empty basin on top:** a bowl with a clean, roughly level rim and a smooth
+  dry inside, open to the sky. The engine fills it with the colour's magical surface
+  (glowing water, lava, ooze, sap) at a fixed height, so the inside must have no lumps
+  sticking up through where the surface will be.
+- **Mana crystals grow out of it, subtly:** a few small crystal clusters breaking out of
+  the rim and the flanks, in the colour of the well - accents, not the main shape.
+- **Magical cracks:** thin veins and fissures in the colour of the well, filled with a
+  bright **flat-coloured mineral**. Not glowing in the concept: Meshy bakes a glow into the
+  texture as a fog shell around the model. The engine makes these veins and the crystals
+  glow (an emission mask keyed on that colour), brighter at night.
+- **No liquid, no light, no glow, no mist** in the concept - all of that is the engine's.
+- **Readable from 100 m:** each well needs a silhouette you can tell apart from the other
+  four at a glance.
 
-## Real Magic cards to look at
+## References
 
 For **mood, materials and silhouette only**: look at them, don't trace them or feed them to a
-generator as the image to copy. Card art belongs to Wizards of the Coast and its artists.
-All of them can be looked up on [Scryfall](https://scryfall.com).
+generator as the image to copy. Card art belongs to Wizards of the Coast and its artists;
+all of them can be looked up on [Scryfall](https://scryfall.com). The real places are the
+best guide for the semi-realistic look.
 
-| Colour | Cards | What to take from them |
+| Colour | Magic cards | Real places |
 |---|---|---|
-| All five | **Font of Vigor / Font of Fortunes / Font of Return / Font of Ire / Font of Fertility** (*Born of the Gods*) | A five-colour cycle of literal fonts: one sacred basin, re-dressed per colour. Closest to what a mana well is. |
-| All five | **Honden of Cleansing Fire / Seeing Winds / Night's Reach / Infinite Rage / Life's Web** (*Champions of Kamigawa*) | A cycle of shrines, one per colour: compact, upright, iconic. Good for silhouettes. |
-| Colourless | **Nykthos, Shrine to Nyx** (*Theros*), **Font of Mythos** (*Conflux*) | A shrine that *makes* mana; an artifact font. |
-| White | **Serra's Sanctum** (*Urza's Saga*) | Sunlit order, pale stone, holy light from above. |
-| Blue | **Tolarian Academy** (*Urza's Saga*) | Arcane, tidal, scholarly; water and glass. |
-| Black | **Cabal Coffers** (*Torment*) | A mana source as a dark crypt; hoarded, sinister. |
-| Red | **Valakut, the Molten Pinnacle** (*Zendikar*) | Volcanic rock, heat, jagged peaks. |
-| Green | **Gaea's Cradle** (*Urza's Saga*) | Mana cradled in living roots - the literal "cradle" idea. |
+| White | Mistveil Plains (*Shadowmoor*), Emeria, the Sky Ruin (*Zendikar*) | the white travertine terraces of **Pamukkale**, Turkey; Mammoth Hot Springs, Yellowstone |
+| Blue | Halimar Depths (*Zendikar*), Flooded Grove (*Shadowmoor*) | the hexagonal basalt columns of **Giant's Causeway**, Northern Ireland; tidal rock pools |
+| Black | Urborg, Tomb of Yawgmoth (*Planar Chaos*), Bojuka Bog (*Worldwake*) | peat bogs and **petrified wood**; mangrove root tangles |
+| Red | Valakut, the Molten Pinnacle (*Zendikar*), Lavaclaw Reaches (*Worldwake*) | **spatter cones** and lava lakes, e.g. Erta Ale, Ethiopia; Hawaiian lava tubes |
+| Green | Gaea's Cradle (*Urza's Saga*), Yavimaya, Cradle of Growth (*Modern Horizons 2*), Utopia Sprawl (*Dissension*) | **pitcher plants** and bromeliads, bracket fungi on old trees |
 
 ## Framing block (paste after every colour's prompt)
 
@@ -60,98 +66,108 @@ The same framing the nature pipeline uses (`mesh_concept_prompt` in
 
 ```
 Framing: three-quarter view from slightly above, the whole object centred and fully inside
-the frame with a wide empty margin on every side, nothing cropped. Background: plain flat
-uniform neutral mid-grey (RGB 128, 128, 128), no gradient, no vignette, no floor, no ground
-plane, no cast shadow, no contact shadow, no other objects, no scenery. Nothing around the
-object: no soil patch, no ground island, no puddle or water, no grass tufts or pebbles at
-its foot, no mist, fog, smoke, steam, sparks, particles or drips - the object alone, cut off
-cleanly where it would meet the ground. Lighting: soft even neutral studio light, no
-coloured light, no dramatic rim light, no bloom, no glow halo, nothing glowing. No text, no
-logo, no watermark, no border, no characters, no symbols from existing franchises.
+the frame with a wide empty margin on every side, nothing cropped, the empty basin clearly
+visible from above. Background: plain flat uniform neutral mid-grey (RGB 128, 128, 128), no
+gradient, no vignette, no floor, no ground plane, no cast shadow, no contact shadow, no other
+objects, no scenery. Nothing around the object: no soil patch, no ground island, no puddle
+or water, no grass tufts or pebbles at its foot, no mist, fog, smoke, steam, sparks,
+particles or drips - the object alone, cut off cleanly where it would meet the ground.
+Lighting: soft even neutral studio light, no coloured light, no dramatic rim light, no
+bloom, no glow halo, nothing glowing. No text, no logo, no watermark, no border, no
+characters, no symbols from existing franchises.
 ```
 
 ## The prompts
 
-Each starts with the same opening sentence, then the colour's design, then the framing block.
+Each prompt is: the shared opening, then the colour's design, then the framing block.
 
 **Shared opening** (start of every prompt):
 
 ```
-Game asset concept render of a single isolated mana well for a semi-realistic fantasy
-tower defense game. Style: semi-realistic fantasy game asset - believable materials and
-proportions, real surface detail (chisel marks, weathering, cracks, grain, subtle colour
-variation), colour slightly richer than life, a clear silhouette that reads from far away.
-Like a high-quality modern fantasy game asset render: not cartoon, not toon-shaded, not
-low-poly, not hand-painted, not a photograph. About 3 metres wide and 2.4 metres tall, on a
-compact footprint. Shape: a low five-sided (pentagonal) basin, dry and empty inside, with
-five uprights rising from its corners and curving inward over its centre to form an open,
-empty cradle at the top - nothing in the cradle, nothing in the basin.
+Game asset concept render of a single isolated natural mana well for a semi-realistic
+fantasy tower defense game: a place where magic wells up out of the land on its own -
+grown, eroded or erupted, not built, with no masonry, no carvings, no metal and nothing
+made by hands. Style: semi-realistic fantasy game asset - believable natural materials and
+proportions, real surface detail (cracks, weathering, grain, subtle colour variation),
+colour slightly richer than life, a clear silhouette that reads from far away. Like a
+high-quality modern fantasy game asset render: not cartoon, not toon-shaded, not
+low-poly, not hand-painted, not a photograph. About 3 metres wide and 2 metres tall, on a
+compact footprint. On top, a raised open basin: a bowl with a clean, roughly level rim and
+a smooth, completely EMPTY and DRY inside - no liquid, no lava, no water, nothing in it.
+A few small mana crystal clusters break subtly out of the rim and flanks, and thin magical
+cracks run through the surface, filled with a bright flat-coloured mineral (not glowing).
 ```
 
-### White - the sun shrine
+### White - the sunstone spring
 
 ```
-Design: a sunlit sanctum well of pale cream limestone and polished white marble. The basin
-rim is a broad marble band with thin gold inlay lines and a running laurel relief; each of
-its five faces carries a carved sunburst. The five uprights are slender fluted columns of
-white marble, banded with gold at their capitals, curving inward at the top into five
-gilded ribs that form an elegant open crown-shaped cradle. Ordered, symmetrical, serene,
-like a temple font in a wheat field at noon.
+Design: a natural sunstone spring of pure white travertine, like the mineral terraces of
+Pamukkale: a raised rounded basin built up from layered, scalloped white mineral
+deposits, its rim lined with small natural terrace lips, the stone pale cream to bright
+white with warm golden mineral streaks. Thin cracks filled with bright gold mineral run
+up its sides. Small clusters of pale gold citrine crystals break out of the rim. Pure,
+bright, orderly, serene - a holy spring that formed itself.
 ```
 
-### Blue - the tide font
+### Blue - the tidal column pool
 
 ```
-Design: a tidal font of dark blue-grey basalt and polished wet-looking slate. The basin is
-built from short hexagonal basalt columns, its rim carved with flowing wave scrollwork and
-inlaid with pale mother-of-pearl. The five uprights are tall sweeping fins shaped like
-breaking waves or nautilus shells, smooth and sea-worn, curling inward at the top into an
-open spiral cradle. Small barnacles and salt crust at the base edges. Cold, elegant,
-ancient, like a font of the sea.
+Design: a natural tidal pool rising out of tightly packed hexagonal basalt columns, like
+the Giant's Causeway: the columns stand at different heights, the tallest ones forming the
+basin's raised rim, their tops worn smooth and wet-looking, dark blue-grey. Patches of
+barnacles, salt crust and pale coral cling to the lower columns. Thin cracks filled with
+bright icy-cyan mineral run between the columns. Small clusters of deep sapphire-blue
+crystals grow out of the gaps between the columns at the rim. Cold, ancient, tidal.
 ```
 
-### Black - the ossuary well
+### Black - the bog sink
 
 ```
-Design: a sinister swamp ossuary well of cracked black slate and old weathered dark stone.
-The basin is bound with tarnished, pitted iron bands and has a small carved skull at each
-of its five corners. The five uprights are long crooked bone-white ribs, like the ribcage
-of some huge dead thing, rising from the corners and bending inward at the top into an
-open claw-like cradle. Dead black roots grip the base. Grim, decayed, hungry, like a
-well in a drowned graveyard.
+Design: a natural swamp sinkhole raised on a mound of black peat and petrified bog wood:
+gnarled, blackened, half-fossilised roots and dead branches coil up and twist together
+into the basin's rim, with a few huge fossilised ribs of some ancient creature arching out
+of the mound among them. Dark, wet-looking, rotting textures, pale grey lichen in places.
+Thin cracks filled with bright violet mineral run through the petrified wood. Small
+clusters of dark amethyst-violet crystals grow out of the roots near the rim. Sinister,
+ancient, hungry - a place where death pools.
 ```
 
-### Red - the forge well
+### Red - the volcanic vent
 
 ```
-Design: a volcanic forge well of rough dark basalt and cracked black obsidian. The basin is
-clamped with heavy hammered bronze braces and rivets, its rim jagged and scorched-looking
-(dark soot staining, no glow). The five uprights are jagged obsidian horns with sharp
-fractured edges, flame-shaped stone fins between them, hooking inward at the top into an
-aggressive open cradle like a dragon's claw. Brutal, angular, hot-blooded, like an anvil
-shrine at the foot of a volcano.
+Design: a raised volcanic spatter cone of rough black basalt and cooled lava: the basin is
+the vent's crater, its rim jagged and built from congealed lava splatter and ropey
+pahoehoe folds, the flanks scorched dark with rust-red and sulphur-yellow mineral staining
+(no glow). Deep jagged fissures filled with bright orange-red mineral split the cone from
+the rim down. Small clusters of ruby-red crystals break out of the cracks near the rim.
+Raw, violent, hot-blooded - the earth itself bleeding mana.
 ```
 
-### Green - the root cradle
+### Green - the cradle plant
 
 ```
-Design: a living root well of mossy grey fieldstone, its basin cracked and half swallowed
-by thick living tree roots. The five uprights are gnarled roots as thick as an arm,
-twisting up from the corners and braiding inward at the top into an open woven cradle,
-with a few fresh leaves budding on them. Spiral druidic knotwork is carved into the stone
-under the moss. Ancient, wild, alive, like the heart of a primeval forest.
+Design: a giant magical plant that grows as a living basin, like an enormous pitcher plant
+or bromeliad: thick, waxy, overlapping leaves curve up from a knot of roots to form a
+deep cupped bowl, their edges slightly frilled, deep green fading to lime at the tips and
+veined with paler green. Clusters of small mushrooms and bracket fungi grow out of the
+base and the lower leaves, cream and pale green. Thin veins filled with bright lime-green
+mineral run along the leaves. Small clusters of emerald-green crystals grow among the
+mushrooms at the foot and out of the leaf joints. Wild, alive, ancient - mana drawn up
+out of the forest floor.
 ```
 
 ## After the images
 
 1. **Pick:** choose one image per colour. Save it as
    `assets/structures/mana-well-<colour>/mana-well-<colour>_concept.png`.
-2. **Mesh:** that image goes to Meshy image-to-3D (meshy-t2, about 3,000 triangles). It
-   costs credits, so only when you say so.
+2. **Mesh:** that image goes to Meshy image-to-3D (meshy-t2, about 3,000-4,000 triangles).
+   It costs credits, so only when you say so.
 3. **Engine:**
-   - **Cradle:** the colour's tinted crystal cluster, with `mana_crystal.gdshader`, brighter
-     than the decor crystals.
-   - **Basin:** a glowing mana-pool disc.
-   - **Light and motes:** a light in the well's colour, plus rising motes.
-   - **Hand-over:** `scripts/well_crystals.gd` already lights the wells and rings them with
-     crystals. The well's own glow moves into the new well scene.
+   - **Basin surface:** a disc at the basin's height with an animated shader per colour -
+     golden light-water for White, glowing sea-water for Blue, violet ooze for Black, lava
+     for Red, luminous sap for Green - brighter at night on the `crystal_night` clock.
+   - **Glowing cracks and crystals:** an emission mask keyed on each well's crack colour,
+     so the mineral veins and crystal outgrowths light up, again stronger at night.
+   - **Light and motes:** a light in the well's colour plus rising motes.
+   - **Hand-over:** the crystals round the wells (`PlacedCrystals/Wells` in main.tscn)
+     stay; the `WellGlow_<colour>` lights there move into the new well scenes.
