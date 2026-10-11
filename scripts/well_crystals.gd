@@ -1,6 +1,6 @@
 extends Node3D
 ## Mana crystals round every mana well: a cluster to each side of the lane, shard groups
-## between them, and a light in the well's colour so it reads from across the map at night.
+## between them, a closer ring of smaller ones, and a light in the well's colour so it reads from across the map at night.
 ## And at the hub (place_hub), where all five colours meet: at the foot of the standing
 ## stones, and a spire of each colour at the five carved pillars.
 ##
@@ -32,6 +32,13 @@ const CRYSTALS: Dictionary = {
 ## 1 shards]. Nothing within 40 degrees of the lane line, either way along it.
 const RING: Array = [[90.0, 0], [-90.0, 0], [55.0, 1], [125.0, 1], [-55.0, 1], [-125.0, 1]]
 const RING_RADIUS := Vector2(5.5, 7.5)
+## A closer ring of smaller ones, between the well and the outer ring: just outside where
+## the Myrs stand (2.3 m), still clear of the lane. Its own random stream, so adding it left
+## the outer ring where it was.
+const INNER_RING: Array = [[55.0, 1], [-55.0, 1], [85.0, 0], [-85.0, 0], [125.0, 1], [-125.0, 1]]
+const INNER_RADIUS := Vector2(3.0, 4.3)
+## Times the usual 0.85-1.25 of _put.
+const INNER_SCALE := 0.7
 ## The crystals' tip colours (`crystal_glow` in tools/nature/nature_assets.json).
 const LIGHT_COLORS: Dictionary = {
 	"White": Color(1.0, 0.96, 0.82), "Blue": Color(0.45, 0.88, 1.0), "Black": Color(0.68, 0.34, 1.0),
@@ -66,6 +73,13 @@ func place(wells: Array, lane_names: Array, crystal: Vector3, terrain: StaticBod
 			crystal_node.global_position = Vector3(spot.x, _ground(spot), spot.z)
 			crystal_node.rotation.y = rng.randf_range(0.0, TAU)
 			crystal_node.scale = Vector3.ONE * rng.randf_range(0.85, 1.25)
+
+		var inner_rng := RandomNumberGenerator.new()
+		inner_rng.seed = hash("well_crystals_inner:" + lane)
+		for slot: Array in INNER_RING:
+			var angle: float = deg_to_rad(float(slot[0]) + inner_rng.randf_range(-8.0, 8.0))
+			var radius: float = inner_rng.randf_range(INNER_RADIUS.x, INNER_RADIUS.y)
+			_put(scenes[int(slot[1])], well + outward.rotated(Vector3.UP, angle) * radius, inner_rng, INNER_SCALE)
 
 		var light := OmniLight3D.new()
 		light.name = "WellGlow_" + lane

@@ -11,8 +11,8 @@ extends Node
 const DEFAULT_LANES: Array = ["White", "Blue", "Black", "Red", "Green"]
 const DEFAULT_HOURS: Array = [13.0, 23.0]
 ## From the well towards the crystal, and up, in metres.
-const STAND_BACK := 6.5
-const STAND_UP := 3.6
+const STAND_BACK := 11.0
+const STAND_UP := 5.5
 const SETTLE_FRAMES := 120
 
 var _frames: int = 0
