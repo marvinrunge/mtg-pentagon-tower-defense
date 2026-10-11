@@ -1355,6 +1355,267 @@
       ],
       "subject": "mossy tree stump",
       "details": "an old cut tree stump with visible growth rings on top, thick moss over one side, roots spreading at the base and two small mushrooms"
+    },
+    {
+      "id": "nature-blue-fungus-blue-saucer",
+      "biome": "blue",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-blue-saucer.gltf",
+      "size_m": [
+        0.9,
+        0.43
+      ],
+      "subject": "a flat blue saucer fungus",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-blue-fungus-teal-small-a",
+      "biome": "blue",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-teal-small-a.gltf",
+      "size_m": [
+        0.22,
+        0.6
+      ],
+      "subject": "a small slender teal mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-blue-fungus-teal-small-b",
+      "biome": "blue",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-teal-small-b.gltf",
+      "size_m": [
+        0.27,
+        0.67
+      ],
+      "subject": "a small slender teal mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-blue-fungus-teal-small-c",
+      "biome": "blue",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-teal-small-c.gltf",
+      "size_m": [
+        0.34,
+        0.83
+      ],
+      "subject": "a small slender teal mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-blue-fungus-teal-tall-a",
+      "biome": "blue",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-teal-tall-a.gltf",
+      "size_m": [
+        0.42,
+        1.11
+      ],
+      "subject": "a tall teal mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-blue-fungus-teal-tall-b",
+      "biome": "blue",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-teal-tall-b.gltf",
+      "size_m": [
+        0.5,
+        1.2
+      ],
+      "subject": "a tall teal mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-blue-fungus-teal-tall-c",
+      "biome": "blue",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-teal-tall-c.gltf",
+      "size_m": [
+        0.6,
+        1.44
+      ],
+      "subject": "a tall teal mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-black-fungus-violet-cluster",
+      "biome": "black",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-violet-cluster.gltf",
+      "size_m": [
+        0.76,
+        0.84
+      ],
+      "subject": "a cluster of violet mushrooms",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-black-fungus-pale-a",
+      "biome": "black",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-pale-a.gltf",
+      "size_m": [
+        0.2,
+        0.32
+      ],
+      "subject": "a small pale bone-white mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
+    },
+    {
+      "id": "nature-black-fungus-pale-b",
+      "biome": "black",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-pale-b.gltf",
+      "size_m": [
+        0.31,
+        0.48
+      ],
+      "subject": "a pale bone-white mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
+    },
+    {
+      "id": "nature-black-fungus-pale-c",
+      "biome": "black",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-pale-c.gltf",
+      "size_m": [
+        0.52,
+        0.66
+      ],
+      "subject": "a pale bone-white mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
+    },
+    {
+      "id": "nature-black-fungus-pale-d",
+      "biome": "black",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-pale-d.gltf",
+      "size_m": [
+        0.62,
+        0.87
+      ],
+      "subject": "a large pale bone-white mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
+    },
+    {
+      "id": "nature-green-fungus-green-coral",
+      "biome": "green",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-green-coral.gltf",
+      "size_m": [
+        0.76,
+        0.83
+      ],
+      "subject": "a green coral fungus",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten",
+      "glow": true
+    },
+    {
+      "id": "nature-green-fungus-red-fly-agaric",
+      "biome": "green",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-red-fly-agaric.gltf",
+      "size_m": [
+        0.66,
+        0.76
+      ],
+      "subject": "a red fly agaric with white spots",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
+    },
+    {
+      "id": "nature-green-fungus-tan-a",
+      "biome": "green",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-tan-a.gltf",
+      "size_m": [
+        0.22,
+        0.34
+      ],
+      "subject": "a small tan forest mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
+    },
+    {
+      "id": "nature-green-fungus-tan-b",
+      "biome": "green",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-tan-b.gltf",
+      "size_m": [
+        0.35,
+        0.53
+      ],
+      "subject": "a tan forest mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
+    },
+    {
+      "id": "nature-green-fungus-tan-c",
+      "biome": "green",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-tan-c.gltf",
+      "size_m": [
+        0.53,
+        0.77
+      ],
+      "subject": "a tan forest mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
+    },
+    {
+      "id": "nature-green-fungus-tan-d",
+      "biome": "green",
+      "category": "fungus",
+      "route": "mesh",
+      "tier": "clutter",
+      "glb": "res://assets/generated/fungal-garden/fungus-tan-d.gltf",
+      "size_m": [
+        0.71,
+        1.02
+      ],
+      "subject": "a large tan forest mushroom",
+      "details": "cut from the fungal-garden set (assets/generated/fungal-garden/source/fungal-garden.blend); already meshed, nothing to generate. Painted by hand with TerraBrush - build with --no-scatter, or its mask is overwritten"
     }
   ],
   "shared_style": {

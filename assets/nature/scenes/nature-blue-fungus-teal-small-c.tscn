@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-fungus-teal-small-c.res" id="1_712fq"]
+
+[node name="NatureBlueFungusTealSmallC" type="Node3D" unique_id=879421363]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1127156762]
+cast_shadow = 0
+mesh = ExtResource("1_712fq")

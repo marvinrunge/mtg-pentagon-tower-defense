@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3 uid="uid://l7svbtnxgaxn"]
+
+[ext_resource type="ArrayMesh" uid="uid://cj7sr0xkcyqmn" path="res://assets/nature/meshes/nature-black-fungus-violet-cluster.res" id="1_oh8vy"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_vp6qr"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_vosx7"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_vpd2e"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_u6wiu"]
+mesh = ExtResource("1_oh8vy")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_r6mrv"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_u6wiu")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_2qcq8"]
+mesh = ExtResource("1_oh8vy")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_kllpj"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_2qcq8")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_1deny"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_vp6qr")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_vosx7"), SubResource("ObjectOctreeLODDefinitionResource_vpd2e")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_r6mrv"), SubResource("ObjectOctreeLODMeshesDefinitionResource_kllpj")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_1deny")

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dphn3k5w21rbl"
-path="res://.godot/imported/mana-well-green_2.jpg-24e24d74ed54d070a6c6beb55ba463ea.ctex"
+path.s3tc="res://.godot/imported/mana-well-green_2.jpg-24e24d74ed54d070a6c6beb55ba463ea.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "7466a8e712fa0fa0cb65ef478c24e525"
@@ -14,22 +15,22 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/structures/mana-well-green/mana-well-green_2.jpg"
-dest_files=["res://.godot/imported/mana-well-green_2.jpg-24e24d74ed54d070a6c6beb55ba463ea.ctex"]
+dest_files=["res://.godot/imported/mana-well-green_2.jpg-24e24d74ed54d070a6c6beb55ba463ea.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
-roughness/mode=0
-roughness/src_normal=""
+roughness/mode=1
+roughness/src_normal="res://assets/structures/mana-well-green/mana-well-green_2.jpg"
 process/channel_remap/red=0
 process/channel_remap/green=1
 process/channel_remap/blue=2
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

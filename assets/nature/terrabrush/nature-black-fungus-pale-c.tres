@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3 uid="uid://cun4v1vt12n77"]
+
+[ext_resource type="ArrayMesh" uid="uid://cdg3fyjkytnxx" path="res://assets/nature/meshes/nature-black-fungus-pale-c.res" id="1_o01aj"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_noyf0"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_42gry"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_wrmik"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_5s0d8"]
+mesh = ExtResource("1_o01aj")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_ssncc"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_5s0d8")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_defyc"]
+mesh = ExtResource("1_o01aj")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_idkrm"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_defyc")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_4n2u8"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_noyf0")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_42gry"), SubResource("ObjectOctreeLODDefinitionResource_wrmik")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_ssncc"), SubResource("ObjectOctreeLODMeshesDefinitionResource_idkrm")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_4n2u8")

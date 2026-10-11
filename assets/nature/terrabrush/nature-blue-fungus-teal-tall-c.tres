@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3 uid="uid://boep5ustme8a6"]
+
+[ext_resource type="ArrayMesh" uid="uid://b8eqr45t77bnp" path="res://assets/nature/meshes/nature-blue-fungus-teal-tall-c.res" id="1_10hp2"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_7yrdg"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_8sd3l"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_5lvyx"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_hmnm3"]
+mesh = ExtResource("1_10hp2")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_h1soa"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_hmnm3")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_kaodr"]
+mesh = ExtResource("1_10hp2")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_f1g5p"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_kaodr")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_o0qrk"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_7yrdg")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_8sd3l"), SubResource("ObjectOctreeLODDefinitionResource_5lvyx")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_h1soa"), SubResource("ObjectOctreeLODMeshesDefinitionResource_f1g5p")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_o0qrk")

@@ -101,9 +101,10 @@ def style_of(manifest, asset):
 
 
 def generates_image(asset):
-    """Tinted placements reuse a shared shape and existing sheets are done - neither
-    gets a concept image of its own."""
-    return asset["route"] in ("mesh", "card") and not asset.get("existing_sheet")
+    """Tinted placements reuse a shared shape, existing sheets are done, and an asset with
+    its own `glb` (a model made elsewhere, like the fungal-garden pieces) is meshed already -
+    none of them gets a concept image."""
+    return asset["route"] in ("mesh", "card") and not asset.get("existing_sheet") and "glb" not in asset
 
 
 def tier_of(manifest, asset):
@@ -710,7 +711,7 @@ def cmd_mesh(manifest, args):
     config = manifest["providers"]["meshy"]
     todo = []
     for asset in select_assets(manifest, args):
-        if asset["route"] != "mesh":
+        if asset["route"] != "mesh" or "glb" in asset:
             continue
         glb = os.path.join(GENERATED_ROOT, asset["id"], asset["id"] + ".glb")
         if os.path.exists(glb):
@@ -946,6 +947,8 @@ def asset_state(manifest, asset):
         return ("ready" if done else "waits on shape"), f"tint of {asset['shape']}"
     if asset.get("existing_sheet"):
         return "ready", "existing sheet"
+    if "glb" in asset:
+        return "mesh done", asset["glb"].removeprefix("res://")
     folder = os.path.join(CONCEPT_ROOT, asset["id"])
     variants = len([f for f in os.listdir(folder) if re.fullmatch(r"v\d+\.png", f)]) if os.path.isdir(folder) else 0
     if asset["route"] in ("mesh", "procedural") and os.path.exists(os.path.join(GENERATED_ROOT, asset["id"], asset["id"] + ".glb")):

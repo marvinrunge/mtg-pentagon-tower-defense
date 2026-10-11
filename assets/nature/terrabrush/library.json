@@ -251,6 +251,96 @@
       "mask": "res://scenes/misc/Main/Nature_nature-green-mossy-stump.res",
       "name": "nature-green-mossy-stump",
       "resource": "res://assets/nature/terrabrush/nature-green-mossy-stump.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-fungus-blue-saucer.res",
+      "name": "nature-blue-fungus-blue-saucer",
+      "resource": "res://assets/nature/terrabrush/nature-blue-fungus-blue-saucer.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-a.res",
+      "name": "nature-blue-fungus-teal-small-a",
+      "resource": "res://assets/nature/terrabrush/nature-blue-fungus-teal-small-a.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-b.res",
+      "name": "nature-blue-fungus-teal-small-b",
+      "resource": "res://assets/nature/terrabrush/nature-blue-fungus-teal-small-b.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-c.res",
+      "name": "nature-blue-fungus-teal-small-c",
+      "resource": "res://assets/nature/terrabrush/nature-blue-fungus-teal-small-c.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-a.res",
+      "name": "nature-blue-fungus-teal-tall-a",
+      "resource": "res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-a.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-b.res",
+      "name": "nature-blue-fungus-teal-tall-b",
+      "resource": "res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-b.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-c.res",
+      "name": "nature-blue-fungus-teal-tall-c",
+      "resource": "res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-c.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-fungus-violet-cluster.res",
+      "name": "nature-black-fungus-violet-cluster",
+      "resource": "res://assets/nature/terrabrush/nature-black-fungus-violet-cluster.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-fungus-pale-a.res",
+      "name": "nature-black-fungus-pale-a",
+      "resource": "res://assets/nature/terrabrush/nature-black-fungus-pale-a.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-fungus-pale-b.res",
+      "name": "nature-black-fungus-pale-b",
+      "resource": "res://assets/nature/terrabrush/nature-black-fungus-pale-b.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-fungus-pale-c.res",
+      "name": "nature-black-fungus-pale-c",
+      "resource": "res://assets/nature/terrabrush/nature-black-fungus-pale-c.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-black-fungus-pale-d.res",
+      "name": "nature-black-fungus-pale-d",
+      "resource": "res://assets/nature/terrabrush/nature-black-fungus-pale-d.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-fungus-green-coral.res",
+      "name": "nature-green-fungus-green-coral",
+      "resource": "res://assets/nature/terrabrush/nature-green-fungus-green-coral.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-fungus-red-fly-agaric.res",
+      "name": "nature-green-fungus-red-fly-agaric",
+      "resource": "res://assets/nature/terrabrush/nature-green-fungus-red-fly-agaric.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-fungus-tan-a.res",
+      "name": "nature-green-fungus-tan-a",
+      "resource": "res://assets/nature/terrabrush/nature-green-fungus-tan-a.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-fungus-tan-b.res",
+      "name": "nature-green-fungus-tan-b",
+      "resource": "res://assets/nature/terrabrush/nature-green-fungus-tan-b.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-fungus-tan-c.res",
+      "name": "nature-green-fungus-tan-c",
+      "resource": "res://assets/nature/terrabrush/nature-green-fungus-tan-c.tres"
+    },
+    {
+      "mask": "res://scenes/misc/Main/Nature_nature-green-fungus-tan-d.res",
+      "name": "nature-green-fungus-tan-d",
+      "resource": "res://assets/nature/terrabrush/nature-green-fungus-tan-d.tres"
     }
   ]
 }

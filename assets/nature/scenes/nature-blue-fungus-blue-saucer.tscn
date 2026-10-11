@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-fungus-blue-saucer.res" id="1_y1e3o"]
+
+[node name="NatureBlueFungusBlueSaucer" type="Node3D" unique_id=449818848]
+
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=335950581]
+cast_shadow = 0
+mesh = ExtResource("1_y1e3o")

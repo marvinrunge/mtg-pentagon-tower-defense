@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ckh15xkn7wd6l"
-path="res://.godot/imported/mana-well-red_0.jpg-aaac41320d1fe136424276d32d049197.ctex"
+path.s3tc="res://.godot/imported/mana-well-red_0.jpg-aaac41320d1fe136424276d32d049197.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "1ddc2c88dc930f525b6d202e6358ef88"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/structures/mana-well-red/mana-well-red_0.jpg"
-dest_files=["res://.godot/imported/mana-well-red_0.jpg-aaac41320d1fe136424276d32d049197.ctex"]
+dest_files=["res://.godot/imported/mana-well-red_0.jpg-aaac41320d1fe136424276d32d049197.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3 uid="uid://b4p55667oarrh"]
+
+[ext_resource type="ArrayMesh" uid="uid://kpncphyqrumv" path="res://assets/nature/meshes/nature-blue-fungus-blue-saucer.res" id="1_g74qd"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_w4br6"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_ml0l2"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_2d448"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_xgolw"]
+mesh = ExtResource("1_g74qd")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_5l3il"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_xgolw")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_2r5de"]
+mesh = ExtResource("1_g74qd")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_31w77"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_2r5de")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_j376l"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_w4br6")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_ml0l2"), SubResource("ObjectOctreeLODDefinitionResource_2d448")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_5l3il"), SubResource("ObjectOctreeLODMeshesDefinitionResource_31w77")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_j376l")

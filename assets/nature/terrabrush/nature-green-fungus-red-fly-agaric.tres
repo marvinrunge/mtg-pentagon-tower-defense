@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3 uid="uid://cko306mihwd7u"]
+
+[ext_resource type="ArrayMesh" uid="uid://c4jrg602skevr" path="res://assets/nature/meshes/nature-green-fungus-red-fly-agaric.res" id="1_yigj4"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_urkm3"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_1mlwv"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_rvwos"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_soqap"]
+mesh = ExtResource("1_yigj4")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_4wcj1"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_soqap")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_txnrm"]
+mesh = ExtResource("1_yigj4")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_inh47"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_txnrm")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_h28lp"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_urkm3")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_1mlwv"), SubResource("ObjectOctreeLODDefinitionResource_rvwos")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_4wcj1"), SubResource("ObjectOctreeLODMeshesDefinitionResource_inh47")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_h28lp")

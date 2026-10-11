@@ -1,0 +1,38 @@
+[gd_resource type="ObjectResource" format=3 uid="uid://bdfiukbrenj7n"]
+
+[ext_resource type="ArrayMesh" uid="uid://bo87g570saqv6" path="res://assets/nature/meshes/nature-green-fungus-tan-c.res" id="1_q46eg"]
+[ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_oyhxt"]
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_2ktoo"]
+maxDistance = 70.0
+
+[sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_2rdjr"]
+maxDistance = 140.0
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_mulld"]
+mesh = ExtResource("1_q46eg")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_fyf7s"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_mulld")])
+
+[sub_resource type="ObjectOctreeLODMeshDefinitionResource" id="ObjectOctreeLODMeshDefinitionResource_hpyg7"]
+mesh = ExtResource("1_q46eg")
+castShadow = 0
+
+[sub_resource type="ObjectOctreeLODMeshesDefinitionResource" id="ObjectOctreeLODMeshesDefinitionResource_8spf3"]
+meshes = Array[ObjectOctreeLODMeshDefinitionResource]([SubResource("ObjectOctreeLODMeshDefinitionResource_hpyg7")])
+
+[sub_resource type="ObjectDefinitionResource" id="ObjectDefinitionResource_spg70"]
+strategy = 2
+objectFrequency = 7
+randomRange = 2.8
+noiseTexture = ExtResource("2_oyhxt")
+randomRotation = true
+randomSize = true
+randomSizeFactorMin = 0.8
+lodList = Array[ObjectOctreeLODDefinitionResource]([SubResource("ObjectOctreeLODDefinitionResource_2ktoo"), SubResource("ObjectOctreeLODDefinitionResource_2rdjr")])
+lodMeshes = Array[ObjectOctreeLODMeshesDefinitionResource]([SubResource("ObjectOctreeLODMeshesDefinitionResource_fyf7s"), SubResource("ObjectOctreeLODMeshesDefinitionResource_8spf3")])
+
+[resource]
+definition = SubResource("ObjectDefinitionResource_spg70")
