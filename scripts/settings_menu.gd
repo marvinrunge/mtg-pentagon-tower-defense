@@ -27,6 +27,8 @@ var _render_scale_slider: HSlider
 var _render_scale_value: Label
 var _shadows_check: CheckBox
 var _msaa_option: OptionButton
+var _upscaler_option: OptionButton
+var _grass_option: OptionButton
 var _glow_check: CheckBox
 var _parallax_check: CheckBox
 var _particles_option: OptionButton
@@ -301,6 +303,7 @@ func _build_graphics_tab(column: VBoxContainer) -> void:
 	_preset_option.add_item("Low", GraphicsSettings.Preset.LOW)
 	_preset_option.add_item("Medium", GraphicsSettings.Preset.MEDIUM)
 	_preset_option.add_item("High", GraphicsSettings.Preset.HIGH)
+	_preset_option.add_item("Ultra", GraphicsSettings.Preset.ULTRA)
 	_preset_option.add_item("Custom", GraphicsSettings.Preset.CUSTOM)
 	_preset_option.select(_preset_option.get_item_index(GraphicsSettings.preset))
 	_preset_option.item_selected.connect(_on_preset_selected)
@@ -313,6 +316,19 @@ func _build_graphics_tab(column: VBoxContainer) -> void:
 			_mark_custom())
 	_render_scale_slider = scale_row[0]
 	_render_scale_value = scale_row[1]
+
+	_label(column, "Upscaling")
+	_upscaler_option = OptionButton.new()
+	_upscaler_option.add_item("Bilinear", GraphicsSettings.Upscaler.BILINEAR)
+	_upscaler_option.add_item("AMD FSR 1", GraphicsSettings.Upscaler.FSR1)
+	_upscaler_option.add_item("AMD FSR 2 (smooths edges, replaces MSAA)", GraphicsSettings.Upscaler.FSR2)
+	_upscaler_option.tooltip_text = "How a Render Scale below 100% is stretched back to the screen.\nFSR 2 needs the Forward+ renderer; elsewhere it falls back to FSR 1."
+	_upscaler_option.select(_upscaler_option.get_item_index(GraphicsSettings.upscaler))
+	_upscaler_option.item_selected.connect(func(index: int) -> void:
+		GraphicsSettings.apply_upscaler(_upscaler_option.get_item_id(index))
+		_refresh_msaa_state()
+		_mark_custom())
+	column.add_child(_upscaler_option)
 
 	_shadows_check = _check(column, "Shadows", GraphicsSettings.shadows_enabled,
 		func(on: bool) -> void:
@@ -329,6 +345,19 @@ func _build_graphics_tab(column: VBoxContainer) -> void:
 		GraphicsSettings.apply_msaa(index)
 		_mark_custom())
 	column.add_child(_msaa_option)
+	_refresh_msaa_state()
+
+	_label(column, "Grass Distance")
+	_grass_option = OptionButton.new()
+	_grass_option.add_item("Near", GraphicsSettings.GrassDistance.NEAR)
+	_grass_option.add_item("Medium", GraphicsSettings.GrassDistance.MEDIUM)
+	_grass_option.add_item("Far", GraphicsSettings.GrassDistance.FAR)
+	_grass_option.tooltip_text = "How far from the camera grass and flowers are drawn."
+	_grass_option.select(_grass_option.get_item_index(GraphicsSettings.grass_distance))
+	_grass_option.item_selected.connect(func(index: int) -> void:
+		GraphicsSettings.apply_grass_distance(_grass_option.get_item_id(index))
+		_mark_custom())
+	column.add_child(_grass_option)
 
 	_glow_check = _check(column, "Bloom / Glow", GraphicsSettings.glow_enabled,
 		func(on: bool) -> void:
@@ -405,6 +434,9 @@ func _on_preset_selected(index: int) -> void:
 	_render_scale_slider.value = GraphicsSettings.render_scale
 	_shadows_check.button_pressed = GraphicsSettings.shadows_enabled
 	_msaa_option.select(GraphicsSettings.msaa_level)
+	_upscaler_option.select(_upscaler_option.get_item_index(GraphicsSettings.upscaler))
+	_refresh_msaa_state()
+	_grass_option.select(_grass_option.get_item_index(GraphicsSettings.grass_distance))
 	_glow_check.button_pressed = GraphicsSettings.glow_enabled
 	_parallax_check.button_pressed = GraphicsSettings.terrain_parallax
 	_particles_option.select(_particles_option.get_item_index(GraphicsSettings.particle_quality))
@@ -420,6 +452,15 @@ func _mark_custom() -> void:
 		return
 	GraphicsSettings.mark_custom()
 	_preset_option.select(_preset_option.get_item_index(GraphicsSettings.Preset.CUSTOM))
+
+
+## MSAA does nothing while FSR 2 runs, so the option says so instead of pretending.
+func _refresh_msaa_state() -> void:
+	if _msaa_option == null:
+		return
+	var fsr2: bool = GraphicsSettings.fsr2_active()
+	_msaa_option.disabled = fsr2
+	_msaa_option.tooltip_text = "Not used while FSR 2 smooths the edges." if fsr2 else ""
 
 
 func _refresh_restart_notice() -> void:

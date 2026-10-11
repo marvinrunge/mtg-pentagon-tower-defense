@@ -429,7 +429,8 @@ func enemy_attack_speed_multiplier() -> float:
 ## PLAYERS alive, where white keeps the CRYSTAL alive - so the two defensive colours
 ## never compete for the same purchase.
 func lifesteal_bonus() -> float:
-	return GameSettings.enchantment_black_lifesteal * enchantment_stacks("Black")
+	return minf(GameSettings.enchantment_black_lifesteal * enchantment_stacks("Black"),
+		GameSettings.enchantment_black_lifesteal_cap)
 
 
 ## White, Sphere of Safety: enemies close to the crystal deal less damage to it.
@@ -489,7 +490,8 @@ func _enchantment_values(color: String, stacks: int) -> Array:
 			]
 		"Black":
 			return [
-				_pct(GameSettings.enchantment_black_lifesteal * stacks),
+				_pct(minf(GameSettings.enchantment_black_lifesteal * stacks,
+					GameSettings.enchantment_black_lifesteal_cap)),
 				"%d damage" % int(round(GameSettings.enchantment_black_myr_blast_damage * stacks)),
 			]
 		"Red":

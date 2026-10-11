@@ -58,6 +58,9 @@ var _warning_tween: Tween
 var _mission_panel: PanelContainer
 var _mission_tween: Tween
 var _fps_update_timer: float = 0.0
+## The slowest frame since the counter last updated - a stutter shows up here even when the
+## average still reads high.
+var _fps_worst_frame: float = 0.0
 ## Which full-screen menus are up right now. A set rather than a flag because more than one
 ## can be open at a time, and the HUD has to stay out of the way until the LAST one closes.
 var _open_menus: Dictionary = {}
@@ -278,9 +281,9 @@ func _ready() -> void:
 	UserSettings.changed.connect(_on_user_setting_changed)
 	GraphicsSettings.changed.connect(func(key: StringName) -> void:
 		if key == &"show_fps":
-			fps_label.visible = GraphicsSettings.show_fps)
+			_set_fps_visible(GraphicsSettings.show_fps))
 	minimap_container.visible = UserSettings.show_minimap
-	fps_label.visible = GraphicsSettings.show_fps
+	_set_fps_visible(GraphicsSettings.show_fps)
 	var equipment_menu: CanvasLayer = EquipmentMenuScript.new()
 	equipment_menu.name = "EquipmentMenu"
 	add_child(equipment_menu)
@@ -333,6 +336,28 @@ func _ready() -> void:
 	update_player_health(GameSettings.player_max_hp, GameSettings.player_max_hp)
 	update_mana({})
 
+## The counter also times the GPU, which the engine only does when asked.
+func _set_fps_visible(on: bool) -> void:
+	fps_label.visible = on
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), on)
+
+
+## FPS, then where a frame goes: the GPU's time, the CPU's time building the frame and
+## running the game, the slowest frame of the last quarter second, and how much is alive.
+## Enough to tell a fight that is too much for the graphics card from one that is too much
+## for the game logic, and to catch a stutter that the average hides.
+func _update_fps_label() -> void:
+	var vp: RID = get_viewport().get_viewport_rid()
+	var gpu: float = RenderingServer.viewport_get_measured_render_time_gpu(vp)
+	var cpu: float = RenderingServer.viewport_get_measured_render_time_cpu(vp) \
+		+ Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+	fps_label.text = "FPS: %d   worst %.0f ms\nGPU %.1f ms   CPU %.1f ms\nEnemies %d   Draws %d" % [
+		Engine.get_frames_per_second(), _fps_worst_frame * 1000.0, gpu, cpu,
+		get_tree().get_nodes_in_group("enemies").size(),
+		Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)]
+	_fps_worst_frame = 0.0
+
+
 func _process(delta: float) -> void:
 	_boss_pulse += delta
 	_boss_scan_timer -= delta
@@ -341,10 +366,11 @@ func _process(delta: float) -> void:
 		refresh_boss_bars()
 
 	if fps_label.visible:
+		_fps_worst_frame = maxf(_fps_worst_frame, delta)
 		_fps_update_timer -= delta
 		if _fps_update_timer <= 0.0:
 			_fps_update_timer = 0.25
-			fps_label.text = "FPS: %d" % Engine.get_frames_per_second()
+			_update_fps_label()
 
 	if _player == null or not is_instance_valid(_player):
 		_player = PlayerRegistry.get_local()
@@ -1137,11 +1163,31 @@ func _build_settings_menu() -> void:
 func _on_user_setting_changed(key: StringName) -> void:
 	match key:
 		&"show_minimap":
-			minimap_container.visible = UserSettings.show_minimap
+			_apply_minimap_visibility()
 		&"hud_scale":
 			set_hud_scale(UserSettings.hud_scale)
 		&"minimap_scale":
 			set_minimap_scale(UserSettings.minimap_scale)
+
+
+## The minimap follows its setting - also while a menu is open, which is where the setting
+## is changed. The menu has put the gameplay HUD away and remembers what to bring back
+## (_refresh_gameplay_hud); setting the map's visibility directly then did nothing, and
+## closing the menu brought it straight back. So with a menu up, the switch edits that
+## memory instead, and the map only reappears when the menu closes - if it is still wanted.
+func _apply_minimap_visibility() -> void:
+	if minimap_container == null:
+		return
+	var wanted: bool = UserSettings.show_minimap
+	if _open_menus.is_empty():
+		minimap_container.visible = wanted
+		return
+	minimap_container.visible = false
+	if wanted:
+		if not _hidden_for_menu.has(minimap_container):
+			_hidden_for_menu.append(minimap_container)
+	else:
+		_hidden_for_menu.erase(minimap_container)
 
 
 func _on_restart_pressed() -> void:

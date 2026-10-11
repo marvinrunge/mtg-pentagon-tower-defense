@@ -236,6 +236,11 @@ var _ironbark_reduction: float = 0.0
 ## banked on the server - see _request_harvest.
 var _harvest_left: float = 0.0
 var _harvest_well: Node3D = null
+## The colour of the mana this player is carrying back to the crystal, or "" for none. One
+## load at a time, like a myr: kept by the owning peer, which is the one that walks it home,
+## and shown to everybody as the orb over their head (_carry_orb).
+var carried_mana: String = ""
+var _carry_orb: MeshInstance3D = null
 
 ## Giant Growth (green_2). `is_giant` / `giant_timer` / `base_scale` are declared above -
 ## they were stubbed long before the skill existed. This is the health half, and the
@@ -1131,22 +1136,27 @@ func invest_affinity(color: String) -> void:
 func get_affinity_rank(color: String) -> int:
 	return int(affinity_ranks.get(color, 0))
 
+## What the colour's affinity gives at the current rank - on a curve with a ceiling, and a
+## share of something different per colour; see GameSettings.affinity_cap.
 func get_affinity_bonus(color: String) -> float:
-	var rank: int = get_affinity_rank(color)
-	return float(rank) * GameSettings.affinity_rank_bonus_base
+	return GameSettings.affinity_bonus(color, get_affinity_rank(color))
 
 func get_spell_rank_requirement(slot_idx: int) -> int:
 	if slot_idx < 0 or slot_idx >= GameSettings.affinity_spell_rank_requirements.size():
 		return 999999
 	return GameSettings.affinity_spell_rank_requirements[slot_idx]
 
-func on_damage_dealt(amount: float) -> void:
+## `basic_attack`: the hit was a sword swing or the kick (see _melee_strike), not a spell,
+## an aura or Green Leap - which all count as melee for everything else.
+func on_damage_dealt(amount: float, basic_attack: bool = false) -> void:
 	# EnemyBase clamps this to the health actually removed before calling, so overkill on a
 	# finishing blow is not counted - the scoreboard shows damage done, not damage rolled.
 	add_stat("damage_dealt", amount)
-	# Personal affinity plus the team's Exquisite Blood stacks - the enchantment
-	# deliberately echoes the colour's own affinity rather than inventing a new axis.
-	var lifesteal: float = get_affinity_bonus("black") + RunState.lifesteal_bonus()
+	# Vampiric Link heals from basic attacks only (GameSettings.affinity_cap says why); the
+	# team's Exquisite Blood stacks still heal from every hit, as they did.
+	var lifesteal: float = RunState.lifesteal_bonus()
+	if basic_attack:
+		lifesteal += get_affinity_bonus("black")
 	if lifesteal > 0.0 and amount > 0.0:
 		add_stat("heal_self", heal(amount * lifesteal))
 
@@ -2258,6 +2268,10 @@ func _enter_downed(timer: float) -> void:
 	if is_downed:
 		return
 	is_downed = true
+	# A load is dropped where its carrier fell - it never reached the crystal. Cleared here
+	# rather than sent: being downed already runs on every peer.
+	carried_mana = ""
+	_refresh_carry_orb()
 	# A helper who goes down mid-channel is nobody's helper.
 	_revive_channel_target = null
 	_revive_channel_left = 0.0
@@ -2604,9 +2618,9 @@ func _ground_snap(pos: Vector3, mask: int = 17) -> Vector3:
 ##
 ## The player used to be the only way mana was gathered, and it was cut when kills started
 ## banking it automatically: a forty-second round trip for a single mana is not a choice
-## anybody makes twice. It is back for the opposite reason - trash kills pay nothing now
-## (GameSettings.mana_per_basic), so a player already standing in the lane guarding a well
-## should be able to work it instead of watching it.
+## anybody makes twice. It came back as hold-to-bank, standing at the well - and that paid
+## out again and again for as long as the key was held, more than a myr earns. Now it is
+## the myr's loop: one load, carried, banked only at the crystal (_deliver_carried_mana).
 ##
 ## Deliberately NOT competitive with a myr. A myr works a well for the whole wave and a
 ## player cannot: this pays in the gaps, and stops paying the moment the lane needs
@@ -2617,6 +2631,12 @@ func _update_mana_harvest(delta: float, revive_available: bool) -> bool:
 		_harvest_left = 0.0
 		_harvest_well = null
 		return false
+
+	if carried_mana != "":
+		_harvest_left = 0.0
+		_harvest_well = null
+		SignalBus.interact_prompt_changed.emit("Carrying %s mana - bring it to the Crystal" % carried_mana, true)
+		return true
 
 	# Standing still AND holding. Moving gives it up, so harvesting costs the player their
 	# position as well as their time - otherwise it is passive income with extra steps.
@@ -2633,18 +2653,77 @@ func _update_mana_harvest(delta: float, revive_available: bool) -> bool:
 
 	_harvest_left -= delta
 	if _harvest_left <= 0.0:
-		# Keeps going while the key is held: one hold is a rhythm, not a single pickup.
-		_harvest_left = GameSettings.player_mana_harvest_time
-		var color: String = _well_color(well)
-		if Net.is_active():
-			_request_harvest.rpc_id(1, color)
-		else:
-			_request_harvest(color)
+		# One load and done: the next is earned by walking this one home.
+		_harvest_left = 0.0
+		_harvest_well = null
+		_set_carried_mana(_well_color(well))
+		_notify("Bring the %s mana to the Crystal" % _well_color(well))
+		return true
 
 	var elapsed: float = GameSettings.player_mana_harvest_time - _harvest_left
 	var pct: int = int(round(elapsed / maxf(GameSettings.player_mana_harvest_time, 0.01) * 100.0))
 	SignalBus.interact_prompt_changed.emit("Harvesting... %d%%" % pct, true)
 	return true
+
+
+## Picks up (a colour) or puts down ("") the load, here and on every other peer, so the
+## orb over this player's head is seen by the whole team. Decided by the owning peer.
+func _set_carried_mana(color: String) -> void:
+	if Net.is_active():
+		_net_carried_mana.rpc(color)
+	else:
+		_net_carried_mana(color)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _net_carried_mana(color: String) -> void:
+	carried_mana = color
+	_refresh_carry_orb()
+
+
+## The load, made visible: a small glowing orb in the well's colour riding above the
+## player's head - the player's version of a loaded myr's glow.
+func _refresh_carry_orb() -> void:
+	if carried_mana == "":
+		if _carry_orb != null and is_instance_valid(_carry_orb):
+			_carry_orb.queue_free()
+		_carry_orb = null
+		return
+	if _carry_orb == null or not is_instance_valid(_carry_orb):
+		_carry_orb = MeshInstance3D.new()
+		_carry_orb.name = "CarriedMana"
+		var sphere := SphereMesh.new()
+		sphere.radius = 0.18
+		sphere.height = 0.36
+		sphere.radial_segments = 16
+		sphere.rings = 8
+		_carry_orb.mesh = sphere
+		_carry_orb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_carry_orb.position = Vector3(0.0, 2.35, 0.0)
+		add_child(_carry_orb)
+	var tint: Color = GameSettings.lane_tint(carried_mana)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = tint
+	# Above the bloom threshold, so it reads at night as well as at noon.
+	material.emission_enabled = true
+	material.emission = tint
+	material.emission_energy_multiplier = 2.5
+	_carry_orb.material_override = material
+
+
+## The load arrives: banked on the server like every other reward, and gone from the
+## player's head everywhere. Called by the owning peer once it reaches the crystal.
+func _deliver_carried_mana() -> void:
+	var color: String = carried_mana
+	if color == "":
+		return
+	_set_carried_mana("")
+	if Net.is_active():
+		_request_harvest.rpc_id(1, color)
+	else:
+		_request_harvest(color)
+	_notify("%s mana delivered" % color)
 
 
 ## The closest well within reach, or null. Wells sit in the "mana_sources" group and carry
@@ -2667,8 +2746,8 @@ func _well_color(well: Node3D) -> String:
 
 
 ## Banked on the server, like every other reward, and shown from there too - the payout
-## FX has to reach every peer, not only the one that did the holding. The channel itself
-## stays local, because only the peer holding the key can see that it is still held.
+## FX has to reach every peer, not only the one that delivered it. Reached on delivery at
+## the crystal (_deliver_carried_mana), never at the well.
 @rpc("any_peer", "call_local", "reliable")
 func _request_harvest(color: String) -> void:
 	if not Net.is_server():
@@ -3580,15 +3659,21 @@ func _begin_melee_action(clip: String, duration: float, damage_mult: float, uppe
 ## Solo and on the host this is a direct call, exactly as it always was. On a client it
 ## becomes a request the server applies - the client keeps its instant feedback and
 ## gives up only the authority to decide the number.
-func _deal_damage(target: Node, amount: float, is_melee: bool, exile_on_kill: bool = false) -> void:
+##
+## `basic_attack` marks a sword swing or the kick, which is all Vampiric Link heals from. It
+## reaches enemies only - nothing else a player hits takes it.
+func _deal_damage(target: Node, amount: float, is_melee: bool, exile_on_kill: bool = false, basic_attack: bool = false) -> void:
 	if not is_instance_valid(target):
 		return
+	var to_enemy: bool = target is EnemyBase
 	if Net.is_server():
-		if target.has_method("take_damage"):
+		if to_enemy:
+			target.take_damage(amount, self, is_melee, exile_on_kill, basic_attack)
+		elif target.has_method("take_damage"):
 			target.take_damage(amount, self, is_melee, exile_on_kill)
 		return
 	if target.has_method("request_damage"):
-		target.request_damage.rpc_id(1, amount, Net.local_id(), is_melee, exile_on_kill)
+		target.request_damage.rpc_id(1, amount, Net.local_id(), is_melee, exile_on_kill, basic_attack)
 
 
 ## One impact frame's worth of melee damage. A negative `damage_mult` means "this is
@@ -3651,13 +3736,13 @@ func _apply_melee_damage(damage_mult: float) -> int:
 ## Rolled here, on the machine that swung, like the rest of melee - only the consequence
 ## travels to the server.
 func _melee_strike(enemy: Node3D, dmg: float, exile: bool) -> void:
-	_deal_damage(enemy, dmg, true, exile)
+	_deal_damage(enemy, dmg, true, exile, true)
 	# Fireshrieker: the blade sometimes lands twice. A second hit rather than a bigger one,
 	# which is what double strike means - it is seen as two numbers, and a second hit on a
 	# nearly dead enemy is a kill where one bigger hit would only have been overkill.
 	var double_chance: float = equipment_value("fireshrieker")
 	if double_chance > 0.0 and randf() < double_chance and is_instance_valid(enemy):
-		_deal_damage(enemy, dmg, true, exile)
+		_deal_damage(enemy, dmg, true, exile, true)
 		NetFx.impact(enemy.global_position + Vector3(0.0, 1.2, 0.0), FX_RED, 0.6)
 	# Icy Manipulator: the hit sometimes freezes what it lands on.
 	var freeze_chance: float = equipment_value("icy_manipulator")
@@ -3899,7 +3984,9 @@ func _physics_process(delta: float) -> void:
 
 
 	# Regeneration: white's affinity is the only thing that raises it.
-	var regen_amount = GameSettings.player_base_hp_regen * (1.0 + get_affinity_bonus("white")) * delta
+	# The affinity is a share of max HP a second on top of the base, not a multiple of the
+	# base - +10% of 1 HP/s was two HP a second at rank 10.
+	var regen_amount = (GameSettings.player_base_hp_regen + max_hp * get_affinity_bonus("white")) * delta
 	heal(regen_amount, false)
 
 	# Trample, green's Manifestation. Gated on actually MOVING, which is the whole
@@ -3939,6 +4026,9 @@ func _physics_process(delta: float) -> void:
 		if near_base != is_at_base:
 			is_at_base = near_base
 			SignalBus.at_base_changed.emit(is_at_base)
+		# Home with a load: it is banked on arrival, the way a myr's is, with no key to press.
+		if near_base and is_local and carried_mana != "" and not is_downed:
+			_deliver_carried_mana()
 
 		if is_at_base and is_local and Input.is_action_just_pressed("interact") and not _menu_blocks_input():
 			if main_node.base_ui_instance and not main_node.base_ui_instance.visible:
@@ -3952,6 +4042,8 @@ func _physics_process(delta: float) -> void:
 				SignalBus.interact_prompt_changed.emit(_notification_text, true)
 			elif is_at_base:
 				SignalBus.interact_prompt_changed.emit("Press %s to Manage Base" % _interact_key_label(), true)
+			elif carried_mana != "":
+				SignalBus.interact_prompt_changed.emit("Carrying %s mana - bring it to the Crystal" % carried_mana, true)
 			else:
 				SignalBus.interact_prompt_changed.emit("", false)
 

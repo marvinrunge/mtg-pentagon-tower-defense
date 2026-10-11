@@ -2782,17 +2782,20 @@ func _on_aggro_body_exited(body: Node3D) -> void:
 ## server can resolve the avatar itself. Attribution matters because lifesteal and the
 ## melee-into-spell cooldown refund both pay the player who landed the blow.
 @rpc("any_peer", "call_local", "reliable")
-func request_damage(amount: float, attacker_peer: int, is_melee: bool, exile_on_kill: bool = false) -> void:
+func request_damage(amount: float, attacker_peer: int, is_melee: bool, exile_on_kill: bool = false, basic_attack: bool = false) -> void:
 	if not Net.is_server() or is_dying:
 		return
-	take_damage(amount, PlayerRegistry.by_peer(attacker_peer), is_melee, exile_on_kill)
+	take_damage(amount, PlayerRegistry.by_peer(attacker_peer), is_melee, exile_on_kill, basic_attack)
 
 
 ## `exile_on_kill` is Exalted Strike (white_1) and nothing else: if THIS hit is what
 ## kills the enemy, it leaves no corpse. It rides on the damage rather than being a
 ## separate call because the kill and the exile have to be the same decision - checking
 ## health first and exiling second would race a simultaneous hit from another player.
-func take_damage(amount: float, source: Node3D = null, is_melee: bool = false, exile_on_kill: bool = false) -> void:
+##
+## `basic_attack` is a player's sword swing or kick, passed back to them in on_damage_dealt -
+## it is what their black affinity's lifesteal heals from.
+func take_damage(amount: float, source: Node3D = null, is_melee: bool = false, exile_on_kill: bool = false, basic_attack: bool = false) -> void:
 	if is_dying:
 		return
 	# Some colours hold their formation under fire and some do not (SquadDoctrine's
@@ -2818,7 +2821,7 @@ func take_damage(amount: float, source: Node3D = null, is_melee: bool = false, e
 			if _channel_damage >= enemy_data.health * float(_special_config.get("break_pct", 0.08)):
 				_channel_broken = true
 	if damage_dealt > 0.0 and is_instance_valid(source) and source.has_method("on_damage_dealt"):
-		source.on_damage_dealt(damage_dealt)
+		source.on_damage_dealt(damage_dealt, basic_attack)
 	if health_bar and enemy_data:
 		health_bar.set_health(health, enemy_data.health)
 	var spawn_pos = global_position + Vector3(randf_range(-0.3, 0.3), 1.5, randf_range(-0.3, 0.3))
@@ -3655,11 +3658,19 @@ func _raise_as_dimir_ghoul() -> void:
 			break
 	if raiser == null or enemy_data == null or is_boss():
 		return
+	# Capped (GameSettings.guild_dimir_max_ghouls): past it, the dead stay dead.
+	var standing: int = 0
+	for ghoul: Node in get_tree().get_nodes_in_group(&"dimir_ghouls"):
+		if is_instance_valid(ghoul) and not ghoul.is_queued_for_deletion():
+			standing += 1
+	if standing >= GameSettings.guild_dimir_max_ghouls:
+		return
 	var main: Node = get_tree().current_scene
 	if main == null or not main.has_method("request_effect"):
 		return
 	main.request_effect({
 		"kind": "undead",
+		"dimir": true,
 		"position": global_position,
 		"hp": GameSettings.spell_black_zombify_hp,
 		"duration": GameSettings.spell_black_zombify_duration,

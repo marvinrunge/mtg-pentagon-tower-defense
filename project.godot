@@ -216,6 +216,7 @@ equipment={
 3d_physics/layer_2="Myr"
 3d_physics/layer_3="Enemies"
 3d_physics/layer_5="Environment"
+3d_physics/layer_6="Bounds"
 
 [physics]
 

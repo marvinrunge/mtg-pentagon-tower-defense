@@ -56,14 +56,14 @@ extends Node
 @export var mouse_sensitivity_scale: float = 1.0
 @export var gamepad_look_sensitivity_scale: float = 1.0
 @export var invert_look_y: bool = false
-## Harvesting by hand, at a well, alongside the myrs. Not the main line - a myr works the
-## well continuously and the player cannot - but a player standing in a lane they are
-## already defending should not have to watch mana they could be picking up. Held, not
-## pressed, so it costs attention rather than a keystroke, and it breaks the moment they
-## move (see Player._update_mana_harvest).
+## Harvesting by hand, at a well, the way a myr does it: hold to take ONE mana, carry it,
+## and it only counts once it is delivered to the crystal (within player_base_proximity).
+## Standing at a well holding the key used to bank mana on the spot, again and again, which
+## out-earned the myrs it was meant to sit beside. Held, not pressed, and it breaks the
+## moment the player moves (see Player._update_mana_harvest).
 @export var player_mana_harvest_distance: float = 6.0
 @export var player_mana_harvest_time: float = 3.0
-## What one completed harvest banks, in the well's own colour.
+## What one delivered load banks, in the well's own colour.
 @export var player_mana_harvest_amount: int = 1
 
 # --- DOWNED / REVIVE ---
@@ -351,12 +351,24 @@ extends Node
 @export var spell_stab_debuff_duration: float = 8.0
 @export var spell_unsummon_teleport_distance: float = 15.0
 
-# Infinite color affinity ranks. Every rank grants a constant 10% bonus.
+# Infinite color affinity ranks, each with diminishing returns towards a ceiling.
 @export var affinity_rank_mana_cost: int = 1
-@export var affinity_rank_bonus_base: float = 0.10
-@export var affinity_rank_bonus_early: float = 0.10
-@export var affinity_rank_bonus_mid: float = 0.10
-@export var affinity_rank_bonus_late: float = 0.10
+## Affinity bonuses, per colour (see GameSettings.affinity_bonus). The ranks never end, so a
+## flat share per rank - 10% each, until 2026-10-11 - always ran away: rank 10 was twice the
+## spells (blue), double damage (red), and full lifesteal on everything (black). Now the
+## first rank gives `affinity_first_rank` and every rank after closes the same share of the
+## remaining gap to `affinity_cap`:
+##   white  max HP regenerated per second, on top of player_base_hp_regen  0.6% .. 3%/s
+##          (it was +10% of a 1 HP/s base - two HP a second at rank 10, which bought nothing)
+##   blue   faster cooldown recovery                                       8%  .. 40%
+##   black  lifesteal, from BASIC ATTACKS only - sword swings and the kick;  5%  .. 30%
+##          spells, auras and Green Leap do not count (black has no healing spell; the team's
+##          Exquisite Blood is the lifesteal that works on spells)
+##   red    total damage                                                   10% .. 50%
+##   green  maximum HP                                                     10% .. 50%
+## Roughly a third of the ceiling at rank 5 and nine tenths of it at rank 10.
+@export var affinity_first_rank: Dictionary = {"white": 0.006, "blue": 0.08, "black": 0.05, "red": 0.10, "green": 0.10}
+@export var affinity_cap: Dictionary = {"white": 0.03, "blue": 0.40, "black": 0.30, "red": 0.50, "green": 0.50}
 ## How much a player must have INVESTED IN A COLOUR to reach its Nth tier of spell, and
 ## its Nth rank of any of them. One ladder for both, because unlocking and deepening are
 ## the same question asked twice - "how committed are you to this colour" - and answering
@@ -387,6 +399,10 @@ extends Node
 @export var guild_azorius_weaken_duration: float = 5.0
 ## Gruul: Rubblebelt Rioters (red+green) - after Titanic Brawl or Fire Dash, this many of
 ## the player's next melee hits are empowered.
+## Dimir Guildmage: how many of its ghouls may stand at once. Every enemy dying frozen,
+## stunned or diseased rises - a rank-5 Contagion alone could raise a dozen a cast, with
+## no cap and a TemporaryAlly each. Past the cap, the dead stay dead.
+@export var guild_dimir_max_ghouls: int = 6
 @export var guild_gruul_rampage_hits: int = 3
 @export var guild_gruul_rampage_damage_mult: float = 1.5
 @export var guild_gruul_rampage_knockback_mult: float = 1.5
@@ -430,7 +446,9 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_red_fireball_base_damage: float = 60.0
 @export var spell_red_rain_ember_duration: float = 5.0
 @export var spell_red_rain_ember_radius: float = 6.0
-@export var spell_red_rain_ember_dps: float = 25.0
+## Rain of Ember: raised from 25 on 2026-10-11 - a tier-3 zone that dealt less than Fire
+## Dash's tier-2 trail.
+@export var spell_red_rain_ember_dps: float = 40.0
 ## Fervor - red's Attunement. Swing AND cast speed at rank 5. Not movement: that is the
 ## Swiftfoot Boots' number alone (see the EQUIPMENT section).
 @export var aura_fervor_speed_boost: float = 1.15
@@ -445,6 +463,9 @@ func get_tier_cost(tier_index: int) -> int:
 ## in well under a second, so the stun that follows still lands on an enemy standing on
 ## the ground rather than one floating out of reach.
 @export var spell_blue_unsummon_lift: float = 7.5
+## Only the old Unsummon PROJECTILE (projectile.gd type 2) reads this, and nothing fires that
+## any more. The cone Unsummon deals no damage of its own - only an enemy it throws into a
+## wall or obstacle takes damage (spell_blue_unsummon_impact_damage), by design.
 @export var spell_blue_unsummon_damage: float = 35.0
 @export var spell_blue_unsummon_impact_damage: float = 80.0
 @export var spell_blue_freeze_breath_shatter_damage: float = 90.0
@@ -501,10 +522,12 @@ func get_tier_cost(tier_index: int) -> int:
 
 # --- WHITE: protection and restoration ---
 ## Exalted Strike (white_1). Charges are consumed by melee hits, not by time, so the
-## buff cannot be wasted by walking around with it.
-@export var spell_white_exalted_damage_mult: float = 2.4
+## buff cannot be wasted by walking around with it. Raised on 2026-10-11 (x2.4 and one charge
+## -> x4 and two): one harder swing every 8 seconds was worth +28 damage, the weakest
+## tier-1 spell by a factor of four.
+@export var spell_white_exalted_damage_mult: float = 4.0
 @export var spell_white_exalted_reach_bonus: float = 2.0
-@export var spell_white_exalted_charges: int = 1
+@export var spell_white_exalted_charges: int = 2
 ## Circle of Protection (white_2). A BASE shield per ally, grown a little for every
 ## ally beyond the first - white's power goes UP with more allies alive, and dividing
 ## one pool said the opposite. Bound to player_max_hp like every white/green HP number.
@@ -566,14 +589,15 @@ func get_tier_cost(tier_index: int) -> int:
 @export var spell_blue_suction_pull_speed: float = 4.0
 ## Suction is the one spell whose whole identity is DURATION: a vortex that keeps pulling
 ## for as long as it stands, rather than a shove. Its rank curve is written out rather than
-## riding rank_duration_mult, because the numbers are the design - 10 / 15 / 20 / 25 / 30
+## riding rank_duration_mult, because the numbers are the design - 6 / 7 / 8 / 9 / 10
 ## seconds - and a generic multiplier would only approximate them.
 ##
-## Note the cooldown (11s, SpellDatabase) is SHORTER than the duration at every rank past
-## the first, so a high-rank Suction can have two or three vortexes running at once. That is
-## a deliberate consequence of the curve, not an oversight.
-@export var spell_blue_suction_duration: float = 10.0
-@export var spell_blue_suction_duration_max: float = 30.0
+## Always SHORTER than the cooldown (11s, SpellDatabase). It used to run 10 to 30 seconds,
+## longer than the cooldown from rank 2 on, and since the pull outruns every enemy's walk,
+## two or three vortexes back to back held a lane shut for the whole wave (until
+## 2026-10-11).
+@export var spell_blue_suction_duration: float = 6.0
+@export var spell_blue_suction_duration_max: float = 10.0
 ## Wall of Frost (blue_4). Real collision, plus bonus damage when Unsummon slams an
 ## enemy into it instead of ordinary terrain.
 @export var spell_blue_wall_of_frost_length: float = 8.5
@@ -582,6 +606,9 @@ func get_tier_cost(tier_index: int) -> int:
 ## Displace (blue_5). A short blink to the aimed ground point, capped so it stays a
 ## mobility tool rather than a cross-lane teleport.
 @export var spell_blue_displace_distance: float = 9.0
+## Seconds the player cannot be hurt after arriving - the escape is what a tier-5 blink is
+## for, and one that lands in the swing it was dodging escaped nothing.
+@export var spell_blue_displace_invulnerability: float = 0.6
 
 # --- BLACK: parasitic drain ---
 ## Doom Blade (black_1). Passes THROUGH - only what the line actually touches is hit,
@@ -606,14 +633,18 @@ func get_tier_cost(tier_index: int) -> int:
 ## How many enemies one cast can reach in total, rank 1 -> rank 5. A cap, or a single
 ## cast into a late wave would take the whole lane.
 @export var spell_black_contagion_max_victims: int = 8
-@export var spell_black_contagion_max_victims_max: int = 16
+## 16 until 2026-10-11 - with damage and duration also rising, x6 a cast at rank 5.
+@export var spell_black_contagion_max_victims_max: int = 12
 ## Kill (black_3). The boss clause is what stops an instant delete trivialising the wave
 ## bosses; the cooldown (spell_database.gd) is still the longest in the game for the same
 ## reason, if no longer a whole minute.
 ## Doubled from 22 on 2026-10-01: an execute you have to walk up to was the wrong shape for
 ## the one spell that picks a single target off a whole wave.
 @export var spell_black_kill_range: float = 45.0
-@export var spell_black_kill_boss_threshold: float = 0.33
+## Bosses AND minibosses below this share of health - minibosses used to be deleted at full
+## health, being no "Boss" class. 0.33 -> 0.25 on 2026-10-11 (and the ceiling 0.5 -> 0.35):
+## half a boss's bar at once every 24 seconds was half of every boss fight.
+@export var spell_black_kill_boss_threshold: float = 0.25
 ## Wall of Souls (black_4)
 @export var spell_black_wall_length: float = 14.0
 @export var spell_black_wall_duration: float = 12.0
@@ -653,8 +684,10 @@ func get_tier_cost(tier_index: int) -> int:
 ## target number, three times Fire Dash's trail and nearly six times Rain of Ember's dps, on
 ## a spell the player can walk with. Red's four fire skills all wanted the same job; this one
 ## is now the one that holds a line rather than the one that clears it, which is what the
-## slow below is for. Total per enemy at the new numbers: 425 over a full channel.
-@export var spell_red_fire_cone_dps: float = 85.0
+## slow below is for. Cut to 55 on 2026-10-11: at 85 it dealt 425 per enemy over a full channel,
+## two and a half to three times any other area spell per 10 seconds; 275 keeps it the best
+## of them without making the rest of the colour pointless.
+@export var spell_red_fire_cone_dps: float = 55.0
 @export var spell_red_fire_cone_length: float = 7.0
 @export var spell_red_fire_cone_dot: float = 0.55
 @export var spell_red_fire_cone_max_duration: float = 5.0
@@ -762,8 +795,10 @@ func get_tier_cost(tier_index: int) -> int:
 @export var aura_lightning_orb_chain_falloff: float = 0.8
 ## Healing Orb - white's Manifestation. Always picks the LOWEST-health ally in range,
 ## which is what makes it feel like a healer rather than a regeneration stat. The amount
-## is a multiple of player_max_hp, like every white/green HP number.
-@export var aura_healing_orb_hp_mult: float = 0.26
+## is a multiple of player_max_hp, like every white/green HP number. Halved on 2026-10-11:
+## 0.26 a pulse was 13-26% of a player's health every second, passive, out-healing every
+## other source in the game.
+@export var aura_healing_orb_hp_mult: float = 0.13
 @export var aura_healing_orb_interval: float = 2.0
 @export var aura_healing_orb_radius: float = 14.0
 ## Trample - green's Manifestation. Gated on MOVING, so it rewards the colour that
@@ -796,12 +831,13 @@ func get_tier_cost(tier_index: int) -> int:
 ## Kill: the ONLY skill whose cooldown scales, and the only one where a higher rank
 ## widens the boss window rather than adding damage.
 @export var spell_black_kill_cooldown_max_rank_mult: float = 0.6
-@export var spell_black_kill_boss_threshold_max: float = 0.5
+@export var spell_black_kill_boss_threshold_max: float = 0.35
 ## Wall of Souls: x2 damage is the headline at rank 1; x4 would eclipse every other
 ## black skill, so the mark walks to x3.
 @export var spell_black_wall_mark_mult_max: float = 3.0
-## Zombify: bodies raised per cast.
-@export var spell_black_zombify_count_max: int = 7
+## Zombify: bodies raised per cast. 7 until 2026-10-11 - each ghoul also hits twice as hard
+## at rank 5, so the count is the one axis kept short.
+@export var spell_black_zombify_count_max: int = 5
 ## Ironbark: reduction is a fraction, and 1.0 would be immunity.
 @export var spell_green_ironbark_reduction_max: float = 0.8
 ## Giant Growth: how much bigger, which is the half of the skill the player sees.
@@ -889,6 +925,11 @@ func rank_area_mult(rank: int) -> float:
 	return RANK_AREA_CURVE[_rank_index(rank)]
 
 
+## NOT applied to damage over time or to buffs that would otherwise stand most of the
+## time (Rain of Ember, Fire Dash's trail, Contagion, Zombify, Giant Growth, Fog - since
+## 2026-10-11): their rank already pays out in damage, heal or area, and a longer duration on
+## top multiplied into it - Zombify reached ~x7 its rank-1 damage, Contagion x6. Control
+## (freezes, stuns, taunts) and shields keep it.
 func rank_duration_mult(rank: int) -> float:
 	return RANK_DURATION_CURVE[_rank_index(rank)]
 
@@ -1379,6 +1420,11 @@ func rank_level_requirement(rank: int) -> int:
 @export var graphics_terrain_parallax_depth: float = 0.1
 @export var graphics_terrain_parallax_range: float = 30.0
 
+## Grass distance (GraphicsSettings.grass_distance): how far grass is drawn at Near, Medium
+## and Far, in metres. Far is the distance the foliage layers were authored with; a value
+## above that is held to it.
+@export var graphics_grass_distances: Array[float] = [25.0, 35.0, 50.0]
+
 ## Particle effects (GraphicsSettings.particle_quality): how many particles every effect
 ## spawns at each setting - Low, Medium, High, Ultra - as a fraction of what it was authored
 ## with. Below 1 thins the effect out; Ultra raises its count. An effect authored with only a
@@ -1470,8 +1516,13 @@ func rank_level_requirement(rank: int) -> int:
 ## White (below) defends the creature.
 @export var enchantment_blue_myr_phase: float = 0.5
 ## Black - Exquisite Blood: players heal for a share of the damage they deal. Keeps the
-## PLAYERS alive, where white keeps the CRYSTAL alive.
-@export var enchantment_black_lifesteal: float = 0.03
+## PLAYERS alive, where white keeps the CRYSTAL alive. Small on purpose: unlike Vampiric
+## Link it heals from EVERY hit, spells and auras included, so an area spell into a full
+## wave pays it out many times over - and the stacks have no cap, only a rising price.
+@export var enchantment_black_lifesteal: float = 0.01
+## The most lifesteal Exquisite Blood gives however many stacks are bought - 1% a stack
+## reaches it at the fifth. Stacks past that still grow the myrs' death blast.
+@export var enchantment_black_lifesteal_cap: float = 0.05
 ## ...and a myr that dies takes the neighbourhood with it. The one myr effect that pays
 ## out when every other one has already failed.
 @export var enchantment_black_myr_blast_damage: float = 35.0
@@ -1509,6 +1560,15 @@ const LANE_TINTS: Dictionary = {
 	"Red": Color(1.0, 0.25, 0.2),
 	"Green": Color(0.25, 0.85, 0.35),
 }
+
+
+## A colour's affinity bonus at `rank` - see affinity_cap for what it is a share of.
+func affinity_bonus(color: String, rank: int) -> float:
+	var cap: float = float(affinity_cap.get(color, 0.0))
+	if rank <= 0 or cap <= 0.0:
+		return 0.0
+	var keep: float = 1.0 - float(affinity_first_rank.get(color, 0.0)) / cap
+	return cap * (1.0 - pow(clampf(keep, 0.0, 1.0), float(rank)))
 
 
 func lane_tint(color: String) -> Color:

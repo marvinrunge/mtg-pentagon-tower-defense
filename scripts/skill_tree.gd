@@ -93,9 +93,9 @@ const COLOR_HEX: Dictionary = {
 	"green": Color(0.18, 0.7, 0.3),
 }
 const AFFINITY_DATA: Dictionary = {
-	"white": {"name": "Holy Strength", "mechanic": "+% Life Regeneration", "flavor": "Protection, restoration, and enduring light."},
+	"white": {"name": "Holy Strength", "mechanic": "+% of Max HP regenerated per second", "flavor": "Protection, restoration, and enduring light."},
 	"blue": {"name": "Curiosity", "mechanic": "+% Cooldown Reduction", "flavor": "Mind-speed, mental acuity, and tactical flow."},
-	"black": {"name": "Vampiric Link", "mechanic": "+% Lifesteal", "flavor": "Dark bargains, parasitic drain, and vital siphon."},
+	"black": {"name": "Vampiric Link", "mechanic": "+% Lifesteal on basic attacks", "flavor": "Dark bargains, parasitic drain, and vital siphon."},
 	"red": {"name": "Reckless Charge", "mechanic": "+% Total Damage", "flavor": "Explosive aggression, raw power, and volatility."},
 	"green": {"name": "Wild Growth", "mechanic": "+% Maximum HP", "flavor": "Primal vitality, physical mass, and resilience."},
 }
@@ -1004,7 +1004,9 @@ func _show_details(color: String, branch_index: int, info: Dictionary) -> void:
 	if bool(info.get("is_affinity", false)):
 		var rank: int = player.get_affinity_rank(color)
 		var bonus: float = player.get_affinity_bonus(color) * 100.0
-		var next_bonus: float = _get_next_rank_bonus(rank + 1) * 100.0
+		# Every affinity climbs on a curve (GameSettings.affinity_bonus), so the next step is
+		# what the next rank actually adds.
+		var next_bonus: float = (GameSettings.affinity_bonus(color, rank + 1) - GameSettings.affinity_bonus(color, rank)) * 100.0
 		_detail_status.text = "%s  Rank %d  Total %.1f%%  Next +%.1f%%  Mana %d" % [COLOR_SYMBOL[color], rank, bonus, next_bonus, available_mana]
 		_detail_body.text = "%s  %s" % [info["mechanic"], info["flavor"]]
 	else:
@@ -1259,9 +1261,6 @@ func _total_mana(mana_pool: Dictionary) -> int:
 		total += int(mana_pool[color])
 	return total
 
-
-func _get_next_rank_bonus(next_rank: int) -> float:
-	return GameSettings.affinity_rank_bonus_base
 
 func _get_placeholder_texture(color: String, branch_index: int, state: String) -> ImageTexture:
 	var cache_key: String = "%s_%d_%s" % [color, branch_index, state]

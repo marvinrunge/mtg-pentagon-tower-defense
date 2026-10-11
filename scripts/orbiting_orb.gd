@@ -505,16 +505,17 @@ func _animate_light(delta: float) -> void:
 			_light.light_energy = _light_base_energy * (1.6 if randf() < 0.08 else 0.9)
 
 
+## Fixed, never rank-scaled. Rank already raises every orb's damage or heal; it used to
+## shorten the interval as well, so a rank-5 orb paid x2 per hit, twice as often - x4, a
+## Healing Orb restoring half a player's health a second (until 2026-10-11).
 func _interval() -> float:
-	var speed_mult: float = _rank_mult()
 	match mode:
-		Mode.FIRE: return GameSettings.aura_orb_of_fire_interval / speed_mult
-		Mode.HEAL: return GameSettings.aura_healing_orb_interval / speed_mult
-		# Not rank-scaled: the souls are the rate limit, and a rank that emptied the orb
-		# faster would only make it sit empty sooner.
+		Mode.FIRE: return GameSettings.aura_orb_of_fire_interval
+		Mode.HEAL: return GameSettings.aura_healing_orb_interval
+		# The souls are the rate limit here anyway.
 		Mode.SOUL: return GameSettings.aura_grave_pact_release_interval
-		Mode.LIGHTNING: return GameSettings.aura_lightning_orb_interval / speed_mult
-		_: return GameSettings.aura_orb_of_frost_interval / speed_mult
+		Mode.LIGHTNING: return GameSettings.aura_lightning_orb_interval
+		_: return GameSettings.aura_orb_of_frost_interval
 
 
 ## Nearest enemy within `range_units`, or null. Nearest rather than lowest-health: the

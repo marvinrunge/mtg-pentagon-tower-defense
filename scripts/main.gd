@@ -62,6 +62,7 @@ func _ready() -> void:
 			_destroy_crystal())
 
 	GraphicsSettings.apply_scene_dependent()
+	_build_map_bounds()
 
 	# The crystal hums for the whole match, from where it hangs rather than from the
 	# anchor on the floor beneath it - the sound is the levitation, not the base.
@@ -312,6 +313,16 @@ func _build_crystal_lights() -> void:
 ## the players are put on it as soon as it exists, and the navmesh is baked from its
 ## collision before anything that paths is started. The wells, spawners and crystal are
 ## placed on it by hand in the editor, and so is the grass - as TerraBrush foliage.
+## The invisible fence at the map's edge (MapBounds), sized from TerraBrush's zone - one
+## zone, centred on the origin.
+func _build_map_bounds() -> void:
+	var terrain: Node = get_node_or_null("TerraBrush")
+	var zone_size: float = float(terrain.get("zonesSize")) if terrain != null else 512.0
+	var bounds := MapBounds.new()
+	bounds.build(zone_size * 0.5)
+	add_child(bounds)
+
+
 func bake_map_navigation() -> void:
 	var terrain_body: StaticBody3D = await _wait_for_terrain_body()
 	_terrain_body = terrain_body
@@ -891,6 +902,9 @@ static func build_effect(info: Dictionary, caster: Node3D) -> Node3D:
 			ally.hit_damage = float(info.get("hit_damage", GameSettings.spell_black_zombify_hit_damage))
 			ally.visual_color = String(info.get("color", ""))
 			ally.visual_class = String(info.get("class", ""))
+			# Counted against GameSettings.guild_dimir_max_ghouls by EnemyBase.
+			if bool(info.get("dimir", false)):
+				ally.add_to_group(&"dimir_ghouls")
 			node = ally
 		"bolt_telegraph":
 			node = _build_bolt_telegraph(float(info["radius"]), float(info["delay"]))

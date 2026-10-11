@@ -112,7 +112,8 @@ static func cast_red_rain_ember(caster: Player) -> void:
 		"kind": "dot_zone", "type": "fire_rain", "position": target_pos,
 		"radius": GameSettings.spell_red_rain_ember_radius * caster._rank_area(),
 		"dps": GameSettings.spell_red_rain_ember_dps * caster.get_spell_damage_multiplier() * caster._rank_damage(),
-		"duration": GameSettings.spell_red_rain_ember_duration * caster._rank_duration(),
+		# Not rank-scaled: see GameSettings.rank_duration_mult on damage over time.
+		"duration": GameSettings.spell_red_rain_ember_duration * caster._vigilance_mult(),
 	})
 	# The zone is the spell, but it lands somewhere else - so without this the caster
 	# performs a full cast animation with nothing happening anywhere near them.
@@ -358,6 +359,7 @@ static func cast_blue_displace(caster: Player) -> void:
 		target = caster._ground_snap(target, ENVIRONMENT_MASK)
 	caster._spawn_spell_fx("blue_5_from", from, 1.0)
 	caster.global_position = target
+	caster._invulnerable_timer = maxf(caster._invulnerable_timer, GameSettings.spell_blue_displace_invulnerability)
 	caster.velocity = Vector3.ZERO
 	caster._spawn_spell_fx("blue_5", caster.global_position, 1.0)
 	caster._play_sound(&"spell_cast", caster.global_position)
@@ -418,7 +420,8 @@ static func cast_black_contagion(caster: Player) -> void:
 	if target == null or not target.has_method("apply_contagion"):
 		caster._notify("No enemy to infect")
 		return
-	var duration: float = GameSettings.spell_black_contagion_duration * caster._rank_duration()
+	# Not rank-scaled: see GameSettings.rank_duration_mult on damage over time.
+	var duration: float = GameSettings.spell_black_contagion_duration * caster._vigilance_mult()
 	var outbreak: Dictionary = {
 		"left": GameSettings.rank_count(
 			GameSettings.spell_black_contagion_max_victims, GameSettings.spell_black_contagion_max_victims_max,
@@ -437,14 +440,15 @@ static func cast_black_contagion(caster: Player) -> void:
 	caster._play_sound(&"spell_contagion", target.global_position)
 
 
-## black_3. The only outright delete in the game. Bosses are executed ONLY below the
-## threshold - without that clause this one skill would end every wave boss on sight.
+## black_3. The only outright delete in the game. Bosses and minibosses are executed ONLY
+## below the threshold - without that clause this one skill would end every wave boss on
+## sight, and the one glowing miniboss a wave is built around along with it.
 static func cast_black_kill(caster: Player) -> void:
 	var target: Node3D = caster.aim_target(GameSettings.spell_black_kill_range * caster._rank_area())
 	if target == null:
 		caster._notify("No enemy in the sights")
 		return
-	if target.has_method("is_boss") and target.is_boss():
+	if (target.has_method("is_boss") and target.is_boss()) or bool(target.get("is_miniboss")):
 		var ratio: float = HealthReader.ratio(target)
 		# The window a boss can be executed inside is what rank widens - the cooldown is
 		# the other half, in _get_spell_cooldown.
@@ -526,7 +530,8 @@ static func cast_black_zombify(caster: Player) -> void:
 			"kind": "undead",
 			"position": caster._ground_snap(where) + Vector3(0.0, 0.5, 0.0),
 			"hp": GameSettings.spell_black_zombify_hp * caster._rank_damage(),
-			"duration": GameSettings.spell_black_zombify_duration * caster._rank_duration(),
+			# Not rank-scaled: see GameSettings.rank_duration_mult on damage over time.
+			"duration": GameSettings.spell_black_zombify_duration * caster._vigilance_mult(),
 			# One swing, and the burst it ends in when its raiser owns Mayhem Devil.
 			"hit_damage": GameSettings.spell_black_zombify_hit_damage * caster.get_spell_damage_multiplier() * caster._rank_damage(),
 			"damage": GameSettings.spell_black_zombify_burst_damage * caster.get_spell_damage_multiplier() * caster._rank_damage(),
@@ -552,7 +557,8 @@ static func cast_red_fire_dash(caster: Player) -> void:
 	# Fixed now: the trail keeps being laid after the cast is over, by which time
 	# _casting_rank may belong to something else entirely.
 	caster._dash_trail_dps = GameSettings.spell_red_dash_trail_dps * caster.get_spell_damage_multiplier() * caster._rank_damage()
-	caster._dash_trail_duration = GameSettings.spell_red_dash_trail_duration * caster._rank_duration()
+	# Not rank-scaled: see GameSettings.rank_duration_mult on damage over time.
+	caster._dash_trail_duration = GameSettings.spell_red_dash_trail_duration * caster._vigilance_mult()
 	caster._dash_trail_radius = GameSettings.spell_red_dash_trail_radius * caster._rank_area()
 	caster._start_rampage()
 	caster._spawn_spell_fx("red_2", caster.global_position, 1.0)
@@ -651,7 +657,8 @@ static func cast_red_lightning_bolt(caster: Player) -> void:
 ## skill actually does. `_sync_auras` owns the health half so it cannot drift.
 static func cast_green_giant_growth(caster: Player) -> void:
 	caster.is_giant = true
-	caster.giant_timer = GameSettings.spell_green_giant_duration * caster._rank_duration()
+	# Not rank-scaled: at x1.5 it stood 18 of every 22 seconds - see GameSettings.rank_duration_mult.
+	caster.giant_timer = GameSettings.spell_green_giant_duration * caster._vigilance_mult()
 	caster._giant_bonus_hp = GameSettings.player_max_hp * GameSettings.spell_green_giant_bonus_hp_mult * caster._rank_damage()
 	var giant_scale: float = GameSettings.rank_fraction(
 		GameSettings.spell_green_giant_scale, GameSettings.spell_green_giant_scale_max, caster._casting_rank
@@ -683,7 +690,9 @@ static func cast_green_fog(caster: Player) -> void:
 		"kind": "dot_zone", "type": "fog", "position": target,
 		"radius": GameSettings.spell_green_fog_radius * caster._rank_area(),
 		"dps": 0.0,
-		"duration": GameSettings.spell_green_fog_duration * caster._rank_duration(),
+		# Not rank-scaled: at x1.5 enemies were harmless two thirds of the time - see
+		# GameSettings.rank_duration_mult. Rank buys the fog's size instead.
+		"duration": GameSettings.spell_green_fog_duration * caster._vigilance_mult(),
 	})
 	caster._spawn_spell_fx("green_3", caster.global_position, 1.0)
 

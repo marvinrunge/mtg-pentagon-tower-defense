@@ -56,7 +56,7 @@ class SkillTreePreviewPlayer extends Node3D:
 
 
 	func get_affinity_bonus(color: String) -> float:
-		return float(get_affinity_rank(color)) * GameSettings.affinity_rank_bonus_base
+		return GameSettings.affinity_bonus(color, get_affinity_rank(color))
 
 
 	func get_spell_rank(spell_id: String) -> int:

@@ -64,6 +64,17 @@ enemy dies.
 Keep the visual — spawn a mote at the corpse that flies to the crystal. All the feedback,
 none of the friction.
 
+### Wells by hand: the myr's loop
+
+A player can also work a mana well, the way a myr does: hold **Interact** at a well for
+`player_mana_harvest_time` to take **one** mana, carry it (an orb in the well's colour over
+their head), and it banks only when they reach the crystal (`player_base_proximity`).
+One load at a time — no harvesting while carrying — and going down drops it.
+
+It was hold-to-bank at the well for a while: standing there with the key held paid out
+every few seconds, indefinitely, which out-earned the myrs. The walk home is what keeps it
+a gap-filler for a player already in that lane, and the myrs the actual economy.
+
 ---
 
 ## Upkeep
@@ -165,7 +176,7 @@ the team's enchantment spread becomes a visible statement of how they intend to 
 |---|---|---|---|
 | **Red** | **Furnace of Rath** | Every player deals more damage | +8% damage |
 | **Blue** | **Propaganda** | All enemies attack and cast more slowly | −6% enemy attack speed |
-| **Black** | **Exquisite Blood** | Every player heals for a share of the damage they deal | +3% of damage dealt |
+| **Black** | **Exquisite Blood** | Every player heals for a share of the damage they deal | +1% of damage dealt (every hit, spells included), at most 5% |
 | **White** | **Sphere of Safety** | Enemies near the crystal are slowed and deal reduced damage to it | +2 radius, +8% reduction |
 | **Green** | **Overgrowth** | All mana income increases. Compounds | +12% mana |
 
@@ -245,7 +256,7 @@ Every problem the earlier drafts ran into disappears rather than being solved:
 | Contested drops, kill-stealing | Nothing is picked up; XP and mana pool on death |
 | One player spending the team's mana | Mana buys only team things, by vote, with everyone present |
 | A quiet lane starving a player | XP and levels are shared and simultaneous |
-| 40-second harvest round trips | There is no pickup at all |
+| 40-second harvest round trips | Kills need no pickup; the well trip is optional (see "Wells by hand") |
 | Nothing to do in the rest period | Upkeep is 30 seconds of real decisions |
 
 And the pentagon still matters: **enchantments need their own colour**, so a team that
@@ -253,8 +264,9 @@ never fights in the black lane never gets Exquisite Blood.
 
 ## What to delete
 
-- The player's hold-E harvest, the carry-back trip, and the deposit-at-base flow.
-- `Player.carried_color`, `player_carry_speed_penalty`, `player_mana_harvest_time`.
+- ~~The player's hold-E harvest, the carry-back trip, and the deposit-at-base flow.~~
+  Came back, one load at a time, as "Wells by hand" above (`Player.carried_mana`).
+- `player_carry_speed_penalty` (carrying does not slow the player).
 - Per-player mana pools, focus colours and wave grants from the previous draft — none of
   it is needed once mana is a team resource.
 

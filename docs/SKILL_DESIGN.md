@@ -256,14 +256,16 @@ game that is currently uncapped.
 
 | Colour | Name | Grants | Applied in |
 |---|---|---|---|
-| White | Holy Strength | +% health regeneration | `Player._physics_process` regen tick |
+| White | Holy Strength | +% of max HP regenerated per second | `Player._physics_process` regen tick |
 | Blue | Curiosity | +% cooldown recovery | `spell_cooldown_timers` decay |
-| Black | Vampiric Link | +% lifesteal | `Player` melee/spell damage |
+| Black | Vampiric Link | +% lifesteal, basic attacks only | `Player.on_damage_dealt` |
 | Red | Reckless Charge | +% total damage | `get_spell_damage_multiplier()` |
 | Green | Wild Growth | +% maximum HP | `_sync_auras()` |
 
-Ranks have **diminishing returns**: +2% per rank for the first 10, +1% for ranks 11–20,
-+0.5% beyond (`affinity_rank_bonus_early` / `_mid` / `_late`). They also **gate the
+Ranks have **diminishing returns** towards a ceiling per colour: the first rank gives
+`GameSettings.affinity_first_rank`, every rank after closes the same share of the gap to
+`affinity_cap` (white 0.6% → 3%/s, blue 8% → 40%, black 5% → 30%, red and green
+10% → 50%; about a third of the ceiling at rank 5, nine tenths at rank 10). They also **gate the
 spells**: `affinity_spell_rank_requirements` is `[1, 5, 10, 15, 25]`, so a colour's fifth
 spell needs 25 ranks in it.
 

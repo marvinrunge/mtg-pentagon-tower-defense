@@ -310,9 +310,8 @@ const SPELLS: Dictionary = {
 ## while the player is somewhere else - which, in a five-lane tower defence where you
 ## can only stand in one lane, is worth more than it looks.
 ##
-## Deliberately UN-RANKED. One purchase, expensive, permanent for the run: the moment a
-## aura becomes rankable it turns back into a stat slider and the fork stops being a
-## decision.
+## Ranked 1-5 like every other skill on the board (Player.grant_aura_rank) - they used to be
+## a one-purchase fork, and this comment said so long after that stopped being true.
 const AURAS: Dictionary = {
 	"white": {
 		"attunement": {

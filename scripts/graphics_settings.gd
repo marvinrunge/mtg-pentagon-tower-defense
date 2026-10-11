@@ -21,12 +21,19 @@ const OVERRIDE_PATH: String = "user://override.cfg"
 const MOBILE_DRIVER_KEY := "rendering_device/driver.windows"
 const SECTION := "graphics"
 
-enum Preset { LOW, MEDIUM, HIGH, CUSTOM }
+## ULTRA comes after CUSTOM because the preset is saved as its number: inserting it before
+## would have turned every saved Custom into Ultra.
+enum Preset { LOW, MEDIUM, HIGH, CUSTOM, ULTRA }
 ## How dense every particle effect is; see GameSettings.graphics_particle_quality_scale.
 enum ParticleQuality { LOW, MEDIUM, HIGH, ULTRA }
 ## Whether killed enemies go limp (EnemyRagdoll): never, only the big kills, or every kill -
 ## each capped by GameSettings.ragdoll_max_active.
 enum RagdollQuality { OFF, LIMITED, FULL }
+## How a render scale below 100% is brought back up to the screen. FSR 2 also smooths edges
+## over time, so it replaces MSAA rather than adding to it, and it needs Forward+.
+enum Upscaler { BILINEAR, FSR1, FSR2 }
+## How far grass is drawn; the metres are GameSettings.graphics_grass_distances.
+enum GrassDistance { NEAR, MEDIUM, FAR }
 
 ## The three rendering methods, in the order the menus list them.
 const RENDERER_METHODS: Array[String] = ["forward_plus", "mobile", "gl_compatibility"]
@@ -47,7 +54,12 @@ var fullscreen: bool = true
 var show_fps: bool = false
 var particle_quality: int = ParticleQuality.HIGH
 var ragdoll_quality: int = RagdollQuality.FULL
+var upscaler: int = Upscaler.BILINEAR
+var grass_distance: int = GrassDistance.FAR
 var preset: int = Preset.HIGH
+## Off for benchmarks (tools/tests/render_perf.gd), which drive these options to measure
+## them and must not overwrite the player's settings file while they do.
+var persist: bool = true
 
 ## The renderer the engine actually booted with this run (fixed until restart).
 var active_rendering_method: String = "forward_plus"
@@ -62,6 +74,7 @@ func _ready() -> void:
 	active_rendering_method = _booted_rendering_method()
 	_load()
 	apply_render_scale(render_scale)
+	apply_upscaler(upscaler)
 	apply_msaa(msaa_level)
 	apply_vsync(vsync_enabled)
 	apply_terrain_parallax(terrain_parallax)
@@ -102,7 +115,36 @@ func apply_render_scale(value: float) -> void:
 	_changed(&"render_scale")
 
 
-## The sun and the moon, wherever they are.
+## How the render scale is upscaled. FSR 2 exists only in Forward+; on the other renderers
+## it falls back to FSR 1, and Compatibility has neither, so it stays bilinear there.
+func apply_upscaler(mode: int) -> void:
+	upscaler = clampi(mode, Upscaler.BILINEAR, Upscaler.FSR2)
+	var root: Window = get_tree().root
+	var effective: int = upscaler
+	if effective == Upscaler.FSR2 and active_rendering_method != "forward_plus":
+		effective = Upscaler.FSR1
+	if active_rendering_method == "gl_compatibility":
+		effective = Upscaler.BILINEAR
+	match effective:
+		Upscaler.FSR1:
+			root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR
+		Upscaler.FSR2:
+			root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR2
+		_:
+			root.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	# FSR 2 smooths edges itself; MSAA under it would be paid for twice.
+	apply_msaa(msaa_level)
+	_changed(&"upscaler")
+
+
+## True when FSR 2 is what actually runs, so the menu can say MSAA is not in use.
+func fsr2_active() -> bool:
+	return get_tree().root.scaling_3d_mode == Viewport.SCALING_3D_MODE_FSR2
+
+
+## The sun and the moon, wherever they are - and every other light that was authored with a
+## shadow, such as the volcano's glow, whose shadow is a 150 m cube map rendered six times
+## over whenever anything in its reach moves. It used to keep casting with Shadows off.
 ##
 ## They used to be found through a `sun_light` group that nothing has joined since the map
 ## moved onto Sky3D, so the switch had nothing to act on and the shadows stayed. And turning
@@ -121,13 +163,69 @@ func apply_shadows(enabled: bool) -> void:
 			var directional := light as DirectionalLight3D
 			# A light Sky3D has put out for the night stays without a shadow either way.
 			directional.shadow_enabled = enabled and directional.light_energy > 0.0
+		for light: Node in scene.find_children("*", "Light3D", true, false):
+			if not (light is DirectionalLight3D):
+				_apply_local_shadow(light as Light3D)
 	for light: Light3D in get_tree().get_nodes_in_group("sun_light"):
 		light.shadow_enabled = enabled
 	_changed(&"shadows_enabled")
 
 
+## A point or spot light keeps the shadow it was authored with, remembered on the node the
+## first time it is seen, and only casts it while Shadows is on.
+func _apply_local_shadow(light: Light3D) -> void:
+	if not light.has_meta(&"authored_shadow"):
+		light.set_meta(&"authored_shadow", light.shadow_enabled)
+	light.shadow_enabled = shadows_enabled and bool(light.get_meta(&"authored_shadow"))
+
+
+## How far grass is drawn, on every TerraBrush in the scene: its foliage layers' render
+## distance, with their grid rows cut to match - TerraBrush runs a layer's whole grid
+## whether a cell is painted or not, so rows past the distance were drawn for nothing.
+## Measured with tools/tests/render_perf.gd at 1440p: 50 -> 25 m saves 1.0-1.4 ms GPU.
+## A map that is already up is rebuilt (about 0.3 s); one still loading is patched before
+## TerraBrush builds, through _on_node_added.
+func apply_grass_distance(level: int) -> void:
+	grass_distance = clampi(level, GrassDistance.NEAR, GrassDistance.FAR)
+	var scene: Node = get_tree().current_scene
+	if scene != null:
+		for terrain: Node in scene.find_children("*", "TerraBrush", true, false):
+			_patch_grass(terrain)
+			if terrain.is_node_ready():
+				terrain.call("onUpdateTerrainSettings")
+	_changed(&"grass_distance")
+
+
+## The foliage resources are shared, cached, and reused by the next map load, so the
+## authored distance and rows are kept on each definition and every patch scales from them.
+func _patch_grass(terrain: Node) -> void:
+	var distances: Array[float] = GameSettings.graphics_grass_distances
+	var metres: float = distances[clampi(grass_distance, 0, distances.size() - 1)]
+	var foliages: Variant = terrain.get("foliages")
+	if not (foliages is Array):
+		return
+	for foliage: Resource in foliages:
+		var definition: Resource = foliage.get("definition") if foliage != null else null
+		if definition == null:
+			continue
+		if not definition.has_meta(&"authored_distance"):
+			definition.set_meta(&"authored_distance", float(definition.get("maximumRenderDistance")))
+			definition.set_meta(&"authored_rows", int(definition.get("lodRowsPerLevel")))
+		var authored: float = float(definition.get_meta(&"authored_distance"))
+		var rows: int = int(definition.get_meta(&"authored_rows"))
+		var target: float = minf(metres, authored)
+		definition.set("maximumRenderDistance", target)
+		definition.set("lodRowsPerLevel", maxi(8, int(ceil(float(rows) * target / maxf(authored, 1.0)))))
+
+
+## The level is kept even while FSR 2 runs, so switching back to another upscaler brings the
+## player's MSAA back - FSR 2 alone decides that the viewport draws without it.
 func apply_msaa(level: int) -> void:
 	msaa_level = level
+	if fsr2_active():
+		get_tree().root.msaa_3d = Viewport.MSAA_DISABLED
+		_changed(&"msaa_level")
+		return
 	match level:
 		1:
 			get_tree().root.msaa_3d = Viewport.MSAA_2X
@@ -258,6 +356,12 @@ func apply_particle_quality(level: int) -> void:
 func _on_node_added(node: Node) -> void:
 	if node is GPUParticles3D:
 		_scale_particles(node as GPUParticles3D)
+	elif node is Light3D and not (node is DirectionalLight3D):
+		# Spell lights, the volcano, anything instanced later: their shadow follows the option.
+		_apply_local_shadow(node as Light3D)
+	elif node.get_class() == "TerraBrush":
+		# Before TerraBrush builds its foliage, so the first build already uses the distance.
+		_patch_grass(node)
 
 
 ## Up to High, `amount_ratio` emits a share of the authored count, which costs nothing and
@@ -302,34 +406,56 @@ func set_show_fps(enabled: bool) -> void:
 ## Compatibility (OpenGL-class, far lighter than Forward+) - that's the single
 ## biggest lever for a machine with only an integrated GPU, but it needs a
 ## restart to take effect.
+##
+## Costs behind the steps, from tools/tests/render_perf.gd at 1440p on an RTX 2070 Super:
+## MSAA 4x -> 2x is the step from Ultra to High (MSAA 4x alone costs 1.2-2.1 ms); FSR 1 at
+## a lower render scale looks clearly better than the plain bilinear stretch it replaces, for
+## the same saving; grass at 35 / 25 m saves 0.7-0.9 / 1.0-1.4 ms against 50 m.
 func apply_preset(p: int) -> void:
 	preset = p
 	match p:
 		Preset.LOW:
 			apply_render_scale(0.6)
+			apply_upscaler(Upscaler.FSR1)
 			apply_shadows(false)
 			apply_msaa(0)
 			apply_glow(false)
 			apply_terrain_parallax(false)
+			apply_grass_distance(GrassDistance.NEAR)
 			apply_particle_quality(ParticleQuality.LOW)
 			apply_ragdoll_quality(RagdollQuality.OFF)
 			set_pending_rendering_method("gl_compatibility")
 		Preset.MEDIUM:
 			apply_render_scale(0.8)
+			apply_upscaler(Upscaler.FSR1)
 			apply_shadows(true)
 			apply_msaa(1)
 			apply_glow(true)
 			apply_terrain_parallax(false)
+			apply_grass_distance(GrassDistance.MEDIUM)
 			apply_particle_quality(ParticleQuality.MEDIUM)
 			apply_ragdoll_quality(RagdollQuality.LIMITED)
 			set_pending_rendering_method("mobile")
 		Preset.HIGH:
 			apply_render_scale(1.0)
+			apply_upscaler(Upscaler.BILINEAR)
+			apply_shadows(true)
+			apply_msaa(1)
+			apply_glow(true)
+			apply_terrain_parallax(true)
+			apply_grass_distance(GrassDistance.FAR)
+			apply_particle_quality(ParticleQuality.HIGH)
+			apply_ragdoll_quality(RagdollQuality.FULL)
+			set_pending_rendering_method("forward_plus")
+		Preset.ULTRA:
+			apply_render_scale(1.0)
+			apply_upscaler(Upscaler.BILINEAR)
 			apply_shadows(true)
 			apply_msaa(2)
 			apply_glow(true)
 			apply_terrain_parallax(true)
-			apply_particle_quality(ParticleQuality.HIGH)
+			apply_grass_distance(GrassDistance.FAR)
+			apply_particle_quality(ParticleQuality.ULTRA)
 			apply_ragdoll_quality(RagdollQuality.FULL)
 			set_pending_rendering_method("forward_plus")
 		Preset.CUSTOM:
@@ -392,7 +518,7 @@ func _changed(key: StringName) -> void:
 
 ## A slider reports every step it is dragged through; the file is written once it settles.
 func _queue_save() -> void:
-	if _save_queued or not is_inside_tree():
+	if _save_queued or not is_inside_tree() or not persist:
 		return
 	_save_queued = true
 	get_tree().create_timer(0.4).timeout.connect(_save)
@@ -400,6 +526,11 @@ func _queue_save() -> void:
 
 func _save() -> void:
 	_save_queued = false
+	# Checked here too, not only when queueing: the save every launch queues while _ready
+	# applies the loaded options would otherwise still land after a benchmark switched
+	# saving off, and write whatever the benchmark had set by then.
+	if not persist:
+		return
 	var method_to_persist: String = chosen_rendering_method()
 	SettingsFile.write_section(SECTION, {
 		"render_scale": render_scale,
@@ -412,6 +543,8 @@ func _save() -> void:
 		"show_fps": show_fps,
 		"particle_quality": particle_quality,
 		"ragdoll_quality": ragdoll_quality,
+		"upscaler": upscaler,
+		"grass_distance": grass_distance,
 		"preset": preset,
 		"rendering_method": method_to_persist,
 	})
@@ -455,6 +588,9 @@ func _load() -> void:
 		ParticleQuality.LOW, ParticleQuality.ULTRA)
 	ragdoll_quality = clampi(int(cfg.get_value(SECTION, "ragdoll_quality", ragdoll_quality)),
 		RagdollQuality.OFF, RagdollQuality.FULL)
+	upscaler = clampi(int(cfg.get_value(SECTION, "upscaler", upscaler)), Upscaler.BILINEAR, Upscaler.FSR2)
+	grass_distance = clampi(int(cfg.get_value(SECTION, "grass_distance", grass_distance)),
+		GrassDistance.NEAR, GrassDistance.FAR)
 	preset = int(cfg.get_value(SECTION, "preset", preset))
 	var saved_method: String = String(cfg.get_value(SECTION, "rendering_method", active_rendering_method))
 	if saved_method != active_rendering_method and RENDERER_METHODS.has(saved_method):
