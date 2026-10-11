@@ -597,7 +597,7 @@ metadata/lane_index = 0
 metadata/lane_name = "White"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_White/ManaSource" unique_id=116146493 instance=ExtResource("3_well_white")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3196731, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3063, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_White" unique_id=555229883 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4066858, -179.4508)
@@ -619,7 +619,7 @@ metadata/lane_index = 1
 metadata/lane_name = "Blue"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Blue/ManaSource" unique_id=1074833049 instance=ExtResource("4_well_blue")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5411768, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.6759, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Blue" unique_id=279903782 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -641,7 +641,7 @@ metadata/lane_index = 2
 metadata/lane_name = "Black"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Black/ManaSource" unique_id=1853583485 instance=ExtResource("5_well_black")]
-transform = Transform3D(0.9999999, 0, 0, 0, 1, 0, 0, 0, 0.9999999, 0, -0.54421735, 0)
+transform = Transform3D(0.9999999, 0, 0, 0, 1, 0, 0, 0, 0.9999999, 0, -0.5062, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Black" unique_id=412126932 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -663,7 +663,7 @@ metadata/lane_index = 3
 metadata/lane_name = "Red"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Red/ManaSource" unique_id=1055033489 instance=ExtResource("6_well_red")]
-transform = Transform3D(0.99999994, 0, -2.9802322e-08, 0, 1, 0, 2.9802322e-08, 0, 0.99999994, 0, -0.71180725, 0)
+transform = Transform3D(0.99999994, 0, -2.9802322e-08, 0, 1, 0, 2.9802322e-08, 0, 0.99999994, 0, -0.3207, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Red" unique_id=693690319 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -685,7 +685,7 @@ metadata/lane_index = 4
 metadata/lane_name = "Green"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Green/ManaSource" unique_id=243531861 instance=ExtResource("7_well_green")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8213339, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8039, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Green" unique_id=1886257386 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)

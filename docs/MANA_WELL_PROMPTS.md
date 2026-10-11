@@ -158,16 +158,31 @@ out of the forest floor.
 
 ## After the images
 
-1. **Pick:** choose one image per colour. Save it as
-   `assets/structures/mana-well-<colour>/mana-well-<colour>_concept.png`.
-2. **Mesh:** that image goes to Meshy image-to-3D (meshy-t2, about 3,000-4,000 triangles).
-   It costs credits, so only when you say so.
-3. **Engine:**
-   - **Basin surface:** a disc at the basin's height with an animated shader per colour -
-     golden light-water for White, glowing sea-water for Blue, violet ooze for Black, lava
-     for Red, luminous sap for Green - brighter at night on the `crystal_night` clock.
-   - **Glowing cracks and crystals:** an emission mask keyed on each well's crack colour,
-     so the mineral veins and crystal outgrowths light up, again stronger at night.
-   - **Light and motes:** a light in the well's colour plus rising motes.
-   - **Hand-over:** the crystals round the wells (`PlacedCrystals/Wells` in main.tscn)
-     stay; the `WellGlow_<colour>` lights there move into the new well scenes.
+Done on 2026-10-11 for all five, from the first Gemini image of each prompt.
+
+1. **Concept:** `assets/structures/mana-well-<colour>/mana-well-<colour>_concept.png`.
+2. **Mesh:** `python tools/mesh_mana_wells.py --go [colour ...]` - Meshy image-to-3D,
+   Smart Topology (meshy-t2), 8,000 triangles: more than the 3,000-4,000 first planned,
+   because the wells are hero props the players walk right up to, and columns, roots and
+   leaves lost their shape below that. 15 credits each. Writes the .glb, preview and
+   `.meshy.json` beside the concept; the `.glb.import` and its uid stay.
+3. **Fit:** `tools/tests/fit_mana_wells.tscn` scales each model to 3 m across, finds the
+   highest level its basin holds without spilling (flooding horizontal slices, so roots
+   and leaves arching over the basin are not walls), cuts the surface mesh
+   (`mana-well-<colour>_surface.tres`) and measures the terrain under each well.
+4. **Scenes:** `python -I tools/build_mana_wells.py <fit.json>` writes
+   `scenes/mana_wells/*.tscn` - Model, ManaSurface, Motes - and stands each well's Visual
+   node in main.tscn on the ground. The colours of each surface are set there.
+5. **Look:** `tools/tests/well_shot.tscn` photographs every well by day and night.
+
+In the engine:
+
+- **Basin surface:** `assets/shaders/mana_pool.gdshader`, procedural and stirring -
+  golden light-water for White, sea-water for Blue, violet ooze for Black, crusted lava
+  for Red, luminous sap for Green - brighter at night on the `crystal_night` clock.
+- **Motes:** a few sparks of the colour rising off the surface.
+- **Light:** the `WellGlow_<colour>` lights under `PlacedCrystals/Wells` in main.tscn
+  stay where they are, as do the crystals round the wells.
+- **Not done yet:** glowing cracks and crystals on the model itself (an emission mask
+  keyed on each well's crack colour).
+- **No collision**, as before: players and enemies walk through the well.
