@@ -174,6 +174,21 @@
 [ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-verdant-spire.res" id="crystal_o13_mask"]
 [ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-emerald-shards.tres" id="crystal_o14"]
 [ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-emerald-shards.res" id="crystal_o14_mask"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-rootbound-obelisk.tscn" id="placed_0"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-void-amethyst.tscn" id="placed_1"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-void-shards.tscn" id="placed_2"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-sapphire-cluster.tscn" id="placed_3"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-tide-crystal-spires.tscn" id="placed_4"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-tide-shards.tscn" id="placed_5"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-emerald-root-crystals.tscn" id="placed_6"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-emerald-shards.tscn" id="placed_7"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-verdant-spire.tscn" id="placed_8"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-ember-shards.tscn" id="placed_9"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-magma-spire.tscn" id="placed_10"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-ruby-crystals.tscn" id="placed_11"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-dawn-crystal-cluster.tscn" id="placed_12"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-dawn-shards.tscn" id="placed_13"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-sunspire-crystal.tscn" id="placed_14"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_w4i7m"]
 shader = ExtResource("2_tafxk")
@@ -821,3 +836,234 @@ transform = Transform3D(5.22117, 0.52533, 6.07469, -0.20293, 8.00804, -0.51811, 
 
 [node name="pointed_slab_7" parent="StoneRings" unique_id=1497871144 instance=ExtResource("100_2srjq")]
 transform = Transform3D(-5.30214, 0.01201, -5.24985, 0.34345, 7.44627, -0.32983, 5.23861, -0.47603, -5.29188, -33.62628, 3.3313, -5.13278)
+
+[node name="PlacedCrystals" type="Node3D" parent="."]
+
+[node name="Wells" type="Node3D" parent="PlacedCrystals"]
+
+[node name="Hub" type="Node3D" parent="PlacedCrystals"]
+
+[node name="WhiteDawnCrystalCluster" parent="PlacedCrystals/Wells" instance=ExtResource("placed_12")]
+transform = Transform3D(0.28244624, 0, 0.97368014, 0, 1.013819, 0, -0.97368014, 0, 0.28244624, -6.2188387, 1.5570374, -112.35909)
+
+[node name="WhiteDawnCrystalCluster_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_12")]
+transform = Transform3D(0.99969167, 0, 0.3658179, 0, 1.0645216, 0, -0.3658179, 0, 0.99969167, 7.0308576, 2.5734558, -113.5332)
+
+[node name="WhiteDawnShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+transform = Transform3D(0.24075992, 0, 1.004896, 0, 1.0333351, 0, -1.004896, 0, 0.24075992, -5.320061, 1.8845215, -115.709274)
+
+[node name="WhiteDawnShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+transform = Transform3D(-0.65474296, 0, 1.0378302, 0, 1.2271023, 0, -1.0378302, 0, -0.65474296, -4.0095954, 1.7808228, -108.45139)
+
+[node name="WhiteDawnShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+transform = Transform3D(1.0951973, 0, 0.36404252, 0, 1.1541162, 0, -0.36404252, 0, 1.0951973, 6.1962004, 2.127472, -115.924835)
+
+[node name="WhiteDawnShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+transform = Transform3D(0.6301653, 0, 0.62181306, 0, 0.88530207, 0, -0.62181306, 0, 0.6301653, 5.047303, 2.6801453, -108.33695)
+
+[node name="WellGlow_White" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.1562986, -112.4508)
+light_color = Color(1, 0.96, 0.82, 1)
+light_energy = 1.39999997615814
+omni_range = 11.0
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 25.0
+
+[node name="BlueSapphireCluster" parent="PlacedCrystals/Wells" instance=ExtResource("placed_3")]
+transform = Transform3D(1.1315259, 0, -0.27851373, 0, 1.1652986, 0, 0.27851373, 0, 1.1315259, 104.787315, -0.020446777, -40.544765)
+
+[node name="BlueSapphireCluster_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_3")]
+transform = Transform3D(-0.34050444, 0, 1.0590079, 0, 1.1124033, 0, -1.0590079, 0, -0.34050444, 108.39434, -0.0074157715, -29.441494)
+
+[node name="BlueTideShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+transform = Transform3D(-0.95050573, 0, 0.26190886, 0, 0.98592967, 0, -0.26190886, 0, -0.95050573, 108.331375, -0.03427124, -40.783783)
+
+[node name="BlueTideShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+transform = Transform3D(-0.78958106, 0, -0.6456311, 0, 1.01994, 0, 0.6456311, 0, -0.78958106, 102.54944, -0.014465332, -39.31368)
+
+[node name="BlueTideShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+transform = Transform3D(0.8886259, 0, 0.079129435, 0, 0.89214206, 0, -0.079129435, 0, 0.8886259, 111.101524, -0.0072631836, -30.543179)
+
+[node name="BlueTideShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+transform = Transform3D(0.8064985, 0, -0.64407784, 0, 1.0321221, 0, 0.64407784, 0, 0.8064985, 103.96309, -0.0093688965, -28.589054)
+
+[node name="WellGlow_Blue" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 106.94712, 2.1740906, -34.74921)
+light_color = Color(0.45, 0.88, 1, 1)
+light_energy = 1.39999997615814
+omni_range = 11.0
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 25.0
+
+[node name="BlackVoidAmethyst" parent="PlacedCrystals/Wells" instance=ExtResource("placed_1")]
+transform = Transform3D(-0.93868303, 0, -0.16508764, 0, 0.9530896, 0, 0.16508764, 0, -0.93868303, 70.8373, 0.001159668, 86.920654)
+
+[node name="BlackVoidAmethyst_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_1")]
+transform = Transform3D(0.42179927, 0, -1.0777588, 0, 1.1573584, 0, 1.0777588, 0, 0.42179927, 60.717216, 0.20098877, 94.516106)
+
+[node name="BlackVoidShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+transform = Transform3D(-0.49461964, 0, 0.8472352, 0, 0.98104846, 0, -0.8472352, 0, -0.49461964, 73.257355, 0.07443237, 90.96105)
+
+[node name="BlackVoidShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+transform = Transform3D(-0.26877895, 0, 1.0057383, 0, 1.0410339, 0, -1.0057383, 0, -0.26877895, 69.073204, 0.21966553, 84.31449)
+
+[node name="BlackVoidShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+transform = Transform3D(-0.7440389, 0, 0.6767373, 0, 1.005767, 0, -0.6767373, 0, -0.7440389, 64.10026, 0.01184082, 97.13902)
+
+[node name="BlackVoidShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+transform = Transform3D(-0.5213569, 0, -0.6781629, 0, 0.8554051, 0, 0.6781629, 0, -0.5213569, 59.257057, 0.024291992, 90.877754)
+
+[node name="WellGlow_Black" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66.09689, 2.3438294, 90.97461)
+light_color = Color(0.68, 0.34, 1, 1)
+light_energy = 1.39999997615814
+omni_range = 11.0
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 25.0
+
+[node name="RedRubyCrystals" parent="PlacedCrystals/Wells" instance=ExtResource("placed_11")]
+transform = Transform3D(-0.16280143, 0, -0.86523056, 0, 0.88041365, 0, 0.86523056, 0, -0.16280143, -61.068413, 0.3161316, 94.156296)
+
+[node name="RedRubyCrystals_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_11")]
+transform = Transform3D(0.23860836, 0, -1.0426811, 0, 1.0696344, 0, 1.0426811, 0, 0.23860836, -71.19722, 0.2710266, 86.5861)
+
+[node name="RedEmberShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+transform = Transform3D(1.2416711, 0, -0.015423534, 0, 1.2417668, 0, 0.015423534, 0, 1.2416711, -64.692406, 0.31121826, 97.32776)
+
+[node name="RedEmberShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+transform = Transform3D(-0.30250904, 0, -1.0973161, 0, 1.1382506, 0, 1.0973161, 0, -0.30250904, -60.4692, 0.31930542, 90.67395)
+
+[node name="RedEmberShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+transform = Transform3D(0.32983342, 0, -0.98941034, 0, 1.0429395, 0, 0.98941034, 0, 0.32983342, -71.71026, 0.3093872, 90.27854)
+
+[node name="RedEmberShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+transform = Transform3D(-0.5648312, 0, 0.6985711, 0, 0.8983517, 0, -0.6985711, 0, -0.5648312, -68.93421, 0.28552246, 85.444275)
+
+[node name="WellGlow_Red" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -66.09689, 2.5293152, 90.97461)
+light_color = Color(1, 0.56, 0.12, 1)
+light_energy = 1.39999997615814
+omni_range = 11.0
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 25.0
+
+[node name="GreenEmeraldRootCrystals" parent="PlacedCrystals/Wells" instance=ExtResource("placed_6")]
+transform = Transform3D(-1.067671, 0, 0.10207861, 0, 1.0725397, 0, -0.10207861, 0, -1.067671, -107.93612, 1.3259583, -27.958355)
+
+[node name="GreenEmeraldRootCrystals_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_6")]
+transform = Transform3D(-0.50577074, 0, 0.9565261, 0, 1.0820103, 0, -0.9565261, 0, -0.50577074, -105.24154, 1.5423889, -41.963257)
+
+[node name="GreenEmeraldShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+transform = Transform3D(1.1014591, 0, 0.059402607, 0, 1.1030598, 0, -0.059402607, 0, 1.1014591, -112.014824, 1.583435, -29.936691)
+
+[node name="GreenEmeraldShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+transform = Transform3D(1.0051494, 0, 0.12232214, 0, 1.012565, 0, -0.12232214, 0, 1.0051494, -104.286835, 1.5004883, -28.946806)
+
+[node name="GreenEmeraldShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+transform = Transform3D(0.98022974, 0, 0.10435995, 0, 0.9857694, 0, -0.10435995, 0, 0.98022974, -108.166534, 1.5201111, -40.6278)
+
+[node name="GreenEmeraldShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+transform = Transform3D(0.40984532, 0, -1.1051205, 0, 1.1786706, 0, 1.1051205, 0, 0.40984532, -101.91616, 1.3549805, -39.356594)
+
+[node name="WellGlow_Green" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -106.94712, 3.6538575, -34.74921)
+light_color = Color(0.5, 1, 0.35, 1)
+light_energy = 1.39999997615814
+omni_range = 11.0
+distance_fade_enabled = true
+distance_fade_begin = 70.0
+distance_fade_length = 25.0
+
+[node name="BlackVoidShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_2")]
+transform = Transform3D(0.15984358, 0, 0.8520576, 0, 0.866921, 0, -0.8520576, 0, 0.15984358, -17.369534, 0.0005493164, -17.484358)
+
+[node name="BlueSapphireCluster" parent="PlacedCrystals/Hub" instance=ExtResource("placed_3")]
+transform = Transform3D(0.35670492, 0, -1.0923893, 0, 1.1491531, 0, 1.0923893, 0, 0.35670492, -2.734016, 0, -23.521957)
+
+[node name="WhiteDawnShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_13")]
+transform = Transform3D(-0.4509432, 0, 0.83713144, 0, 0.95086217, 0, -0.83713144, 0, -0.4509432, 9.930484, 0, -21.175716)
+
+[node name="BlueTideShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+transform = Transform3D(-0.390652, 0, -1.0473274, 0, 1.117812, 0, 1.0473274, 0, -0.390652, 22.660395, 0, -10.063629)
+
+[node name="WhiteDawnShards_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_13")]
+transform = Transform3D(0.39307922, 0, 1.1739154, 0, 1.2379776, 0, -1.1739154, 0, 0.39307922, 23.709202, 0, 4.418837)
+
+[node name="BlueTideShards_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+transform = Transform3D(-1.131342, 0, -0.132207, 0, 1.1390406, 0, 0.132207, 0, -1.131342, 17.182358, 0, 17.838615)
+
+[node name="GreenEmeraldRootCrystals" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+transform = Transform3D(-0.49580985, 0, -0.83169186, 0, 0.96826583, 0, 0.83169186, 0, -0.49580985, 2.510383, 0, 23.476637)
+
+[node name="BlackVoidAmethyst" parent="PlacedCrystals/Hub" instance=ExtResource("placed_1")]
+transform = Transform3D(0.87106025, 0, 0.25979868, 0, 0.90897816, 0, -0.25979868, 0, 0.87106025, -11.611475, 0.046447754, 21.022818)
+
+[node name="RedEmberShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_9")]
+transform = Transform3D(0.6187222, 0, -0.63721824, 0, 0.8881803, 0, 0.63721824, 0, 0.6187222, -21.89144, 0.018829346, 9.662788)
+
+[node name="BlackVoidAmethyst_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_1")]
+transform = Transform3D(-0.9103313, 0, 0.31861869, 0, 0.9644796, 0, -0.31861869, 0, -0.9103313, -22.92427, 0, -3.1572945)
+
+[node name="RedRubyCrystals" parent="PlacedCrystals/Hub" instance=ExtResource("placed_11")]
+transform = Transform3D(1.1151768, 0, 0.16618808, 0, 1.1274918, 0, -0.16618808, 0, 1.1151768, -31.38643, 0.2421875, -19.4006)
+
+[node name="BlackVoidShards_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_2")]
+transform = Transform3D(0.40446103, 0, 0.9700518, 0, 1.0509944, 0, -0.9700518, 0, 0.40446103, -18.906675, 0, -30.819345)
+
+[node name="GreenEmeraldRootCrystals_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+transform = Transform3D(0.35723472, 0, 1.1769638, 0, 1.2299839, 0, -1.1769638, 0, 0.35723472, -6.563441, 0, -36.388332)
+
+[node name="WhiteDawnCrystalCluster" parent="PlacedCrystals/Hub" instance=ExtResource("placed_12")]
+transform = Transform3D(-0.31983608, 0, -0.99948967, 0, 1.0494163, 0, 0.99948967, 0, -0.31983608, 7.509242, 0.14138794, -35.56169)
+
+[node name="GreenEmeraldRootCrystals_3" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+transform = Transform3D(-0.99826384, 0, 0.65564126, 0, 1.1943183, 0, -0.65564126, 0, -0.99826384, 22.694183, 0.07684326, -28.72751)
+
+[node name="BlueSapphireCluster_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_3")]
+transform = Transform3D(1.0446048, 0, 0.07347364, 0, 1.0471855, 0, -0.07347364, 0, 1.0446048, 32.440247, 0, -16.746605)
+
+[node name="BlackVoidAmethyst_3" parent="PlacedCrystals/Hub" instance=ExtResource("placed_1")]
+transform = Transform3D(0.11672994, 0, 1.1461536, 0, 1.1520824, 0, -1.1461536, 0, 0.11672994, 36.454544, 0, -4.3806024)
+
+[node name="BlueTideShards_3" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+transform = Transform3D(0.018243276, 0, -1.0865822, 0, 1.0867354, 0, 1.0865822, 0, 0.018243276, 34.925285, 0, 12.755456)
+
+[node name="BlueTideShards_4" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+transform = Transform3D(0.07997416, 0, 0.90510786, 0, 0.9086342, 0, -0.90510786, 0, 0.07997416, 27.130642, 0, 25.925303)
+
+[node name="GreenEmeraldRootCrystals_4" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+transform = Transform3D(0.109358184, 0, 0.95532936, 0, 0.96156824, 0, -0.95532936, 0, 0.109358184, 13.025392, 0, 34.629284)
+
+[node name="GreenEmeraldShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_7")]
+transform = Transform3D(-1.1023432, 0, 0.035028916, 0, 1.1028996, 0, -0.035028916, 0, -1.1023432, 0.53122246, 0.076660156, 36.31699)
+
+[node name="GreenEmeraldRootCrystals_5" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+transform = Transform3D(-1.2315767, 0, -0.042460658, 0, 1.2323084, 0, 0.042460658, 0, -1.2315767, -18.038118, 0.06011963, 32.283997)
+
+[node name="BlueSapphireCluster_3" parent="PlacedCrystals/Hub" instance=ExtResource("placed_3")]
+transform = Transform3D(0.5729702, 0, -0.76223975, 0, 0.9535745, 0, 0.76223975, 0, 0.5729702, -28.712286, 0.069000244, 22.19893)
+
+[node name="RedEmberShards_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_9")]
+transform = Transform3D(-1.078224, 0, 0.28073177, 0, 1.1141711, 0, -0.28073177, 0, -1.078224, -34.699234, 0.0023498535, 11.309954)
+
+[node name="BlueTideShards_5" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+transform = Transform3D(0.22730666, 0, 1.142068, 0, 1.1644689, 0, -1.142068, 0, 0.22730666, -35.113308, 0.029785156, -7.429999)
+
+[node name="WhiteSunspireCrystal" parent="PlacedCrystals/Hub" instance=ExtResource("placed_14")]
+transform = Transform3D(0.86440593, 0, -0.17748518, 0, 0.882439, 0, 0.17748518, 0, 0.86440593, -36.462578, 1.4102783, -49.975883)
+
+[node name="BlueTideCrystalSpires" parent="PlacedCrystals/Hub" instance=ExtResource("placed_4")]
+transform = Transform3D(0.13057357, 0, -1.1416941, 0, 1.1491365, 0, 1.1416941, 0, 0.13057357, 2.3855941e-06, 7.280731, 59.921043)
+
+[node name="BlackRootboundObelisk" parent="PlacedCrystals/Hub" instance=ExtResource("placed_0")]
+transform = Transform3D(0.78467375, 0, 0.43460718, 0, 0.8969929, 0, -0.43460718, 0, 0.78467375, 59.172775, 0.024536133, 19.202045)
+
+[node name="RedMagmaSpire" parent="PlacedCrystals/Hub" instance=ExtResource("placed_10")]
+transform = Transform3D(1.13181, 0, -0.031049961, 0, 1.1322358, 0, 0.031049961, 0, 1.13181, -59.352646, 9.312103, 19.847908)
+
+[node name="GreenVerdantSpire" parent="PlacedCrystals/Hub" instance=ExtResource("placed_8")]
+transform = Transform3D(-0.09740021, 0, 1.0634714, 0, 1.0679225, 0, -1.0634714, 0, -0.09740021, 38.206573, 6.4036865, -53.133564)

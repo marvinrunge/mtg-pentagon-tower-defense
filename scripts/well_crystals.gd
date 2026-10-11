@@ -4,15 +4,18 @@ extends Node3D
 ## And at the hub (place_hub), where all five colours meet: at the foot of the standing
 ## stones, and a spire of each colour at the five carved pillars.
 ##
-## Placed at runtime, round wherever each ManaSource stands, rather than painted into the
-## terrain like the crystals in the wild (tools/build_nature_terrabrush.gd): TerraBrush's
-## grid is too coarse for a ring a few metres wide, and the wells are getting new models -
-## this follows them wherever they end up.
+## Not run by the game. It is the generator for the PlacedCrystals branch of main.tscn:
+## tools/tests/bake_placed_crystals.tscn runs it once on the real terrain and
+## tools/bake_placed_crystals.py writes what it made into the scene as ordinary nodes, to be
+## seen and moved in the editor. Rerun the two after moving a well or the stones - and note
+## that a rerun replaces any hand edits to that branch. Not painted into the terrain like the
+## crystals in the wild (tools/build_nature_terrabrush.gd): TerraBrush's grid is too coarse
+## for a ring a few metres wide.
 ##
 ## The ring keeps clear of the lane - enemies walk spawner -> well -> crystal straight
 ## through it - and of the harvest slots, where Myrs stand (GameSettings.myr_well_slot_radius).
-## Nothing here collides: it is added after the navmesh bake, and a solid crystal the
-## navmesh does not know about is one enemies would walk into.
+## The well and stone crystals have no collision. The pillar spires keep theirs once baked:
+## as scene nodes they exist before the navmesh bake, which routes round them.
 ##
 ## Deliberately no `class_name` - preloaded by path, see scripts/icon_style.gd.
 

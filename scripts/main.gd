@@ -2,7 +2,6 @@ extends Node3D
 class_name MainController
 
 const IntroTour := preload("res://scripts/intro_tour.gd")
-const WellCrystalsScript := preload("res://scripts/well_crystals.gd")
 
 @export var player_scene: PackedScene = preload("res://scenes/misc/player.tscn")
 @export var myr_scene: PackedScene = preload("res://scenes/misc/myr.tscn")
@@ -336,15 +335,6 @@ func bake_map_navigation() -> void:
 
 	# Players only need the ground, not the navmesh, so they do not sit through the bake.
 	spawn_entities()
-	# Crystals round the mana wells, stood on the terrain now that it has collision.
-	var well_crystals: Node3D = WellCrystalsScript.new()
-	well_crystals.name = "WellCrystals"
-	add_child(well_crystals)
-	well_crystals.place(mana_sources, LANE_NAMES, crystal_anchor.global_position, terrain_body)
-	# And at the hub, every colour together.
-	var stones: Array = get_node("StoneRings").get_children() if has_node("StoneRings") else []
-	var pillars: Array = get_node("OuterStoneRing").get_children() if has_node("OuterStoneRing") else []
-	well_crystals.place_hub(crystal_anchor.global_position, stones, pillars, terrain_body)
 	SignalBus.map_ready.emit()
 	# The flight over the map plays over the bake, so the seconds it takes are spent
 	# looking at the map rather than at a frozen start.
