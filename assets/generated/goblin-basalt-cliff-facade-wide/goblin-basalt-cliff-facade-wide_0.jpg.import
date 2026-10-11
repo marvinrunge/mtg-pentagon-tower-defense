@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://c5abcfbqd7egn"
+path.s3tc="res://.godot/imported/goblin-basalt-cliff-facade-wide_0.jpg-c5f6accc15435c175723fcd779e9d6ea.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "1ff694ba8d6e82f16b98f2f767f3961f"
+}
+
+[deps]
+
+source_file="res://assets/generated/goblin-basalt-cliff-facade-wide/goblin-basalt-cliff-facade-wide_0.jpg"
+dest_files=["res://.godot/imported/goblin-basalt-cliff-facade-wide_0.jpg-c5f6accc15435c175723fcd779e9d6ea.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

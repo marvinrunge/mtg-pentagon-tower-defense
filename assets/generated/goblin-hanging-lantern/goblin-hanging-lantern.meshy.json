@@ -1,0 +1,22 @@
+{
+  "generator": "Meshy Image to 3D API v1",
+  "task_id": "01a12bda-6858-74a4-9ae5-3705b17420e6",
+  "status": "SUCCEEDED",
+  "consumed_credits": 15,
+  "request": {
+    "ai_model": "meshy-t2",
+    "model_type": "smart-topology",
+    "target_polycount": 300,
+    "should_texture": true,
+    "enable_pbr": true,
+    "texture_resolution": "2k",
+    "origin_at": "bottom",
+    "target_formats": [
+      "glb"
+    ],
+    "moderation": true
+  },
+  "concept_image": "goblin-hanging-lantern_concept.jpg",
+  "concept_prompt": "docs/GOBLIN_CAVES.md, goblin-hanging-lantern (Gemini 3 Pro Image)",
+  "license_review_required": true
+}

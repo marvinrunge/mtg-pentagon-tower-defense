@@ -1,0 +1,22 @@
+{
+  "generator": "Meshy Image to 3D API v1",
+  "task_id": "01a12bda-6862-72f5-9bf0-33fc697c7bc7",
+  "status": "SUCCEEDED",
+  "consumed_credits": 15,
+  "request": {
+    "ai_model": "meshy-t2",
+    "model_type": "smart-topology",
+    "target_polycount": 600,
+    "should_texture": true,
+    "enable_pbr": true,
+    "texture_resolution": "2k",
+    "origin_at": "bottom",
+    "target_formats": [
+      "glb"
+    ],
+    "moderation": true
+  },
+  "concept_image": "goblin-doorframe_concept.jpg",
+  "concept_prompt": "docs/GOBLIN_CAVES.md, goblin-doorframe (Gemini 3 Pro Image)",
+  "license_review_required": true
+}

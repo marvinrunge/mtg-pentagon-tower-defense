@@ -1,0 +1,22 @@
+{
+  "generator": "Meshy Image to 3D API v1",
+  "task_id": "01a12bd9-11c4-712d-a6fa-14b3b272ffc4",
+  "status": "SUCCEEDED",
+  "consumed_credits": 15,
+  "request": {
+    "ai_model": "meshy-t2",
+    "model_type": "smart-topology",
+    "target_polycount": 3500,
+    "should_texture": true,
+    "enable_pbr": true,
+    "texture_resolution": "2k",
+    "origin_at": "bottom",
+    "target_formats": [
+      "glb"
+    ],
+    "moderation": true
+  },
+  "concept_image": "goblin-sand-cliff-facade-wide_concept.jpg",
+  "concept_prompt": "docs/GOBLIN_CAVES.md, goblin-sand-cliff-facade-wide (Gemini 3 Pro Image)",
+  "license_review_required": true
+}

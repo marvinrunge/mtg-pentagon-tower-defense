@@ -1,0 +1,22 @@
+{
+  "generator": "Meshy Image to 3D API v1",
+  "task_id": "01a12bdb-ba90-71e2-9022-491aa1b0aecc",
+  "status": "SUCCEEDED",
+  "consumed_credits": 15,
+  "request": {
+    "ai_model": "meshy-t2",
+    "model_type": "smart-topology",
+    "target_polycount": 3000,
+    "should_texture": true,
+    "enable_pbr": true,
+    "texture_resolution": "2k",
+    "origin_at": "bottom",
+    "target_formats": [
+      "glb"
+    ],
+    "moderation": true
+  },
+  "concept_image": "goblin-basalt-cliff-facade-tall_concept.jpg",
+  "concept_prompt": "docs/GOBLIN_CAVES.md, goblin-basalt-cliff-facade-tall (Gemini 3 Pro Image)",
+  "license_review_required": true
+}

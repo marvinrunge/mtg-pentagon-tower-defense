@@ -1,0 +1,22 @@
+{
+  "generator": "Meshy Image to 3D API v1",
+  "task_id": "01a12bdb-ba96-767d-9832-2bb668e6fc5e",
+  "status": "SUCCEEDED",
+  "consumed_credits": 15,
+  "request": {
+    "ai_model": "meshy-t2",
+    "model_type": "smart-topology",
+    "target_polycount": 2000,
+    "should_texture": true,
+    "enable_pbr": true,
+    "texture_resolution": "2k",
+    "origin_at": "bottom",
+    "target_formats": [
+      "glb"
+    ],
+    "moderation": true
+  },
+  "concept_image": "goblin-sand-cave-mouth_concept.jpg",
+  "concept_prompt": "docs/GOBLIN_CAVES.md, goblin-sand-cave-mouth (Gemini 3 Pro Image)",
+  "license_review_required": true
+}
