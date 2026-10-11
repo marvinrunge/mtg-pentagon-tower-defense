@@ -1,4 +1,4 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://bko6ece1eddsp"]
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-void-shards.res" id="1_22ft1"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_7cumw"]

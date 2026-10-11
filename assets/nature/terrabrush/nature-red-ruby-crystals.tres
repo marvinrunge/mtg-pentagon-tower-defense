@@ -1,4 +1,4 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://bedhywc6orc0j"]
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-ruby-crystals.res" id="1_xmxbl"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_p0wdv"]

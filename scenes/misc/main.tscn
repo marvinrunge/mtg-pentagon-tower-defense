@@ -102,26 +102,109 @@
 [ext_resource type="PackedScene" uid="uid://b1g7lbwfgdidf" path="res://assets/structures/pillar_weathered_sentinel.glb" id="102_sdwp7"]
 [ext_resource type="Image" uid="uid://ob0rfk35p1fo" path="res://scenes/misc/Main/Splatmap_0_0_4.res" id="106_sdwp7"]
 [ext_resource type="Shader" uid="uid://d2cw1grmyu524" path="res://assets/shaders/terrain_water.gdshader" id="200_water"]
+[ext_resource type="PackedScene" uid="uid://devuutvdwsypd" path="res://assets/generated/goblin-sand-cave-mouth/goblin-sand-cave-mouth.glb" id="226_07asm"]
+[ext_resource type="PackedScene" uid="uid://d3gv862tvcyfy" path="res://assets/generated/Meshy_AI_White_Earthen_Dwellin_1011195516_texture.glb" id="227_a6ntp"]
+[ext_resource type="ObjectResource" uid="uid://bdxbs4fsk2kvx" path="res://assets/nature/terrabrush/nature-white-dawn-crystal-cluster.tres" id="crystal_o0"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-dawn-crystal-cluster.res" id="crystal_o0_mask"]
+[ext_resource type="ObjectResource" uid="uid://ccyec6kesvao2" path="res://assets/nature/terrabrush/nature-white-sunspire-crystal.tres" id="crystal_o1"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-sunspire-crystal.res" id="crystal_o1_mask"]
+[ext_resource type="ObjectResource" uid="uid://b58hwca0jofrf" path="res://assets/nature/terrabrush/nature-white-dawn-shards.tres" id="crystal_o2"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-dawn-shards.res" id="crystal_o2_mask"]
+[ext_resource type="ObjectResource" uid="uid://bx1xditsb8cu8" path="res://assets/nature/terrabrush/nature-blue-tide-crystal-spires.tres" id="crystal_o3"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-tide-crystal-spires.res" id="crystal_o3_mask"]
+[ext_resource type="ObjectResource" uid="uid://b4egbiw6wr56s" path="res://assets/nature/terrabrush/nature-blue-sapphire-cluster.tres" id="crystal_o4"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-sapphire-cluster.res" id="crystal_o4_mask"]
+[ext_resource type="ObjectResource" uid="uid://cjrbwll0fw844" path="res://assets/nature/terrabrush/nature-blue-tide-shards.tres" id="crystal_o5"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-tide-shards.res" id="crystal_o5_mask"]
+[ext_resource type="ObjectResource" uid="uid://bmh7w1hjcf2fn" path="res://assets/nature/terrabrush/nature-black-void-amethyst.tres" id="crystal_o6"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-void-amethyst.res" id="crystal_o6_mask"]
+[ext_resource type="ObjectResource" uid="uid://bv7iac5udhy2j" path="res://assets/nature/terrabrush/nature-black-rootbound-obelisk.tres" id="crystal_o7"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-rootbound-obelisk.res" id="crystal_o7_mask"]
+[ext_resource type="ObjectResource" uid="uid://bko6ece1eddsp" path="res://assets/nature/terrabrush/nature-black-void-shards.tres" id="crystal_o8"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-void-shards.res" id="crystal_o8_mask"]
+[ext_resource type="ObjectResource" uid="uid://bedhywc6orc0j" path="res://assets/nature/terrabrush/nature-red-ruby-crystals.tres" id="crystal_o9"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-ruby-crystals.res" id="crystal_o9_mask"]
+[ext_resource type="ObjectResource" uid="uid://dsgrmc0d7xgon" path="res://assets/nature/terrabrush/nature-red-magma-spire.tres" id="crystal_o10"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-magma-spire.res" id="crystal_o10_mask"]
+[ext_resource type="ObjectResource" uid="uid://cx2ehcvg7yjx3" path="res://assets/nature/terrabrush/nature-red-ember-shards.tres" id="crystal_o11"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-ember-shards.res" id="crystal_o11_mask"]
+[ext_resource type="ObjectResource" uid="uid://cxirj0dmlfe7q" path="res://assets/nature/terrabrush/nature-green-emerald-root-crystals.tres" id="crystal_o12"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-emerald-root-crystals.res" id="crystal_o12_mask"]
+[ext_resource type="ObjectResource" uid="uid://c4e2lh8u0j234" path="res://assets/nature/terrabrush/nature-green-verdant-spire.tres" id="crystal_o13"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-verdant-spire.res" id="crystal_o13_mask"]
+[ext_resource type="ObjectResource" uid="uid://cujlup1xemg0g" path="res://assets/nature/terrabrush/nature-green-emerald-shards.tres" id="crystal_o14"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-emerald-shards.res" id="crystal_o14_mask"]
+[ext_resource type="ObjectResource" uid="uid://b4p55667oarrh" path="res://assets/nature/terrabrush/nature-blue-fungus-blue-saucer.tres" id="fungus_o0"]
+[ext_resource type="Image" uid="uid://c5act2pias486" path="res://scenes/misc/Main/Nature_nature-blue-fungus-blue-saucer.res" id="fungus_o0_mask"]
+[ext_resource type="ObjectResource" uid="uid://c3frvmeru4irj" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-a.tres" id="fungus_o1"]
+[ext_resource type="Image" uid="uid://depvw3m5vvw7d" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-a.res" id="fungus_o1_mask"]
+[ext_resource type="ObjectResource" uid="uid://c1aojqe7xmigh" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-b.tres" id="fungus_o2"]
+[ext_resource type="Image" uid="uid://b3jbsag2vhg6i" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-b.res" id="fungus_o2_mask"]
+[ext_resource type="ObjectResource" uid="uid://d24s0dpmki8a" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-c.tres" id="fungus_o3"]
+[ext_resource type="Image" uid="uid://cikim4ex78fpm" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-c.res" id="fungus_o3_mask"]
+[ext_resource type="ObjectResource" uid="uid://br418in76d4xx" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-a.tres" id="fungus_o4"]
+[ext_resource type="Image" uid="uid://colktjgo4ysnw" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-a.res" id="fungus_o4_mask"]
+[ext_resource type="ObjectResource" uid="uid://dlid1lvq16ekl" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-b.tres" id="fungus_o5"]
+[ext_resource type="Image" uid="uid://cy2kcgbhaq5fh" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-b.res" id="fungus_o5_mask"]
+[ext_resource type="ObjectResource" uid="uid://boep5ustme8a6" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-c.tres" id="fungus_o6"]
+[ext_resource type="Image" uid="uid://oouvb12fcgsl" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-c.res" id="fungus_o6_mask"]
+[ext_resource type="ObjectResource" uid="uid://l7svbtnxgaxn" path="res://assets/nature/terrabrush/nature-black-fungus-violet-cluster.tres" id="fungus_o7"]
+[ext_resource type="Image" uid="uid://k1e0gpk2cna8" path="res://scenes/misc/Main/Nature_nature-black-fungus-violet-cluster.res" id="fungus_o7_mask"]
+[ext_resource type="ObjectResource" uid="uid://cc6kvqw1nsqha" path="res://assets/nature/terrabrush/nature-black-fungus-pale-a.tres" id="fungus_o8"]
+[ext_resource type="Image" uid="uid://bhsa7xa5wyujk" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-a.res" id="fungus_o8_mask"]
+[ext_resource type="ObjectResource" uid="uid://brn5g6b832bc7" path="res://assets/nature/terrabrush/nature-black-fungus-pale-b.tres" id="fungus_o9"]
+[ext_resource type="Image" uid="uid://fcxmu4s3t4q1" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-b.res" id="fungus_o9_mask"]
+[ext_resource type="ObjectResource" uid="uid://cun4v1vt12n77" path="res://assets/nature/terrabrush/nature-black-fungus-pale-c.tres" id="fungus_o10"]
+[ext_resource type="Image" uid="uid://f88gj3vapdqm" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-c.res" id="fungus_o10_mask"]
+[ext_resource type="ObjectResource" uid="uid://3eqehclkx2q8" path="res://assets/nature/terrabrush/nature-black-fungus-pale-d.tres" id="fungus_o11"]
+[ext_resource type="Image" uid="uid://bclfgq05qdily" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-d.res" id="fungus_o11_mask"]
+[ext_resource type="ObjectResource" uid="uid://v30nldmfalg5" path="res://assets/nature/terrabrush/nature-green-fungus-green-coral.tres" id="fungus_o12"]
+[ext_resource type="Image" uid="uid://dn5d1c6fbtx40" path="res://scenes/misc/Main/Nature_nature-green-fungus-green-coral.res" id="fungus_o12_mask"]
+[ext_resource type="ObjectResource" uid="uid://cko306mihwd7u" path="res://assets/nature/terrabrush/nature-green-fungus-red-fly-agaric.tres" id="fungus_o13"]
+[ext_resource type="Image" uid="uid://c6oe6uotksub0" path="res://scenes/misc/Main/Nature_nature-green-fungus-red-fly-agaric.res" id="fungus_o13_mask"]
+[ext_resource type="ObjectResource" uid="uid://cdbyqdrqgivxq" path="res://assets/nature/terrabrush/nature-green-fungus-tan-a.tres" id="fungus_o14"]
+[ext_resource type="Image" uid="uid://dsh1b6tf3xfni" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-a.res" id="fungus_o14_mask"]
+[ext_resource type="ObjectResource" uid="uid://drjuba5k7qtpr" path="res://assets/nature/terrabrush/nature-green-fungus-tan-b.tres" id="fungus_o15"]
+[ext_resource type="Image" uid="uid://btarehln7fk0a" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-b.res" id="fungus_o15_mask"]
+[ext_resource type="ObjectResource" uid="uid://bdfiukbrenj7n" path="res://assets/nature/terrabrush/nature-green-fungus-tan-c.tres" id="fungus_o16"]
+[ext_resource type="Image" uid="uid://cbhokrl65og3x" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-c.res" id="fungus_o16_mask"]
+[ext_resource type="ObjectResource" uid="uid://dqcchl0kpwrmg" path="res://assets/nature/terrabrush/nature-green-fungus-tan-d.tres" id="fungus_o17"]
+[ext_resource type="Image" uid="uid://c13t5xyw0vf6s" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-d.res" id="fungus_o17_mask"]
 [ext_resource type="FoliageResource" uid="uid://cjmtvif5y12j0" path="res://assets/nature/terrabrush/foliage_white_low.tres" id="grass_f0"]
 [ext_resource type="Image" uid="uid://bxd6h6w3qtutk" path="res://scenes/misc/Main/Foliage_0_0_0.res" id="grass_f0_mask"]
 [ext_resource type="FoliageResource" uid="uid://bj8x0nsitw0aa" path="res://assets/nature/terrabrush/foliage_white_tall.tres" id="grass_f1"]
 [ext_resource type="Image" uid="uid://eqagi26qocs2" path="res://scenes/misc/Main/Foliage_0_0_1.res" id="grass_f1_mask"]
 [ext_resource type="FoliageResource" uid="uid://cevwovjaaqqqq" path="res://assets/nature/terrabrush/foliage_blue_low.tres" id="grass_f2"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_2.res" id="grass_f2_mask"]
+[ext_resource type="Image" uid="uid://ctdg3xoj46a1v" path="res://scenes/misc/Main/Foliage_0_0_2.res" id="grass_f2_mask"]
 [ext_resource type="FoliageResource" uid="uid://bmo1ycbje5kus" path="res://assets/nature/terrabrush/foliage_blue_tall.tres" id="grass_f3"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_3.res" id="grass_f3_mask"]
+[ext_resource type="Image" uid="uid://b844kvow43ft0" path="res://scenes/misc/Main/Foliage_0_0_3.res" id="grass_f3_mask"]
 [ext_resource type="FoliageResource" uid="uid://pn1ow8bndsbo" path="res://assets/nature/terrabrush/foliage_black_low.tres" id="grass_f4"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_4.res" id="grass_f4_mask"]
+[ext_resource type="Image" uid="uid://cr1erkckwkl0y" path="res://scenes/misc/Main/Foliage_0_0_4.res" id="grass_f4_mask"]
 [ext_resource type="FoliageResource" uid="uid://caty3gutogpf6" path="res://assets/nature/terrabrush/foliage_black_tall.tres" id="grass_f5"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_5.res" id="grass_f5_mask"]
+[ext_resource type="Image" uid="uid://c2xxyina435y3" path="res://scenes/misc/Main/Foliage_0_0_5.res" id="grass_f5_mask"]
 [ext_resource type="FoliageResource" uid="uid://byeuovmlm7pda" path="res://assets/nature/terrabrush/foliage_red_low.tres" id="grass_f6"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_6.res" id="grass_f6_mask"]
+[ext_resource type="Image" uid="uid://k4qcvebfxm3m" path="res://scenes/misc/Main/Foliage_0_0_6.res" id="grass_f6_mask"]
 [ext_resource type="FoliageResource" uid="uid://cab4iusxbtb8c" path="res://assets/nature/terrabrush/foliage_red_tall.tres" id="grass_f7"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_7.res" id="grass_f7_mask"]
+[ext_resource type="Image" uid="uid://cavdlb0ufie34" path="res://scenes/misc/Main/Foliage_0_0_7.res" id="grass_f7_mask"]
 [ext_resource type="FoliageResource" uid="uid://cg0bkrb6yajrw" path="res://assets/nature/terrabrush/foliage_green_low.tres" id="grass_f8"]
 [ext_resource type="Image" uid="uid://bqpd8v8n4otsg" path="res://scenes/misc/Main/Foliage_0_0_8.res" id="grass_f8_mask"]
 [ext_resource type="FoliageResource" uid="uid://die8naffjxi42" path="res://assets/nature/terrabrush/foliage_green_tall.tres" id="grass_f9"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Foliage_0_0_9.res" id="grass_f9_mask"]
+[ext_resource type="Image" uid="uid://cd0ywv758bf06" path="res://scenes/misc/Main/Foliage_0_0_9.res" id="grass_f9_mask"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-rootbound-obelisk.tscn" id="placed_0"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-void-amethyst.tscn" id="placed_1"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-void-shards.tscn" id="placed_2"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-sapphire-cluster.tscn" id="placed_3"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-tide-crystal-spires.tscn" id="placed_4"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-tide-shards.tscn" id="placed_5"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-emerald-root-crystals.tscn" id="placed_6"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-emerald-shards.tscn" id="placed_7"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-verdant-spire.tscn" id="placed_8"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-ember-shards.tscn" id="placed_9"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-magma-spire.tscn" id="placed_10"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-ruby-crystals.tscn" id="placed_11"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-dawn-crystal-cluster.tscn" id="placed_12"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-dawn-shards.tscn" id="placed_13"]
+[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-sunspire-crystal.tscn" id="placed_14"]
 [ext_resource type="ObjectResource" uid="uid://d1120g058vqcs" path="res://assets/nature/terrabrush/nature-white-great-sun-oak.tres" id="tree_o0"]
 [ext_resource type="Image" uid="uid://dxbgnb2c07u1m" path="res://scenes/misc/Main/Object_0_0_0.res" id="tree_o0_mask"]
 [ext_resource type="ObjectResource" uid="uid://b4gntktbfdf1o" path="res://assets/nature/terrabrush/nature-white-olive-sunleaf.tres" id="tree_o1"]
@@ -144,87 +227,6 @@
 [ext_resource type="Image" uid="uid://bhc8ntql2dp02" path="res://scenes/misc/Main/Object_0_0_9.res" id="tree_o9_mask"]
 [ext_resource type="ObjectResource" uid="uid://dgc0juce3cbmt" path="res://assets/nature/terrabrush/nature-green-tall-fir.tres" id="tree_o10"]
 [ext_resource type="Image" uid="uid://bbg83xk4jg7xy" path="res://scenes/misc/Main/Object_0_0_10.res" id="tree_o10_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-white-dawn-crystal-cluster.tres" id="crystal_o0"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-dawn-crystal-cluster.res" id="crystal_o0_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-white-sunspire-crystal.tres" id="crystal_o1"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-sunspire-crystal.res" id="crystal_o1_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-white-dawn-shards.tres" id="crystal_o2"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-white-dawn-shards.res" id="crystal_o2_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-tide-crystal-spires.tres" id="crystal_o3"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-tide-crystal-spires.res" id="crystal_o3_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-sapphire-cluster.tres" id="crystal_o4"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-sapphire-cluster.res" id="crystal_o4_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-tide-shards.tres" id="crystal_o5"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-tide-shards.res" id="crystal_o5_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-void-amethyst.tres" id="crystal_o6"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-void-amethyst.res" id="crystal_o6_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-rootbound-obelisk.tres" id="crystal_o7"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-rootbound-obelisk.res" id="crystal_o7_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-void-shards.tres" id="crystal_o8"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-void-shards.res" id="crystal_o8_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-red-ruby-crystals.tres" id="crystal_o9"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-ruby-crystals.res" id="crystal_o9_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-red-magma-spire.tres" id="crystal_o10"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-magma-spire.res" id="crystal_o10_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-red-ember-shards.tres" id="crystal_o11"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-red-ember-shards.res" id="crystal_o11_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-emerald-root-crystals.tres" id="crystal_o12"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-emerald-root-crystals.res" id="crystal_o12_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-verdant-spire.tres" id="crystal_o13"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-verdant-spire.res" id="crystal_o13_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-emerald-shards.tres" id="crystal_o14"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-emerald-shards.res" id="crystal_o14_mask"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-rootbound-obelisk.tscn" id="placed_0"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-void-amethyst.tscn" id="placed_1"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-void-shards.tscn" id="placed_2"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-sapphire-cluster.tscn" id="placed_3"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-tide-crystal-spires.tscn" id="placed_4"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-blue-tide-shards.tscn" id="placed_5"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-emerald-root-crystals.tscn" id="placed_6"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-emerald-shards.tscn" id="placed_7"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-green-verdant-spire.tscn" id="placed_8"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-ember-shards.tscn" id="placed_9"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-magma-spire.tscn" id="placed_10"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-red-ruby-crystals.tscn" id="placed_11"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-dawn-crystal-cluster.tscn" id="placed_12"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-dawn-shards.tscn" id="placed_13"]
-[ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-sunspire-crystal.tscn" id="placed_14"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-blue-saucer.tres" id="fungus_o0"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-blue-saucer.res" id="fungus_o0_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-a.tres" id="fungus_o1"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-a.res" id="fungus_o1_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-b.tres" id="fungus_o2"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-b.res" id="fungus_o2_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-c.tres" id="fungus_o3"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-c.res" id="fungus_o3_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-a.tres" id="fungus_o4"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-a.res" id="fungus_o4_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-b.tres" id="fungus_o5"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-b.res" id="fungus_o5_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-c.tres" id="fungus_o6"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-c.res" id="fungus_o6_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-violet-cluster.tres" id="fungus_o7"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-violet-cluster.res" id="fungus_o7_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-pale-a.tres" id="fungus_o8"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-a.res" id="fungus_o8_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-pale-b.tres" id="fungus_o9"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-b.res" id="fungus_o9_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-pale-c.tres" id="fungus_o10"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-c.res" id="fungus_o10_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-pale-d.tres" id="fungus_o11"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-d.res" id="fungus_o11_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-green-coral.tres" id="fungus_o12"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-green-coral.res" id="fungus_o12_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-red-fly-agaric.tres" id="fungus_o13"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-red-fly-agaric.res" id="fungus_o13_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-tan-a.tres" id="fungus_o14"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-a.res" id="fungus_o14_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-tan-b.tres" id="fungus_o15"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-b.res" id="fungus_o15_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-tan-c.tres" id="fungus_o16"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-c.res" id="fungus_o16_mask"]
-[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-tan-d.tres" id="fungus_o17"]
-[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-d.res" id="fungus_o17_mask"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_w4i7m"]
 shader = ExtResource("2_tafxk")
@@ -279,8 +281,8 @@ shader_parameter/cirrus_absorption = 2.0
 shader_parameter/cirrus_sky_tint_fade = 0.5
 shader_parameter/cirrus_size = 1.0
 shader_parameter/cirrus_uv = Vector2(0.16, 0.11)
-shader_parameter/cirrus_position1 = Vector2(0.40130642, 0.40130642)
-shader_parameter/cirrus_position2 = Vector2(0.40130642, 0.40130642)
+shader_parameter/cirrus_position1 = Vector2(0.33199707, 0.33199707)
+shader_parameter/cirrus_position2 = Vector2(0.33199707, 0.33199707)
 shader_parameter/cirrus_texture = ExtResource("3_i5wgy")
 shader_parameter/cumulus_visible = true
 shader_parameter/cumulus_intensity = 0.52
@@ -290,7 +292,7 @@ shader_parameter/cumulus_absorption = 2.0
 shader_parameter/cumulus_noise_freq = 2.7
 shader_parameter/cumulus_sky_tint_fade = 0.0
 shader_parameter/cumulus_size = 0.5
-shader_parameter/cumulus_position = Vector2(12.021659, 12.021659)
+shader_parameter/cumulus_position = Vector2(31.752607, 31.752607)
 shader_parameter/cumulus_texture = ExtResource("4_xvpgp")
 shader_parameter/cumulus_partial_mie_phase = Vector3(0.957564, 1.042436, 0.412)
 shader_parameter/cumulus_mie_intensity = 1.0
@@ -457,7 +459,7 @@ heightTexture = ExtResource("98_sdwp7")
 [sub_resource type="TextureSetsResource" id="TextureSetsResource_wvpf7"]
 textureSets = Array[TextureSetResource]([SubResource("TextureSetResource_ve6a8"), SubResource("TextureSetResource_mmojm"), SubResource("TextureSetResource_qfssv"), SubResource("TextureSetResource_ayq0h"), SubResource("TextureSetResource_wvpf7"), SubResource("TextureSetResource_qy21g"), SubResource("TextureSetResource_bif71"), SubResource("TextureSetResource_herpf"), SubResource("TextureSetResource_2hqj3"), SubResource("TextureSetResource_avc4j"), SubResource("TextureSetResource_nxa4y"), SubResource("TextureSetResource_vl6u8"), SubResource("TextureSetResource_wb3n1"), SubResource("TextureSetResource_yot8j"), SubResource("TextureSetResource_5v6xv"), SubResource("TextureSetResource_cnnyy"), SubResource("TextureSetResource_ndvxj")])
 
-[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_rormn"]
+[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_cr4xm"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_water"]
 render_priority = 0
@@ -467,7 +469,7 @@ shader_parameter/OffsetPosition = Vector3(0, 0, 0)
 shader_parameter/ZonesSize = 0.0
 shader_parameter/Resolution = 0.0
 shader_parameter/NumberOfZones = 0.0
-shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_rormn")
+shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_cr4xm")
 shader_parameter/WaterFactor = 0.0
 shader_parameter/WaterInnerOffset = 0.3
 shader_parameter/WaterColor = Color(0, 0, 0, 1)
@@ -560,6 +562,7 @@ script = ExtResource("9_ppysr")
 editor_time_enabled = false
 current_time = 14.29
 minutes_per_day = 60.0
+tonemap_exposure = 0.82
 skydome_energy = 0.84
 cloud_intensity = 0.52
 ambient_energy = 0.5
@@ -633,7 +636,7 @@ metadata/lane_index = 0
 metadata/lane_name = "White"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_White/ManaSource" unique_id=116146493 instance=ExtResource("3_well_white")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3063, 0)
+transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, 0, 1.3063, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_White" unique_id=555229883 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4066858, -179.4508)
@@ -641,6 +644,7 @@ metadata/lane_index = 0
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_White/EnemySpawner" unique_id=990309684]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+visible = false
 size = Vector3(1.5, 1.5, 1.5)
 material = SubResource("Material_Spawner")
 
@@ -655,7 +659,7 @@ metadata/lane_index = 1
 metadata/lane_name = "Blue"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Blue/ManaSource" unique_id=1074833049 instance=ExtResource("4_well_blue")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.6759, 0)
+transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, 0, -0.6759, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Blue" unique_id=279903782 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -663,6 +667,7 @@ metadata/lane_index = 1
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_Blue/EnemySpawner" unique_id=937391241]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.40009785, 0)
+visible = false
 size = Vector3(1.5, 1.5, 1.5)
 material = SubResource("Material_Spawner")
 
@@ -677,7 +682,7 @@ metadata/lane_index = 2
 metadata/lane_name = "Black"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Black/ManaSource" unique_id=1853583485 instance=ExtResource("5_well_black")]
-transform = Transform3D(0.9999999, 0, 0, 0, 1, 0, 0, 0, 0.9999999, 0, -0.5062, 0)
+transform = Transform3D(1.5, 0, 0, 0, 1.3, 0, 0, 0, 1.5, 0, -0.5062, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Black" unique_id=412126932 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -685,6 +690,7 @@ metadata/lane_index = 2
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_Black/EnemySpawner" unique_id=25498473]
 transform = Transform3D(0.99999994, 0, 2.9802322e-08, 0, 1, 0, -2.9802322e-08, 0, 0.99999994, 0, 0.07373428, 0)
+visible = false
 size = Vector3(1.5, 1.5, 1.5)
 material = SubResource("Material_Spawner")
 
@@ -699,7 +705,7 @@ metadata/lane_index = 3
 metadata/lane_name = "Red"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Red/ManaSource" unique_id=1055033489 instance=ExtResource("6_well_red")]
-transform = Transform3D(0.99999994, 0, -2.9802322e-08, 0, 1, 0, 2.9802322e-08, 0, 0.99999994, 0, -0.3207, 0)
+transform = Transform3D(1.5, 0, -4.470349e-08, 0, 1.5, 0, 4.470349e-08, 0, 1.5, 0, -0.3207, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Red" unique_id=693690319 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -707,6 +713,7 @@ metadata/lane_index = 3
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_Red/EnemySpawner" unique_id=438236655]
 transform = Transform3D(0.99999994, 0, -2.9802322e-08, 0, 1, 0, 2.9802322e-08, 0, 0.99999994, 0, 0.7118454, 0)
+visible = false
 size = Vector3(1.5, 1.5, 1.5)
 material = SubResource("Material_Spawner")
 
@@ -721,7 +728,7 @@ metadata/lane_index = 4
 metadata/lane_name = "Green"
 
 [node name="Visual" parent="NavigationRegion3D/Lanes/Lane_Green/ManaSource" unique_id=243531861 instance=ExtResource("7_well_green")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8039, 0)
+transform = Transform3D(1.5, 0, 0, 0, 1.2, 0, 0, 0, 1.5, 0, 0.8039, 0)
 
 [node name="EnemySpawner" type="Marker3D" parent="NavigationRegion3D/Lanes/Lane_Green" unique_id=1886257386 groups=["spawners"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -179.4508)
@@ -729,6 +736,7 @@ metadata/lane_index = 4
 
 [node name="Visual" type="CSGBox3D" parent="NavigationRegion3D/Lanes/Lane_Green/EnemySpawner" unique_id=724891975]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+visible = false
 size = Vector3(1.5, 1.5, 1.5)
 material = SubResource("Material_Spawner")
 
@@ -768,7 +776,7 @@ objects = Array[ObjectResource]([ExtResource("tree_o0"), ExtResource("tree_o1"),
 waterDefinition = SubResource("WaterResource_o72nt")
 terrainZones = SubResource("ZonesResource_k7hcf")
 physics_interpolation_mode = 2
-metadata/_edit_lock_ = false
+metadata/_edit_lock_ = true
 
 [node name="Swamp" parent="." unique_id=698008996 instance=ExtResource("95_gcobm")]
 transform = Transform3D(5.7817826, 0, -1.6034303, 0, 6, 0, 1.6034303, 0, 5.7817826, 114.253235, -7.6293945e-06, 171.33482)
@@ -873,323 +881,329 @@ transform = Transform3D(5.22117, 0.52533, 6.07469, -0.20293, 8.00804, -0.51811, 
 [node name="pointed_slab_7" parent="StoneRings" unique_id=1497871144 instance=ExtResource("100_2srjq")]
 transform = Transform3D(-5.30214, 0.01201, -5.24985, 0.34345, 7.44627, -0.32983, 5.23861, -0.47603, -5.29188, -33.62628, 3.3313, -5.13278)
 
-[node name="PlacedCrystals" type="Node3D" parent="."]
+[node name="PlacedCrystals" type="Node3D" parent="." unique_id=1074824622]
 
-[node name="Wells" type="Node3D" parent="PlacedCrystals"]
+[node name="Wells" type="Node3D" parent="PlacedCrystals" unique_id=1987158686]
 
-[node name="Hub" type="Node3D" parent="PlacedCrystals"]
-
-[node name="WhiteDawnCrystalCluster" parent="PlacedCrystals/Wells" instance=ExtResource("placed_12")]
+[node name="WhiteDawnCrystalCluster" parent="PlacedCrystals/Wells" unique_id=124910859 instance=ExtResource("placed_12")]
 transform = Transform3D(0.28244624, 0, 0.97368014, 0, 1.013819, 0, -0.97368014, 0, 0.28244624, -6.2188387, 1.5570374, -112.35909)
 
-[node name="WhiteDawnCrystalCluster_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_12")]
+[node name="WhiteDawnCrystalCluster_2" parent="PlacedCrystals/Wells" unique_id=568430400 instance=ExtResource("placed_12")]
 transform = Transform3D(0.99969167, 0, 0.3658179, 0, 1.0645216, 0, -0.3658179, 0, 0.99969167, 7.0308576, 2.5734558, -113.5332)
 
-[node name="WhiteDawnShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards" parent="PlacedCrystals/Wells" unique_id=376536430 instance=ExtResource("placed_13")]
 transform = Transform3D(0.24075992, 0, 1.004896, 0, 1.0333351, 0, -1.004896, 0, 0.24075992, -5.320061, 1.8845215, -115.709274)
 
-[node name="WhiteDawnShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards_2" parent="PlacedCrystals/Wells" unique_id=1132236463 instance=ExtResource("placed_13")]
 transform = Transform3D(-0.65474296, 0, 1.0378302, 0, 1.2271023, 0, -1.0378302, 0, -0.65474296, -4.0095954, 1.7808228, -108.45139)
 
-[node name="WhiteDawnShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards_3" parent="PlacedCrystals/Wells" unique_id=449925448 instance=ExtResource("placed_13")]
 transform = Transform3D(1.0951973, 0, 0.36404252, 0, 1.1541162, 0, -0.36404252, 0, 1.0951973, 6.1962004, 2.127472, -115.924835)
 
-[node name="WhiteDawnShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards_4" parent="PlacedCrystals/Wells" unique_id=1540084284 instance=ExtResource("placed_13")]
 transform = Transform3D(0.6301653, 0, 0.62181306, 0, 0.88530207, 0, -0.62181306, 0, 0.6301653, 5.047303, 2.6801453, -108.33695)
 
-[node name="WhiteDawnShards_5" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards_5" parent="PlacedCrystals/Wells" unique_id=324849933 instance=ExtResource("placed_13")]
 transform = Transform3D(0.09502442, 0, 0.81333333, 0, 0.81886554, 0, -0.81333333, 0, 0.09502442, -3.25836, 1.9475708, -114.98585)
 
-[node name="WhiteDawnShards_6" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards_6" parent="PlacedCrystals/Wells" unique_id=63465881 instance=ExtResource("placed_13")]
 transform = Transform3D(0.57842904, 0, 0.35718566, 0, 0.6798248, 0, -0.35718566, 0, 0.57842904, 3.347009, 1.9487, -114.563896)
 
-[node name="WhiteDawnCrystalCluster_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_12")]
+[node name="WhiteDawnCrystalCluster_3" parent="PlacedCrystals/Wells" unique_id=933029726 instance=ExtResource("placed_12")]
 transform = Transform3D(-0.5503578, 0, 0.6758605, 0, 0.8715969, 0, -0.6758605, 0, -0.5503578, -3.0145938, 1.9464722, -112.36988)
 
-[node name="WhiteDawnCrystalCluster_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_12")]
+[node name="WhiteDawnCrystalCluster_4" parent="PlacedCrystals/Wells" unique_id=2090978284 instance=ExtResource("placed_12")]
 transform = Transform3D(-0.59296024, 0, -0.58712536, 0, 0.8344567, 0, 0.58712536, 0, -0.59296024, 3.6709776, 1.9472961, -113.18967)
 
-[node name="WhiteDawnShards_7" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards_7" parent="PlacedCrystals/Wells" unique_id=871759519 instance=ExtResource("placed_13")]
 transform = Transform3D(-0.119553424, 0, -0.6436585, 0, 0.6546673, 0, 0.6436585, 0, -0.119553424, -2.4752667, 1.9386597, -110.35571)
 
-[node name="WhiteDawnShards_8" parent="PlacedCrystals/Wells" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards_8" parent="PlacedCrystals/Wells" unique_id=291752419 instance=ExtResource("placed_13")]
 transform = Transform3D(-0.5795507, 0, 0.15334776, 0, 0.59949523, 0, -0.15334776, 0, -0.5795507, 2.8485932, 2.0006714, -110.33181)
 
-[node name="WellGlow_White" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+[node name="WellGlow_White" type="OmniLight3D" parent="PlacedCrystals/Wells" unique_id=910225055]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.1562986, -112.4508)
 light_color = Color(1, 0.96, 0.82, 1)
-light_energy = 1.39999997615814
-omni_range = 11.0
+light_energy = 1.4
 distance_fade_enabled = true
 distance_fade_begin = 70.0
 distance_fade_length = 25.0
+omni_range = 11.0
 
-[node name="BlueSapphireCluster" parent="PlacedCrystals/Wells" instance=ExtResource("placed_3")]
+[node name="BlueSapphireCluster" parent="PlacedCrystals/Wells" unique_id=1597108121 instance=ExtResource("placed_3")]
 transform = Transform3D(1.1315259, 0, -0.27851373, 0, 1.1652986, 0, 0.27851373, 0, 1.1315259, 104.787315, -0.020446777, -40.544765)
 
-[node name="BlueSapphireCluster_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_3")]
+[node name="BlueSapphireCluster_2" parent="PlacedCrystals/Wells" unique_id=375140150 instance=ExtResource("placed_3")]
 transform = Transform3D(-0.34050444, 0, 1.0590079, 0, 1.1124033, 0, -1.0590079, 0, -0.34050444, 108.39434, -0.0074157715, -29.441494)
 
-[node name="BlueTideShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+[node name="BlueTideShards" parent="PlacedCrystals/Wells" unique_id=543941103 instance=ExtResource("placed_5")]
 transform = Transform3D(-0.95050573, 0, 0.26190886, 0, 0.98592967, 0, -0.26190886, 0, -0.95050573, 108.331375, -0.03427124, -40.783783)
 
-[node name="BlueTideShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_2" parent="PlacedCrystals/Wells" unique_id=2085390465 instance=ExtResource("placed_5")]
 transform = Transform3D(-0.78958106, 0, -0.6456311, 0, 1.01994, 0, 0.6456311, 0, -0.78958106, 102.54944, -0.014465332, -39.31368)
 
-[node name="BlueTideShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_3" parent="PlacedCrystals/Wells" unique_id=1193694239 instance=ExtResource("placed_5")]
 transform = Transform3D(0.8886259, 0, 0.079129435, 0, 0.89214206, 0, -0.079129435, 0, 0.8886259, 111.101524, -0.0072631836, -30.543179)
 
-[node name="BlueTideShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_4" parent="PlacedCrystals/Wells" unique_id=1182705526 instance=ExtResource("placed_5")]
 transform = Transform3D(0.8064985, 0, -0.64407784, 0, 1.0321221, 0, 0.64407784, 0, 0.8064985, 103.96309, -0.0093688965, -28.589054)
 
-[node name="BlueTideShards_5" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_5" parent="PlacedCrystals/Wells" unique_id=1863266268 instance=ExtResource("placed_5")]
 transform = Transform3D(0.7066679, 0, 0.16925687, 0, 0.72665495, 0, -0.16925687, 0, 0.7066679, 107.61474, -0.032928467, -38.68655)
 
-[node name="BlueTideShards_6" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_6" parent="PlacedCrystals/Wells" unique_id=5201802 instance=ExtResource("placed_5")]
 transform = Transform3D(-0.8076216, 0, 0.23814173, 0, 0.84200007, 0, -0.23814173, 0, -0.8076216, 109.336464, -0.018463135, -32.41262)
 
-[node name="BlueSapphireCluster_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_3")]
+[node name="BlueSapphireCluster_3" parent="PlacedCrystals/Wells" unique_id=744256380 instance=ExtResource("placed_3")]
 transform = Transform3D(0.41655463, 0, -0.67833334, 0, 0.7960238, 0, 0.67833334, 0, 0.41655463, 106.01476, -0.028869629, -37.698208)
 
-[node name="BlueSapphireCluster_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_3")]
+[node name="BlueSapphireCluster_4" parent="PlacedCrystals/Wells" unique_id=2140370246 instance=ExtResource("placed_3")]
 transform = Transform3D(-0.81797343, 0, 0.09871462, 0, 0.82390845, 0, -0.09871462, 0, -0.81797343, 108.45584, -0.013092041, -31.00349)
 
-[node name="BlueTideShards_7" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_7" parent="PlacedCrystals/Wells" unique_id=347124566 instance=ExtResource("placed_5")]
 transform = Transform3D(0.5558191, 0, -0.6684228, 0, 0.86932385, 0, 0.6684228, 0, 0.5558191, 104.01163, -0.02267456, -37.477016)
 
-[node name="BlueTideShards_8" parent="PlacedCrystals/Wells" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_8" parent="PlacedCrystals/Wells" unique_id=1296768906 instance=ExtResource("placed_5")]
 transform = Transform3D(-0.03404195, 0, -0.74876183, 0, 0.74953526, 0, 0.74876183, 0, -0.03404195, 105.621414, -0.015899658, -31.337181)
 
-[node name="WellGlow_Blue" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+[node name="WellGlow_Blue" type="OmniLight3D" parent="PlacedCrystals/Wells" unique_id=501277667]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 106.94712, 2.1740906, -34.74921)
 light_color = Color(0.45, 0.88, 1, 1)
-light_energy = 1.39999997615814
-omni_range = 11.0
+light_energy = 1.4
 distance_fade_enabled = true
 distance_fade_begin = 70.0
 distance_fade_length = 25.0
+omni_range = 11.0
 
-[node name="BlackVoidAmethyst" parent="PlacedCrystals/Wells" instance=ExtResource("placed_1")]
+[node name="BlackVoidAmethyst" parent="PlacedCrystals/Wells" unique_id=1447630257 instance=ExtResource("placed_1")]
 transform = Transform3D(-0.93868303, 0, -0.16508764, 0, 0.9530896, 0, 0.16508764, 0, -0.93868303, 70.8373, 0.001159668, 86.920654)
 
-[node name="BlackVoidAmethyst_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_1")]
+[node name="BlackVoidAmethyst_2" parent="PlacedCrystals/Wells" unique_id=1850767131 instance=ExtResource("placed_1")]
 transform = Transform3D(0.42179927, 0, -1.0777588, 0, 1.1573584, 0, 1.0777588, 0, 0.42179927, 60.717216, 0.20098877, 94.516106)
 
-[node name="BlackVoidShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards" parent="PlacedCrystals/Wells" unique_id=1464989333 instance=ExtResource("placed_2")]
 transform = Transform3D(-0.49461964, 0, 0.8472352, 0, 0.98104846, 0, -0.8472352, 0, -0.49461964, 73.257355, 0.07443237, 90.96105)
 
-[node name="BlackVoidShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards_2" parent="PlacedCrystals/Wells" unique_id=1567759333 instance=ExtResource("placed_2")]
 transform = Transform3D(-0.26877895, 0, 1.0057383, 0, 1.0410339, 0, -1.0057383, 0, -0.26877895, 69.073204, 0.21966553, 84.31449)
 
-[node name="BlackVoidShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards_3" parent="PlacedCrystals/Wells" unique_id=738635660 instance=ExtResource("placed_2")]
 transform = Transform3D(-0.7440389, 0, 0.6767373, 0, 1.005767, 0, -0.6767373, 0, -0.7440389, 64.10026, 0.01184082, 97.13902)
 
-[node name="BlackVoidShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards_4" parent="PlacedCrystals/Wells" unique_id=1389877984 instance=ExtResource("placed_2")]
 transform = Transform3D(-0.5213569, 0, -0.6781629, 0, 0.8554051, 0, 0.6781629, 0, -0.5213569, 59.257057, 0.024291992, 90.877754)
 
-[node name="BlackVoidShards_5" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards_5" parent="PlacedCrystals/Wells" unique_id=968996587 instance=ExtResource("placed_2")]
 transform = Transform3D(-0.11154322, 0, -0.7126841, 0, 0.72136015, 0, 0.7126841, 0, -0.11154322, 69.5297, 0.17285156, 91.31293)
 
-[node name="BlackVoidShards_6" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards_6" parent="PlacedCrystals/Wells" unique_id=1053344261 instance=ExtResource("placed_2")]
 transform = Transform3D(-0.69286734, 0, 0.5200208, 0, 0.86630636, 0, -0.5200208, 0, -0.69286734, 65.19075, 0.274292, 94.86918)
 
-[node name="BlackVoidAmethyst_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_1")]
+[node name="BlackVoidAmethyst_3" parent="PlacedCrystals/Wells" unique_id=1600784273 instance=ExtResource("placed_1")]
 transform = Transform3D(0.16247466, 0, 0.7806104, 0, 0.79733974, 0, -0.7806104, 0, 0.16247466, 68.88664, -0.02835083, 89.37528)
 
-[node name="BlackVoidAmethyst_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_1")]
+[node name="BlackVoidAmethyst_4" parent="PlacedCrystals/Wells" unique_id=368201751 instance=ExtResource("placed_1")]
 transform = Transform3D(-0.36179993, 0, 0.5714731, 0, 0.6763732, 0, -0.5714731, 0, -0.36179993, 63.17857, 0.3892517, 93.94964)
 
-[node name="BlackVoidShards_7" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards_7" parent="PlacedCrystals/Wells" unique_id=1654192706 instance=ExtResource("placed_2")]
 transform = Transform3D(-0.62121665, 0, 0.4023394, 0, 0.74012643, 0, -0.4023394, 0, -0.62121665, 67.36009, 0.036468506, 87.0815)
 
-[node name="BlackVoidShards_8" parent="PlacedCrystals/Wells" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards_8" parent="PlacedCrystals/Wells" unique_id=158809012 instance=ExtResource("placed_2")]
 transform = Transform3D(-0.7691868, 0, -0.18850663, 0, 0.7919489, 0, 0.18850663, 0, -0.7691868, 61.930878, 0.21548462, 91.140114)
 
-[node name="WellGlow_Black" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+[node name="WellGlow_Black" type="OmniLight3D" parent="PlacedCrystals/Wells" unique_id=1647450937]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66.09689, 2.3438294, 90.97461)
 light_color = Color(0.68, 0.34, 1, 1)
-light_energy = 1.39999997615814
-omni_range = 11.0
+light_energy = 1.4
 distance_fade_enabled = true
 distance_fade_begin = 70.0
 distance_fade_length = 25.0
+omni_range = 11.0
 
-[node name="RedRubyCrystals" parent="PlacedCrystals/Wells" instance=ExtResource("placed_11")]
+[node name="RedRubyCrystals" parent="PlacedCrystals/Wells" unique_id=75033180 instance=ExtResource("placed_11")]
 transform = Transform3D(-0.16280143, 0, -0.86523056, 0, 0.88041365, 0, 0.86523056, 0, -0.16280143, -61.068413, 0.3161316, 94.156296)
 
-[node name="RedRubyCrystals_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_11")]
+[node name="RedRubyCrystals_2" parent="PlacedCrystals/Wells" unique_id=835362670 instance=ExtResource("placed_11")]
 transform = Transform3D(0.23860836, 0, -1.0426811, 0, 1.0696344, 0, 1.0426811, 0, 0.23860836, -71.19722, 0.2710266, 86.5861)
 
-[node name="RedEmberShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+[node name="RedEmberShards" parent="PlacedCrystals/Wells" unique_id=269743777 instance=ExtResource("placed_9")]
 transform = Transform3D(1.2416711, 0, -0.015423534, 0, 1.2417668, 0, 0.015423534, 0, 1.2416711, -64.692406, 0.31121826, 97.32776)
 
-[node name="RedEmberShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+[node name="RedEmberShards_2" parent="PlacedCrystals/Wells" unique_id=559332017 instance=ExtResource("placed_9")]
 transform = Transform3D(-0.30250904, 0, -1.0973161, 0, 1.1382506, 0, 1.0973161, 0, -0.30250904, -60.4692, 0.31930542, 90.67395)
 
-[node name="RedEmberShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+[node name="RedEmberShards_3" parent="PlacedCrystals/Wells" unique_id=1126311372 instance=ExtResource("placed_9")]
 transform = Transform3D(0.32983342, 0, -0.98941034, 0, 1.0429395, 0, 0.98941034, 0, 0.32983342, -71.71026, 0.3093872, 90.27854)
 
-[node name="RedEmberShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+[node name="RedEmberShards_4" parent="PlacedCrystals/Wells" unique_id=2090762793 instance=ExtResource("placed_9")]
 transform = Transform3D(-0.5648312, 0, 0.6985711, 0, 0.8983517, 0, -0.6985711, 0, -0.5648312, -68.93421, 0.28552246, 85.444275)
 
-[node name="RedEmberShards_5" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+[node name="RedEmberShards_5" parent="PlacedCrystals/Wells" unique_id=253711559 instance=ExtResource("placed_9")]
 transform = Transform3D(0.0059687025, 0, -0.8375966, 0, 0.8376179, 0, 0.8375966, 0, 0.0059687025, -64.75336, 0.32733154, 94.28695)
 
-[node name="RedEmberShards_6" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+[node name="RedEmberShards_6" parent="PlacedCrystals/Wells" unique_id=1290039222 instance=ExtResource("placed_9")]
 transform = Transform3D(-0.65070176, 0, 0.5191876, 0, 0.8324473, 0, -0.5191876, 0, -0.65070176, -69.36481, 0.3274231, 91.351074)
 
-[node name="RedRubyCrystals_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_11")]
+[node name="RedRubyCrystals_3" parent="PlacedCrystals/Wells" unique_id=1639754341 instance=ExtResource("placed_11")]
 transform = Transform3D(0.29028127, 0, 0.6325146, 0, 0.6959439, 0, -0.6325146, 0, 0.29028127, -63.28349, 0.32757568, 92.86484)
 
-[node name="RedRubyCrystals_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_11")]
+[node name="RedRubyCrystals_4" parent="PlacedCrystals/Wells" unique_id=1578348197 instance=ExtResource("placed_11")]
 transform = Transform3D(0.69090414, 0, 0.23531662, 0, 0.72987837, 0, -0.23531662, 0, 0.69090414, -69.300644, 0.32647705, 89.14589)
 
-[node name="RedEmberShards_7" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+[node name="RedEmberShards_7" parent="PlacedCrystals/Wells" unique_id=388096464 instance=ExtResource("placed_9")]
 transform = Transform3D(-0.3404951, 0, 0.55282015, 0, 0.64926654, 0, -0.55282015, 0, -0.3404951, -62.99425, 0.32785034, 90.77502)
 
-[node name="RedEmberShards_8" parent="PlacedCrystals/Wells" instance=ExtResource("placed_9")]
+[node name="RedEmberShards_8" parent="PlacedCrystals/Wells" unique_id=1991252570 instance=ExtResource("placed_9")]
 transform = Transform3D(0.060752638, 0, 0.6988197, 0, 0.70145553, 0, -0.6988197, 0, 0.060752638, -67.11981, 0.32736206, 87.963135)
 
-[node name="WellGlow_Red" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+[node name="WellGlow_Red" type="OmniLight3D" parent="PlacedCrystals/Wells" unique_id=123730927]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -66.09689, 2.5293152, 90.97461)
 light_color = Color(1, 0.56, 0.12, 1)
-light_energy = 1.39999997615814
-omni_range = 11.0
+light_energy = 1.4
 distance_fade_enabled = true
 distance_fade_begin = 70.0
 distance_fade_length = 25.0
+omni_range = 11.0
 
-[node name="GreenEmeraldRootCrystals" parent="PlacedCrystals/Wells" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals" parent="PlacedCrystals/Wells" unique_id=432642038 instance=ExtResource("placed_6")]
 transform = Transform3D(-1.067671, 0, 0.10207861, 0, 1.0725397, 0, -0.10207861, 0, -1.067671, -107.93612, 1.3259583, -27.958355)
 
-[node name="GreenEmeraldRootCrystals_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals_2" parent="PlacedCrystals/Wells" unique_id=2132358442 instance=ExtResource("placed_6")]
 transform = Transform3D(-0.50577074, 0, 0.9565261, 0, 1.0820103, 0, -0.9565261, 0, -0.50577074, -105.24154, 1.5423889, -41.963257)
 
-[node name="GreenEmeraldShards" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards" parent="PlacedCrystals/Wells" unique_id=221734166 instance=ExtResource("placed_7")]
 transform = Transform3D(1.1014591, 0, 0.059402607, 0, 1.1030598, 0, -0.059402607, 0, 1.1014591, -112.014824, 1.583435, -29.936691)
 
-[node name="GreenEmeraldShards_2" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards_2" parent="PlacedCrystals/Wells" unique_id=648279786 instance=ExtResource("placed_7")]
 transform = Transform3D(1.0051494, 0, 0.12232214, 0, 1.012565, 0, -0.12232214, 0, 1.0051494, -104.286835, 1.5004883, -28.946806)
 
-[node name="GreenEmeraldShards_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards_3" parent="PlacedCrystals/Wells" unique_id=1638728702 instance=ExtResource("placed_7")]
 transform = Transform3D(0.98022974, 0, 0.10435995, 0, 0.9857694, 0, -0.10435995, 0, 0.98022974, -108.166534, 1.5201111, -40.6278)
 
-[node name="GreenEmeraldShards_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards_4" parent="PlacedCrystals/Wells" unique_id=917471324 instance=ExtResource("placed_7")]
 transform = Transform3D(0.40984532, 0, -1.1051205, 0, 1.1786706, 0, 1.1051205, 0, 0.40984532, -101.91616, 1.3549805, -39.356594)
 
-[node name="GreenEmeraldShards_5" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards_5" parent="PlacedCrystals/Wells" unique_id=1265461645 instance=ExtResource("placed_7")]
 transform = Transform3D(-0.27928564, 0, 0.77308315, 0, 0.8219842, 0, -0.77308315, 0, -0.27928564, -110.0313, 1.4761658, -32.498512)
 
-[node name="GreenEmeraldShards_6" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards_6" parent="PlacedCrystals/Wells" unique_id=1990394341 instance=ExtResource("placed_7")]
 transform = Transform3D(0.7528825, 0, 0.09245627, 0, 0.7585382, 0, -0.09245627, 0, 0.7528825, -108.04807, 1.4642029, -37.73056)
 
-[node name="GreenEmeraldRootCrystals_3" parent="PlacedCrystals/Wells" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals_3" parent="PlacedCrystals/Wells" unique_id=784674122 instance=ExtResource("placed_6")]
 transform = Transform3D(-0.41662797, 0, -0.75421345, 0, 0.8616361, 0, 0.75421345, 0, -0.41662797, -108.15467, 1.4706116, -31.391691)
 
-[node name="GreenEmeraldRootCrystals_4" parent="PlacedCrystals/Wells" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals_4" parent="PlacedCrystals/Wells" unique_id=529285231 instance=ExtResource("placed_6")]
 transform = Transform3D(-0.60549057, 0, 0.4677688, 0, 0.76513165, 0, -0.4677688, 0, -0.60549057, -106.25827, 1.4615784, -37.990143)
 
-[node name="GreenEmeraldShards_7" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards_7" parent="PlacedCrystals/Wells" unique_id=746199154 instance=ExtResource("placed_7")]
 transform = Transform3D(0.47217345, 0, 0.71018034, 0, 0.8528212, 0, -0.71018034, 0, 0.47217345, -106.156494, 1.4679565, -31.094463)
 
-[node name="GreenEmeraldShards_8" parent="PlacedCrystals/Wells" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards_8" parent="PlacedCrystals/Wells" unique_id=480548052 instance=ExtResource("placed_7")]
 transform = Transform3D(0.63526595, 0, 0.33664027, 0, 0.7189503, 0, -0.33664027, 0, 0.63526595, -104.26794, 1.4592896, -36.916)
 
-[node name="WellGlow_Green" type="OmniLight3D" parent="PlacedCrystals/Wells"]
+[node name="WellGlow_Green" type="OmniLight3D" parent="PlacedCrystals/Wells" unique_id=1200708196]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -106.94712, 3.6538575, -34.74921)
 light_color = Color(0.5, 1, 0.35, 1)
-light_energy = 1.39999997615814
-omni_range = 11.0
+light_energy = 1.4
 distance_fade_enabled = true
 distance_fade_begin = 70.0
 distance_fade_length = 25.0
+omni_range = 11.0
 
-[node name="BlackVoidShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_2")]
+[node name="Hub" type="Node3D" parent="PlacedCrystals" unique_id=1075683484]
+
+[node name="BlackVoidShards" parent="PlacedCrystals/Hub" unique_id=1451233051 instance=ExtResource("placed_2")]
 transform = Transform3D(0.15984358, 0, 0.8520576, 0, 0.866921, 0, -0.8520576, 0, 0.15984358, -17.369534, 0.0005493164, -17.484358)
 
-[node name="BlueSapphireCluster" parent="PlacedCrystals/Hub" instance=ExtResource("placed_3")]
+[node name="BlueSapphireCluster" parent="PlacedCrystals/Hub" unique_id=329974793 instance=ExtResource("placed_3")]
 transform = Transform3D(0.35670492, 0, -1.0923893, 0, 1.1491531, 0, 1.0923893, 0, 0.35670492, -2.734016, 0, -23.521957)
 
-[node name="WhiteDawnShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards" parent="PlacedCrystals/Hub" unique_id=1626446417 instance=ExtResource("placed_13")]
 transform = Transform3D(-0.4509432, 0, 0.83713144, 0, 0.95086217, 0, -0.83713144, 0, -0.4509432, 9.930484, 0, -21.175716)
 
-[node name="BlueTideShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+[node name="BlueTideShards" parent="PlacedCrystals/Hub" unique_id=575589023 instance=ExtResource("placed_5")]
 transform = Transform3D(-0.390652, 0, -1.0473274, 0, 1.117812, 0, 1.0473274, 0, -0.390652, 22.660395, 0, -10.063629)
 
-[node name="WhiteDawnShards_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_13")]
+[node name="WhiteDawnShards_2" parent="PlacedCrystals/Hub" unique_id=462228241 instance=ExtResource("placed_13")]
 transform = Transform3D(0.39307922, 0, 1.1739154, 0, 1.2379776, 0, -1.1739154, 0, 0.39307922, 23.709202, 0, 4.418837)
 
-[node name="BlueTideShards_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_2" parent="PlacedCrystals/Hub" unique_id=491250033 instance=ExtResource("placed_5")]
 transform = Transform3D(-1.131342, 0, -0.132207, 0, 1.1390406, 0, 0.132207, 0, -1.131342, 17.182358, 0, 17.838615)
 
-[node name="GreenEmeraldRootCrystals" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals" parent="PlacedCrystals/Hub" unique_id=1432084895 instance=ExtResource("placed_6")]
 transform = Transform3D(-0.49580985, 0, -0.83169186, 0, 0.96826583, 0, 0.83169186, 0, -0.49580985, 2.510383, 0, 23.476637)
 
-[node name="BlackVoidAmethyst" parent="PlacedCrystals/Hub" instance=ExtResource("placed_1")]
+[node name="BlackVoidAmethyst" parent="PlacedCrystals/Hub" unique_id=1986978228 instance=ExtResource("placed_1")]
 transform = Transform3D(0.87106025, 0, 0.25979868, 0, 0.90897816, 0, -0.25979868, 0, 0.87106025, -11.611475, 0.046447754, 21.022818)
 
-[node name="RedEmberShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_9")]
+[node name="RedEmberShards" parent="PlacedCrystals/Hub" unique_id=1965352112 instance=ExtResource("placed_9")]
 transform = Transform3D(0.6187222, 0, -0.63721824, 0, 0.8881803, 0, 0.63721824, 0, 0.6187222, -21.89144, 0.018829346, 9.662788)
 
-[node name="BlackVoidAmethyst_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_1")]
+[node name="BlackVoidAmethyst_2" parent="PlacedCrystals/Hub" unique_id=2107958665 instance=ExtResource("placed_1")]
 transform = Transform3D(-0.9103313, 0, 0.31861869, 0, 0.9644796, 0, -0.31861869, 0, -0.9103313, -22.92427, 0, -3.1572945)
 
-[node name="RedRubyCrystals" parent="PlacedCrystals/Hub" instance=ExtResource("placed_11")]
+[node name="RedRubyCrystals" parent="PlacedCrystals/Hub" unique_id=949144009 instance=ExtResource("placed_11")]
 transform = Transform3D(1.1151768, 0, 0.16618808, 0, 1.1274918, 0, -0.16618808, 0, 1.1151768, -31.38643, 0.2421875, -19.4006)
 
-[node name="BlackVoidShards_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_2")]
+[node name="BlackVoidShards_2" parent="PlacedCrystals/Hub" unique_id=1705195716 instance=ExtResource("placed_2")]
 transform = Transform3D(0.40446103, 0, 0.9700518, 0, 1.0509944, 0, -0.9700518, 0, 0.40446103, -18.906675, 0, -30.819345)
 
-[node name="GreenEmeraldRootCrystals_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals_2" parent="PlacedCrystals/Hub" unique_id=934702183 instance=ExtResource("placed_6")]
 transform = Transform3D(0.35723472, 0, 1.1769638, 0, 1.2299839, 0, -1.1769638, 0, 0.35723472, -6.563441, 0, -36.388332)
 
-[node name="WhiteDawnCrystalCluster" parent="PlacedCrystals/Hub" instance=ExtResource("placed_12")]
+[node name="WhiteDawnCrystalCluster" parent="PlacedCrystals/Hub" unique_id=1628084654 instance=ExtResource("placed_12")]
 transform = Transform3D(-0.31983608, 0, -0.99948967, 0, 1.0494163, 0, 0.99948967, 0, -0.31983608, 7.509242, 0.14138794, -35.56169)
 
-[node name="GreenEmeraldRootCrystals_3" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals_3" parent="PlacedCrystals/Hub" unique_id=773251200 instance=ExtResource("placed_6")]
 transform = Transform3D(-0.99826384, 0, 0.65564126, 0, 1.1943183, 0, -0.65564126, 0, -0.99826384, 22.694183, 0.07684326, -28.72751)
 
-[node name="BlueSapphireCluster_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_3")]
+[node name="BlueSapphireCluster_2" parent="PlacedCrystals/Hub" unique_id=1355963110 instance=ExtResource("placed_3")]
 transform = Transform3D(1.0446048, 0, 0.07347364, 0, 1.0471855, 0, -0.07347364, 0, 1.0446048, 32.440247, 0, -16.746605)
 
-[node name="BlackVoidAmethyst_3" parent="PlacedCrystals/Hub" instance=ExtResource("placed_1")]
+[node name="BlackVoidAmethyst_3" parent="PlacedCrystals/Hub" unique_id=1700649022 instance=ExtResource("placed_1")]
 transform = Transform3D(0.11672994, 0, 1.1461536, 0, 1.1520824, 0, -1.1461536, 0, 0.11672994, 36.454544, 0, -4.3806024)
 
-[node name="BlueTideShards_3" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_3" parent="PlacedCrystals/Hub" unique_id=1132637633 instance=ExtResource("placed_5")]
 transform = Transform3D(0.018243276, 0, -1.0865822, 0, 1.0867354, 0, 1.0865822, 0, 0.018243276, 34.925285, 0, 12.755456)
 
-[node name="BlueTideShards_4" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_4" parent="PlacedCrystals/Hub" unique_id=1755867401 instance=ExtResource("placed_5")]
 transform = Transform3D(0.07997416, 0, 0.90510786, 0, 0.9086342, 0, -0.90510786, 0, 0.07997416, 27.130642, 0, 25.925303)
 
-[node name="GreenEmeraldRootCrystals_4" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals_4" parent="PlacedCrystals/Hub" unique_id=1524342497 instance=ExtResource("placed_6")]
 transform = Transform3D(0.109358184, 0, 0.95532936, 0, 0.96156824, 0, -0.95532936, 0, 0.109358184, 13.025392, 0, 34.629284)
 
-[node name="GreenEmeraldShards" parent="PlacedCrystals/Hub" instance=ExtResource("placed_7")]
+[node name="GreenEmeraldShards" parent="PlacedCrystals/Hub" unique_id=2073977172 instance=ExtResource("placed_7")]
 transform = Transform3D(-1.1023432, 0, 0.035028916, 0, 1.1028996, 0, -0.035028916, 0, -1.1023432, 0.53122246, 0.076660156, 36.31699)
 
-[node name="GreenEmeraldRootCrystals_5" parent="PlacedCrystals/Hub" instance=ExtResource("placed_6")]
+[node name="GreenEmeraldRootCrystals_5" parent="PlacedCrystals/Hub" unique_id=1144566452 instance=ExtResource("placed_6")]
 transform = Transform3D(-1.2315767, 0, -0.042460658, 0, 1.2323084, 0, 0.042460658, 0, -1.2315767, -18.038118, 0.06011963, 32.283997)
 
-[node name="BlueSapphireCluster_3" parent="PlacedCrystals/Hub" instance=ExtResource("placed_3")]
+[node name="BlueSapphireCluster_3" parent="PlacedCrystals/Hub" unique_id=1174929530 instance=ExtResource("placed_3")]
 transform = Transform3D(0.5729702, 0, -0.76223975, 0, 0.9535745, 0, 0.76223975, 0, 0.5729702, -28.712286, 0.069000244, 22.19893)
 
-[node name="RedEmberShards_2" parent="PlacedCrystals/Hub" instance=ExtResource("placed_9")]
+[node name="RedEmberShards_2" parent="PlacedCrystals/Hub" unique_id=609046028 instance=ExtResource("placed_9")]
 transform = Transform3D(-1.078224, 0, 0.28073177, 0, 1.1141711, 0, -0.28073177, 0, -1.078224, -34.699234, 0.0023498535, 11.309954)
 
-[node name="BlueTideShards_5" parent="PlacedCrystals/Hub" instance=ExtResource("placed_5")]
+[node name="BlueTideShards_5" parent="PlacedCrystals/Hub" unique_id=1904995912 instance=ExtResource("placed_5")]
 transform = Transform3D(0.22730666, 0, 1.142068, 0, 1.1644689, 0, -1.142068, 0, 0.22730666, -35.113308, 0.029785156, -7.429999)
 
-[node name="WhiteSunspireCrystal" parent="PlacedCrystals/Hub" instance=ExtResource("placed_14")]
+[node name="WhiteSunspireCrystal" parent="PlacedCrystals/Hub" unique_id=203718025 instance=ExtResource("placed_14")]
 transform = Transform3D(0.86440593, 0, -0.17748518, 0, 0.882439, 0, 0.17748518, 0, 0.86440593, -36.462578, 1.4102783, -49.975883)
 
-[node name="BlueTideCrystalSpires" parent="PlacedCrystals/Hub" instance=ExtResource("placed_4")]
+[node name="BlueTideCrystalSpires" parent="PlacedCrystals/Hub" unique_id=1220960820 instance=ExtResource("placed_4")]
 transform = Transform3D(0.13057357, 0, -1.1416941, 0, 1.1491365, 0, 1.1416941, 0, 0.13057357, 2.3855941e-06, 7.280731, 59.921043)
 
-[node name="BlackRootboundObelisk" parent="PlacedCrystals/Hub" instance=ExtResource("placed_0")]
+[node name="BlackRootboundObelisk" parent="PlacedCrystals/Hub" unique_id=1779669176 instance=ExtResource("placed_0")]
 transform = Transform3D(0.78467375, 0, 0.43460718, 0, 0.8969929, 0, -0.43460718, 0, 0.78467375, 59.172775, 0.024536133, 19.202045)
 
-[node name="RedMagmaSpire" parent="PlacedCrystals/Hub" instance=ExtResource("placed_10")]
+[node name="RedMagmaSpire" parent="PlacedCrystals/Hub" unique_id=713579201 instance=ExtResource("placed_10")]
 transform = Transform3D(1.13181, 0, -0.031049961, 0, 1.1322358, 0, 0.031049961, 0, 1.13181, -59.352646, 9.312103, 19.847908)
 
-[node name="GreenVerdantSpire" parent="PlacedCrystals/Hub" instance=ExtResource("placed_8")]
+[node name="GreenVerdantSpire" parent="PlacedCrystals/Hub" unique_id=45984158 instance=ExtResource("placed_8")]
 transform = Transform3D(-0.09740021, 0, 1.0634714, 0, 1.0679225, 0, -1.0634714, 0, -0.09740021, 38.206573, 6.4036865, -53.133564)
+
+[node name="goblin-sand-cave-mouth" parent="." unique_id=682315593 instance=ExtResource("226_07asm")]
+transform = Transform3D(-16.123127, 0, 13.551171, 0, 18.183, 0, -11.83405, 0, -18.462595, -111.3785, 7.2765603, 152.27164)
+
+[node name="Meshy_AI_White_Earthen_Dwellin_1011195516_texture" parent="." unique_id=187807080 instance=ExtResource("227_a6ntp")]
+transform = Transform3D(25.28162, 0, -6.0695744, 0, 26, 0, 6.0695744, 0, 25.28162, 20.457304, 8.185276, -187.23741)

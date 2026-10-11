@@ -1,4 +1,4 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://ccyec6kesvao2"]
 
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_6yn3l"]
 [ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-sunspire-crystal.tscn" id="2_587p0"]

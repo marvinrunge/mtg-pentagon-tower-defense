@@ -1,4 +1,4 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://bmh7w1hjcf2fn"]
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-void-amethyst.res" id="1_tqr8g"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_kd4ee"]

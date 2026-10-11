@@ -38,6 +38,8 @@ shader_parameter/WaterFactor = 0.0
 shader_parameter/ZonesSize = 0.0
 shader_parameter/Resolution = 0.0
 shader_parameter/NumberOfZones = 0.0
+shader_parameter/LayerYawDegrees = 0.0
+shader_parameter/LayerOffset = Vector2(0, 0)
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_jswr6"]
 _surfaces = [{

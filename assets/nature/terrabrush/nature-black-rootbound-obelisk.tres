@@ -1,4 +1,4 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://bv7iac5udhy2j"]
 
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="1_t5oe4"]
 [ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-black-rootbound-obelisk.tscn" id="2_1sakj"]

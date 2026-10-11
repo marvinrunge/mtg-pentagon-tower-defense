@@ -16,9 +16,20 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, diffuse_burley, specula
 
 const float SCISSOR_THRESHOLD = 0.3;
 
+// Every foliage layer runs the same 1 m grid, and TerraBrush derives both the jitter
+// (the shared noise texture) and the yaw (a hash of the grid point) from the grid point
+// alone - so two layers painted on the same spot put their cards in exactly the same
+// planes and z-fight. Each layer turns and shifts its card in mesh space first, which
+// survives TerraBrush's own rotation. Set per layer by tools/build_nature_terrabrush.gd;
+// the yaws must differ mod 90 degrees (the card is a cross).
+uniform float LayerYawDegrees = 0.0;
+uniform vec2 LayerOffset = vec2(0.0);
+
 varying flat vec3 _instancePosition;
 
 void vertex() {
+	VERTEX = VERTEX * rotateY(radians(LayerYawDegrees));
+	VERTEX.xz += LayerOffset;
 	_instancePosition = vec3(0);
 	calculateFoliageVertex(
 		INSTANCE_ID,

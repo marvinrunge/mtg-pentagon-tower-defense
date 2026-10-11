@@ -1,4 +1,4 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://cjrbwll0fw844"]
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-tide-shards.res" id="1_rxkiu"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_dmn50"]

@@ -1,4 +1,4 @@
-[gd_resource type="ObjectResource" format=3]
+[gd_resource type="ObjectResource" format=3 uid="uid://bdxbs4fsk2kvx"]
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-dawn-crystal-cluster.res" id="1_gsxk3"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_uh5l0"]

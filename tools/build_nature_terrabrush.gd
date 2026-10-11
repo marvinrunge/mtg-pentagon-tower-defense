@@ -528,6 +528,9 @@ func _build_foliage_layer(key: String, assets: Array) -> Array:
 	var layer := parts[1]
 	var shader_material := ShaderMaterial.new()
 	shader_material.shader = load(FOLIAGE_SHADER)
+	var yaw_offset := _layer_yaw_offset(biome, layer)
+	shader_material.set_shader_parameter("LayerYawDegrees", yaw_offset[0])
+	shader_material.set_shader_parameter("LayerOffset", yaw_offset[1])
 	var definition: Resource = ClassDB.instantiate("FoliageDefinitionResource")
 	definition.set("strategy", FOLIAGE_MULTIMESH)
 	definition.set("mesh", _cross_quad(size))
@@ -548,6 +551,17 @@ func _build_foliage_layer(key: String, assets: Array) -> Array:
 	print("[nature] %s: %d texture(s), card %.1f x %.1f m" % [layer_name, textures.size(), size.x, size.y])
 	var tier := "groundcover" if layer == "low" else "tallcover"
 	return [layer_name, biome, tier, load(TB_DIR + layer_name + ".tres")]
+
+
+## [yaw in degrees, mesh-space offset] for a foliage layer, so no two layers share card
+## planes where they overlap (see LayerYawDegrees in assets/shaders/nature_foliage.gdshader).
+## Low layers sit at biome * 9 degrees, tall ones 45 degrees on - the widest gap a cross
+## allows, since low and tall of one biome overlap most - and tall ones also stand 0.35 m
+## off the grid point, so a clump of reeds does not grow out of the exact centre of the grass.
+func _layer_yaw_offset(biome: String, layer: String) -> Array:
+	var index := maxi((manifest["biomes"] as Array).find(biome), 0)
+	var tall := layer != "low"
+	return [index * 9.0 + (45.0 if tall else 0.0), Vector2(0.35, 0.0) if tall else Vector2.ZERO]
 
 
 ## Two quads crossed at right angles, base on y = 0. Normals point up rather than out
