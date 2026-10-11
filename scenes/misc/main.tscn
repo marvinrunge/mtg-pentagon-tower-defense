@@ -189,6 +189,42 @@
 [ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-dawn-crystal-cluster.tscn" id="placed_12"]
 [ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-dawn-shards.tscn" id="placed_13"]
 [ext_resource type="PackedScene" path="res://assets/nature/scenes/nature-white-sunspire-crystal.tscn" id="placed_14"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-blue-saucer.tres" id="fungus_o0"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-blue-saucer.res" id="fungus_o0_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-a.tres" id="fungus_o1"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-a.res" id="fungus_o1_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-b.tres" id="fungus_o2"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-b.res" id="fungus_o2_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-small-c.tres" id="fungus_o3"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-small-c.res" id="fungus_o3_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-a.tres" id="fungus_o4"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-a.res" id="fungus_o4_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-b.tres" id="fungus_o5"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-b.res" id="fungus_o5_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-blue-fungus-teal-tall-c.tres" id="fungus_o6"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-blue-fungus-teal-tall-c.res" id="fungus_o6_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-violet-cluster.tres" id="fungus_o7"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-violet-cluster.res" id="fungus_o7_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-pale-a.tres" id="fungus_o8"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-a.res" id="fungus_o8_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-pale-b.tres" id="fungus_o9"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-b.res" id="fungus_o9_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-pale-c.tres" id="fungus_o10"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-c.res" id="fungus_o10_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-black-fungus-pale-d.tres" id="fungus_o11"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-black-fungus-pale-d.res" id="fungus_o11_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-green-coral.tres" id="fungus_o12"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-green-coral.res" id="fungus_o12_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-red-fly-agaric.tres" id="fungus_o13"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-red-fly-agaric.res" id="fungus_o13_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-tan-a.tres" id="fungus_o14"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-a.res" id="fungus_o14_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-tan-b.tres" id="fungus_o15"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-b.res" id="fungus_o15_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-tan-c.tres" id="fungus_o16"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-c.res" id="fungus_o16_mask"]
+[ext_resource type="ObjectResource" path="res://assets/nature/terrabrush/nature-green-fungus-tan-d.tres" id="fungus_o17"]
+[ext_resource type="Image" path="res://scenes/misc/Main/Nature_nature-green-fungus-tan-d.res" id="fungus_o17_mask"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_w4i7m"]
 shader = ExtResource("2_tafxk")
@@ -508,7 +544,7 @@ customShader = SubResource("ShaderMaterial_water")
 heightMapImage = ExtResource("41_q2y6g")
 splatmapsImage = Array[Image]([ExtResource("42_esgqe"), ExtResource("47_bif71"), ExtResource("80_xy1ao"), ExtResource("93_gcobm"), ExtResource("106_sdwp7")])
 foliagesImage = Array[Image]([ExtResource("grass_f0_mask"), ExtResource("grass_f1_mask"), ExtResource("grass_f2_mask"), ExtResource("grass_f3_mask"), ExtResource("grass_f4_mask"), ExtResource("grass_f5_mask"), ExtResource("grass_f6_mask"), ExtResource("grass_f7_mask"), ExtResource("grass_f8_mask"), ExtResource("grass_f9_mask")])
-objectsImage = Array[Image]([ExtResource("tree_o0_mask"), ExtResource("tree_o1_mask"), ExtResource("tree_o2_mask"), ExtResource("tree_o3_mask"), ExtResource("tree_o4_mask"), ExtResource("tree_o5_mask"), ExtResource("tree_o6_mask"), ExtResource("tree_o7_mask"), ExtResource("tree_o8_mask"), ExtResource("tree_o9_mask"), ExtResource("tree_o10_mask"), ExtResource("crystal_o0_mask"), ExtResource("crystal_o1_mask"), ExtResource("crystal_o2_mask"), ExtResource("crystal_o3_mask"), ExtResource("crystal_o4_mask"), ExtResource("crystal_o5_mask"), ExtResource("crystal_o6_mask"), ExtResource("crystal_o7_mask"), ExtResource("crystal_o8_mask"), ExtResource("crystal_o9_mask"), ExtResource("crystal_o10_mask"), ExtResource("crystal_o11_mask"), ExtResource("crystal_o12_mask"), ExtResource("crystal_o13_mask"), ExtResource("crystal_o14_mask")])
+objectsImage = Array[Image]([ExtResource("tree_o0_mask"), ExtResource("tree_o1_mask"), ExtResource("tree_o2_mask"), ExtResource("tree_o3_mask"), ExtResource("tree_o4_mask"), ExtResource("tree_o5_mask"), ExtResource("tree_o6_mask"), ExtResource("tree_o7_mask"), ExtResource("tree_o8_mask"), ExtResource("tree_o9_mask"), ExtResource("tree_o10_mask"), ExtResource("crystal_o0_mask"), ExtResource("crystal_o1_mask"), ExtResource("crystal_o2_mask"), ExtResource("crystal_o3_mask"), ExtResource("crystal_o4_mask"), ExtResource("crystal_o5_mask"), ExtResource("crystal_o6_mask"), ExtResource("crystal_o7_mask"), ExtResource("crystal_o8_mask"), ExtResource("crystal_o9_mask"), ExtResource("crystal_o10_mask"), ExtResource("crystal_o11_mask"), ExtResource("crystal_o12_mask"), ExtResource("crystal_o13_mask"), ExtResource("crystal_o14_mask"), ExtResource("fungus_o0_mask"), ExtResource("fungus_o1_mask"), ExtResource("fungus_o2_mask"), ExtResource("fungus_o3_mask"), ExtResource("fungus_o4_mask"), ExtResource("fungus_o5_mask"), ExtResource("fungus_o6_mask"), ExtResource("fungus_o7_mask"), ExtResource("fungus_o8_mask"), ExtResource("fungus_o9_mask"), ExtResource("fungus_o10_mask"), ExtResource("fungus_o11_mask"), ExtResource("fungus_o12_mask"), ExtResource("fungus_o13_mask"), ExtResource("fungus_o14_mask"), ExtResource("fungus_o15_mask"), ExtResource("fungus_o16_mask"), ExtResource("fungus_o17_mask")])
 waterImage = ExtResource("94_54asi")
 
 [sub_resource type="ZonesResource" id="ZonesResource_k7hcf"]
@@ -728,7 +764,7 @@ useAntiTile = false
 heightBlendFactor = 2.0
 slopeTextureThreshold = 0.682
 foliages = Array[FoliageResource]([ExtResource("grass_f0"), ExtResource("grass_f1"), ExtResource("grass_f2"), ExtResource("grass_f3"), ExtResource("grass_f4"), ExtResource("grass_f5"), ExtResource("grass_f6"), ExtResource("grass_f7"), ExtResource("grass_f8"), ExtResource("grass_f9")])
-objects = Array[ObjectResource]([ExtResource("tree_o0"), ExtResource("tree_o1"), ExtResource("tree_o2"), ExtResource("tree_o3"), ExtResource("tree_o4"), ExtResource("tree_o5"), ExtResource("tree_o6"), ExtResource("tree_o7"), ExtResource("tree_o8"), ExtResource("tree_o9"), ExtResource("tree_o10"), ExtResource("crystal_o0"), ExtResource("crystal_o1"), ExtResource("crystal_o2"), ExtResource("crystal_o3"), ExtResource("crystal_o4"), ExtResource("crystal_o5"), ExtResource("crystal_o6"), ExtResource("crystal_o7"), ExtResource("crystal_o8"), ExtResource("crystal_o9"), ExtResource("crystal_o10"), ExtResource("crystal_o11"), ExtResource("crystal_o12"), ExtResource("crystal_o13"), ExtResource("crystal_o14")])
+objects = Array[ObjectResource]([ExtResource("tree_o0"), ExtResource("tree_o1"), ExtResource("tree_o2"), ExtResource("tree_o3"), ExtResource("tree_o4"), ExtResource("tree_o5"), ExtResource("tree_o6"), ExtResource("tree_o7"), ExtResource("tree_o8"), ExtResource("tree_o9"), ExtResource("tree_o10"), ExtResource("crystal_o0"), ExtResource("crystal_o1"), ExtResource("crystal_o2"), ExtResource("crystal_o3"), ExtResource("crystal_o4"), ExtResource("crystal_o5"), ExtResource("crystal_o6"), ExtResource("crystal_o7"), ExtResource("crystal_o8"), ExtResource("crystal_o9"), ExtResource("crystal_o10"), ExtResource("crystal_o11"), ExtResource("crystal_o12"), ExtResource("crystal_o13"), ExtResource("crystal_o14"), ExtResource("fungus_o0"), ExtResource("fungus_o1"), ExtResource("fungus_o2"), ExtResource("fungus_o3"), ExtResource("fungus_o4"), ExtResource("fungus_o5"), ExtResource("fungus_o6"), ExtResource("fungus_o7"), ExtResource("fungus_o8"), ExtResource("fungus_o9"), ExtResource("fungus_o10"), ExtResource("fungus_o11"), ExtResource("fungus_o12"), ExtResource("fungus_o13"), ExtResource("fungus_o14"), ExtResource("fungus_o15"), ExtResource("fungus_o16"), ExtResource("fungus_o17")])
 waterDefinition = SubResource("WaterResource_o72nt")
 terrainZones = SubResource("ZonesResource_k7hcf")
 physics_interpolation_mode = 2
