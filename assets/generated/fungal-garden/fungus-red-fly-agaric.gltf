@@ -86,61 +86,61 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":650,
+			"count":300,
 			"max":[
-				0.22705000638961792,
-				0.5371049642562866,
-				0.2331550121307373
+				0.22825384140014648,
+				0.5371127128601074,
+				0.23383301496505737
 			],
 			"min":[
-				-0.22704996168613434,
-				0,
-				-0.2331550121307373
+				-0.22570329904556274,
+				-0.0005898415111005306,
+				-0.23505724966526031
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":650,
+			"count":300,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":650,
+			"count":300,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5123,
-			"count":3003,
+			"count":1197,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":7800,
+			"byteLength":3600,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":7800,
-			"byteOffset":7800,
+			"byteLength":3600,
+			"byteOffset":3600,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":5200,
-			"byteOffset":15600,
+			"byteLength":2400,
+			"byteOffset":7200,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":6006,
-			"byteOffset":20800,
+			"byteLength":2394,
+			"byteOffset":9600,
 			"target":34963
 		}
 	],
@@ -152,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":26808,
+			"byteLength":11996,
 			"uri":"fungus-red-fly-agaric.bin"
 		}
 	]

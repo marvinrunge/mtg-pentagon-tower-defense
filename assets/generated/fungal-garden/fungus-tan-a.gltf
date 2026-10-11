@@ -86,61 +86,61 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":231,
+			"count":124,
 			"max":[
-				0.08056759834289551,
-				0.24170003831386566,
-				0.07690250128507614
+				0.08055274933576584,
+				0.24261462688446045,
+				0.07506917417049408
 			],
 			"min":[
-				-0.08056744933128357,
-				0,
-				-0.07690250128507614
+				-0.08008532971143723,
+				-0.0013618089724332094,
+				-0.07581976056098938
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":231,
+			"count":124,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":231,
+			"count":124,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5123,
-			"count":978,
+			"count":420,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":2772,
+			"byteLength":1488,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":2772,
-			"byteOffset":2772,
+			"byteLength":1488,
+			"byteOffset":1488,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":1848,
-			"byteOffset":5544,
+			"byteLength":992,
+			"byteOffset":2976,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":1956,
-			"byteOffset":7392,
+			"byteLength":840,
+			"byteOffset":3968,
 			"target":34963
 		}
 	],
@@ -152,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":9348,
+			"byteLength":4808,
 			"uri":"fungus-tan-a.bin"
 		}
 	]

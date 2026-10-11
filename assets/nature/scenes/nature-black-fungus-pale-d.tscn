@@ -2,8 +2,8 @@
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-fungus-pale-d.res" id="1_tk7vs"]
 
-[node name="NatureBlackFungusPaleD" type="Node3D" unique_id=697994102]
+[node name="NatureBlackFungusPaleD" type="Node3D" unique_id=995231696]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=3144357]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=891128231]
 cast_shadow = 0
 mesh = ExtResource("1_tk7vs")

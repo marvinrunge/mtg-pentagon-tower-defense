@@ -2,8 +2,8 @@
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-fungus-violet-cluster.res" id="1_gpa8h"]
 
-[node name="NatureBlackFungusVioletCluster" type="Node3D" unique_id=1939388484]
+[node name="NatureBlackFungusVioletCluster" type="Node3D" unique_id=255451198]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=2086945474]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=1153482866]
 cast_shadow = 0
 mesh = ExtResource("1_gpa8h")

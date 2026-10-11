@@ -1,6 +1,6 @@
 [gd_resource type="ObjectResource" format=3 uid="uid://cko306mihwd7u"]
 
-[ext_resource type="ArrayMesh" uid="uid://c4jrg602skevr" path="res://assets/nature/meshes/nature-green-fungus-red-fly-agaric.res" id="1_yigj4"]
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-fungus-red-fly-agaric.res" id="1_yigj4"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_urkm3"]
 
 [sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_1mlwv"]

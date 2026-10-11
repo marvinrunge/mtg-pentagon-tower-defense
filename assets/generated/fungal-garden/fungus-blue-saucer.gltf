@@ -86,14 +86,14 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":471,
+			"count":231,
 			"max":[
-				0.3125,
-				0.3100600242614746,
-				0.3210449814796448
+				0.31474748253822327,
+				0.3105127215385437,
+				0.32352352142333984
 			],
 			"min":[
-				-0.3125,
+				-0.3150743544101715,
 				0,
 				-0.3210449814796448
 			],
@@ -102,45 +102,45 @@
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":471,
+			"count":231,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":471,
+			"count":231,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5123,
-			"count":2166,
+			"count":900,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":5652,
+			"byteLength":2772,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":5652,
-			"byteOffset":5652,
+			"byteLength":2772,
+			"byteOffset":2772,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":3768,
-			"byteOffset":11304,
+			"byteLength":1848,
+			"byteOffset":5544,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":4332,
-			"byteOffset":15072,
+			"byteLength":1800,
+			"byteOffset":7392,
 			"target":34963
 		}
 	],
@@ -152,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":19404,
+			"byteLength":9192,
 			"uri":"fungus-blue-saucer.bin"
 		}
 	]

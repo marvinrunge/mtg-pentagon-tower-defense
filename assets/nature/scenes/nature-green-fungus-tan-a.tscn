@@ -2,8 +2,8 @@
 
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-fungus-tan-a.res" id="1_uy12m"]
 
-[node name="NatureGreenFungusTanA" type="Node3D" unique_id=348211278]
+[node name="NatureGreenFungusTanA" type="Node3D" unique_id=1053954922]
 
-[node name="Mesh" type="MeshInstance3D" parent="." unique_id=838955641]
+[node name="Mesh" type="MeshInstance3D" parent="." unique_id=961450721]
 cast_shadow = 0
 mesh = ExtResource("1_uy12m")

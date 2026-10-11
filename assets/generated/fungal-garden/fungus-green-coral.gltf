@@ -86,61 +86,61 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":3951,
+			"count":1305,
 			"max":[
-				0.2697749435901642,
-				0.5932599902153015,
-				0.2331550121307373
+				0.2724062204360962,
+				0.5934025645256042,
+				0.2296152114868164
 			],
 			"min":[
-				-0.2697750926017761,
-				0,
-				-0.2331550121307373
+				-0.2696440815925598,
+				0.003131047822535038,
+				-0.2331954538822174
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":3951,
+			"count":1305,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":3951,
+			"count":1305,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5123,
-			"count":13371,
+			"count":2697,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":47412,
+			"byteLength":15660,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":47412,
-			"byteOffset":47412,
+			"byteLength":15660,
+			"byteOffset":15660,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":31608,
-			"byteOffset":94824,
+			"byteLength":10440,
+			"byteOffset":31320,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":26742,
-			"byteOffset":126432,
+			"byteLength":5394,
+			"byteOffset":41760,
 			"target":34963
 		}
 	],
@@ -152,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":153176,
+			"byteLength":47156,
 			"uri":"fungus-green-coral.bin"
 		}
 	]

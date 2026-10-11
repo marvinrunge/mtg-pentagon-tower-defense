@@ -86,61 +86,61 @@
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":509,
+			"count":231,
 			"max":[
-				0.18066495656967163,
+				0.18275049328804016,
 				0.8642599582672119,
-				0.1696775108575821
+				0.16895891726016998
 			],
 			"min":[
-				-0.18066510558128357,
-				0,
-				-0.1696775108575821
+				-0.18058930337429047,
+				0.0013377559371292591,
+				-0.1701211780309677
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":509,
+			"count":231,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":509,
+			"count":231,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5123,
-			"count":2178,
+			"count":840,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":6108,
+			"byteLength":2772,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":6108,
-			"byteOffset":6108,
+			"byteLength":2772,
+			"byteOffset":2772,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":4072,
-			"byteOffset":12216,
+			"byteLength":1848,
+			"byteOffset":5544,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":4356,
-			"byteOffset":16288,
+			"byteLength":1680,
+			"byteOffset":7392,
 			"target":34963
 		}
 	],
@@ -152,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":20644,
+			"byteLength":9072,
 			"uri":"fungus-teal-tall-b.bin"
 		}
 	]

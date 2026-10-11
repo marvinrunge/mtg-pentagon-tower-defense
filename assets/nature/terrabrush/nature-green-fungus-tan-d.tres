@@ -1,6 +1,6 @@
 [gd_resource type="ObjectResource" format=3 uid="uid://dqcchl0kpwrmg"]
 
-[ext_resource type="ArrayMesh" uid="uid://n4j3s083feae" path="res://assets/nature/meshes/nature-green-fungus-tan-d.res" id="1_kbjf8"]
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-fungus-tan-d.res" id="1_kbjf8"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_ia6gb"]
 
 [sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_teb3s"]

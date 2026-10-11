@@ -1,6 +1,6 @@
 [gd_resource type="ObjectResource" format=3 uid="uid://dlid1lvq16ekl"]
 
-[ext_resource type="ArrayMesh" uid="uid://kocv0ji6nq2v" path="res://assets/nature/meshes/nature-blue-fungus-teal-tall-b.res" id="1_efcm7"]
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-fungus-teal-tall-b.res" id="1_efcm7"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_1bjvp"]
 
 [sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_7gx6m"]

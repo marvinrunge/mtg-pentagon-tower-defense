@@ -1,6 +1,6 @@
 [gd_resource type="ObjectResource" format=3 uid="uid://cun4v1vt12n77"]
 
-[ext_resource type="ArrayMesh" uid="uid://cdg3fyjkytnxx" path="res://assets/nature/meshes/nature-black-fungus-pale-c.res" id="1_o01aj"]
+[ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-black-fungus-pale-c.res" id="1_o01aj"]
 [ext_resource type="Texture2D" path="res://assets/nature/terrabrush/placement_noise.tres" id="2_noyf0"]
 
 [sub_resource type="ObjectOctreeLODDefinitionResource" id="ObjectOctreeLODDefinitionResource_42gry"]
