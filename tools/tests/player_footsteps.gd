@@ -9,7 +9,8 @@ extends Node3D
 ## second at a time without a single step.
 ##
 ## Then the surface lookup, against the real map's terrain: every texture set has to come
-## out as one of the two footstep events, and the map has to have some of each.
+## out as one of the footstep events, the map has to use every one of them, and each has to
+## have recordings behind it.
 ##
 ## Run with:  godot --headless --path . res://tools/tests/player_footsteps.tscn
 ## Prints "TEST RESULT: PASS" or a FAIL listing what did not hold.
@@ -118,17 +119,17 @@ func _check_surfaces() -> void:
 	# GroundSurface looks the terrain up under the current scene, as it does in a match.
 	get_tree().current_scene.add_child(terrain)
 	var event: StringName = GroundSurface.footstep_event(Vector3.ZERO)
-	if event != GroundSurface.FOOTSTEP_SOFT and event != GroundSurface.FOOTSTEP_HARD:
+	if not GroundSurface.FOOTSTEP_EVENTS.has(event):
 		_failures.append("GroundSurface returned '%s'" % event)
 	var events: Array[StringName] = GroundSurface._events
 	var sets: int = (terrain.get("textureSets") as Resource).get("textureSets").size()
 	if events.size() != sets:
 		_failures.append("GroundSurface classified %d of the terrain's %d texture sets" % [events.size(), sets])
-	if not events.has(GroundSurface.FOOTSTEP_SOFT) or not events.has(GroundSurface.FOOTSTEP_HARD):
-		_failures.append("the map's texture sets are all one surface: %s" % [events])
-	for missing: StringName in [GroundSurface.FOOTSTEP_SOFT, GroundSurface.FOOTSTEP_HARD]:
-		if not SoundBank.EVENT_FILES.has(missing):
-			_failures.append("SoundBank has no '%s' event" % missing)
+	for surface: StringName in GroundSurface.FOOTSTEP_EVENTS:
+		if not events.has(surface):
+			_failures.append("no texture set on the map sounds like '%s': %s" % [surface, events])
+		if not SoundBank.EVENT_FILES.has(surface):
+			_failures.append("SoundBank has no '%s' event" % surface)
 
 
 func _finish() -> void:

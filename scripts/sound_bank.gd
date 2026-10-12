@@ -55,6 +55,8 @@ const EVENT_FILES := {
 		"footsteps/grass-4.wav", "footsteps/grass-5.wav",
 	],
 	&"footstep_gravel": ["footsteps/gravel-1.wav", "footsteps/gravel-2.wav", "footsteps/gravel-3.wav"],
+	&"footstep_mud": ["footsteps/mud-1.wav", "footsteps/mud-2.wav", "footsteps/mud-3.wav"],
+	&"footstep_rock": ["footsteps/rock-1.wav", "footsteps/rock-2.wav", "footsteps/rock-3.wav"],
 
 	# --- Spells -----------------------------------------------------------------
 	#
@@ -204,6 +206,8 @@ const EVENT_GAIN_DB: Dictionary = {
 	## under everything rather than competing with it.
 	&"footstep_grass": -12.0,
 	&"footstep_gravel": -14.0,
+	&"footstep_mud": -12.0,
+	&"footstep_rock": -14.0,
 }
 
 ## event -> a group whose members share ONE retrigger clock. Three orbs are three events,
