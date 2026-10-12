@@ -126,6 +126,14 @@ jobs:
           {"api_key": "${FIREBASE_API_KEY}", "database_url": "${FIREBASE_DATABASE_URL}", "ice_servers": []}
           JSON
 
+      # Read by ErrorReporter, so a crash report says which build it came from. A checkout
+      # without this file reports itself as "dev".
+      - name: Write build_info.json
+        run: |
+          cat > build_info.json <<JSON
+          {"version": "${GITHUB_REF_NAME}", "commit": "${GITHUB_SHA}"}
+          JSON
+
       - name: Export
         run: |
           set -euo pipefail

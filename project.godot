@@ -26,6 +26,7 @@ boot_splash/minimum_display_time=1500
 GameSettings="*res://scripts/game_settings.gd"
 GraphicsSettings="*res://scripts/graphics_settings.gd"
 SignalBus="*res://scripts/signal_bus.gd"
+ErrorReporter="*res://scripts/error_reporter.gd"
 ProjectilePool="*res://scripts/projectile_pool.gd"
 DamageNumberPool="*res://scripts/damage_number_pool.gd"
 SoundBank="*res://scripts/sound_bank.gd"

@@ -56,7 +56,12 @@ const WHITE_GOLD := Color(1.0, 0.78, 0.36)
 static func play(scene: Node, payload: Dictionary, owner: Node3D) -> void:
 	var at: Vector3 = payload.get("at", Vector3.ZERO)
 	var size: float = float(payload.get("size", 1.0))
-	match String(payload.get("spell", "")):
+	var spell: String = String(payload.get("spell", ""))
+	# On every peer, which is where a spell's effect actually gets drawn - the cast itself is
+	# only logged on the server. The orbs and corpses fire every second and are left out.
+	if not (spell.begins_with("orb_") or spell == "corpse_land"):
+		ErrorReporter.breadcrumb("fx %s size %.1f" % [spell, size])
+	match spell:
 		"white_1":
 			_on_ground(scene, magic_circle("white", WHITE_GOLD, 1.4, 0.7, 0.18), at)
 			_on_owner(owner, light_pillar(WHITE_GOLD, 0.5, 3.2, 0.5, 1.4))

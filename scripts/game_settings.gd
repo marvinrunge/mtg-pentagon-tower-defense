@@ -228,6 +228,17 @@ extends Node
 @export var player_attack_move_mult: float = 1.0
 
 # ============================================================
+# ERROR REPORTS
+# ============================================================
+## Whether ErrorReporter sends crash and error reports to the Firebase project
+## (crash_reports/). Its local log in user://error_reports/ is written either way.
+@export var error_reports_upload: bool = true
+## Exported builds upload; runs from the editor binary - the editor, the validation suite,
+## tool scenes - only keep their reports locally unless this is on, so that testing the
+## reporter itself does not need an export.
+@export var error_reports_upload_from_editor: bool = false
+
+# ============================================================
 # SOUND EFFECTS
 # ============================================================
 ## Voices SoundBank keeps alive. Positional ones carry world impacts; the flat ones

@@ -1602,6 +1602,7 @@ func _run_spell_effect(spell_id: String, charge_pct: float, held: bool = false) 
 	# A spell cast by a CLIENT arrives here on the server, where _begin_cast never ran -
 	# so the rank is resolved again rather than assumed to be left over from the cast.
 	_casting_rank = maxi(get_spell_rank(spell_id), 1)
+	ErrorReporter.breadcrumb("%s casts %s rank %d" % [name, spell_id, _casting_rank])
 	
 	# Rhystic Study: every cast banks shield, up to a cap. (When it breaks, it freezes what
 	# broke it - see _rhystic_shatter.)
@@ -2269,6 +2270,7 @@ func _enter_downed(timer: float) -> void:
 	if is_downed:
 		return
 	is_downed = true
+	ErrorReporter.breadcrumb("%s downed" % name)
 	# A load is dropped where its carrier fell - it never reached the crystal. Cleared here
 	# rather than sent: being downed already runs on every peer.
 	carried_mana = ""
@@ -2320,6 +2322,7 @@ func _leave_downed() -> void:
 	_emit_health_changed()
 	_invulnerable_timer = 2.0
 	animator.revive()
+	ErrorReporter.breadcrumb("%s back up" % name)
 	print("Player revived by teammate!")
 
 ## Folds any yaw the player accumulated while down back onto the body, so getting up

@@ -64,3 +64,6 @@ online_config.json
 # copy is swapped. Both are regenerated on every launch.
 addons/*/bin/~*
 addons/*/lib/~*
+
+# Written by the release workflow (ErrorReporter reads it); a checkout reports "dev".
+build_info.json

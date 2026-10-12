@@ -180,7 +180,16 @@ if (-not $SkipRuntime) {
         [Console]::WriteLine($footstepResult.Output)
         throw "A player gait misses footsteps or hears one step twice."
     }
-    Write-Output "PASS: every player gait is heard once per step, on grass or gravel."
+    Write-Output "PASS: every player gait is heard once per step, with a sound for every ground texture."
+
+    # The error log is what a tester's crash comes back as. If it stops recording, collapsing
+    # floods, or recognising a lost GPU, the next crash arrives as nothing at all.
+    $reporterResult = Invoke-GodotCheck -Name "error-reporter" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/error_reporter.tscn") -TimeoutSeconds 60
+    if ($reporterResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($reporterResult.Output)
+        throw "ErrorReporter no longer logs, collapses repeats, or reports crashes and lost GPUs."
+    }
+    Write-Output "PASS: the error log records errors, collapses floods, and reports crashes and lost GPUs."
 
     # And that two machines can actually find each other. The host launches a real
     # second process; a single-process fake could not fail the way UDP discovery, a

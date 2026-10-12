@@ -155,6 +155,14 @@ func unavailable_reason() -> String:
 	return ""
 
 
+## The database client, for anything else that writes to the same Firebase project - the
+## error reports (ErrorReporter). Shared rather than duplicated: a second client would sign
+## in anonymously on its own and overwrite the cached uid that lobby ownership depends on
+## (see FirebaseRtdb.AUTH_CACHE_PATH). Null when this build has no Firebase settings.
+func database() -> FirebaseRtdb:
+	return _db if _config != null and _config.is_valid() else null
+
+
 func _probe_webrtc() -> bool:
 	if not ClassDB.class_exists("WebRTCPeerConnection"):
 		return false

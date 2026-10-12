@@ -132,6 +132,12 @@ Paste these into **Realtime Database → Rules**. A fresh database starts either
           "$field": { ".validate": true }
         }
       }
+    },
+    "crash_reports": {
+      "$report": {
+        ".write": "auth != null && !data.exists()",
+        ".validate": "newData.hasChildren(['uid','kind','created','log']) && newData.child('uid').val() === auth.uid && newData.child('created').val() <= now && newData.child('log').isString() && newData.child('log').val().length <= 200000"
+      }
     }
   }
 }
@@ -152,6 +158,13 @@ What each clause is for:
 
 Known and accepted: a client can overwrite fields in **its own** ticket, including the
 host's answer. The blast radius is that its own join fails.
+
+- **Crash reports are write-once and unreadable from the game.** `ErrorReporter` pushes one
+  per crashed or erroring session (see `scripts/error_reporter.gd`): any signed-in player may
+  ADD a report under their own uid, nobody can change or delete one, and there is no
+  `.read` at all - reports are read in the Firebase console (**Realtime Database → Data →
+  crash_reports**), which is not bound by the rules. The log is capped at 200 000
+  characters; the game sends at most 150 000.
 
 ## What is still not solved
 
