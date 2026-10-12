@@ -94,6 +94,26 @@ var _scan_target: String = "255.255.255.255"
 ## "address:port" -> server description, so a host that answers twice is listed once.
 var _found: Dictionary = {}
 
+## How often the host measures each connection and republishes the results. Once a second
+## is as fast as a number on a scoreboard can usefully change.
+const PING_INTERVAL: float = 1.0
+## How much of each new sample goes into the shown figure. One slow packet should nudge it,
+## not make it leap - a ping that jumps 20 -> 180 -> 25 reads as a broken connection.
+const PING_SMOOTHING: float = 0.35
+
+## peer id -> round trip to the HOST in milliseconds. Measured by the server and pushed to
+## everyone, like the peer list. The host's own entry is 0: it is the far end of every
+## other player's connection, so it has no trip of its own to make.
+##
+## Measured with an RPC of our own rather than read off the transport, because only ENet
+## reports a round-trip time - the WebRTC peer exposes no statistics at all - and a column
+## that is blank for every online game is not worth having.
+var pings: Dictionary = {}
+var _ping_time_left: float = 0.0
+
+## The host published fresh latencies. The Tab panel listens so its column moves while held.
+signal pings_changed(pings: Dictionary)
+
 signal peer_list_changed(peers: Dictionary)
 ## A peer joined or left a match already in progress. The map listens: it is the thing
 ## that has to spawn or free the avatar.
@@ -130,6 +150,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_poll_responder()
 	_poll_scanner(delta)
+	_poll_pings(delta)
 
 
 ## True once a REAL peer exists. Every single-player code path checks this and takes
@@ -338,6 +359,7 @@ func leave() -> void:
 	_pending_join.clear()
 	_reserved_seats.clear()
 	match_in_progress = false
+	_clear_pings()
 	_stop_advertising()
 	peer_list_changed.emit(peers)
 
@@ -596,6 +618,7 @@ func _on_peer_disconnected(id: int) -> void:
 	if multiplayer.is_server() and match_in_progress and peers.has(id):
 		_reserved_seats[display_name(id).to_lower()] = seat_of(id)
 	peers.erase(id)
+	pings.erase(id)
 	if multiplayer.is_server():
 		_publish_peers.rpc(peers)
 		peer_left_match.emit(id)
@@ -635,6 +658,7 @@ func _on_server_disconnected() -> void:
 	multiplayer.multiplayer_peer = null
 	peers.clear()
 	match_in_progress = false
+	_clear_pings()
 	peer_list_changed.emit(peers)
 	# In the lobby this is "the host closed the session". In a match it is a map on
 	# screen with nothing behind it, which is a different problem and a different
@@ -727,6 +751,68 @@ func _kick_later(peer_id: int) -> void:
 func _publish_peers(list: Dictionary) -> void:
 	peers = list
 	peer_list_changed.emit(peers)
+
+
+# --- latency -----------------------------------------------------------------
+#
+# The host stamps a packet with its own clock, the client sends the stamp straight back, and
+# the difference is the round trip. Nothing depends on the two machines' clocks agreeing,
+# because only the host's clock is ever read. Unreliable both ways: a reliable packet that
+# is lost gets resent and arrives late, and the resend delay is not latency the game feels.
+
+func _poll_pings(delta: float) -> void:
+	if not is_active() or not multiplayer.is_server():
+		return
+	_ping_time_left -= delta
+	if _ping_time_left > 0.0:
+		return
+	_ping_time_left = PING_INTERVAL
+	pings[1] = 0
+	# Only players who have introduced themselves. A peer still in the identity round trip -
+	# or one being refused - has no row anywhere to show a figure in.
+	for id in peers:
+		if int(id) != 1:
+			_ping.rpc_id(int(id), Time.get_ticks_usec())
+	# Published on the same beat as the measuring, so a client's figures are never more
+	# than one interval behind the host's.
+	_publish_pings.rpc(pings)
+	pings_changed.emit(pings)
+
+
+func _clear_pings() -> void:
+	pings.clear()
+	_ping_time_left = 0.0
+	pings_changed.emit(pings)
+
+
+## The latency the scoreboard shows for a peer, or -1 when none has been measured yet.
+func ping_of(peer_id: int) -> int:
+	return int(pings.get(peer_id, -1))
+
+
+@rpc("authority", "call_remote", "unreliable")
+func _ping(stamp: int) -> void:
+	_pong.rpc_id(1, stamp)
+
+
+@rpc("any_peer", "call_remote", "unreliable")
+func _pong(stamp: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id()
+	var now: int = Time.get_ticks_usec()
+	# A stamp from the future is not one this host sent.
+	if not peers.has(sender) or stamp > now:
+		return
+	var sample: float = (now - stamp) / 1000.0
+	var previous: float = float(pings.get(sender, sample))
+	pings[sender] = roundi(lerpf(previous, sample, PING_SMOOTHING))
+
+
+@rpc("authority", "call_remote", "unreliable")
+func _publish_pings(list: Dictionary) -> void:
+	pings = list
+	pings_changed.emit(pings)
 
 
 # --- starting the match -------------------------------------------------------

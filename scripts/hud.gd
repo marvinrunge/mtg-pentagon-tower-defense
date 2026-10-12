@@ -273,6 +273,12 @@ func _ready() -> void:
 		log_message("Upkeep - %.0fs" % duration, Color(0.85, 0.8, 1.0)))
 	SignalBus.game_over.connect(func() -> void:
 		log_message("The crystal has shattered", Color(1.0, 0.4, 0.35)))
+	# The one figure on the scoreboard that changes while Tab is held - a ping read once on the
+	# way up would just be a number from the moment the key went down. Once a second, and only
+	# the scoreboard half; the log does not move with it.
+	Net.pings_changed.connect(func(_pings: Dictionary) -> void:
+		if _tab_panel and _tab_panel.visible:
+			_refresh_scoreboard())
 	
 	_build_settings_menu()
 	_build_leave_buttons()
@@ -1615,11 +1621,16 @@ func _refresh_tab_panel() -> void:
 func _refresh_scoreboard() -> void:
 	_clear_rows(_scoreboard_rows)
 
+	# Only with somebody to be lagging behind: alone, every row would read the same nothing.
+	var show_ping: bool = Net.is_active()
+
 	var header := HBoxContainer.new()
 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	header.add_child(_cell("Player", 190.0, Color(0.62, 0.68, 0.78), HORIZONTAL_ALIGNMENT_LEFT))
 	for column: Array in SCOREBOARD_COLUMNS:
 		header.add_child(_cell(String(column[1]), 78.0, Color(0.62, 0.68, 0.78)))
+	if show_ping:
+		header.add_child(_cell("Ping", 64.0, Color(0.62, 0.68, 0.78)))
 	_scoreboard_rows.add_child(header)
 
 	for player: Node3D in PlayerRegistry.players:
@@ -1639,7 +1650,27 @@ func _refresh_scoreboard() -> void:
 			var value = player.stats.get(String(column[0]), 0)
 			var text: String = _compact_number(float(value)) if bool(column[2]) else str(int(value))
 			row.add_child(_cell(text, 78.0, name_tint))
+		if show_ping:
+			_add_ping_cell(row, player.get_multiplayer_authority())
 		_scoreboard_rows.add_child(row)
+
+
+## Latency to the host, coloured by how much it will be felt. The host's own row says so
+## instead of "0 ms": it is the far end of everybody else's connection, not a fast one.
+func _add_ping_cell(row: HBoxContainer, peer_id: int) -> void:
+	if peer_id == 1:
+		row.add_child(_cell("Host", 64.0, Color(0.62, 0.68, 0.78)))
+		return
+	var ms: int = Net.ping_of(peer_id)
+	if ms < 0:
+		row.add_child(_cell("-", 64.0, Color(0.62, 0.68, 0.78)))
+		return
+	var tint: Color = Color(0.55, 0.95, 0.6)
+	if ms >= 150:
+		tint = Color(1.0, 0.45, 0.4)
+	elif ms >= 80:
+		tint = Color(1.0, 0.85, 0.4)
+	row.add_child(_cell("%d ms" % ms, 64.0, tint))
 
 
 func _refresh_message_log() -> void:
