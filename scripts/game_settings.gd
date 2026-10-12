@@ -144,6 +144,21 @@ extends Node
 ## wall-slide noise, and a strafe turning into a forward run should read as a weight shift
 ## rather than a snap. Short enough that it never lags behind the stick in a way anyone feels.
 @export var player_anim_blend_point_smoothing: float = 0.09
+## Footstep detection (PlayerAnimator._track_footfalls), as a foot's clearance in metres:
+## the lower of its heel and its toe above the ground. A foot counts as LANDED once it
+## comes below the first and as lifted again only above the second.
+##
+## Measured off the clips, where both were chosen: a planted foot sits at 0-0.5 cm, but
+## the sidestep in walk_left only lifts its trailing foot 3.7 cm, so a lift threshold much
+## above 2.5 cm misses every other step there. With this pair all six walk and run cycles
+## land exactly two steps each, on the frame heel or toe touches down.
+@export var player_footstep_plant_height: float = 0.01
+@export var player_footstep_lift_height: float = 0.025
+## The soonest a footstep may follow the one before it, as a fraction of the current stride
+## (both feet). Real steps come half a stride apart - 0.38 / 0.62 on the most lopsided
+## clip, the back-pedal - while a toe brushing the ground mid-swing on a blended gait comes
+## about 0.25-0.28 after the other foot's landing. A third sits between the two.
+@export var player_footstep_min_stride_fraction: float = 0.33
 
 # ============================================================
 # PLAYER MELEE COMBO
@@ -237,6 +252,9 @@ extends Node
 ## the way there.
 @export var sfx_max_distance: float = 45.0
 @export var sfx_unit_size: float = 8.0
+## Overlapping plays allowed on a voice an emitter owns (SoundBank.play_from) - the
+## footsteps. Two is a step plus the tail of the one before it.
+@export var sfx_emitter_voice_polyphony: int = 2
 ## A sustained ambience sits under the action rather than in it, so it is quieter
 ## than an impact - but it carries further, because it is what tells the player
 ## where the crystal is from across the map.

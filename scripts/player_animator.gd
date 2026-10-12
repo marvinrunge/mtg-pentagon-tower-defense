@@ -137,6 +137,20 @@ const GUARD_BLEND_SECONDS := 0.12
 ## Below this planar speed the player counts as standing still.
 const MOVING_SPEED_EPSILON := 0.15
 
+## A foot touched down, at `at`: the world-space point on the ground under its ankle.
+##
+## Read off the pose actually being shown rather than scheduled from clip timings. The legs
+## are a blend of up to two clips at a speed fitted to the ground being covered, and the
+## clips in a blend space each keep their own clock, so no table of "step at 25%" survives
+## contact with what is on screen. The bones always agree with the eye.
+signal footfall(at: Vector3)
+
+## [ankle, toe] for each foot. The heel is not a bone of its own; see _heel_height.
+const FOOT_BONES := [
+	["mixamorig_LeftFoot", "mixamorig_LeftToeBase"],
+	["mixamorig_RightFoot", "mixamorig_RightToeBase"],
+]
+
 var _anim: AnimationPlayer
 var _visual: Node3D
 var _skeleton: Skeleton3D
@@ -174,6 +188,22 @@ var _cached_jump_scale: float = -1.0
 ## clip+stage-count -> the stage windows it splits into. Purely derived from the
 ## clip's impact metadata, so it is worked out once and kept.
 var _combo_window_cache: Dictionary = {}
+## gait space -> the cycle length its clips are stretched onto (see _build_gait_space).
+var _gait_cycle: Dictionary = {}
+
+## Bone indices of FOOT_BONES, one [ankle, toe] pair per foot. Empty when the rig has no
+## such bones, which leaves footfall silent rather than broken.
+var _feet: Array[PackedInt32Array] = []
+## How far the ankle sits above the ground when the foot is flat - so the ankle's height
+## minus this is the heel's. Taken from the rest pose, which stands flat-footed.
+var _heel_height: float = 0.0
+## Per foot: on the ground as far as footfall is concerned. Starts, and is reset to, true,
+## so a foot has to be seen in the air before its landing counts.
+var _foot_down: Array[bool] = []
+## How long one full stride (both feet) currently takes on screen, and how long since the
+## last footfall - see _track_footfalls for what the two are compared for.
+var _stride_seconds: float = 0.0
+var _since_footfall: float = INF
 
 
 func _ready() -> void:
@@ -185,6 +215,7 @@ func _ready() -> void:
 		push_error("player_visual.tscn is missing its AnimationPlayer or Skeleton3D; the player will not animate")
 		return
 	_build_tree()
+	_find_feet()
 	_roll_next_idle_variation()
 	_request_loco(IDLE_CLIP)
 
@@ -290,6 +321,15 @@ func _build_tree() -> void:
 ## same place anyway, only without the weights being anything this file could compute for
 ## itself - and `_blended_travel_speed` needs them.
 ##
+## The four clips are PHASE-LOCKED: each is stretched onto the forward clip's cycle length and
+## the space is synced, so all four advance together whatever their weight. Left alone, each
+## clip in a blend space keeps its own clock, and these four are 1.23-1.37 s long - within a
+## few cycles a diagonal was blending one clip's left foot landing with the other's left foot
+## halfway through its swing, which sank the feet several centimetres into the ground and never
+## properly lifted them, and left no footstep for `footfall` to hear. Every clip puts the left
+## foot down about a fifth of the way into its cycle and the right one about three quarters
+## in, so once they share one clock a blend steps when both of its halves do.
+##
 ## Returns false when the clips are missing, so a stripped library falls back to the states
 ## rather than leaving a dead transition input nothing can play.
 func _build_gait_space(graph: AnimationNodeBlendTree, library: AnimationLibrary, space_name: String) -> bool:
@@ -304,12 +344,19 @@ func _build_gait_space(graph: AnimationNodeBlendTree, library: AnimationLibrary,
 	space.min_space = Vector2(-1.0, -1.0)
 	space.max_space = Vector2(1.0, 1.0)
 	space.snap = Vector2(0.05, 0.05)
+	space.sync = true
+	var cycle: float = library.get_animation(String(clips["forward"])).length
+	_gait_cycle[space_name] = cycle
 	for entry in [
 		["forward", Vector2(0.0, 1.0)], ["back", Vector2(0.0, -1.0)],
 		["right", Vector2(1.0, 0.0)], ["left", Vector2(-1.0, 0.0)],
 	]:
 		var point := AnimationNodeAnimation.new()
 		point.animation = String(clips[entry[0]])
+		point.use_custom_timeline = true
+		point.timeline_length = cycle
+		point.stretch_time_scale = true
+		point.loop_mode = Animation.LOOP_LINEAR
 		space.add_blend_point(point, entry[1])
 	graph.add_node(space_name, space, Vector2(60.0, 520.0 if space_name == RUN_SPACE else 360.0))
 	return true
@@ -710,9 +757,11 @@ func update_locomotion(
 		# blocking on the move used to be an ordinary walk with the shield down.
 		if moving:
 			_drive_gait(WALK_SPACE, planar_velocity, speed, delta)
+			_track_footfalls(delta)
 		else:
 			_request_loco(BLOCK_CLIP)
 			_tree.set(PARAM_LOCO_SPEED, 1.0)
+			_settle_feet()
 		return
 
 	if not on_floor and has_clip(JUMP_CLIP):
@@ -723,14 +772,17 @@ func update_locomotion(
 		# half before landing cut it off. Fitting it to the hang time plays the whole
 		# arc - crouch, launch, tuck, land.
 		_tree.set(PARAM_LOCO_SPEED, _jump_speed_scale())
+		_settle_feet()
 		return
 
 	if speed > MOVING_SPEED_EPSILON:
 		_cancel_idle_variation()
 		_drive_gait(_pick_gait(speed, sprinting, in_combat), planar_velocity, speed, delta)
+		_track_footfalls(delta)
 		return
 
 	_tree.set(PARAM_LOCO_SPEED, 1.0)
+	_settle_feet()
 	_update_idle(delta)
 
 
@@ -788,6 +840,75 @@ func _roll_next_idle_variation() -> void:
 	)
 
 
+# --- footsteps ---------------------------------------------------------------
+
+func _find_feet() -> void:
+	for pair in FOOT_BONES:
+		var ankle: int = _skeleton.find_bone(pair[0])
+		var toe: int = _skeleton.find_bone(pair[1])
+		if ankle == -1 or toe == -1:
+			push_warning("Player rig has no '%s'/'%s'; footsteps will be silent" % pair)
+			_feet.clear()
+			_foot_down.clear()
+			return
+		_feet.append(PackedInt32Array([ankle, toe]))
+		_foot_down.append(true)
+	var to_self: Transform3D = _skeleton_to_self()
+	var ankle_rest: Vector3 = to_self * _skeleton.get_bone_global_rest(_feet[0][0]).origin
+	var toe_rest: Vector3 = to_self * _skeleton.get_bone_global_rest(_feet[0][1]).origin
+	_heel_height = ankle_rest.y - toe_rest.y
+
+
+## Emits `footfall` for each foot that has come down since the last frame.
+##
+## A foot's CLEARANCE is the lower of its heel and its toe, so a landing counts whichever
+## end meets the ground first - heel-first going forward, toe-first going back, the edge of
+## the foot on a sidestep. Measured in this node's own space, which is the ground under the
+## character and is unscaled by Giant Growth, so the thresholds hold at any size.
+##
+## Hysteresis rather than one threshold: a planted foot rolling from heel to toe hovers a
+## centimetre off the ground, and has to be seen properly lifted before the next landing
+## counts, or one step would be heard two or three times.
+##
+## And a touchdown too soon after the last footstep is not one. Some blends brush a toe
+## along the ground mid-swing - sprinting diagonally mixes the run with a sped-up sidestep,
+## whose trailing foot taps the ground once before it properly lands - and nothing about
+## the pose at that moment tells the brush from a real toe-first landing; a back-pedal or
+## a sidestep lands exactly like that. WHEN it happens does: real steps alternate half a
+## stride apart, and the brush comes a quarter of a stride after the other foot's.
+func _track_footfalls(delta: float) -> void:
+	if _feet.is_empty():
+		return
+	_since_footfall += delta
+	var to_self: Transform3D = _skeleton_to_self()
+	for i in _feet.size():
+		var ankle: Vector3 = to_self * _skeleton.get_bone_global_pose(_feet[i][0]).origin
+		var toe: Vector3 = to_self * _skeleton.get_bone_global_pose(_feet[i][1]).origin
+		var clearance: float = minf(ankle.y - _heel_height, toe.y)
+		if _foot_down[i]:
+			if clearance > GameSettings.player_footstep_lift_height:
+				_foot_down[i] = false
+		elif clearance < GameSettings.player_footstep_plant_height:
+			_foot_down[i] = true
+			if _since_footfall < _stride_seconds * GameSettings.player_footstep_min_stride_fraction:
+				continue
+			_since_footfall = 0.0
+			footfall.emit(global_transform * Vector3(ankle.x, 0.0, ankle.z))
+
+
+## Whenever the legs are not walking - standing, guarding in place, in the air - both feet
+## count as planted. The first step after any of those is then heard only once its foot
+## has actually left the ground, and a landing from a jump is not two footsteps.
+func _settle_feet() -> void:
+	for i in _foot_down.size():
+		_foot_down[i] = true
+	_since_footfall = INF
+
+
+func _skeleton_to_self() -> Transform3D:
+	return global_transform.affine_inverse() * _skeleton.global_transform
+
+
 # --- clip selection ----------------------------------------------------------
 
 ## Points a gait space at this velocity and times it to the ground actually being covered.
@@ -795,14 +916,15 @@ func _drive_gait(space: String, planar_velocity: Vector3, speed: float, delta: f
 	_request_loco(space)
 	_drive_blend_point(_blend_point_for(planar_velocity), space, delta)
 	var native: float = _blended_travel_speed(space, _blend_point)
-	if native <= 0.01:
-		_tree.set(PARAM_LOCO_SPEED, 1.0)
-		return
-	_tree.set(PARAM_LOCO_SPEED, clampf(
-		speed / native,
-		GameSettings.player_locomotion_speed_min,
-		GameSettings.player_locomotion_speed_max
-	))
+	var playback: float = 1.0
+	if native > 0.01:
+		playback = clampf(
+			speed / native,
+			GameSettings.player_locomotion_speed_min,
+			GameSettings.player_locomotion_speed_max
+		)
+	_tree.set(PARAM_LOCO_SPEED, playback)
+	_stride_seconds = float(_gait_cycle.get(space, 0.0)) / playback
 
 
 ## The speed band the run cycle takes over at, with hysteresis: break into a run above the
@@ -868,8 +990,20 @@ func _blended_travel_speed(space: String, point: Vector2) -> float:
 	var clips: Dictionary = GAIT_SPACES[space]
 	var forward_back: String = String(clips["forward"] if point.y >= 0.0 else clips["back"])
 	var sideways: String = String(clips["right"] if point.x >= 0.0 else clips["left"])
-	var native: float = absf(point.y) * _travel_speed(forward_back) + absf(point.x) * _travel_speed(sideways)
+	var native: float = (
+		absf(point.y) * _locked_travel_speed(space, forward_back)
+		+ absf(point.x) * _locked_travel_speed(space, sideways)
+	)
 	return native
+
+
+## A clip's travel speed once it is stretched onto `space`'s shared cycle (see
+## _build_gait_space): the same stride spread over a longer or shorter loop.
+func _locked_travel_speed(space: String, clip: String) -> float:
+	var cycle: float = float(_gait_cycle.get(space, 0.0))
+	if cycle <= 0.0:
+		return _travel_speed(clip)
+	return _travel_speed(clip) * _clip_length(clip) / cycle
 
 
 ## Playback speed that fits the jump clip into the time a jump actually lasts, from

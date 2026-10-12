@@ -173,6 +173,15 @@ if (-not $SkipRuntime) {
     }
     Write-Output "PASS: every boss clip moves its feet the way it was made to, borrowed or not."
 
+    # The player's footsteps are heard off the pose on screen, so a change to the gait
+    # blend that leaves the feet dragging or double-tapping silences or doubles them.
+    $footstepResult = Invoke-GodotCheck -Name "player-footsteps" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/player_footsteps.tscn") -TimeoutSeconds 120
+    if ($footstepResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($footstepResult.Output)
+        throw "A player gait misses footsteps or hears one step twice."
+    }
+    Write-Output "PASS: every player gait is heard once per step, on grass or gravel."
+
     # And that two machines can actually find each other. The host launches a real
     # second process; a single-process fake could not fail the way UDP discovery, a
     # password check over ENet, or a ready round trip fail.

@@ -47,6 +47,14 @@ const EVENT_FILES := {
 	## Not an impact at all: the note the crystal holds while it levitates. Started
 	## once by MainController and left running for the whole match.
 	&"crystal_ambience": ["cristal.wav"],
+	## A player's foot landing, by what it landed on (GroundSurface picks which). Each
+	## file is one step cut out of a longer take, trimmed to start on the contact so the
+	## sound lands on the frame the foot does - see PlayerAnimator.footfall.
+	&"footstep_grass": [
+		"footsteps/grass-1.wav", "footsteps/grass-2.wav", "footsteps/grass-3.wav",
+		"footsteps/grass-4.wav", "footsteps/grass-5.wav",
+	],
+	&"footstep_gravel": ["footsteps/gravel-1.wav", "footsteps/gravel-2.wav", "footsteps/gravel-3.wav"],
 
 	# --- Spells -----------------------------------------------------------------
 	#
@@ -192,6 +200,10 @@ const EVENT_GAIN_DB: Dictionary = {
 	&"aura_orb_heal": -11.0,
 	&"aura_grave_pact": -8.0,
 	&"zombie_burst": -4.0,
+	## Two or three a second for every avatar on the move, for the whole match. Present
+	## under everything rather than competing with it.
+	&"footstep_grass": -12.0,
+	&"footstep_gravel": -14.0,
 }
 
 ## event -> a group whose members share ONE retrigger clock. Three orbs are three events,
@@ -218,6 +230,9 @@ var _last_variant: Dictionary = {}
 ## event -> engine time it last started. Dozens of enemies connecting on the same
 ## frame is one sound played once, not thirty stacked into a clipping mess.
 var _last_played: Dictionary = {}
+## event -> the AudioStreamRandomizer behind every emitter's voice for it (see play_from).
+## Built once: it holds no playback state of its own, so one per event serves every avatar.
+var _randomizers: Dictionary = {}
 
 var _positional: Array[AudioStreamPlayer3D] = []
 var _flat: Array[AudioStreamPlayer] = []
@@ -519,6 +534,58 @@ func _pick(event: StringName) -> AudioStream:
 ## once the player has heard them a few hundred times.
 func _jittered_pitch() -> float:
 	return 1.0 + randf_range(-GameSettings.sfx_pitch_jitter, GameSettings.sfx_pitch_jitter)
+
+
+## Plays `event` from a voice that belongs to `emitter`, for a sound it makes constantly -
+## footsteps. Two reasons it does not go through `play_at`: the shared pool is round-robin,
+## so a party walking about would keep recycling voices out from under the hits of a wave;
+## and `_pick`'s retrigger clock is per EVENT, which would let one player's step silence a
+## teammate's that happened to land in the same instant.
+##
+## Each event gets its own voice on the emitter, hung on the first time it is needed, whose
+## stream is an AudioStreamRandomizer over the event's recordings. The randomizer is what
+## lets the voice be polyphonic: changing a player's `stream` stops everything it is
+## playing, so rotating variants by reassigning it would cut every step's tail off with the
+## next one. The randomizer rotates them inside one stream instead, and detunes each play
+## the way `_jittered_pitch` does for everything else.
+func play_from(event: StringName, emitter: Node3D) -> void:
+	if not is_instance_valid(emitter):
+		return
+	var voice_name := "Voice_" + String(event)
+	var voice: AudioStreamPlayer3D = emitter.get_node_or_null(voice_name) as AudioStreamPlayer3D
+	if voice == null:
+		var stream: AudioStreamRandomizer = _randomizer_for(event)
+		if stream == null:
+			return
+		voice = AudioStreamPlayer3D.new()
+		voice.name = voice_name
+		voice.bus = UserSettingsScript.BUS_SFX
+		voice.stream = stream
+		# Enough for a step's tail to ring on under the next one.
+		voice.max_polyphony = GameSettings.sfx_emitter_voice_polyphony
+		voice.max_distance = GameSettings.sfx_max_distance
+		voice.unit_size = GameSettings.sfx_unit_size
+		voice.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		emitter.add_child(voice)
+	voice.volume_db = GameSettings.sfx_volume_db + float(EVENT_GAIN_DB.get(event, 0.0))
+	voice.play()
+
+
+func _randomizer_for(event: StringName) -> AudioStreamRandomizer:
+	if _randomizers.has(event):
+		return _randomizers[event]
+	var streams: Array = _streams.get(event, [])
+	if streams.is_empty():
+		return null
+	var randomizer := AudioStreamRandomizer.new()
+	randomizer.playback_mode = AudioStreamRandomizer.PLAYBACK_RANDOM_NO_REPEATS
+	# A multiplier either way rather than a +- range, so 1.08 is the same spread as the
+	# pool's 0.08 jitter.
+	randomizer.random_pitch = 1.0 + GameSettings.sfx_pitch_jitter
+	for stream: AudioStream in streams:
+		randomizer.add_stream(-1, stream)
+	_randomizers[event] = randomizer
+	return randomizer
 
 
 ## Hangs a sustained voice for `event` on `emitter`, so it plays from wherever that

@@ -433,6 +433,7 @@ var is_local: bool = true
 func _ready() -> void:
 	add_to_group("player")
 	animator = $Animator
+	animator.footfall.connect(_on_footfall)
 	if Net.is_active():
 		# Networked: the peer that owns this avatar drives it, everyone else runs it as a
 		# puppet. Authority was set by MainController._spawn_avatar, which runs on every
@@ -3146,6 +3147,13 @@ func _spawn_gust(origin: Vector3, facing: Vector3, length: float, tint: Color) -
 ## ran the spell. Same shape as the visuals above, and for exactly the same reason.
 func _play_sound(event: StringName, at: Vector3) -> void:
 	NetFx.sound(event, at)
+
+
+## A foot came down. Local rather than through NetFx: every peer already animates every
+## avatar from its replicated velocity, so each machine sees each step land and plays it
+## itself - in time with the legs on ITS screen, and without a packet per footstep.
+func _on_footfall(at: Vector3) -> void:
+	SoundBank.play_from(GroundSurface.footstep_event(at), self)
 
 
 ## A knock felt at full strength by whoever caused it and by distance for everyone else.
