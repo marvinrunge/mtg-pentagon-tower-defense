@@ -26,8 +26,13 @@ on:
     # GitHub adds "Source code (zip)" to every release by itself, so it looked like it had
     # worked. A tag that starts with a digit or a `v` is a version either way.
     tags: ["v*", "[0-9]*"]
+    # The website and the README never reach the build, so a push touching only them
+    # should not spend Actions minutes on one. Path filters are not evaluated for tag
+    # pushes, so a tag still always builds.
+    paths-ignore: ["site/**", "README.md", ".github/workflows/pages.yml"]
   pull_request:
     branches: [master]
+    paths-ignore: ["site/**", "README.md", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 env:
