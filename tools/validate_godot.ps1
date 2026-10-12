@@ -182,6 +182,15 @@ if (-not $SkipRuntime) {
     }
     Write-Output "PASS: every player gait is heard once per step, with a sound for every ground texture."
 
+    # Tree collision has to stand on the trunk. It used to stand at the canopy's centre, up
+    # to three metres away, and as a 12 m wide wall round the landmark trees.
+    $treeResult = Invoke-GodotCheck -Name "tree-collision" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/tree_collision.tscn") -TimeoutSeconds 120
+    if ($treeResult.Output -notmatch "TEST RESULT: PASS") {
+        [Console]::WriteLine($treeResult.Output)
+        throw "A tree's collision no longer stands on its trunk."
+    }
+    Write-Output "PASS: every tree's collision stands on its trunk."
+
     # The error log is what a tester's crash comes back as. If it stops recording, collapsing
     # floods, or recognising a lost GPU, the next crash arrives as nothing at all.
     $reporterResult = Invoke-GodotCheck -Name "error-reporter" -Arguments @("--headless", "--path", $projectRoot, "res://tools/tests/error_reporter.tscn") -TimeoutSeconds 60

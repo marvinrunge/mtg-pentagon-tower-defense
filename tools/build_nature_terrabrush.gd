@@ -41,6 +41,9 @@ extends SceneTree
 ## See _paint_objects / _paint_foliage for the rules.
 
 const DEFAULT_MANIFEST := "res://tools/nature/nature_assets.json"
+## Where a procedural tree's recipe lives; the trunk fit reads its lean and trunk length.
+const SPECIES_DIR := "res://tools/nature/blender/species/"
+const TrunkCollision = preload("res://tools/nature/trunk_collision.gd")
 const MESH_DIR := "res://assets/nature/meshes/"
 const SCENE_DIR := "res://assets/nature/scenes/"
 const TB_DIR := "res://assets/nature/terrabrush/"
@@ -153,7 +156,7 @@ func _build_mesh_asset(asset: Dictionary) -> Array:
 	mesh = load(MESH_DIR + id + ".res")
 
 	var bounds := mesh.get_aabb()
-	var collision := _collision_shape(asset, tier, bounds)
+	var collision := _collision(asset, tier, mesh)
 	var glow: bool = asset.get("glow", false)
 	var light: bool = asset.get("light", false)
 	var scene := _wrapper_scene(asset, mesh, collision, light)
@@ -185,12 +188,12 @@ func _build_mesh_asset(asset: Dictionary) -> Array:
 		var shadows: int = 0 if asset["tier"] == "clutter" else 1
 		var near_lod: Resource = ClassDB.instantiate("ObjectOctreeLODDefinitionResource")
 		near_lod.set("maxDistance", NEAR_LOD_M)
-		near_lod.set("addCollision", collision != null)
+		near_lod.set("addCollision", not collision.is_empty())
 		var far_lod: Resource = ClassDB.instantiate("ObjectOctreeLODDefinitionResource")
 		far_lod.set("maxDistance", FAR_LOD_M.get(asset["tier"], 200.0))
 		definition.set("lodList", _typed([near_lod, far_lod], "ObjectOctreeLODDefinitionResource"))
 		var near_meshes := _lod_meshes(mesh, shadows, collision)
-		var far_meshes := _lod_meshes(mesh, 0, null)
+		var far_meshes := _lod_meshes(mesh, 0, [])
 		definition.set("lodMeshes", _typed([near_meshes, far_meshes], "ObjectOctreeLODMeshesDefinitionResource"))
 
 	var object: Resource = ClassDB.instantiate("ObjectResource")
@@ -229,7 +232,7 @@ func _build_variants(asset: Dictionary, tier: Dictionary, light: bool) -> Array:
 			break
 		ResourceSaver.save(mesh, MESH_DIR + variant_id + ".res")
 		mesh = load(MESH_DIR + variant_id + ".res")
-		var collision := _collision_shape(asset, tier, mesh.get_aabb())
+		var collision := _collision(asset, tier, mesh)
 		ResourceSaver.save(_wrapper_scene(variant_asset, mesh, collision, light), SCENE_DIR + variant_id + ".tscn")
 		scenes.append(load(SCENE_DIR + variant_id + ".tscn"))
 		variant += 1
@@ -426,6 +429,23 @@ func _glow_material(source: Material, asset: Dictionary) -> Material:
 	return material
 
 
+## [shape, transform] of the asset's collision cylinder in its wrapper scene, or [] for none.
+##
+## A tree's is fitted to its trunk (tools/nature/trunk_collision.gd) - whatever its tier
+## says, because a landmark's "hull" was 40% of a 16 m canopy, a 12 m wide invisible wall
+## round a trunk two metres thick. Everything else keeps the upright cylinder at the origin.
+func _collision(asset: Dictionary, tier: Dictionary, mesh: Mesh) -> Array:
+	if tier.get("collision", "none") == "none":
+		return []
+	var recipe_path: String = SPECIES_DIR + String(asset["id"]) + ".json"
+	var recipe: Variant = JSON.parse_string(FileAccess.get_file_as_string(recipe_path)) if FileAccess.file_exists(recipe_path) else {}
+	var trunk: Dictionary = TrunkCollision.fit(mesh, float(asset.get("trunk_radius_m", 0.0)), recipe if recipe is Dictionary else {})
+	if not trunk.is_empty():
+		return [trunk["shape"], trunk["transform"]]
+	var shape := _collision_shape(asset, tier, mesh.get_aabb()) as CylinderShape3D
+	return [shape, Transform3D(Basis.IDENTITY, Vector3(0, shape.height * 0.5, 0))]
+
+
 func _collision_shape(asset: Dictionary, tier: Dictionary, bounds: AABB) -> Shape3D:
 	var kind: String = tier.get("collision", "none")
 	if kind == "none":
@@ -440,7 +460,7 @@ func _collision_shape(asset: Dictionary, tier: Dictionary, bounds: AABB) -> Shap
 	return shape
 
 
-func _wrapper_scene(asset: Dictionary, mesh: ArrayMesh, collision: Shape3D, light: bool) -> PackedScene:
+func _wrapper_scene(asset: Dictionary, mesh: ArrayMesh, collision: Array, light: bool) -> PackedScene:
 	var root := Node3D.new()
 	root.name = (asset["id"] as String).to_pascal_case()
 	var visual := MeshInstance3D.new()
@@ -451,7 +471,7 @@ func _wrapper_scene(asset: Dictionary, mesh: ArrayMesh, collision: Shape3D, ligh
 	root.add_child(visual)
 	visual.owner = root
 
-	if collision != null:
+	if not collision.is_empty():
 		var body := StaticBody3D.new()
 		body.name = "Body"
 		body.collision_layer = ENVIRONMENT_LAYER
@@ -460,8 +480,8 @@ func _wrapper_scene(asset: Dictionary, mesh: ArrayMesh, collision: Shape3D, ligh
 		body.owner = root
 		var shape := CollisionShape3D.new()
 		shape.name = "Shape"
-		shape.shape = collision
-		shape.position.y = (collision as CylinderShape3D).height * 0.5
+		shape.shape = collision[0]
+		shape.transform = collision[1]
 		body.add_child(shape)
 		shape.owner = root
 
@@ -488,16 +508,18 @@ func _wrapper_scene(asset: Dictionary, mesh: ArrayMesh, collision: Shape3D, ligh
 	return packed
 
 
-func _lod_meshes(mesh: Mesh, shadows: int, collision: Shape3D) -> Resource:
+## The multimesh strategy takes an offset for its collision and no rotation, so a fitted
+## trunk's lean is lost here - only assets without variants land on it, and no tree does.
+func _lod_meshes(mesh: Mesh, shadows: int, collision: Array) -> Resource:
 	var entry: Resource = ClassDB.instantiate("ObjectOctreeLODMeshDefinitionResource")
 	entry.set("mesh", mesh)
 	entry.set("scale", Vector3.ONE)
 	entry.set("castShadow", shadows)
 	var level: Resource = ClassDB.instantiate("ObjectOctreeLODMeshesDefinitionResource")
 	level.set("meshes", _typed([entry], "ObjectOctreeLODMeshDefinitionResource"))
-	if collision != null:
-		level.set("collisionShape", collision)
-		level.set("collisionOffset", Vector3(0, (collision as CylinderShape3D).height * 0.5, 0))
+	if not collision.is_empty():
+		level.set("collisionShape", collision[0])
+		level.set("collisionOffset", (collision[1] as Transform3D).origin)
 	return level
 
 

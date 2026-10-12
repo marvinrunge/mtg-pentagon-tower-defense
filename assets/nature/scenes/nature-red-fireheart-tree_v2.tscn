@@ -3,8 +3,8 @@
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-fireheart-tree_v2.res" id="1_1t1bq"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_e6swt"]
-height = 14.999999
-radius = 5.3782907
+height = 5.5
+radius = 1.1
 
 [node name="NatureRedFireheartTreeV2" type="Node3D" unique_id=1892619675]
 
@@ -16,5 +16,5 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="Shape" type="CollisionShape3D" parent="Body" unique_id=306748937]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7.4999995, 0)
+transform = Transform3D(0.9978, 0.0656, -0.0073, -0.066, 0.9917, -0.1106, 0.0, 0.1109, 0.9938, 0.3611, 2.2271, -0.9946)
 shape = SubResource("CylinderShape3D_e6swt")

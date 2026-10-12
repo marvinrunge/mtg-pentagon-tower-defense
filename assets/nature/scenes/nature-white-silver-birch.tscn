@@ -3,7 +3,7 @@
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-silver-birch.res" id="1_pqxhx"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_yrx1l"]
-height = 5.1
+height = 5.5
 radius = 0.25
 
 [node name="NatureWhiteSilverBirch" type="Node3D" unique_id=1211485713]
@@ -16,5 +16,5 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="Shape" type="CollisionShape3D" parent="Body" unique_id=2035990893]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.55, 0)
+transform = Transform3D(1.0, 0.0034, -0.0001, -0.0034, 0.9991, -0.0413, 0.0, 0.0413, 0.9991, 0.2291, 2.2476, 0.6574)
 shape = SubResource("CylinderShape3D_yrx1l")

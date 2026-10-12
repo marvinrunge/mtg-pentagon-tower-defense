@@ -3,7 +3,7 @@
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-red-dragonblood-tree_v3.res" id="1_yyqfd"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_dc3lw"]
-height = 4.8
+height = 5.3
 radius = 0.55
 
 [node name="NatureRedDragonbloodTreeV3" type="Node3D" unique_id=220722471]
@@ -16,5 +16,5 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="Shape" type="CollisionShape3D" parent="Body" unique_id=295188706]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+transform = Transform3D(0.9981, 0.0621, -0.0047, -0.0623, 0.9952, -0.0751, 0.0, 0.0753, 0.9972, 0.6874, 2.1374, 0.379)
 shape = SubResource("CylinderShape3D_dc3lw")

@@ -3,8 +3,8 @@
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-white-great-sun-oak.res" id="1_wwycn"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_6llu6"]
-height = 16.0
-radius = 6.354631
+height = 5.5
+radius = 1.2
 
 [node name="NatureWhiteGreatSunOak" type="Node3D" unique_id=2059443633]
 
@@ -16,5 +16,5 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1749086933]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, 0)
+transform = Transform3D(0.9995, 0.0318, -0.0013, -0.0318, 0.9986, -0.0415, 0.0, 0.0415, 0.9991, -0.4854, 2.2462, -0.0178)
 shape = SubResource("CylinderShape3D_6llu6")

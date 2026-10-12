@@ -3,7 +3,7 @@
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-mangrove_v2.res" id="1_d45ux"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_ltpye"]
-height = 4.2
+height = 4.7
 radius = 0.6
 
 [node name="NatureBlueMangroveV2" type="Node3D" unique_id=1196046987]
@@ -16,5 +16,5 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="Shape" type="CollisionShape3D" parent="Body" unique_id=377480932]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.1, 0)
+transform = Transform3D(0.9985, -0.0541, 0.0047, 0.0543, 0.9948, -0.0866, 0.0, 0.0868, 0.9962, 0.7408, 1.8377, 0.5544)
 shape = SubResource("CylinderShape3D_ltpye")

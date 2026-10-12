@@ -3,7 +3,7 @@
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-blue-windswept-pine.res" id="1_lptgq"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_5nc3l"]
-height = 5.4
+height = 5.5
 radius = 0.35
 
 [node name="NatureBlueWindsweptPine" type="Node3D" unique_id=408918084]
@@ -16,5 +16,5 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="Shape" type="CollisionShape3D" parent="Body" unique_id=1292022626]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0)
+transform = Transform3D(0.9647, 0.2596, -0.0446, -0.2634, 0.9508, -0.1632, 0.0, 0.1692, 0.9856, -2.152, 2.1146, -1.0032)
 shape = SubResource("CylinderShape3D_5nc3l")

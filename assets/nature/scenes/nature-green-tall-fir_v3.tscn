@@ -3,7 +3,7 @@
 [ext_resource type="ArrayMesh" path="res://assets/nature/meshes/nature-green-tall-fir_v3.res" id="1_ewye4"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_5be6w"]
-height = 8.4
+height = 5.5
 radius = 0.4
 
 [node name="NatureGreenTallFirV3" type="Node3D" unique_id=1459512073]
@@ -16,5 +16,5 @@ collision_layer = 16
 collision_mask = 0
 
 [node name="Shape" type="CollisionShape3D" parent="Body" unique_id=768895936]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.2, 0)
+transform = Transform3D(1.0, 0.007, -0.0001, -0.007, 0.9999, -0.0123, 0.0, 0.0123, 0.9999, -0.1232, 2.2497, 0.0331)
 shape = SubResource("CylinderShape3D_5be6w")

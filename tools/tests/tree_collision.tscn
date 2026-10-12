@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tools/tests/tree_collision.gd" id="1_tcol"]
+
+[node name="TreeCollision" type="Node"]
+script = ExtResource("1_tcol")
