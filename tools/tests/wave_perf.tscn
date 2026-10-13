@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tools/tests/wave_perf.gd" id="1_wperf"]
+
+[node name="WavePerf" type="Node"]
+script = ExtResource("1_wperf")

@@ -49,6 +49,13 @@ extends Node
 @export var player_base_speed: float = 2.5
 @export var player_sprint_speed_mult: float = 1.5
 @export var player_jump_velocity: float = 4.5
+## Out of the world (Player._is_out_of_world): below this height, or further than this from
+## the centre along either axis, a player is put back at their seat by the crystal. The
+## lowest ground is about -10 m and the MapBounds fence stands at 250 m.
+@export var player_out_of_world_y: float = -30.0
+@export var player_out_of_world_extent: float = 270.0
+## Seconds of invulnerability after being put back, so the landing is not a hit.
+@export var player_out_of_world_grace: float = 2.0
 @export var player_mouse_sensitivity: float = 0.002
 @export var player_gamepad_look_sensitivity: float = 2.5
 ## The player's own look preferences, from the Controls tab (UserSettings loads and saves
@@ -1211,6 +1218,31 @@ func rank_level_requirement(rank: int) -> int:
 @export var enemy_ranged_detection_range: float = 35.0
 @export var enemy_target_eval_interval: float = 0.5
 @export var enemy_path_update_interval: float = 0.3
+## When a formation breaks up, each member asks for its route at a random moment within this
+## many seconds rather than all in one tick (EnemyBase.leave_formation).
+@export var enemy_repath_spread: float = 0.75
+## Enemy replication (EnemyBase._build_synchronizer). Movement goes out every `interval`
+## seconds, every `far_interval` for an enemy far from every player; health, death and the
+## plague timer only when they change, at most every `delta_interval`. It used to be all of
+## it, every frame, to every client - roughly a megabyte a second per client at 300 enemies.
+@export var enemy_net_interval: float = 0.05
+@export var enemy_net_far_interval: float = 0.2
+@export var enemy_net_delta_interval: float = 0.05
+## A client's copy (EnemyBase._smooth_puppet): eased towards the reported position over
+## about `smoothing` seconds, carried forward by the reported velocity for at most
+## `extrapolate_max` seconds of report age, and snapped when it is further off than
+## `snap_distance` - a recovery or a knockback, not a walk.
+@export var enemy_net_smoothing: float = 0.08
+@export var enemy_net_extrapolate_max: float = 0.3
+@export var enemy_net_snap_distance: float = 4.0
+## A formation slot's ground is found by a ray reaching this far above and below the squad's
+## origin, and accepted when it is within the tolerance of the origin's height
+## (WaveManager._slot_ground); otherwise the navmesh is asked.
+@export var wave_slot_ground_probe: float = 8.0
+@export var wave_slot_ground_tolerance: float = 3.0
+## Milliseconds per frame a battle group may spend spawning its units (WaveManager.
+## _pump_spawn_queue); the rest go in on the following frames.
+@export var wave_spawn_budget_ms: float = 4.0
 @export var enemy_mage_spell_cooldown_mult: float = 4.0
 @export var enemy_frost_slow_mult: float = 0.3
 @export var enemy_white_mage_heal: float = 30.0
@@ -1243,6 +1275,59 @@ func rank_level_requirement(rank: int) -> int:
 @export var enemy_recovery_below_distance: float = 2.0
 @export var enemy_recovery_off_distance: float = 3.0
 @export var enemy_recovery_off_seconds: float = 1.5
+## An enemy standing still this long without fighting has its way to the crystal checked;
+## if there is none it is put back where it last was on its path (EnemyBase._check_recovery).
+## Moving less than `enemy_stranded_move_epsilon` between two recovery checks is standing.
+## An enemy within this of where the last recovery check found it on the navmesh is still on
+## it, without asking the navmesh again (EnemyBase._near_last_good_position).
+@export var enemy_recovery_still_tolerance: float = 0.5
+@export var enemy_stranded_seconds: float = 8.0
+@export var enemy_stranded_move_epsilon: float = 0.3
+## How close a path has to end to the crystal to count as reaching it.
+@export var enemy_reach_crystal_tolerance: float = 3.0
+## Isolated navmesh patches smaller than this, in square metres, are not baked - the tops of
+## trunks and boulders (MainController.bake_map_navigation).
+@export var navmesh_min_island_area: float = 60.0
+
+## Physics level of detail (EnemyBase._physics_process). An enemy further than this from
+## every player walks its path without the physics engine and thinks only every
+## `enemy_far_think_stride` physics ticks. Kept above enemy_ranged_detection_range, so
+## anything close enough to notice a player - and shoot at one - is always fully simulated.
+## The hysteresis is how much further it has to get before dropping back to far again.
+@export var enemy_physics_lod_distance: float = 40.0
+@export var enemy_physics_lod_hysteresis: float = 5.0
+@export var enemy_far_think_stride: int = 3
+## Slower than this, an enemy counts as standing (EnemyBase._standing_settled): it stops, and
+## standing on the floor it skips move_and_slide altogether.
+@export var enemy_min_move_speed: float = 0.15
+## Near a player but not fighting one (EnemyBase._near_but_not_engaged): further than this
+## from every player and not targeting one, an enemy thinks every
+## `enemy_near_idle_think_stride` physics ticks. It still moves every tick.
+## Animation level of detail (EnemyBase._process): an enemy in view and within this many
+## metres of the camera animates every frame; one further off every `far_stride` frames; one
+## out of view every `offscreen_stride` frames. The skipped time is not lost - see there.
+@export var enemy_anim_full_distance: float = 25.0
+@export var enemy_anim_far_stride: int = 2
+@export var enemy_anim_offscreen_stride: int = 4
+@export var enemy_engaged_distance: float = 12.0
+@export var enemy_near_idle_think_stride: int = 2
+## Crowd queueing (EnemyBase._queue_in_crowd): an enemy that walks and makes less than this
+## share of the ground it meant to cover, `enemy_blocked_ticks` physics ticks running, stands
+## and waits `enemy_blocked_wait` seconds before trying again.
+@export var enemy_blocked_progress: float = 0.25
+@export var enemy_blocked_ticks: int = 8
+@export var enemy_blocked_wait: float = 0.4
+## How far above and below a far enemy's feet its ground ray reaches (EnemyBase._ground_below).
+## Enough for a tick of walking up or down the steepest slope the navmesh takes; short
+## enough to start below the top of a rock rather than above it.
+@export var enemy_far_ground_probe_up: float = 0.8
+@export var enemy_far_ground_probe_down: float = 2.0
+
+## The most physics ticks the engine runs in one frame to catch up (Godot's default is 8).
+## When a tick costs more than its own 16.7 ms, catching up only makes the next frame
+## longer still: at 8 a crowd that overran the budget fell to 5 fps. At 3 the game runs
+## briefly slower instead, and recovers.
+@export var max_physics_steps_per_frame: int = 3
 
 ## Death launch (EnemyBase._start_death_launch): a killed enemy is thrown away from what
 ## killed it, in an arc, lands, skids and stays where it comes to rest - so a kill has weight.
@@ -1788,3 +1873,7 @@ func get_skill_upgrade_cost(current_level: int) -> int:
 
 func get_skill_multiplier(current_level: int) -> float:
 	return 1.0 + (current_level - 1) * 0.2
+
+
+func _ready() -> void:
+	Engine.max_physics_steps_per_frame = max_physics_steps_per_frame

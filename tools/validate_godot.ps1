@@ -162,7 +162,7 @@ if (-not $SkipRuntime) {
         [Console]::WriteLine($recoveryResult.Output)
         throw "Enemies that leave the walkable map are not put back on it."
     }
-    Write-Output "PASS: enemies that fall through the ground or leave the walkable map are put back on it, alive."
+    Write-Output "PASS: enemies and players that fall through the ground or leave the map are put back, alive."
 
     # Clips borrowed between the bosses are retargeted, not copied by bone name: a raw copy
     # pitched the borrowing bosses' feet 22-41 degrees.

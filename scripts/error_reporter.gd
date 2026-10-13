@@ -455,21 +455,34 @@ func _save_pending(report: Dictionary) -> String:
 		return ""
 	file.store_string(JSON.stringify(report))
 	file.close()
-	var pending: PackedStringArray = DirAccess.get_files_at(PENDING_DIR)
-	pending.sort()
+	var pending: Array[String] = _pending_oldest_first()
 	while pending.size() > MAX_PENDING:
-		DirAccess.remove_absolute(PENDING_DIR + pending[0])
-		pending.remove_at(0)
+		DirAccess.remove_absolute(PENDING_DIR + pending.pop_front())
 	return path
 
 
-func _send_pending() -> void:
-	var pending: PackedStringArray = DirAccess.get_files_at(PENDING_DIR)
-	pending.sort()
-	for file_name: String in pending:
+## The waiting reports, oldest first, by the time in their name (`<kind>_<unix time>.json`).
+## Sorting the names themselves put every "crash_" before every "errors_" and "gpu_", so with
+## the folder full a new crash report was the first thing pruned - the one report that most
+## needed to survive.
+func _pending_oldest_first() -> Array[String]:
+	var names: Array[String] = []
+	for file_name: String in DirAccess.get_files_at(PENDING_DIR):
 		if file_name.ends_with(".json"):
-			if not await _upload(PENDING_DIR + file_name):
-				return
+			names.append(file_name)
+	names.sort_custom(func(a: String, b: String) -> bool:
+		return _report_time(a) < _report_time(b) or (_report_time(a) == _report_time(b) and a < b))
+	return names
+
+
+func _report_time(file_name: String) -> int:
+	return file_name.get_basename().get_slice("_", file_name.get_basename().get_slice_count("_") - 1).to_int()
+
+
+func _send_pending() -> void:
+	for file_name: String in _pending_oldest_first():
+		if not await _upload(PENDING_DIR + file_name):
+			return
 
 
 ## Sends one saved report and deletes it once the database has it. False when it could not

@@ -4,6 +4,8 @@ class_name EnemyBase
 var target_crystal: Node3D
 var current_target: Node3D
 var last_target_position: Vector3 = Vector3.INF
+## Left a formation and not yet given a route - see leave_formation.
+var _awaiting_path: bool = false
 
 var _health_bar_scene: PackedScene = preload("res://scenes/ui/enemy_health_bar.tscn")
 var _miniboss_glow_shader: Shader = preload("res://assets/shaders/miniboss_glow.gdshader")
@@ -167,6 +169,49 @@ var _sapling_timer: float = -1.0
 ## squad spawned in one frame does not run all its checks in one frame from then on.
 var _recovery_timer: float = randf() * GameSettings.enemy_recovery_check_interval
 var _off_navmesh_time: float = 0.0
+## Physics level of detail (see _physics_process). True while no player is near enough to
+## see this enemy push past anything, in which case it walks its path without the physics
+## engine and thinks only every few ticks.
+var _far: bool = false
+## Physics time banked between the ticks a far enemy thinks on, handed to the next one.
+var _far_banked_delta: float = 0.0
+## Which of the stride's ticks this enemy thinks on, so a wave spawned in one frame does not
+## think in one frame from then on.
+var _far_phase: int = randi()
+## The length of the physics tick being run, for moving - see _slide. A far enemy's thinking
+## tick covers several ticks of time, and its movement must not.
+var _move_delta: float = 0.0
+## Whether the last recovery check found this enemy standing on its planned path. Far
+## movement walks that path and stands on it, which is only right for an enemy that is
+## ON it: one shoved off the map's edge has to fall off it and be put back, not glide home
+## through the air. False until the first check, so a fresh spawn starts fully simulated.
+var _confirmed_on_path: bool = false
+## Where the last recovery check saw this enemy on its path - the place to put it back if
+## the navmesh nearest to where it ended up leads nowhere. INF until the first such check.
+var _last_good_position: Vector3 = Vector3.INF
+## The stranded watch (see _update_stranded): where the enemy stood at the last check, and
+## how long it has stood about there without a reason to.
+var _watch_position: Vector3 = Vector3.INF
+var _stationary_time: float = 0.0
+## The navmesh point at the crystal, shared by every enemy asking whether it can get there.
+## Re-found whenever the map is rebaked.
+static var _crystal_goal: Vector3 = Vector3.INF
+static var _crystal_goal_iteration: int = -1
+## Every player's position this physics tick, shared by every enemy asking whether one is
+## near: one walk of the player group per tick rather than one per enemy.
+static var _player_positions: PackedVector3Array = PackedVector3Array()
+static var _player_positions_tick: int = -1
+## Crowd queueing (see _slide): ticks in a row this enemy walked and got almost nowhere, and
+## the seconds it is waiting before it tries again.
+var _blocked_ticks: int = 0
+var _blocked_wait: float = 0.0
+## Animation level of detail (see _process): time banked since the animation was last
+## stepped, and which frame of the stride this enemy steps on.
+var _anim_banked: float = 0.0
+var _anim_phase: int = randi()
+## The camera this frame, shared by every enemy asking where it is looking.
+static var _anim_camera: Camera3D = null
+static var _anim_camera_frame: int = -1
 ## A sapling that withered on its own was not killed, and pays nothing.
 var _skip_kill_rewards: bool = false
 
@@ -380,6 +425,9 @@ func setup(data: EnemyData) -> void:
 		# find_child rather than get_node: it holds for both the melee scenes (player
 		# is a direct child) and the imported boss scenes, without assuming depth.
 		visual_anim_player = visual_instance.find_child("AnimationPlayer", true, false)
+		# Stepped by hand in _process, at a rate that depends on how much of it can be seen.
+		if visual_anim_player != null:
+			visual_anim_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 		_reaction_clip = _resolve_reaction_clip()
 		_resolve_locomotion(visual_instance)
 		_rest_visual_animation()
@@ -444,17 +492,22 @@ func setup(data: EnemyData) -> void:
 	if has_meta("miniboss"):
 		apply_miniboss()
 
+## Route planning. A member holding formation plans none: it steers straight at its slot
+## (see the movement block in _physics_tick), a few metres away, which the squad's anchor
+## keeps on the lane. It used to ask the navmesh for a route to that slot every time the
+## slot had moved - every repath interval, for every marching enemy - and on this map a
+## route costs 2-3 ms however short it is, because finding the polygon at each end means
+## looking through all 37 000 of them. Measured, the route queries were most of a crowd's
+## remaining cost and nearly all of its stutters, worst when a group had just spawned.
 func update_path(force_update: bool = false) -> void:
 	if not nav_agent:
 		return
-	
-	var target_pos: Vector3 = Vector3.ZERO
 	if is_in_formation():
-		# The slot, not the objective. The squad's anchor is already walking towards the
-		# crystal, so this still converges on it - just in rank, and at the formation's
-		# pace rather than this enemy's own.
-		target_pos = squad.formation_target(self)
-	elif current_target and is_instance_valid(current_target):
+		return
+	_awaiting_path = false
+
+	var target_pos: Vector3 = Vector3.ZERO
+	if current_target and is_instance_valid(current_target):
 		target_pos = current_target.global_position
 	elif target_crystal and is_instance_valid(target_crystal):
 		target_pos = target_crystal.global_position
@@ -462,6 +515,15 @@ func update_path(force_update: bool = false) -> void:
 	if force_update or target_pos.distance_squared_to(last_target_position) > 0.1:
 		nav_agent.target_position = target_pos
 		last_target_position = target_pos
+
+## Where an enemy without a route walks meanwhile: what it is after, else the crystal.
+func _direct_goal() -> Vector3:
+	if current_target != null and is_instance_valid(current_target):
+		return current_target.global_position
+	if target_crystal != null and is_instance_valid(target_crystal):
+		return target_crystal.global_position
+	return global_position
+
 
 ## Whether this enemy is currently walking to a formation slot rather than fighting.
 ##
@@ -479,7 +541,6 @@ func is_in_formation() -> bool:
 func join_squad(new_squad) -> void:
 	squad = new_squad
 	_formation_leash = new_squad.leash()
-	update_path(true)
 
 
 ## Breaking ranks. One-way, and safe to call more than once - disband() calls it for every
@@ -491,7 +552,13 @@ func leave_formation() -> void:
 	squad = null
 	if is_instance_valid(former):
 		former.release(self)
-	update_path(true)
+	# Not a route straight away: a squad breaking up releases every member in the same tick,
+	# and sixty route queries at 2-3 ms each in one tick was a visible stall at every charge.
+	# Each asks at its own moment within enemy_repath_spread, and walks straight at its
+	# target until then (_awaiting_path).
+	_awaiting_path = true
+	last_target_position = Vector3.INF
+	path_update_timer = randf() * GameSettings.enemy_repath_spread
 
 
 ## The squad's charge. Lives on the enemy rather than on the squad so it outlasts the
@@ -519,9 +586,18 @@ func _build_synchronizer() -> void:
 	if not Net.is_active():
 		return
 	var config := SceneReplicationConfig.new()
-	for property: String in [":position", ":rotation", ":health", ":velocity", ":is_dying", ":contagion_timer"]:
+	# Where it is and how it is moving: every enemy_net_interval, unreliably - a lost one is
+	# replaced by the next. Position and heading go through net_position/net_yaw so that a
+	# client can smooth between them instead of jumping (see _smooth_puppet).
+	for property: String in [":net_position", ":net_yaw", ":velocity"]:
 		config.add_property(NodePath(property))
 		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+	# What only changes now and then: sent when it changes, reliably. Every one of these used
+	# to go out every frame, for every enemy, to every client, whether it had changed or not -
+	# health included, which for most of a wave is the same number it was a second ago.
+	for property: String in [":health", ":is_dying", ":contagion_timer"]:
+		config.add_property(NodePath(property))
+		config.property_set_replication_mode(NodePath(property), SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE)
 	# Once per enemy, at death; the lean starts on whichever frame it lands.
 	config.add_property(NodePath(":death_launch"))
 	config.property_set_replication_mode(NodePath(":death_launch"), SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE)
@@ -536,7 +612,67 @@ func _build_synchronizer() -> void:
 	sync.name = "Sync"
 	sync.replication_config = config
 	sync.set_multiplayer_authority(1)
+	sync.delta_interval = GameSettings.enemy_net_delta_interval
 	add_child(sync)
+	_net_sync = sync
+	_apply_net_rate()
+
+
+## How often this enemy's movement goes out. An enemy far from every player (the far level of
+## detail, see _physics_process) is far from every client's camera too, and moves smoothly
+## enough on their screens at a few updates a second - see _smooth_puppet.
+func _apply_net_rate() -> void:
+	if _net_sync == null:
+		return
+	_net_sync.replication_interval = GameSettings.enemy_net_far_interval if _far else GameSettings.enemy_net_interval
+
+
+# --- network movement -----------------------------------------------------------------
+#
+# The server's copy is the real one; a client's is drawn where the server last said it was.
+# Replicated straight into `position` and `rotation` it jumped there - at the old rate of
+# every frame that read as motion, and only as long as no packet was lost. Now the values
+# arrive at enemy_net_interval (slower still for far enemies), so a client keeps them as a
+# target and moves its copy towards where the enemy should be by now: the last reported
+# position carried on by the reported velocity for as long as the report is old.
+
+## Where this enemy is, as the synchronizer reads it on the server and writes it on a client.
+var net_position: Vector3:
+	get:
+		return position
+	set(value):
+		if not _net_target_position.is_finite():
+			position = value
+		_net_target_position = value
+		_net_received_at = Time.get_ticks_msec()
+var net_yaw: float:
+	get:
+		return rotation.y
+	set(value):
+		if not _net_target_position.is_finite():
+			rotation.y = value
+		_net_target_yaw = value
+
+var _net_sync: MultiplayerSynchronizer = null
+var _net_target_position: Vector3 = Vector3.INF
+var _net_target_yaw: float = 0.0
+var _net_received_at: int = 0
+
+
+## A client's copy, every frame: towards the reported position carried forward by the
+## reported velocity, eased so a correction is a glide rather than a step. Snaps when the
+## server has moved it somewhere it could not have walked - a recovery, a knockback slam.
+func _smooth_puppet(delta: float) -> void:
+	if not _net_target_position.is_finite():
+		return
+	var age: float = minf(float(Time.get_ticks_msec() - _net_received_at) / 1000.0, GameSettings.enemy_net_extrapolate_max)
+	var predicted: Vector3 = _net_target_position + Vector3(velocity.x, 0.0, velocity.z) * age
+	var gap: Vector3 = predicted - position
+	if gap.length_squared() > GameSettings.enemy_net_snap_distance * GameSettings.enemy_net_snap_distance:
+		position = predicted
+	else:
+		position += gap * (1.0 - exp(-delta / maxf(GameSettings.enemy_net_smoothing, 0.001)))
+	rotation.y = lerp_angle(rotation.y, _net_target_yaw, 1.0 - exp(-delta / maxf(GameSettings.enemy_net_smoothing, 0.001)))
 
 
 func _ground_visual(visual_instance: Node3D) -> void:
@@ -563,6 +699,21 @@ func _ground_visual(visual_instance: Node3D) -> void:
 		visual_instance.position.y -= min_y - global_position.y
 
 
+## Physics level of detail. Measured on the map with 300 enemies alive: a tick of their AI
+## cost 16-22 ms, two thirds of it move_and_slide at ~30 us an enemy - more than the 16.7 ms
+## a 60 Hz tick has - so the engine ran 8 ticks a frame to catch up, each too slow again,
+## and the game fell to 5 fps. (tools/tests/crowd_perf.tscn.)
+##
+## Nobody sees an enemy fifty metres away shoulder past another one or catch a step on a
+## root. So an enemy no player is near walks its path WITHOUT the physics engine (_slide),
+## and runs everything else - targeting, timers, attacks - only every
+## GameSettings.enemy_far_think_stride ticks, with the time it skipped handed to the tick it
+## runs. It still moves every tick, so it does not stutter across the screen, and its body
+## stays where it is: anything aimed at it still hits.
+##
+## Never for what has to be exact wherever it is: bosses and minibosses, a corpse, an enemy
+## being knocked back or sucked into a zone (both move by collision), and a client's copy,
+## which only animates what the server sends.
 func _physics_process(delta: float) -> void:
 	if not enemy_data:
 		return # Not initialized yet
@@ -572,6 +723,250 @@ func _physics_process(delta: float) -> void:
 	if not Net.is_server():
 		_update_puppet(delta)
 		return
+	_move_delta = delta
+	var was_far: bool = _far
+	_far = _wants_far()
+	if was_far != _far:
+		_apply_net_rate()
+	if was_far and not _far:
+		# Back under the physics engine: whatever the stale floor state let gravity build up
+		# while it was not looking would otherwise drop it through the first tick.
+		velocity.y = 0.0
+	var stride: int = maxi(GameSettings.enemy_far_think_stride, 1)
+	if not _far:
+		stride = maxi(GameSettings.enemy_near_idle_think_stride, 1) if _near_but_not_engaged() else 1
+	if stride == 1:
+		if _far_banked_delta > 0.0:
+			delta += _far_banked_delta
+			_far_banked_delta = 0.0
+		_physics_tick(delta)
+		return
+	if (Engine.get_physics_frames() + _far_phase) % stride != 0:
+		_far_banked_delta += delta
+		_slide()
+		return
+	delta += _far_banked_delta
+	_far_banked_delta = 0.0
+	_physics_tick(delta)
+
+
+## Near a player, but not fighting one: it is attacking the crystal, a myr or a well, or
+## walking, and no player is within enemy_engaged_distance. In a siege that is most of the
+## crowd round the crystal, and they think every enemy_near_idle_think_stride ticks rather
+## than every tick. They still MOVE every tick, with full collision (see _physics_process):
+## the only thing that waits is the decision about where to go and when to swing.
+## Whatever is fighting a player, or is close enough to start, stays exact.
+func _near_but_not_engaged() -> bool:
+	if is_boss() or is_miniboss or is_dying or _suction_timer > 0.0 \
+			or knockback_velocity.length_squared() > 0.1 or _miniboss_special_windup >= 0.0:
+		return false
+	if current_target is Player:
+		return false
+	var engaged: float = GameSettings.enemy_engaged_distance
+	for at: Vector3 in _players_this_tick():
+		if global_position.distance_squared_to(at) < engaged * engaged:
+			return false
+	return true
+
+
+## Animation level of detail. Skinning and blending every enemy's skeleton every frame was
+## 15-20 ms of a wave-20 siege, about 70 us an enemy. The animation keeps its own time - the
+## seconds skipped are handed to the next step - so a clip ends when it would have ended and
+## the game logic, which only ever starts clips and asks which one is playing, sees no
+## difference. What changes is how often it is drawn moving: every frame in view and close,
+## every enemy_anim_far_stride frames in view and further off, every
+## enemy_anim_offscreen_stride frames where the camera is not looking at all.
+func _process(delta: float) -> void:
+	if Net.is_active() and not Net.is_server():
+		_smooth_puppet(delta)
+	# What the engine's own processing skips, this skips too: a paused or switched-off player.
+	# advance() would apply the pose regardless - and a ragdoll pauses the player and turns it
+	# off precisely so that the skeleton is the ragdoll's.
+	if visual_anim_player == null or not visual_anim_player.active or not visual_anim_player.is_playing():
+		_anim_banked = 0.0
+		return
+	_anim_banked += delta
+	var stride: int = _anim_stride()
+	if stride > 1 and (Engine.get_process_frames() + _anim_phase) % stride != 0:
+		return
+	visual_anim_player.advance(_anim_banked)
+	_anim_banked = 0.0
+
+
+func _anim_stride() -> int:
+	if is_boss() or is_miniboss:
+		return 1
+	var frame: int = Engine.get_process_frames()
+	if _anim_camera_frame != frame:
+		_anim_camera_frame = frame
+		_anim_camera = get_viewport().get_camera_3d()
+	if _anim_camera == null:
+		return 1
+	var head: Vector3 = global_position + Vector3.UP
+	if not _anim_camera.is_position_in_frustum(head):
+		return maxi(GameSettings.enemy_anim_offscreen_stride, 1)
+	var full: float = GameSettings.enemy_anim_full_distance
+	if head.distance_squared_to(_anim_camera.global_position) <= full * full:
+		return 1
+	return maxi(GameSettings.enemy_anim_far_stride, 1)
+
+
+## Whether this enemy may run at the far level of detail this tick. Hysteresis on the
+## distance, so one walking along the edge of the radius does not flip every tick.
+func _wants_far() -> bool:
+	if is_dying or is_boss() or is_miniboss or not _confirmed_on_path or _suction_timer > 0.0 \
+			or knockback_velocity.length_squared() > 0.1 or _miniboss_special_windup >= 0.0:
+		return false
+	var radius: float = GameSettings.enemy_physics_lod_distance + (GameSettings.enemy_physics_lod_hysteresis if _far else 0.0)
+	var radius_squared: float = radius * radius
+	for at: Vector3 in _players_this_tick():
+		if global_position.distance_squared_to(at) < radius_squared:
+			return false
+	return true
+
+
+func _players_this_tick() -> PackedVector3Array:
+	var tick: int = Engine.get_physics_frames()
+	if _player_positions_tick != tick:
+		_player_positions_tick = tick
+		_player_positions.clear()
+		for player: Node in get_tree().get_nodes_in_group("player"):
+			if player is Node3D:
+				_player_positions.append((player as Node3D).global_position)
+	return _player_positions
+
+
+## move_and_slide, or - for an enemy at the far level of detail - the same step without
+## move_and_slide: along its horizontal velocity for one tick, set down on whatever one ray
+## straight down finds. Nothing pushes it and it pushes nothing, which is exactly the cost
+## being saved; a ray is a few microseconds against move_and_slide's thirty.
+##
+## The ray asks the same collision move_and_slide stands on. TerraBrush's own height query
+## was tried first and answers with the WATER's surface - 2.5 m above the riverbed the
+## collision and the navmesh lie on - so a far enemy walked across a river that a near one
+## waded through, and jumped between the two at the radius. With no ground under the ray it
+## keeps the height of the path it is walking, which is navmesh.
+func _slide() -> void:
+	if not _far and _standing_settled():
+		velocity.y = 0.0
+		return
+	if not _far:
+		if _queue_in_crowd():
+			return
+		var before: Vector3 = global_position
+		var intended: float = Vector2(velocity.x, velocity.z).length() * _move_delta
+		move_and_slide()
+		_note_progress(before, intended)
+		return
+	velocity.y = 0.0
+	var step := Vector3(velocity.x, 0.0, velocity.z) * _move_delta
+	if step.length_squared() < 0.000001:
+		return
+	var next: Vector3 = global_position + step
+	var ground: float = _ground_below(next)
+	if not is_finite(ground):
+		ground = _path_height_at(next)
+	if is_finite(ground):
+		next.y = ground
+	if next.is_finite():
+		global_position = next
+
+
+## An enemy that is not going anywhere this tick - no horizontal velocity, on the floor, not
+## falling - has nothing for move_and_slide to do: a CharacterBody is never pushed by anything
+## else's movement, so it stays exactly where it is either way. The call still cost about
+## 40 us, more inside a crowd, and at the crystal of a late wave most of the crowd is standing
+## there swinging: measured, 125-150 of them and 5-6 ms of every physics tick.
+##
+## "Not going anywhere" includes creeping: a member holding its formation slot, or one pressed
+## into the crowd at the crystal, is forever correcting by a few millimetres a tick, and that
+## was most of the move_and_slide calls left in a siege - 130-160 of them, 7-9 ms a tick. Under
+## enemy_min_move_speed it stops instead, which is also what it looks like.
+func _standing_settled() -> bool:
+	var min_speed: float = GameSettings.enemy_min_move_speed
+	if velocity.x * velocity.x + velocity.z * velocity.z >= min_speed * min_speed:
+		return false
+	velocity.x = 0.0
+	velocity.z = 0.0
+	return is_on_floor() and velocity.y <= 0.0
+
+
+## Crowd queueing. Behind the front line at the crystal, most of a late wave is walking into
+## the backs of the enemies ahead of it: every tick a full move_and_slide resolving contact
+## against the crowd, about 50 us each, for a few millimetres of progress - most of the
+## physics time of a wave-20 siege. An enemy that has walked and got almost nowhere for
+## enemy_blocked_ticks ticks running waits enemy_blocked_wait seconds instead, standing,
+## and then tries again. Which is also what a queue looks like.
+##
+## True while it is waiting - the caller then does no movement this tick.
+func _queue_in_crowd() -> bool:
+	if _blocked_wait <= 0.0:
+		return false
+	_blocked_wait -= _move_delta
+	velocity.x = 0.0
+	velocity.z = 0.0
+	if is_on_floor() and velocity.y <= 0.0:
+		velocity.y = 0.0
+	else:
+		move_and_slide()
+	return true
+
+
+func _note_progress(before: Vector3, intended: float) -> void:
+	if intended < 0.001:
+		_blocked_ticks = 0
+		return
+	var moved: float = Vector2(global_position.x - before.x, global_position.z - before.z).length()
+	if moved >= intended * GameSettings.enemy_blocked_progress:
+		_blocked_ticks = 0
+		return
+	_blocked_ticks += 1
+	if _blocked_ticks >= GameSettings.enemy_blocked_ticks:
+		_blocked_ticks = 0
+		_blocked_wait = GameSettings.enemy_blocked_wait
+
+
+## One query object for every far enemy's ground ray, reused rather than built per ray.
+static var _ground_ray: PhysicsRayQueryParameters3D = null
+
+
+## The height of the environment's collision under `at`: a ray from a little above it to a
+## little below, as far as one tick of walking up or down any slope the navmesh allows can
+## reach. A ray starting inside a tree's trunk or a tall rock does not hit it, so those are
+## walked through rather than stood on. NAN when nothing is there.
+func _ground_below(at: Vector3) -> float:
+	if _ground_ray == null:
+		_ground_ray = PhysicsRayQueryParameters3D.new()
+		_ground_ray.collision_mask = ENVIRONMENT_LAYER
+		_ground_ray.hit_back_faces = false
+	_ground_ray.from = at + Vector3.UP * GameSettings.enemy_far_ground_probe_up
+	_ground_ray.to = at + Vector3.DOWN * GameSettings.enemy_far_ground_probe_down
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(_ground_ray)
+	return (hit["position"] as Vector3).y if not hit.is_empty() else NAN
+
+
+## The height of the planned path under `at`, from the leg the agent is walking. NAN without
+## a path.
+func _path_height_at(at: Vector3) -> float:
+	if nav_agent == null:
+		return NAN
+	var path: PackedVector3Array = nav_agent.get_current_navigation_path()
+	if path.is_empty():
+		return NAN
+	var index: int = clampi(nav_agent.get_current_navigation_path_index(), 0, path.size() - 1)
+	if index == 0:
+		return path[0].y
+	var from: Vector3 = path[index - 1]
+	var to: Vector3 = path[index]
+	var leg := Vector2(to.x - from.x, to.z - from.z)
+	var length_squared: float = leg.length_squared()
+	if length_squared < 0.0001:
+		return to.y
+	var t: float = clampf(Vector2(at.x - from.x, at.z - from.z).dot(leg) / length_squared, 0.0, 1.0)
+	return lerpf(from.y, to.y, t)
+
+
+func _physics_tick(delta: float) -> void:
 	if is_dying:
 		if death_launch != Vector3.ZERO:
 			_fly_corpse(delta)
@@ -642,8 +1037,9 @@ func _physics_process(delta: float) -> void:
 				_begin_miniboss_special()
 
 	var dist_to_target = 999.0
-	if is_instance_valid(current_target):
-		dist_to_target = global_position.distance_to(current_target.global_position)
+	if is_instance_valid(current_target) or _awaiting_path:
+		if is_instance_valid(current_target):
+			dist_to_target = global_position.distance_to(current_target.global_position)
 		# Update path periodically so they track moving targets like the player
 		path_update_timer -= delta
 		if path_update_timer <= 0:
@@ -747,7 +1143,7 @@ func _physics_process(delta: float) -> void:
 			_exhausted_mult = 1.0
 		velocity.x = 0.0
 		velocity.z = 0.0
-		move_and_slide()
+		_slide()
 		return
 	if _is_special_active:
 		_process_special(delta)
@@ -786,7 +1182,7 @@ func _physics_process(delta: float) -> void:
 			_face_target(delta)
 		velocity.x = 0.0
 		velocity.z = 0.0
-		move_and_slide()
+		_slide()
 		_update_visual_animation()
 		return
 
@@ -823,13 +1219,17 @@ func _physics_process(delta: float) -> void:
 
 	# Movement
 	var is_in_attack_range: bool = dist_to_target <= enemy_data.attack_range
-	if not is_in_attack_range and root_timer <= 0 and (holding_formation or not nav_agent.is_navigation_finished()):
-		var next_path_position = nav_agent.get_next_path_position()
-		# Close to its slot, a member steers at the LIVE slot rather than at the path's end
-		# point, which is up to one repath interval out of date and would drag the whole
-		# formation a step backwards every time it refreshed.
-		if holding_formation and nav_agent.is_navigation_finished():
+	if not is_in_attack_range and root_timer <= 0 and (holding_formation or _awaiting_path or not nav_agent.is_navigation_finished()):
+		# A member in formation steers straight at its LIVE slot and plans no route at all -
+		# see update_path. One that has just left its formation and is still waiting its turn
+		# for a route walks straight at what it is after meanwhile.
+		var next_path_position: Vector3
+		if holding_formation:
 			next_path_position = squad.formation_target(self)
+		elif _awaiting_path:
+			next_path_position = _direct_goal()
+		else:
+			next_path_position = nav_agent.get_next_path_position()
 		var move_speed: float = enemy_data.speed * movement_speed_mult()
 		# The cap is what makes a formation a formation: everyone moves at the anchor's
 		# pace (plus a little, so stragglers can close up) instead of at their own, so a
@@ -845,11 +1245,11 @@ func _physics_process(delta: float) -> void:
 			var target_rotation = atan2(velocity.x, velocity.z)
 			rotation.y = lerp_angle(rotation.y, target_rotation, GameSettings.enemy_turn_speed * delta)
 			
-		move_and_slide()
+		_slide()
 	else:
 		velocity.x = 0.0
 		velocity.z = 0.0
-		move_and_slide()
+		_slide()
 
 		if not is_in_attack_range:
 			if root_timer <= 0 and nav_agent.is_navigation_finished():
@@ -2958,13 +3358,16 @@ func _check_recovery(delta: float) -> bool:
 		return false
 	var interval: float = GameSettings.enemy_recovery_check_interval
 	_recovery_timer = interval
-	if _on_planned_path():
-		_off_navmesh_time = 0.0
-		return false
 	var map: RID = get_world_3d().navigation_map
 	# Nothing to measure against until the navmesh is in: an empty map answers (0, 0, 0)
 	# for everything, and every enemy would be "off" it.
 	if NavigationServer3D.map_get_iteration_id(map) == 0:
+		return false
+	var stranded: bool = _update_stranded(map, interval)
+	_confirmed_on_path = not stranded and (_near_last_good_position() or _on_planned_path() or _in_formation_on_ground())
+	if _confirmed_on_path:
+		_off_navmesh_time = 0.0
+		_last_good_position = global_position
 		return false
 	var nearest: Vector3 = NavigationServer3D.map_get_closest_point(map, global_position)
 	if nearest == Vector3.ZERO and global_position.length() > 5.0:
@@ -2972,7 +3375,9 @@ func _check_recovery(delta: float) -> bool:
 	var below: float = nearest.y - global_position.y
 	var beside: float = Vector2(nearest.x - global_position.x, nearest.z - global_position.z).length()
 	var reason: String = ""
-	if below > GameSettings.enemy_recovery_below_distance:
+	if stranded:
+		reason = "stranded where the crystal cannot be reached"
+	elif below > GameSettings.enemy_recovery_below_distance:
 		reason = "below the ground"
 	elif beside > GameSettings.enemy_recovery_off_distance:
 		_off_navmesh_time += interval
@@ -2981,15 +3386,117 @@ func _check_recovery(delta: float) -> bool:
 	else:
 		_off_navmesh_time = 0.0
 	if reason == "":
+		# On the navmesh by the expensive measure: remembered, so the next check of an enemy
+		# still standing here does not ask again (see _near_last_good_position).
+		if beside <= GameSettings.enemy_recovery_off_distance and below <= GameSettings.enemy_recovery_below_distance:
+			_last_good_position = global_position
 		return false
-	print("Enemy recovered (%s): %s at %s -> %s" % [reason, name, global_position, nearest])
+	var destination: Vector3 = _recovery_destination(map, nearest)
+	if not destination.is_finite():
+		print("Enemy NOT recovered (%s): %s at %s - no reachable navmesh nearby" % [reason, name, global_position])
+		return false
+	print("Enemy recovered (%s): %s at %s -> %s" % [reason, name, global_position, destination])
 	_off_navmesh_time = 0.0
+	_stationary_time = 0.0
 	velocity = Vector3.ZERO
 	knockback_velocity = Vector3.ZERO
-	global_position = nearest + Vector3(0.0, 0.1, 0.0)
-	NetFx.spell("corpse_land", nearest, 0.8, 0)
+	global_position = destination + Vector3(0.0, 0.1, 0.0)
+	_watch_position = global_position
+	NetFx.spell("corpse_land", destination, 0.8, 0)
 	update_path(true)
 	return true
+
+
+## A formation member has no route to stand on (see update_path), so _on_planned_path cannot
+## vouch for it. On the ground and within its leash of its slot is the same promise: the
+## squad's anchor walks the lane, and a member that falls through the map is not on the
+## ground, and one shoved off it is outside its leash and leaves the formation anyway.
+func _in_formation_on_ground() -> bool:
+	if not is_in_formation():
+		return false
+	if not (_far or is_on_floor()):
+		return false
+	return global_position.distance_to(squad.formation_target(self)) <= _formation_leash
+
+
+## Still standing where the last check found it fine. In a crowd an enemy is pushed off the
+## path it planned and then stays put, queueing - and every half second it paid for
+## map_get_closest_point, over a millisecond on this map. At the crystal of a wave-20 siege
+## that was 2.6 ms of every physics tick, to learn again that it had not moved.
+func _near_last_good_position() -> bool:
+	if not _last_good_position.is_finite():
+		return false
+	var off: Vector3 = global_position - _last_good_position
+	var tolerance: float = GameSettings.enemy_recovery_still_tolerance
+	return off.x * off.x + off.z * off.z <= tolerance * tolerance and absf(off.y) <= tolerance
+
+
+## Where to put a lost enemy back: the first of these from which the crystal can be reached.
+## The navmesh nearest to it, as always; failing that, where it was last seen on its path;
+## failing that, the navmesh under it - nearest to a point far below, which is the ground
+## rather than whatever it was stuck on top of. The nearest point alone once put an enemy
+## that had been shoved up a tree on a patch of navmesh on top of the trunk, from which
+## nothing leads anywhere. INF when none of them reaches the crystal.
+func _recovery_destination(map: RID, nearest: Vector3) -> Vector3:
+	var beneath: Vector3 = NavigationServer3D.map_get_closest_point(map, global_position + Vector3.DOWN * 40.0)
+	for candidate: Vector3 in [nearest, _last_good_position, beneath]:
+		if candidate.is_finite() and _reaches_crystal(map, candidate):
+			return candidate
+	return Vector3.INF
+
+
+## The stranded watch. True once this enemy has stood about where it is for
+## enemy_stranded_seconds with no reason to - not fighting, not held by a status, not a
+## boss mid-special - AND the crystal cannot be reached from there. Standing still on its
+## own is normal: a squad massing at its gathering point waits far longer than that. Only
+## an enemy that could not leave if it tried is stranded, and only that pays for the path
+## query, once per stretch of standing.
+func _update_stranded(map: RID, interval: float) -> bool:
+	var moved: float = global_position.distance_to(_watch_position) if _watch_position.is_finite() else INF
+	_watch_position = global_position
+	if moved >= GameSettings.enemy_stranded_move_epsilon or _holding_still_on_purpose():
+		_stationary_time = 0.0
+		return false
+	_stationary_time += interval
+	if _stationary_time < GameSettings.enemy_stranded_seconds:
+		return false
+	_stationary_time = 0.0
+	return not _reaches_crystal(map, NavigationServer3D.map_get_closest_point(map, global_position))
+
+
+## Standing still for a reason: fighting something in reach, or held in place.
+func _holding_still_on_purpose() -> bool:
+	if is_boss() or _is_special_active or freeze_timer > 0.0 or stun_timer > 0.0 or root_timer > 0.0:
+		return true
+	# A squad waiting at its rally point stands there on purpose.
+	if is_in_formation():
+		return true
+	if is_instance_valid(current_target) and enemy_data != null:
+		return global_position.distance_to(current_target.global_position) <= enemy_data.attack_range + 1.5
+	return false
+
+
+## Whether a path from `from` (a navmesh point) gets to the crystal. True when there is no
+## crystal to ask about, so nothing is ever moved for want of one.
+func _reaches_crystal(map: RID, from: Vector3) -> bool:
+	var goal: Vector3 = _crystal_goal_point(map)
+	if not goal.is_finite():
+		return true
+	var path: PackedVector3Array = NavigationServer3D.map_get_path(map, from, goal, true)
+	return not path.is_empty() \
+		and path[path.size() - 1].distance_to(goal) <= GameSettings.enemy_reach_crystal_tolerance
+
+
+func _crystal_goal_point(map: RID) -> Vector3:
+	var iteration: int = NavigationServer3D.map_get_iteration_id(map)
+	if _crystal_goal_iteration != iteration:
+		_crystal_goal_iteration = iteration
+		_crystal_goal = Vector3.INF
+		var scene: Node = get_tree().current_scene
+		var anchor: Variant = scene.get("crystal_anchor") if scene != null else null
+		if anchor is Node3D:
+			_crystal_goal = NavigationServer3D.map_get_closest_point(map, (anchor as Node3D).global_position)
+	return _crystal_goal
 
 
 ## Whether this enemy stands on the path its agent last planned, by the same two measures
@@ -3112,6 +3619,10 @@ func _fly_corpse(delta: float) -> void:
 		velocity = death_launch
 		# Off the ground this frame, so the first floor check does not land it at once.
 		global_position.y += 0.02
+	# Come to rest: nothing left to move. A corpse lies where it landed for as long as the
+	# corpse cap keeps it, and every one of them was still asking move_and_slide each tick.
+	if _launch_landed and _standing_settled():
+		return
 	var falling_speed: float = -velocity.y
 	velocity.y -= gravity * delta
 	move_and_slide()
@@ -3467,7 +3978,7 @@ func _flee(delta: float) -> void:
 	velocity.x = away.x * enemy_data.speed * GameSettings.enemy_flee_speed_mult * speed_mult
 	velocity.z = away.z * enemy_data.speed * GameSettings.enemy_flee_speed_mult * speed_mult
 	rotation.y = lerp_angle(rotation.y, atan2(away.x, away.z), GameSettings.enemy_turn_speed * delta)
-	move_and_slide()
+	_slide()
 
 
 ## Roar (green_4). Forces this enemy onto `source` - the point being to peel it off the

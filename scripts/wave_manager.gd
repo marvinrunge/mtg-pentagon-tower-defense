@@ -59,6 +59,11 @@ var group_timer: float = 0.0
 var pending_enemies: int = 0
 
 var is_spawning: bool = false
+## Units deployed but not yet on the map: a battle group goes in over a few frames, inside
+## GameSettings.wave_spawn_budget_ms each, rather than in one. A late-wave group is a couple
+## of hundred enemies, and spawning them in one frame froze the game for a quarter of a
+## second every time. Each entry is the _spawn_unit arguments plus the squad it joins.
+var _spawn_queue: Array[Dictionary] = []
 var active_enemies: int = 0
 ## True from the moment a wave ends until Upkeep closes. Nothing may start the next
 ## wave while it is set - the Upkeep panel owns that transition.
@@ -98,6 +103,7 @@ func _process(delta: float) -> void:
 	# Waves are the server's. A client that also spawned would double every wave.
 	if not Net.is_server():
 		return
+	_pump_spawn_queue()
 	if not is_spawning:
 		return
 
@@ -136,9 +142,10 @@ func _deploy_next_group() -> void:
 
 func _finish_spawning() -> void:
 	is_spawning = false
-	pending_enemies = 0
+	# Units still queued are pending until they land; _pump_spawn_queue counts them off.
+	pending_enemies = _spawn_queue.size()
 	# If somehow everything died before the last group landed, move straight on.
-	if active_enemies <= 0:
+	if active_enemies <= 0 and _spawn_queue.is_empty():
 		_trigger_next_wave()
 
 
@@ -165,21 +172,58 @@ func _deploy_squad(plan: Dictionary, group: Dictionary) -> Node:
 
 	var squad: Node = null
 	var units: Array = plan["units"]
+	# The navmesh is asked once, for the squad's origin; each slot's height is read off the
+	# ground under it (see _slot_ground).
+	var origin_ground: Vector3 = NavigationServer3D.map_get_closest_point(main_controller.nav_region.get_navigation_map(), origin)
 	for unit: Dictionary in units:
 		var unit_type: String = String(unit["type"])
 		var slot_list: Array = slots.get(unit_type, [])
 		var slot_index: int = int(taken.get(unit_type, 0))
 		taken[unit_type] = slot_index + 1
 		var offset: Vector3 = slot_list[slot_index] if slot_index < slot_list.size() else Vector3.ZERO
-		var enemy: Node3D = _spawn_unit(color, unit_type, String(unit.get("elite", "")), bool(unit.get("miniboss", false)), String(unit.get("boss_modifier", "")), origin, forward, offset)
-		if enemy == null:
-			continue
-		if unit_type == "Boss":
-			continue
-		if squad == null:
+		# The squad exists from the start, so the warband can be wired up now; it holds still
+		# until every member it is waiting for has arrived (see _pump_spawn_queue).
+		if unit_type != "Boss" and squad == null:
 			squad = _create_squad(color, lane_index, origin, forward, group)
-		squad.add_member(enemy, offset)
+			squad.set_physics_process(false)
+		_spawn_queue.append({
+			"color": color, "type": unit_type, "elite": String(unit.get("elite", "")),
+			"miniboss": bool(unit.get("miniboss", false)), "boss_modifier": String(unit.get("boss_modifier", "")),
+			"origin": origin, "forward": forward, "offset": offset, "origin_ground": origin_ground,
+			"squad": squad if unit_type != "Boss" else null,
+		})
 	return squad
+
+
+## Spawns queued units until this frame's budget is spent - at least one, so the queue always
+## moves. A squad starts marching once its last queued member is on the map.
+func _pump_spawn_queue() -> void:
+	if _spawn_queue.is_empty():
+		return
+	var started: int = Time.get_ticks_usec()
+	var budget_us: int = int(GameSettings.wave_spawn_budget_ms * 1000.0)
+	while not _spawn_queue.is_empty():
+		var entry: Dictionary = _spawn_queue.pop_front()
+		var enemy: Node3D = _spawn_unit(String(entry["color"]), String(entry["type"]), String(entry["elite"]),
+			bool(entry["miniboss"]), String(entry["boss_modifier"]), entry["origin"], entry["forward"],
+			entry["offset"], entry["origin_ground"])
+		var squad: Node = entry["squad"]
+		if squad != null and is_instance_valid(squad):
+			if enemy != null:
+				squad.add_member(enemy, entry["offset"])
+			if not _squad_still_queued(squad):
+				squad.set_physics_process(true)
+		if Time.get_ticks_usec() - started >= budget_us:
+			break
+	if _spawn_queue.is_empty() and not is_spawning and active_enemies <= 0:
+		_trigger_next_wave()
+
+
+func _squad_still_queued(squad: Node) -> bool:
+	for entry: Dictionary in _spawn_queue:
+		if entry["squad"] == squad:
+			return true
+	return false
 
 
 func _create_squad(color: String, lane_index: int, origin: Vector3, forward: Vector3, group: Dictionary) -> Node:
@@ -192,10 +236,9 @@ func _create_squad(color: String, lane_index: int, origin: Vector3, forward: Vec
 	return squad
 
 
-func _spawn_unit(color: String, unit_type: String, elite: String, miniboss: bool, boss_modifier: String, origin: Vector3, forward: Vector3, offset: Vector3) -> Node3D:
+func _spawn_unit(color: String, unit_type: String, elite: String, miniboss: bool, boss_modifier: String, origin: Vector3, forward: Vector3, offset: Vector3, origin_ground: Vector3) -> Node3D:
 	var desired: Vector3 = SquadDoctrine.to_world(origin, forward, offset)
-	var navigation_map: RID = main_controller.nav_region.get_navigation_map()
-	var navigable: Vector3 = NavigationServer3D.map_get_closest_point(navigation_map, desired)
+	var navigable: Vector3 = _slot_ground(desired, origin_ground)
 	# Everything the enemy needs travels in the spawn argument, because a client rebuilds
 	# the node from it and cannot see anything set on the server's copy.
 	var enemy: Node3D = main_controller.request_enemy({
@@ -210,6 +253,25 @@ func _spawn_unit(color: String, unit_type: String, elite: String, miniboss: bool
 		active_enemies += 1
 		pending_enemies = maxi(0, pending_enemies - 1)
 	return enemy
+
+
+## Where a formation slot stands: on the ground straight under it, found with one ray, when
+## that ground is about level with the squad's origin. Every unit used to ask the navmesh for
+## its own nearest point - over a millisecond each on this map, so a 60-unit group spent 65 ms
+## of one frame on it. Anything the ray does not answer sensibly - nothing under the slot,
+## or something much higher or lower, such as the top of a trunk - still asks the navmesh.
+func _slot_ground(desired: Vector3, origin_ground: Vector3) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = main_controller.get_world_3d().direct_space_state
+	var ray := PhysicsRayQueryParameters3D.create(
+		Vector3(desired.x, origin_ground.y + GameSettings.wave_slot_ground_probe, desired.z),
+		Vector3(desired.x, origin_ground.y - GameSettings.wave_slot_ground_probe, desired.z),
+		EnemyBase.ENVIRONMENT_LAYER)
+	var hit: Dictionary = space.intersect_ray(ray)
+	if not hit.is_empty():
+		var ground: Vector3 = hit["position"]
+		if absf(ground.y - origin_ground.y) <= GameSettings.wave_slot_ground_tolerance:
+			return ground
+	return NavigationServer3D.map_get_closest_point(main_controller.nav_region.get_navigation_map(), desired)
 
 
 func _crystal_position() -> Vector3:
@@ -566,7 +628,7 @@ func _color_to_lane_index(color: String) -> int:
 func _on_enemy_died() -> void:
 	active_enemies = maxi(0, active_enemies - 1)
 	_emit_wave_state()
-	if active_enemies <= 0 and not is_spawning:
+	if active_enemies <= 0 and not is_spawning and _spawn_queue.is_empty():
 		_trigger_next_wave()
 
 func register_enemy() -> void:
@@ -598,6 +660,7 @@ func debug_jump_to_wave(wave_number: int) -> void:
 	if not Net.is_server():
 		return
 	pending_groups.clear()
+	_spawn_queue.clear()
 	pending_enemies = 0
 	is_spawning = false
 	_disband_squads()
@@ -615,6 +678,8 @@ func debug_jump_to_wave(wave_number: int) -> void:
 ## Nothing should be marching during Upkeep or after the crystal falls, and a squad whose
 ## members are all gone would free itself next frame anyway - this just makes it immediate.
 func _disband_squads() -> void:
+	# Whatever had not landed yet does not land now either.
+	_spawn_queue.clear()
 	for child: Node in get_children():
 		if child is EnemySquad:
 			(child as EnemySquad).disband()

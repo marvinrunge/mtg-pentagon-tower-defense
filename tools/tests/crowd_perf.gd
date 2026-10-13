@@ -11,7 +11,13 @@ extends Node
 ##   ai     no enemy _physics_process at all (no AI, no movement)
 ##   anim   every enemy AnimationPlayer paused
 ##   bars   health bars removed
+##   crowding  enemies stop colliding with each other (their mask loses the Enemies layer)
 ##   recovery  no off-navmesh recovery check (EnemyBase._check_recovery)
+##
+## --siege spawns the crowd in the last fifth of each lane instead, round the crystal and the
+## player's seat: a late wave at the base, where every enemy is close enough to be fully
+## simulated and they press against each other. --corpses=<n> kills n of them after the
+## spawn, so the corpses a long wave leaves lying around are in the measurement too.
 ##
 ## The waves are stopped and the enemies are spawned through MainController.request_enemy,
 ## the same path a wave takes, spread evenly over the five lanes from each spawner inward,
@@ -29,6 +35,8 @@ var _started: bool = false
 var _scene: Node3D
 var _camera: Camera3D
 var _off: String = ""
+var _siege: bool = false
+var _corpses: int = 0
 
 
 func _ready() -> void:
@@ -81,6 +89,10 @@ func _run() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--off="):
 			_off = arg.trim_prefix("--off=")
+		elif arg == "--siege":
+			_siege = true
+		elif arg.begins_with("--corpses="):
+			_corpses = int(arg.trim_prefix("--corpses="))
 		elif not arg.begins_with("--"):
 			counts = [0]
 			for c: String in arg.split(","):
@@ -101,6 +113,7 @@ func _run() -> void:
 		await get_tree().physics_frame
 		_spawn(count)
 		await get_tree().process_frame
+		await _kill_some(_corpses)
 		_take_out()
 		await _measure("lane", count, true)
 		await _measure("sky", count, false)
@@ -157,6 +170,8 @@ func _spawn(count: int) -> void:
 		var start: Vector3 = (spawners[lane] as Node3D).global_position
 		# Spread from the spawner a third of the way to the crystal, a few metres either side.
 		var along: float = float(i / spawners.size()) / maxf(float(count / spawners.size()), 1.0) * 0.33
+		if _siege:
+			along = 0.8 + along * 0.5
 		var side: Vector3 = (crystal - start).cross(Vector3.UP).normalized() * randf_range(-6.0, 6.0)
 		var at: Vector3 = NavigationServer3D.map_get_closest_point(map, start.lerp(crystal, along) + side)
 		controller.call("request_enemy", {
@@ -164,6 +179,21 @@ func _spawn(count: int) -> void:
 			"color": String(colors[lane]),
 			"type": String(TYPES[i % TYPES.size()]),
 		})
+
+
+## Kills `count` of the live enemies, the way a hit does, and lets them land - so what lies
+## on the ground afterwards is ordinary corpses, thrown and settled.
+func _kill_some(count: int) -> void:
+	var killed: int = 0
+	for enemy: Node in get_tree().get_nodes_in_group("enemies"):
+		if killed >= count:
+			break
+		if enemy.get("is_dying"):
+			continue
+		enemy.call("take_damage", 100000.0)
+		killed += 1
+	for i: int in 120:
+		await get_tree().physics_frame
 
 
 func _take_out() -> void:
@@ -174,6 +204,8 @@ func _take_out() -> void:
 			"anim":
 				for player: Node in enemy.find_children("*", "AnimationPlayer", true, false):
 					(player as AnimationPlayer).pause()
+			"crowding":
+				(enemy as CollisionObject3D).collision_mask &= ~4
 			"bars":
 				var bar: Node = enemy.get("health_bar")
 				if bar != null:

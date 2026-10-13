@@ -338,6 +338,13 @@ func bake_map_navigation() -> void:
 	var nav_mesh: NavigationMesh = nav_region.navigation_mesh.duplicate()
 	nav_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
 	nav_mesh.geometry_source_group_name = NAVMESH_SOURCE_GROUP
+	# Walkable patches that connect to nothing are dropped. Every environment body is in the
+	# bake, and the flat top of each - a trunk's collision cylinder (12 m up on a large oak),
+	# a boulder - came out as a little navmesh island of its own. Nothing walks onto one, but
+	# the recovery check puts a lost enemy on the NEAREST navmesh, and an enemy shoved up a
+	# tree was put on top of it: on its path, nowhere to go, and the wave never ended.
+	# Recast's minimum region size counts cells, squared; it only ever removes islands.
+	nav_mesh.region_min_size = sqrt(GameSettings.navmesh_min_island_area) / nav_mesh.cell_size
 	var source := NavigationMeshSourceGeometryData3D.new()
 	_add_obstacle_sources()
 	if terrain_body != null:

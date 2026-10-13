@@ -111,6 +111,44 @@ func _run() -> void:
 	_check("and is still alive and unhurt", not stray.is_dying and is_equal_approx(stray.health, stray_health),
 		"dying %s, health %.0f of %.0f" % [stray.is_dying, stray.health, stray_health])
 
+	# A player who falls out of the world - through the ground, or flung past the fence - is
+	# put back at their seat by the crystal instead of falling for the rest of the match.
+	var seat: Vector3 = (player.get("spawn_point") as Transform3D).origin
+	for lost: Vector3 in [Vector3(player.global_position.x, -60.0, player.global_position.z), Vector3(300.0, 5.0, 0.0)]:
+		player.global_position = lost
+		player.set("velocity", Vector3.ZERO)
+		await _frames_pass(5)
+		_check("a player at %s is put back at their seat" % lost, player.global_position.distance_to(seat) < 2.0,
+			"now at %s, seat %s" % [player.global_position, seat])
+
+	# No dead ends on top of things. Every environment body is in the navmesh bake, and the
+	# flat top of one - a large oak's trunk cylinder, 12 m up - used to come out as an island
+	# of navmesh; the recovery check then put an enemy that had been shoved up the tree on
+	# top of it, where it stood for the rest of the match and the wave never ended.
+	var crystal_anchor: Node3D = get_tree().current_scene.get("crystal_anchor")
+	var goal: Vector3 = NavigationServer3D.map_get_closest_point(map, crystal_anchor.global_position)
+	var islands: Array[String] = []
+	var checked: int = 0
+	for body: Node in get_tree().current_scene.find_children("*", "StaticBody3D", true, false):
+		var static_body := body as StaticBody3D
+		if (static_body.collision_layer & EnemyBase.ENVIRONMENT_LAYER) == 0 or static_body.global_position.length() > 240.0:
+			continue
+		checked += 1
+		var top: Vector3 = NavigationServer3D.map_get_closest_point(map, static_body.global_position + Vector3.UP * 40.0)
+		# Only navmesh ON the body counts: right above its foot and well off the ground. The
+		# nearest navmesh to a point high above can also be a hilltop the terrain cuts off from
+		# everything by cliffs - real ground, and the recovery check's own reachability test is
+		# what keeps enemies off those.
+		var beside_foot: float = Vector2(top.x - static_body.global_position.x, top.z - static_body.global_position.z).length()
+		var on_top: bool = beside_foot < 4.0 and top.y > static_body.global_position.y + 3.0
+		if not on_top:
+			continue
+		var route: PackedVector3Array = NavigationServer3D.map_get_path(map, top, goal, true)
+		if route.is_empty() or route[route.size() - 1].distance_to(goal) > GameSettings.enemy_reach_crystal_tolerance:
+			islands.append("%s at %s (navmesh %s)" % [static_body.get_parent().name, static_body.global_position.snapped(Vector3.ONE * 0.1), top.snapped(Vector3.ONE * 0.1)])
+	_check("no navmesh dead end on top of any of %d environment bodies" % checked, islands.is_empty(),
+		"%d stranded: %s" % [islands.size(), islands.slice(0, 5)])
+
 	if _failures.is_empty():
 		print("TEST RESULT: PASS")
 	else:
