@@ -112,7 +112,7 @@ static func first_focusable(root: Node) -> Control:
 
 ## LB and RB page through the tabs, as console menus do - the tab bar is otherwise a long
 ## way up from wherever focus is. Read off the buttons rather than through actions: in a run
-## LB and RB are sprint and cast, which mean nothing while this is open.
+## LB and RB are jump and the second spell bank, which mean nothing while this is open.
 func _input(event: InputEvent) -> void:
 	if not is_visible_in_tree() or not (event is InputEventJoypadButton) or not event.is_pressed():
 		return
@@ -217,17 +217,20 @@ func _fill_controls_table() -> void:
 	var rows: Array = [
 		["Movement", "WASD / Arrow keys", "Left stick"],
 		["Camera", "Mouse", "Right stick"],
-		["Jump", "Space", InputHint.pad("bottom")],
-		["Sprint", "Shift", InputHint.pad("lb")],
+		["Jump", "Space", InputHint.pad("lb")],
+		# On a pad sprint is the default: a full push of the stick sprints, a gentle one walks.
+		["Sprint", "Shift", "Push the stick fully"],
 		["Attack", "Left mouse button", InputHint.pad("rt")],
 		["Block", "Right mouse button", InputHint.pad("lt")],
-		["Cast spell", "Q", InputHint.pad("rb")],
-		["Hotbar (select + cast)", "1 - 8", "-"],
+		["Cast selected spell", "Q", "-"],
+		["Spells 1 - 4", "1 - 4", " ".join(PackedStringArray([
+			InputHint.pad("bottom"), InputHint.pad("right"), InputHint.pad("left"), InputHint.pad("top")]))],
+		["Spells 5 - 8", "5 - 8", "%s + the same four" % InputHint.pad("rb")],
 		["Cycle spell", "Mouse wheel", "D-pad left / right"],
-		["Interact", "E", InputHint.pad("left")],
-		["Kick", "F", InputHint.pad("right")],
-		["Skill tree", "P", InputHint.pad("top")],
-		["Equipment", "I", "D-pad down"],
+		["Interact", "E", "D-pad up"],
+		["Kick", "F", "R3"],
+		["Skill tree", "P", "Hold L3, pick from the wheel"],
+		["Equipment", "I", "Hold L3, pick from the wheel"],
 		["Wave info (hold)", "Tab", InputHint.pad("back")],
 		["Menu", "Esc", InputHint.pad("start")],
 		["Menus: confirm / back", "Click / Esc", "%s / %s" % [InputHint.pad("bottom"), InputHint.pad("right")]],

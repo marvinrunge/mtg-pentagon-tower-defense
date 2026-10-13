@@ -8,6 +8,7 @@ extends Node
 ## Prints "TEST RESULT: PASS" or a FAIL listing what did not hold.
 
 const InputHint := preload("res://scripts/input_hint.gd")
+const IntroTour := preload("res://scripts/intro_tour.gd")
 
 var _frames: int = 0
 var _started: bool = false
@@ -37,7 +38,9 @@ func _process(_delta: float) -> void:
 	if _frames < 300:
 		return
 	_player = PlayerRegistry.get_local() as Player
-	if _player == null or not _player.is_on_floor():
+	# Not while the opening camera flight is up: it takes every button press as "skip",
+	# so the first presses of the test would land on it instead of on the game.
+	if _player == null or not _player.is_on_floor() or IntroTour.playing:
 		return
 	_started = true
 	_scene = get_tree().current_scene
@@ -80,6 +83,36 @@ func _press(button: JoyButton) -> void:
 	await _wait(3)
 
 
+func _button(button: JoyButton, pressed: bool) -> void:
+	var event := InputEventJoypadButton.new()
+	event.button_index = button
+	event.pressed = pressed
+	Input.parse_input_event(event)
+
+
+## Lets whatever the last press started finish, so the next press is free to start a cast.
+func _clear_cast() -> void:
+	if _player.is_charging:
+		_player.release_charged_spell()
+	if _player._channel_id != "":
+		_player._end_channel()
+	_player.spell_cooldown_timers.clear()
+	await _wait(60)
+
+
+## Holds L3, points the right stick `direction` (screen space, up is -y), and lets go.
+func _wheel(direction: Vector2) -> void:
+	_button(JOY_BUTTON_LEFT_STICK, true)
+	await _wait(3)
+	_stick(JOY_AXIS_RIGHT_X, direction.x)
+	_stick(JOY_AXIS_RIGHT_Y, direction.y)
+	await _wait(5)
+	_button(JOY_BUTTON_LEFT_STICK, false)
+	_stick(JOY_AXIS_RIGHT_X, 0.0)
+	_stick(JOY_AXIS_RIGHT_Y, 0.0)
+	await _wait(5)
+
+
 func _stick(axis: JoyAxis, value: float) -> void:
 	var motion := InputEventJoypadMotion.new()
 	motion.axis = axis
@@ -118,12 +151,53 @@ func _run() -> void:
 	var equipment: CanvasLayer = hud.get_node("EquipmentMenu")
 	_check(Input.mouse_mode == Input.MOUSE_MODE_CAPTURED, "the run starts with the mouse captured", "mode %d" % Input.mouse_mode)
 
-	# B in play is kick, not "open the menu".
-	_player.spell_cooldown_timers["kick"] = 0.0
-	await _press(JOY_BUTTON_B)
+	# The face buttons are the hotbar now: A B X Y cast slots 1-4, and with RB held 5-8.
+	# Eight spells on the bar, so every slot has something to select.
+	var spells: Array[String] = ["red_1", "red_2", "red_4", "red_5", "blue_1", "blue_2", "blue_3", "red_3"]
+	for slot: int in spells.size():
+		_player.spell_ranks[spells[slot]] = 1
+		_player.assign_quick_slot(slot, spells[slot])
+	var faces: Array[JoyButton] = [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y]
+	var picked: Array[int] = []
+	for face: JoyButton in faces:
+		await _clear_cast()
+		await _press(face)
+		picked.append(_player.active_spell_index)
+	_check(picked == [0, 1, 2, 3], "A B X Y pick slots 1-4", "picked %s" % [picked])
+	picked.clear()
+	for face: JoyButton in faces:
+		await _clear_cast()
+		_button(JOY_BUTTON_RIGHT_SHOULDER, true)
+		await _press(face)
+		_button(JOY_BUTTON_RIGHT_SHOULDER, false)
+		picked.append(_player.active_spell_index)
+	_check(picked == [4, 5, 6, 7], "RB + A B X Y pick slots 5-8", "picked %s" % [picked])
 	_check(not settings.visible, "B in play does not open the menu", "visible %s" % settings.visible)
-	_check(float(_player.spell_cooldown_timers.get("kick", 0.0)) > 0.0, "B in play kicks",
+
+	# A channel lasts as long as the button that started it is held - the face button, not
+	# a cast button the pad no longer has.
+	await _clear_cast()
+	_button(JOY_BUTTON_X, true)
+	await _wait(30)
+	_check(_player._channel_id != "", "holding X keeps Fire Cone going", "channel '%s'" % _player._channel_id)
+	_button(JOY_BUTTON_X, false)
+	await _wait(3)
+	_check(_player._channel_id == "", "letting go of X ends it", "channel '%s'" % _player._channel_id)
+
+	# The buttons the face buttons used to be.
+	await _clear_cast()
+	_player.spell_cooldown_timers["kick"] = 0.0
+	await _press(JOY_BUTTON_RIGHT_STICK)
+	_check(float(_player.spell_cooldown_timers.get("kick", 0.0)) > 0.0, "R3 kicks",
 		"kick cooldown %.2f" % float(_player.spell_cooldown_timers.get("kick", 0.0)))
+	await _wait(60)
+	var floor_y: float = _player.global_position.y
+	_button(JOY_BUTTON_LEFT_SHOULDER, true)
+	await _wait(10)
+	_button(JOY_BUTTON_LEFT_SHOULDER, false)
+	_check(_player.global_position.y > floor_y + 0.1 or _player.velocity.y > 0.5, "LB jumps",
+		"rose %.2f m, vy %.2f" % [_player.global_position.y - floor_y, _player.velocity.y])
+	await _wait(90)
 
 	# Start opens the menu; LB/RB page its tabs; A presses the focused control; B closes
 	# it without the same press kicking.
@@ -142,30 +216,28 @@ func _run() -> void:
 		await _press(JOY_BUTTON_A)
 		_check((focused as CheckBox).button_pressed != was, "A toggles the focused option", "%s -> %s" % [was, (focused as CheckBox).button_pressed])
 		await _press(JOY_BUTTON_A)
-	_player.spell_cooldown_timers["kick"] = 0.0
+	var slot_before: int = _player.active_spell_index
 	await _press(JOY_BUTTON_B)
 	_check(not settings.visible, "B closes the menu", "visible %s" % settings.visible)
-	_check(float(_player.spell_cooldown_timers.get("kick", 0.0)) <= 0.0, "and the B that closed it does not kick",
-		"kick cooldown %.2f" % float(_player.spell_cooldown_timers.get("kick", 0.0)))
+	_check(_player.active_spell_index == slot_before, "and the B that closed it casts nothing",
+		"slot %d -> %d" % [slot_before, _player.active_spell_index])
 
-	# The skill tree owns the stick while it is open.
-	await _press(JOY_BUTTON_Y)
-	_check(tree.visible, "Y opens the skill tree", "visible %s" % tree.visible)
+	# The skill tree and equipment open from the L3 wheel: hold, point, let go.
+	var wheel: CanvasLayer = hud.get_node("ActionWheel")
+	await _wheel(Vector2.UP)
+	_check(tree.visible, "the wheel's top entry opens the skill tree", "visible %s" % tree.visible)
 	var before: Vector3 = _player.global_position
 	_stick(JOY_AXIS_LEFT_X, 1.0)
 	await _wait(30)
 	_stick(JOY_AXIS_LEFT_X, 0.0)
 	var drift: float = Vector2(_player.global_position.x - before.x, _player.global_position.z - before.z).length()
 	_check(drift < 0.05, "the left stick in the skill tree does not walk the character", "moved %.2f m" % drift)
-	await _press(JOY_BUTTON_DPAD_DOWN)
-	_check(not equipment.visible, "D-pad down in the skill tree does not open equipment", "visible %s" % equipment.visible)
 	await _press(JOY_BUTTON_B)
 	_check(not tree.visible, "B closes the skill tree", "visible %s" % tree.visible)
 	await _wait(5)
 
-	# Equipment on D-pad down, navigated with the same D-pad once open.
-	await _press(JOY_BUTTON_DPAD_DOWN)
-	_check(equipment.visible, "D-pad down opens equipment", "visible %s" % equipment.visible)
+	await _wheel(Vector2.DOWN)
+	_check(equipment.visible, "the wheel's bottom entry opens equipment", "visible %s" % equipment.visible)
 	_check(get_viewport().gui_get_focus_owner() is PanelContainer, "with a card focused", str(get_viewport().gui_get_focus_owner()))
 	await _press(JOY_BUTTON_DPAD_DOWN)
 	_check(equipment.visible, "D-pad down inside equipment moves instead of closing", "visible %s" % equipment.visible)
@@ -173,11 +245,20 @@ func _run() -> void:
 	_check(not equipment.visible, "B closes equipment", "visible %s" % equipment.visible)
 	await _wait(5)
 
+	# Let go without pointing anywhere: nothing opens, and play has the mouse back.
+	await _wheel(Vector2.ZERO)
+	_check(not tree.visible and not equipment.visible and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED,
+		"a wheel let go of unpointed opens nothing", "tree %s, equipment %s, mouse %d" % [tree.visible, equipment.visible, Input.mouse_mode])
+	_check(not wheel.get_child(0).visible, "and is gone again", "visible %s" % wheel.get_child(0).visible)
+
 	# Half a push walks; a full push runs at full speed.
 	var full: float = await _speed_at(1.0)
 	var half: float = await _speed_at(0.6)
-	_check(full > 1.0 and half > full * 0.35 and half < full * 0.65,
+	_check(full > 1.0 and half > full * 0.3 and half < full * 0.65,
 		"a part-way push moves at part speed", "full %.2f, at 0.6 push %.2f" % [full, half])
+	# Sprint is the pad's default: a full push goes at sprint pace with no button held.
+	var sprint_pace: float = GameSettings.player_base_speed * GameSettings.player_sprint_speed_mult
+	_check(full > sprint_pace * 0.9, "a full push sprints", "full %.2f, sprint pace %.2f" % [full, sprint_pace])
 
 	# The Up arrow walks forwards.
 	var start: Vector3 = _player.global_position
@@ -208,8 +289,8 @@ func _labels() -> void:
 	var before: String = UserSettings.button_labels
 	UserSettings.set_value(&"button_labels", "playstation")
 	InputHint.gamepad = true
-	_check(InputHint.key("interact") == "[Square]" and InputHint.pad("bottom") == "Cross",
-		"the PlayStation setting names PlayStation buttons", "%s, %s" % [InputHint.key("interact"), InputHint.pad("bottom")])
+	_check(InputHint.pad("left") == "Square" and InputHint.pad("bottom") == "Cross",
+		"the PlayStation setting names PlayStation buttons", "%s, %s" % [InputHint.pad("left"), InputHint.pad("bottom")])
 	UserSettings.set_value(&"button_labels", "nintendo")
 	_check(InputHint.pad("bottom") == "B" and InputHint.pad("rt") == "ZR",
 		"the Nintendo setting names Nintendo buttons", "%s, %s" % [InputHint.pad("bottom"), InputHint.pad("rt")])

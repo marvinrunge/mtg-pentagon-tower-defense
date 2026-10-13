@@ -597,8 +597,8 @@ static func _drop_trail_segment(caster: Player) -> void:
 ## the one spell whose visual is not a moment but a condition, so it is replicated as a
 ## condition rather than as an event.
 ##
-## `held` comes from the caster's own keyboard (see execute_spell). Started from the
-## number-key hotbar instead there is no hold to watch, so the channel runs its length.
+## `held` comes from the caster's own machine (Player._cast_held): whichever key or pad
+## button started the channel, and it ends when that one comes up.
 static func cast_red_fire_cone(caster: Player, held: bool) -> void:
 	if caster._channel_id != "" or caster.spell_cooldown_timers.get("red_4", 0.0) > 0.0:
 		return

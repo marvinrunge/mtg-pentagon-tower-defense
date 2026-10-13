@@ -265,9 +265,20 @@ const WEAPON_MODELS := {
 	},
 }
 
+## Shields in the left hand, by the key a CHARACTERS entry names under "shield". Made by
+## tools/blender_shields.py; `transform` is the Shield node's under its BoneAttachment3D,
+## as tools/fit_shields.gd measured it on the walk.
+const SHIELDS := {
+	"White": {
+		"glb": WEAPON_ROOT + "human/human_shield.glb",
+		"transform": Transform3D(Vector3(0.010360414, -0.00089257397, -0.003978946), Vector3(-0.0038046418, 0.0017937187, -0.010308936), Vector3(0.0014674452, 0.010952296, 0.0013640814), Vector3(0, 0.0008, 0)),
+	},
+}
+const SHIELD_BONE := "mixamorig_LeftHand"
+
 const CHARACTERS := {
 	"Melee": {
-		"White": {"mesh": CHAR_ROOT + "melee/human/human_melee.fbx", "set": "sword_and_shield", "prop": Prop.WEAPON_GLB, "weapon_glb": WEAPON_ROOT + "human/human_weapon.glb"},
+		"White": {"mesh": CHAR_ROOT + "melee/human/human_melee.fbx", "set": "sword_and_shield", "prop": Prop.WEAPON_GLB, "weapon_glb": WEAPON_ROOT + "human/human_weapon.glb", "shield": "White"},
 		"Green": {"mesh": CHAR_ROOT + "melee/elf/elf_melee.fbx", "set": "standing_melee", "prop": Prop.WEAPON_GLB, "weapon_glb": WEAPON_ROOT + "elf/elf_weapon.glb"},
 		"Blue": {"mesh": CHAR_ROOT + "melee/merfolk/merfolk_melee.fbx", "set": "standing_melee", "prop": Prop.WEAPON_GLB, "weapon_glb": WEAPON_ROOT + "merfolk/merfolk_weapon.glb"},
 		"Black": {"mesh": CHAR_ROOT + "melee/zombie/zombie_melee.fbx", "set": "zombie", "prop": Prop.WEAPON_GLB, "weapon_glb": WEAPON_ROOT + "zombie/zombie_weapon.glb"},
@@ -386,6 +397,10 @@ static func _build_character(color: String, race: String, class_suffix: String, 
 		_attach_prop(skeleton, prop_type)
 
 	_own_recursive(root, root)
+	# After the ownership pass: owning the nodes inside the glb instance would write the
+	# shield into the scene a second time (the doubled-weapon bug, .agents/learnings.md).
+	if config.has("shield"):
+		_attach_shield(root, skeleton, SHIELDS[config["shield"]])
 
 	var packed := PackedScene.new()
 	if packed.pack(root) != OK:
@@ -617,6 +632,28 @@ static func _attach_weapon(skeleton: Skeleton3D, weapon_glb_path: String) -> voi
 	if weapon_mesh_node and weapon_mesh_node.mesh:
 		var weapon_array_mesh: ArrayMesh = weapon_mesh_node.mesh
 		weapon_array_mesh.surface_set_material(0, _build_weapon_material(weapon_glb_path))
+
+
+## Hangs a SHIELDS entry off the left hand. The glb keeps its own material: it ships with
+## its textures embedded, as the ranged weapon models do.
+static func _attach_shield(root: Node3D, skeleton: Skeleton3D, shield: Dictionary) -> void:
+	if skeleton.find_bone(SHIELD_BONE) == -1:
+		push_error("No bone %s to hold the shield" % SHIELD_BONE)
+		return
+	var shield_scene: PackedScene = ResourceLoader.load(String(shield["glb"]), "", ResourceLoader.CACHE_MODE_REPLACE)
+	if shield_scene == null:
+		push_error("Could not load shield %s" % shield["glb"])
+		return
+	var attachment := BoneAttachment3D.new()
+	attachment.name = "LeftHandAttachment"
+	attachment.bone_name = SHIELD_BONE
+	skeleton.add_child(attachment)
+	attachment.owner = root
+	var node: Node3D = shield_scene.instantiate()
+	node.name = "Shield"
+	node.transform = shield["transform"]
+	attachment.add_child(node)
+	node.owner = root
 
 
 ## A real ranged weapon model, worn per its WEAPON_MODELS entry.

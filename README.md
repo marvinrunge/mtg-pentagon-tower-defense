@@ -82,13 +82,12 @@ shows whichever one is coming.
 | Move · Look | `W A S D` · Mouse | Left stick · Right stick |
 | Attack | Left mouse | `RT` |
 | Block (hold) | Right mouse | `LT` |
-| Kick | `F` | `B` |
-| Cast active spell | `Q`, or `1`–`9` to pick and cast a slot | `RB` |
+| Kick | `F` | `R3` |
+| Cast a spell | `1`–`8` pick and cast a slot, `Q` casts the selected one | `A` `B` `X` `Y` slots 1–4, `RB` + the same for 5–8 |
 | Cycle spells | Mouse wheel | D-pad ← → |
-| Jump · Sprint | `Space` · `Shift` | `A` · `LB` |
-| Interact (hold at a mana well) | `E` | `X` |
-| Skill tree | `P` | `Y` |
-| Equipment | `I` | D-pad ↓ |
+| Jump · Sprint | `Space` · `Shift` | `LB` · push the stick fully |
+| Interact (hold at a mana well) | `E` | D-pad ↑ |
+| Skill tree · Equipment | `P` · `I` | hold `L3`, pick from the wheel |
 | Wave info | `Tab` | `View` |
 
 The in-game hints always name the button for the device you're holding.

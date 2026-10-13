@@ -53,8 +53,8 @@ const KEYBOARD: Dictionary = {
 	"next_slot": "E",
 }
 const GAMEPAD: Dictionary = {
-	"interact": "left",
-	"equipment": "D-pad down",
+	"interact": "D-pad up",
+	"equipment": "L3 wheel",
 	"accept": "bottom",
 	"next_slot": "left",
 }

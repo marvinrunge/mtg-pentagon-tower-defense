@@ -281,8 +281,8 @@ shader_parameter/cirrus_absorption = 2.0
 shader_parameter/cirrus_sky_tint_fade = 0.5
 shader_parameter/cirrus_size = 1.0
 shader_parameter/cirrus_uv = Vector2(0.16, 0.11)
-shader_parameter/cirrus_position1 = Vector2(0.33199707, 0.33199707)
-shader_parameter/cirrus_position2 = Vector2(0.33199707, 0.33199707)
+shader_parameter/cirrus_position1 = Vector2(0.2316248, 0.2316248)
+shader_parameter/cirrus_position2 = Vector2(0.2316248, 0.2316248)
 shader_parameter/cirrus_texture = ExtResource("3_i5wgy")
 shader_parameter/cumulus_visible = true
 shader_parameter/cumulus_intensity = 0.52
@@ -292,7 +292,7 @@ shader_parameter/cumulus_absorption = 2.0
 shader_parameter/cumulus_noise_freq = 2.7
 shader_parameter/cumulus_sky_tint_fade = 0.0
 shader_parameter/cumulus_size = 0.5
-shader_parameter/cumulus_position = Vector2(31.752607, 31.752607)
+shader_parameter/cumulus_position = Vector2(1.15799, 1.15799)
 shader_parameter/cumulus_texture = ExtResource("4_xvpgp")
 shader_parameter/cumulus_partial_mie_phase = Vector3(0.957564, 1.042436, 0.412)
 shader_parameter/cumulus_mie_intensity = 1.0
@@ -459,7 +459,7 @@ heightTexture = ExtResource("98_sdwp7")
 [sub_resource type="TextureSetsResource" id="TextureSetsResource_wvpf7"]
 textureSets = Array[TextureSetResource]([SubResource("TextureSetResource_ve6a8"), SubResource("TextureSetResource_mmojm"), SubResource("TextureSetResource_qfssv"), SubResource("TextureSetResource_ayq0h"), SubResource("TextureSetResource_wvpf7"), SubResource("TextureSetResource_qy21g"), SubResource("TextureSetResource_bif71"), SubResource("TextureSetResource_herpf"), SubResource("TextureSetResource_2hqj3"), SubResource("TextureSetResource_avc4j"), SubResource("TextureSetResource_nxa4y"), SubResource("TextureSetResource_vl6u8"), SubResource("TextureSetResource_wb3n1"), SubResource("TextureSetResource_yot8j"), SubResource("TextureSetResource_5v6xv"), SubResource("TextureSetResource_cnnyy"), SubResource("TextureSetResource_ndvxj")])
 
-[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_cr4xm"]
+[sub_resource type="PlaceholderTexture2DArray" id="PlaceholderTexture2DArray_07asm"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_water"]
 render_priority = 0
@@ -469,7 +469,7 @@ shader_parameter/OffsetPosition = Vector3(0, 0, 0)
 shader_parameter/ZonesSize = 0.0
 shader_parameter/Resolution = 0.0
 shader_parameter/NumberOfZones = 0.0
-shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_cr4xm")
+shader_parameter/WaterTextures = SubResource("PlaceholderTexture2DArray_07asm")
 shader_parameter/WaterFactor = 0.0
 shader_parameter/WaterInnerOffset = 0.3
 shader_parameter/WaterColor = Color(0, 0, 0, 1)

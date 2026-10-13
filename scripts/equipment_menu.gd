@@ -37,11 +37,9 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# On a gamepad this opens from the L3 wheel (ActionWheel), which sends the action itself;
+	# B and Start close it.
 	var toggle: bool = event.is_action_pressed("equipment")
-	# On a gamepad the key is D-pad down, which inside this screen is how focus moves
-	# between the cards - so there it navigates and never closes. B and Start close it.
-	if toggle and visible and event is InputEventJoypadButton:
-		toggle = false
 	if toggle or (visible and event.is_action_pressed("ui_cancel")):
 		# Not over another menu: the skill tree and the settings each own the screen while
 		# open, and the skill tree moves its selection with the same D-pad.

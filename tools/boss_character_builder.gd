@@ -111,14 +111,41 @@ const FOOT_BONES := ["mixamorig_LeftToeBase", "mixamorig_RightToeBase"]
 ## of a walk cycle rather than missing it between keyframes.
 const GROUND_SAMPLE_COUNT := 20
 
-## boss key -> source mesh + which animation set it uses.
+## boss key -> source mesh, which animation set it uses, and the weapon in its right hand.
+##
+## `weapon_transform` is only where a weapon starts out the FIRST time it is built. After
+## that the scene is the source of truth: the grip is tuned by hand in the editor, and a
+## rebuild carries the Weapon node's transform over from the scene it replaces (see
+## _attach_weapon). That is the step that was missing once - a rebuild dropped all three
+## weapons, hand-tuned grips included, and nobody noticed for weeks.
 const BOSSES := {
-	"fire_giant": {"mesh": "res://assets/enemies/bosses/fire_giant/fire_giant.fbx", "set": "standing_melee"},
-	"frost_giant": {"mesh": "res://assets/enemies/bosses/frost_giant/frost_giant.fbx", "set": "standing_melee"},
+	"fire_giant": {
+		"mesh": "res://assets/enemies/bosses/fire_giant/fire_giant.fbx", "set": "standing_melee",
+		"weapon": "res://assets/weapons/bosses/fire_giant/fire_giant_weapon.glb",
+		"weapon_transform": Transform3D(Vector3(0.00588, 0, 0), Vector3(0, -0.00588, 0), Vector3(0, 0, -0.00588), Vector3(0, 0.00441, 0)),
+	},
+	"frost_giant": {
+		"mesh": "res://assets/enemies/bosses/frost_giant/frost_giant.fbx", "set": "standing_melee",
+		"weapon": "res://assets/weapons/bosses/frost_giant/frost_giant_weapon.glb",
+		"weapon_transform": Transform3D(Vector3(0.00588, 0, 0), Vector3(0, -0.00588, 0), Vector3(0, 0, -0.00588), Vector3(0, 0.003528, 0)),
+	},
 	"treant": {"mesh": "res://assets/enemies/bosses/treant/treant.fbx", "set": "mutant"},
-	"white_paladin": {"mesh": "res://assets/enemies/bosses/white_paladin/white_paladin.fbx", "set": "sword_shield"},
+	"white_paladin": {
+		"mesh": "res://assets/enemies/bosses/white_paladin/white_paladin.fbx", "set": "sword_shield",
+		"weapon": "res://assets/weapons/bosses/white_paladin/white_paladin_weapon.glb",
+		"weapon_transform": Transform3D(Vector3(0.00588, 0, 0), Vector3(0, 0.00588, 0), Vector3(0, 0, 0.00588), Vector3(0, 0.005292, 0)),
+		# Made by tools/blender_shields.py, placed by tools/fit_shields.gd - and, like the
+		# weapon, carried over from the scene on a rebuild once it has been tuned there.
+		"shield": "res://assets/weapons/bosses/white_paladin/white_paladin_shield.glb",
+		"shield_transform": Transform3D(Vector3(0.0025285517, -0.0015146458, -0.008455541), Vector3(-0.008435118, 0.0012291237, -0.002742618), Vector3(0.001624539, 0.008739508, -0.0010797097), Vector3(0, 0.0008557099, 0)),
+	},
 	"zombie_lord": {"mesh": "res://assets/enemies/bosses/zombie_lord/zombie_lord.fbx", "set": "zombie"},
 }
+
+## The bone a boss weapon hangs from. Every boss is Mixamo-rigged, so it is the same name on all.
+const WEAPON_BONE := "mixamorig_RightHand"
+## And the one a shield hangs from.
+const SHIELD_BONE := "mixamorig_LeftHand"
 
 
 static func build_all() -> void:
@@ -364,6 +391,10 @@ static func _strip_horizontal_root_motion(anim: Animation, bone_name: String) ->
 
 
 static func _build_boss(boss_name: String, mesh_fbx_path: String, template_library: AnimationLibrary) -> bool:
+	# Read BEFORE anything is built: the scene about to be replaced is where a hand-tuned
+	# grip lives, and it is gone once the new one is saved over it.
+	var tuned_weapon: Variant = _tuned_transform(boss_name, "Weapon")
+	var tuned_shield: Variant = _tuned_transform(boss_name, "Shield")
 	var base_scene: PackedScene = ResourceLoader.load(mesh_fbx_path, "", ResourceLoader.CACHE_MODE_REPLACE)
 	if base_scene == null:
 		push_error("Could not load boss mesh %s" % mesh_fbx_path)
@@ -416,6 +447,10 @@ static func _build_boss(boss_name: String, mesh_fbx_path: String, template_libra
 	anim_player.autoplay = "walk"
 
 	_own_recursive(root, root)
+	# After the ownership pass, not before: the weapon is an INSTANCE of its glb, and owning
+	# the nodes inside it would write the whole model into the boss scene as a copy.
+	_attach_weapon(root, skeleton, boss_name, tuned_weapon)
+	_attach_shield(root, skeleton, boss_name, tuned_shield)
 
 	var packed := PackedScene.new()
 	var pack_result := packed.pack(root)
@@ -432,6 +467,75 @@ static func _build_boss(boss_name: String, mesh_fbx_path: String, template_libra
 	print("Saved ", output_path, " (attack impact at ", "%.0f%%" % (impact_ratio * 100.0), ")")
 	root.queue_free()
 	return true
+
+
+## The transform of the node called `node_name` (Weapon, Shield) in the boss scene as it
+## stands, or null when there is no scene yet or it holds no such node.
+static func _tuned_transform(boss_name: String, node_name: String) -> Variant:
+	var path: String = SCENE_DIR + "%s.tscn" % boss_name
+	if not ResourceLoader.exists(path):
+		return null
+	var scene: PackedScene = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
+	if scene == null:
+		return null
+	var existing: Node = scene.instantiate()
+	var node: Node3D = existing.find_child(node_name, true, false) as Node3D
+	var tuned: Variant = node.transform if node != null else null
+	existing.free()
+	return tuned
+
+
+## Hangs the boss's weapon off its right hand: at the grip tuned by hand when the scene
+## had one, otherwise at the starting point in BOSSES.
+##
+## The material is the glb's own, as for the enemies' weapons (CharacterBuilder's
+## _attach_weapon_model): these shipped with their textures embedded and import bound.
+static func _attach_weapon(root: Node3D, skeleton: Skeleton3D, boss_name: String, tuned: Variant) -> void:
+	var config: Dictionary = BOSSES[boss_name]
+	if not config.has("weapon"):
+		return
+	var weapon_scene: PackedScene = ResourceLoader.load(String(config["weapon"]), "", ResourceLoader.CACHE_MODE_REPLACE)
+	if weapon_scene == null:
+		push_error("Could not load %s's weapon %s" % [boss_name, config["weapon"]])
+		return
+	if skeleton.find_bone(WEAPON_BONE) == -1:
+		push_error("%s has no bone %s to hold its weapon" % [boss_name, WEAPON_BONE])
+		return
+	var attachment := BoneAttachment3D.new()
+	attachment.name = "RightHandAttachment"
+	attachment.bone_name = WEAPON_BONE
+	skeleton.add_child(attachment)
+	attachment.owner = root
+	var weapon: Node3D = weapon_scene.instantiate()
+	weapon.name = "Weapon"
+	weapon.transform = tuned if tuned is Transform3D else config["weapon_transform"]
+	attachment.add_child(weapon)
+	weapon.owner = root
+
+
+## Hangs the boss's shield off its left hand, the same way _attach_weapon hangs the
+## weapon off the right: at the grip tuned in the scene, otherwise where BOSSES says.
+static func _attach_shield(root: Node3D, skeleton: Skeleton3D, boss_name: String, tuned: Variant) -> void:
+	var config: Dictionary = BOSSES[boss_name]
+	if not config.has("shield"):
+		return
+	var shield_scene: PackedScene = ResourceLoader.load(String(config["shield"]), "", ResourceLoader.CACHE_MODE_REPLACE)
+	if shield_scene == null:
+		push_error("Could not load %s's shield %s" % [boss_name, config["shield"]])
+		return
+	if skeleton.find_bone(SHIELD_BONE) == -1:
+		push_error("%s has no bone %s to hold its shield" % [boss_name, SHIELD_BONE])
+		return
+	var attachment := BoneAttachment3D.new()
+	attachment.name = "LeftHandAttachment"
+	attachment.bone_name = SHIELD_BONE
+	skeleton.add_child(attachment)
+	attachment.owner = root
+	var shield: Node3D = shield_scene.instantiate()
+	shield.name = "Shield"
+	shield.transform = tuned if tuned is Transform3D else config["shield_transform"]
+	attachment.add_child(shield)
+	shield.owner = root
 
 
 ## These rigs import ~0.02 units tall (Mixamo centimetres run through the FBX

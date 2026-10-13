@@ -12,6 +12,14 @@ const InputHint := preload("res://scripts/input_hint.gd")
 const IntroTour := preload("res://scripts/intro_tour.gd")
 ## How far in front of the caster the charged ball floats. See _update_charge_orb.
 const CHARGE_ORB_REACH := 0.42
+## How far the left stick has to be pushed before a gamepad player sprints, which on a pad is
+## the default rather than a held button. See the movement block in _physics_process.
+const PAD_SPRINT_DEFLECTION := 0.75
+## The face buttons that cast hotbar slots on a gamepad, in slot order: A B X Y are 1-4.
+## Godot numbers them by position, so this is the same thumb movement on every pad.
+const PAD_SLOT_BUTTONS: Array = [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y]
+## Held, it shifts PAD_SLOT_BUTTONS onto the second half of the bar.
+const PAD_SLOT_SHIFT_BUTTON := JOY_BUTTON_RIGHT_SHOULDER
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
@@ -266,6 +274,10 @@ var _channel_voice: AudioStreamPlayer3D = null
 ## Whether the button that started the channel is one this can watch for a release.
 var _channel_held: bool = false
 var _channel_slot: int = -1
+## What started the cast in progress - {"key": keycode}, {"joy": button, "device": id} or
+## {"action": "cast_spell"} - so a charge or a channel asks whether THAT button is still
+## down. See _cast_held.
+var _cast_trigger: Dictionary = {}
 var _channel_fx: Node3D = null
 ## Set once a client has told the host its cast button came up, so the notice goes out
 ## once instead of every frame of the round trip. See _watch_remote_channel.
@@ -544,7 +556,7 @@ func _update_camera_shake(delta: float) -> void:
 	if _shake_timer <= 0.0:
 		camera.position = Vector3.ZERO
 
-## "[E]" or "[X]", whichever the player last had in hand. See InputHint.
+## "[E]" or "[D-pad up]", whichever the player last had in hand. See InputHint.
 func _interact_key_label() -> String:
 	return InputHint.key("interact")
 
@@ -744,41 +756,83 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				cycle_spell(1)
 
-		# "cast_spell" covers both right-mouse-button and the gamepad left trigger.
+		# Keyboard only now: Q. On a gamepad every slot has a button of its own (below), so
+		# there is no "cast whatever is selected" button there to need.
 		if event.is_action_pressed("cast_spell"):
+			_cast_trigger = {"action": "cast_spell"}
 			cast_active_spell()
 		elif event.is_action_released("cast_spell"):
-			if is_charging:
-				release_charged_spell()
-			elif _channel_id != "" and _channel_held:
-				_end_channel()
+			_release_cast({"action": "cast_spell"})
 
 		if event.is_action_pressed("cycle_spell_prev"):
 			cycle_spell(-1)
 		elif event.is_action_pressed("cycle_spell_next"):
 			cycle_spell(1)
 
-		# Number keys are a real hotbar: they select AND cast, which is what the ten
-		# slots the HUD already draws look like they do. They mirror "cast_spell"
-		# exactly, press and release, so a chargeable spell charges while the key is
-		# held and fires when it comes up - otherwise 1-5 could start a charge with
-		# no way to release it.
+		# Number keys are a real hotbar: they select AND cast, which is what the
+		# slots the HUD already draws look like they do. Press and release both count, so a
+		# chargeable spell charges while the key is held and fires when it comes up.
 		if event is InputEventKey and not event.echo:
 			var keycode: int = event.keycode
-			var target_idx: int = -1
-			if keycode >= KEY_1 and keycode <= KEY_9:
-				target_idx = keycode - KEY_1
-			if target_idx >= 0 and target_idx < quick_slots.size():
+			if keycode >= KEY_1 and keycode < KEY_1 + quick_slots.size():
 				if event.pressed:
-					if is_spell_unlocked(target_idx):
-						if active_spell_index != target_idx:
-							active_spell_index = target_idx
-							SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
-						cast_active_spell()
-				elif is_charging and charging_spell_id == _get_spell_id_for_slot(target_idx):
-					release_charged_spell()
-				elif _channel_id != "" and _channel_slot == target_idx:
-					_end_channel()
+					_cast_slot(keycode - KEY_1, {"key": keycode})
+				else:
+					_release_cast({"key": keycode})
+
+		# The gamepad's hotbar: A B X Y cast slots 1-4, and the same four with RB held cast
+		# 5-8. Picking a spell used to mean stepping the D-pad along the bar to it and then
+		# pressing cast, which made two different spells back to back four or five presses
+		# apart - the slow part of every fight on a pad.
+		#
+		# The release is matched against the button that STARTED the cast rather than the
+		# slot it works out to now, so letting go of RB before the face button still fires
+		# the charge it began.
+		if event is InputEventJoypadButton:
+			var face: int = PAD_SLOT_BUTTONS.find(event.button_index)
+			if face >= 0:
+				var trigger: Dictionary = {"joy": event.button_index, "device": event.device}
+				if event.pressed:
+					var shifted: bool = Input.is_joy_button_pressed(event.device, PAD_SLOT_SHIFT_BUTTON)
+					_cast_slot(face + (PAD_SLOT_BUTTONS.size() if shifted else 0), trigger)
+				else:
+					_release_cast(trigger)
+
+
+## Selects `slot` and casts it, remembering what was pressed so holding and letting go are
+## asked of that same button.
+func _cast_slot(slot: int, trigger: Dictionary) -> void:
+	if slot < 0 or slot >= quick_slots.size() or not is_spell_unlocked(slot):
+		return
+	if active_spell_index != slot:
+		active_spell_index = slot
+		SignalBus.active_spell_changed.emit(get_spell_name_for_slot(active_spell_index))
+	# Not while one is already charging or channelling: the button that started THAT one is
+	# the one whose release must end it, and cast_active_spell is about to refuse anyway.
+	if not is_charging and _channel_id == "":
+		_cast_trigger = trigger
+	cast_active_spell()
+
+
+## A cast button came up. Only the one that started the cast in progress ends it.
+func _release_cast(trigger: Dictionary) -> void:
+	if trigger != _cast_trigger:
+		return
+	if is_charging:
+		release_charged_spell()
+	elif _channel_id != "" and _channel_held:
+		_end_channel()
+
+
+## Whether the button that started the current cast is still down - what a charge and a
+## channel both ask. It used to ask after Q alone, so a Fire Cone started from a number key
+## never needed holding and one started from the pad could not be held at all.
+func _cast_held() -> bool:
+	if _cast_trigger.has("key"):
+		return Input.is_key_pressed(int(_cast_trigger["key"]))
+	if _cast_trigger.has("joy"):
+		return Input.is_joy_button_pressed(int(_cast_trigger["device"]), int(_cast_trigger["joy"]))
+	return Input.is_action_pressed("cast_spell")
 
 func cycle_spell(dir: int) -> void:
 	var original_index = active_spell_index
@@ -1235,7 +1289,9 @@ func cast_active_spell() -> void:
 
 	if SpellDatabase.is_channelled(spell_id):
 		_casting_rank = maxi(get_spell_rank(spell_id), 1)
-		_run_spell_effect(spell_id, 1.0)
+		# Held from the start, or the channel never learns that the button coming up should end
+		# it - which is how a Fire Cone ran its full five seconds whatever the player did.
+		_run_spell_effect(spell_id, 1.0, is_local and _cast_held())
 	elif is_chargeable(spell_id):
 		is_charging = true
 		charge_timer = 0.0
@@ -1529,7 +1585,7 @@ func execute_spell(spell_id: String, charge_pct: float = 1.0) -> void:
 	# keyboard. Only Fire Cone uses it - a channel ends when the button comes up - and the
 	# server has no way to find it out for itself: asking Input there answers for the HOST,
 	# which is how a client's channel ended the instant the host was not pressing anything.
-	var held: bool = is_local and Input.is_action_pressed("cast_spell")
+	var held: bool = is_local and _cast_held()
 	if Net.is_active() and not Net.is_server():
 		# The aim ray and the charge orb's position go along with the spell: both only exist
 		# on this machine, and the server's guesses at them are why a client's Fireball left
@@ -2370,6 +2426,30 @@ func _return_to_seat() -> void:
 	global_position = spawn_point.origin
 	rotation.y = spawn_point.basis.get_euler().y
 
+
+## Below anything a player could stand on, or past the fence at the map's edge. A body that
+## slipped through the terrain - or was launched over the MapBounds walls - otherwise falls
+## for ever, and the match carries on without them. The ground bottoms out around -10 m and
+## the fence stands just inside the 256 m half-width, so both lines leave real play alone.
+func _is_out_of_world() -> bool:
+	var at: Vector3 = global_position
+	return at.y < GameSettings.player_out_of_world_y \
+		or absf(at.x) > GameSettings.player_out_of_world_extent \
+		or absf(at.z) > GameSettings.player_out_of_world_extent
+
+
+## Back to their seat by the crystal, the way a respawn puts them there, with nothing carried
+## over from the fall. Not a death and not a down: falling out of the map is the map's fault.
+## Only the owner runs this - see _return_to_seat for why the move belongs to them.
+func _rescue_from_out_of_world() -> void:
+	print("Player rescued from out of the world at %s" % global_position)
+	ErrorReporter.breadcrumb("%s fell out of the world at %s - back to the crystal" % [name, global_position.snapped(Vector3.ONE * 0.1)])
+	velocity = Vector3.ZERO
+	global_position = spawn_point.origin
+	rotation.y = spawn_point.basis.get_euler().y
+	# A moment to find their feet before anything can hit them where they land.
+	_invulnerable_timer = maxf(_invulnerable_timer, GameSettings.player_out_of_world_grace)
+
 # --- 25 MTG SPELL IMPLEMENTATIONS ---
 
 
@@ -3018,7 +3098,7 @@ func _update_channel(delta: float) -> void:
 		# Only the caster's own machine can read this. When the caster is somebody else's
 		# avatar the server waits to be told the button came up (see _net_end_channel)
 		# rather than answering with the host's keyboard, which is not the one being held.
-		still_held = Input.is_action_pressed("cast_spell") if is_local else true
+		still_held = _cast_held() if is_local else true
 	if _channel_timer <= 0.0 or not still_held or is_downed or _stagger_timer > 0.0:
 		_end_channel()
 		return
@@ -3053,7 +3133,7 @@ func _update_remote_effects() -> void:
 func _watch_remote_channel() -> void:
 	if _channel_release_sent or not _channel_held:
 		return
-	if Input.is_action_pressed("cast_spell"):
+	if _cast_held():
 		return
 	_channel_release_sent = true
 	_net_end_channel.rpc_id(1)
@@ -3905,6 +3985,9 @@ func _physics_process(delta: float) -> void:
 	_publish_build()
 	# Runs before the downed early-out so a shake still settles while downed.
 	_update_camera_shake(delta)
+	if _is_out_of_world():
+		_rescue_from_out_of_world()
+		return
 	if is_downed:
 		# The clock runs everywhere so the countdown on screen reads correctly, but only
 		# the server may act on it - the same split UpkeepPanel uses. Two peers deciding
@@ -4085,7 +4168,14 @@ func _physics_process(delta: float) -> void:
 	# A wind-up roots as hard as the swing it becomes: it is a full-body clip, and the
 	# player chooses when it ends by letting go.
 	var rooted: bool = (_action_timer > 0.0 and _action_roots_player) or _stagger_timer > 0.0 or _heavy_charge_timer >= 0.0
-	var sprinting: bool = is_local and Input.is_action_pressed("sprint") and not is_blocking and not rooted
+	# On a gamepad, sprint is the default and there is no button for it. Holding a shoulder
+	# button for the whole of every trip across the map is a cramp, and the stick already says
+	# how fast the player means to go - so it is a firm push that sprints, and a gentle one
+	# still walks rather than jogging at a sprint's pace with the run cycle on.
+	var wants_sprint: bool = Input.is_action_pressed("sprint")
+	if InputHint.gamepad:
+		wants_sprint = input_dir.length() >= PAD_SPRINT_DEFLECTION
+	var sprinting: bool = is_local and wants_sprint and not is_blocking and not rooted
 	if sprinting:
 		current_speed *= GameSettings.player_sprint_speed_mult
 	if slow_timer > 0:

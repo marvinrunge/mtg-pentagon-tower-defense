@@ -246,9 +246,12 @@ func _input(event: InputEvent) -> void:
 		# explain than any widget would be.
 		_bind_hovered_to_slot(event.keycode - KEY_1)
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("interact"):
+	elif event.is_action_pressed("interact") \
+			or (event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_X):
 		# The gamepad's way to the same loadout: no number keys, so X walks the selected
-		# spell along the bar one slot at a time, swapping with whatever is there.
+		# spell along the bar one slot at a time, swapping with whatever is there. Read off
+		# the button rather than "interact": on a pad that is D-pad up, which in here moves
+		# the selection and is matched above before it could get this far.
 		_bind_selected_to_next_slot()
 		get_viewport().set_input_as_handled()
 

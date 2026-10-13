@@ -27,6 +27,9 @@ var _settings_menu: VBoxContainer
 ## The equipment screen (I). Added here so it exists wherever a run does - see
 ## scripts/equipment_menu.gd.
 const EquipmentMenuScript := preload("res://scripts/equipment_menu.gd")
+## The gamepad's L3 wheel, where the skill tree and the equipment open from. See
+## scripts/action_wheel.gd.
+const ActionWheelScript := preload("res://scripts/action_wheel.gd")
 const InputHint := preload("res://scripts/input_hint.gd")
 const DEFEAT_TITLE: Texture2D = preload("res://assets/images/title_defeat.png")
 ## The map from straight above, the square Minimap.world_radius spans: rendered by
@@ -157,6 +160,9 @@ const SCOREBOARD_COLUMNS: Array = [
 	["heal_self", "Healed Self", true],
 	["heal_others", "Healed Others", true],
 ]
+
+## Which device the hotbar's key labels were last written for. See _process.
+var _hotbar_labels_for_pad: bool = false
 
 var _message_log: Array[Dictionary] = []
 var _tab_panel: PanelContainer
@@ -293,6 +299,9 @@ func _ready() -> void:
 	var equipment_menu: CanvasLayer = EquipmentMenuScript.new()
 	equipment_menu.name = "EquipmentMenu"
 	add_child(equipment_menu)
+	var action_wheel: CanvasLayer = ActionWheelScript.new()
+	action_wheel.name = "ActionWheel"
+	add_child(action_wheel)
 	restart_btn.pressed.connect(_on_restart_pressed)
 	settings_panel.hide()
 	game_over_panel.hide()
@@ -357,14 +366,23 @@ func _update_fps_label() -> void:
 	var gpu: float = RenderingServer.viewport_get_measured_render_time_gpu(vp)
 	var cpu: float = RenderingServer.viewport_get_measured_render_time_cpu(vp) \
 		+ Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
-	fps_label.text = "FPS: %d   worst %.0f ms\nGPU %.1f ms   CPU %.1f ms\nEnemies %d   Draws %d" % [
-		Engine.get_frames_per_second(), _fps_worst_frame * 1000.0, gpu, cpu,
+	# Physics on its own: it is where every enemy's AI and movement run, and leaving it out
+	# of "CPU" once showed 26 ms of CPU for a frame that took 36 - the missing ten were the
+	# enemies, and nothing on screen said so.
+	var physics: float = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+	fps_label.text = "FPS: %d   worst %.0f ms\nGPU %.1f ms   CPU %.1f ms   Physics %.1f ms\nEnemies %d   Draws %d" % [
+		Engine.get_frames_per_second(), _fps_worst_frame * 1000.0, gpu, cpu, physics,
 		get_tree().get_nodes_in_group("enemies").size(),
 		Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)]
 	_fps_worst_frame = 0.0
 
 
 func _process(delta: float) -> void:
+	# The hotbar names the key for each slot, and that is a different key on a pad. Nothing
+	# announces the switch, so it is watched for - one bool compare a frame.
+	if InputHint.gamepad != _hotbar_labels_for_pad:
+		_hotbar_labels_for_pad = InputHint.gamepad
+		_update_hotbar_display(_active_spell_idx)
 	_boss_pulse += delta
 	_boss_scan_timer -= delta
 	if _boss_scan_timer <= 0.0:
@@ -1097,8 +1115,8 @@ func _input(event: InputEvent) -> void:
 		# press did something different again.
 		if not settings_panel.visible and not _open_menus.is_empty():
 			return
-		# B is "back" in a menu and kick in play, so it closes this panel but never opens
-		# it - Start and Escape do that. Left unhandled, so the kick still happens.
+		# B is "back" in a menu and a spell slot in play, so it closes this panel but never
+		# opens it - Start and Escape do that. Left unhandled, so the spell still goes off.
 		var joy_button := event as InputEventJoypadButton
 		if not settings_panel.visible and joy_button != null and joy_button.button_index == JOY_BUTTON_B:
 			return
@@ -1323,6 +1341,8 @@ func _update_hotbar_display(active_idx: int) -> void:
 			continue
 			
 		var num_label: Label = slot.get_node_or_null("Num") as Label
+		if num_label:
+			num_label.text = _slot_key_label(i)
 		var icon: TextureRect = slot.get_node_or_null("Icon") as TextureRect
 		var spell_id: String = _player._get_spell_id_for_slot(i) if _player and _player.has_method("_get_spell_id_for_slot") else ""
 		if icon:
@@ -1373,6 +1393,18 @@ func _update_hotbar_display(active_idx: int) -> void:
 				num_label.add_theme_color_override("font_color", Color(0.2, 0.2, 0.2))
 
 		slot.add_theme_stylebox_override("panel", sb)
+
+## What casts slot `index`: its number key, or on a pad its face button - with the
+## shoulder button in front for the second four (Player.PAD_SLOT_BUTTONS).
+func _slot_key_label(index: int) -> String:
+	if not InputHint.gamepad:
+		return str(index + 1)
+	const POSITIONS: Array[String] = ["bottom", "right", "left", "top"]
+	var face: String = InputHint.pad(POSITIONS[index % POSITIONS.size()])
+	if index < POSITIONS.size():
+		return face
+	return "%s+%s" % [InputHint.pad("rb"), face]
+
 
 ## Gives every slot a rounded icon that covers the whole square.
 ##
