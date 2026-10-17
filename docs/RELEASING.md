@@ -32,7 +32,7 @@ create a Release and does **not** mail anyone. Only a tag does.
 
 ## What the tester receives
 
-An email titled `[marvinrunge/mtg-pentagon-tower-defense] Release v0.3.0`, linking to a
+An email titled `[marvinrunge/pentafall] Release v0.3.0`, linking to a
 page with the `.exe` and the commit log. The release text tells them to expect
 **"Windows protected your PC"** on first run and to click *More info → Run anyway* — an
 unsigned build always triggers that, and it looks like a virus warning if nobody said so

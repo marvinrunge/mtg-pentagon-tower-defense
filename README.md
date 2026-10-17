@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/marvinrunge/mtg-pentagon-tower-defense/releases/latest"><img alt="Download" src="https://img.shields.io/badge/download-Windows-6b4fbb?style=for-the-badge"></a>
+  <a href="https://github.com/marvinrunge/pentafall/releases/latest"><img alt="Download" src="https://img.shields.io/badge/download-Windows-6b4fbb?style=for-the-badge"></a>
   <img alt="Godot 4.7" src="https://img.shields.io/badge/Godot-4.7-478cbf?style=for-the-badge&logo=godotengine&logoColor=white">
   <img alt="Players" src="https://img.shields.io/badge/co--op-1%E2%80%935%20players-c9a227?style=for-the-badge">
 </p>
@@ -95,7 +95,7 @@ The in-game hints always name the button for the device you're holding.
 ## Playing
 
 **Windows:** download `Pentafall-windows.zip` from the
-[latest release](https://github.com/marvinrunge/mtg-pentagon-tower-defense/releases/latest),
+[latest release](https://github.com/marvinrunge/pentafall/releases/latest),
 unzip it and run `Pentafall.exe`. Keep the DLLs next to the `.exe`. The build is
 unsigned, so Windows SmartScreen will warn you on first launch. Click
 *More info → Run anyway*.
